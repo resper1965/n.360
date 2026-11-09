@@ -107,7 +107,15 @@ describe('avaliações', () => {
     expect(await json<{ metodo: string }>(r)).toMatchObject({ metodo: 'trust_center' });
     expect((await avaliar('tc-a', { metodo: 'auditoria' })).status).toBe(400);
     expect(await achar('tc-a')).toMatchObject({ situacao: 'vigente', ultima_avaliacao: { metodo: 'trust_center', valido_ate: dias(90) } });
-    const crit = await avaliar('tc-c');
+    // crítico (fatia 3): aprovado ou com ressalvas sem evidência é 400; reprovado não exige
+    for (const resultado of ['aprovado', 'com_ressalvas']) {
+      const sem = await avaliar('tc-c', { resultado });
+      expect(sem.status).toBe(400);
+      expect((await json<{ error: string }>(sem)).error).toContain('exige o link da evidência');
+    }
+    expect((await avaliar('tc-c', { resultado: 'reprovado' })).status).toBe(201);
+    const crit = await avaliar('tc-c', { evidencia_url: 'https://auditoria.exemplo.com/relatorio' });
+    expect(crit.status, await crit.clone().text()).toBe(201);
     expect(await json<{ metodo: string }>(crit)).toMatchObject({ metodo: 'auditoria' });
   });
 

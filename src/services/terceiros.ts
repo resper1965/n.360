@@ -227,6 +227,9 @@ export async function registrarAvaliacao(db: D1Database, projectId: string, part
   if (!p.terceiro_tipo) return falha(400, 'Defina o tipo do terceiro antes de registrar a avaliação');
   if (!dataValida(d.valido_ate)) return falha(400, 'valido_ate precisa ser uma data AAAA-MM-DD');
   if (d.valido_ate < hoje()) return falha(400, 'valido_ate não pode estar no passado');
+  // crítico (fatia 3): aprovar, mesmo com ressalvas, pede a evidência; reprovar não
+  if (p.terceiro_tipo === 'critico' && d.resultado !== 'reprovado' && !d.evidencia_url)
+    return falha(400, 'Fornecedor crítico: a avaliação aprovada ou com ressalvas exige o link da evidência');
   // teto: o prazo do modelo do tipo ATUAL (fatia 2); o tipo da avaliação fica gravado para a reavaliação quando ele mudar
   const meses = await prazoDoTipo(db, projectId, p.terceiro_tipo);
   const maxima = somarMeses(hoje(), meses);

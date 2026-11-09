@@ -11,8 +11,11 @@ const NIVEIS = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
 const TIPOS = { grande_provedor: 'Grande provedor', medio: 'Médio', pequeno: 'Pequeno', critico: 'Crítico' };
 const METODOS = { trust_center: 'Trust center', questionario: 'Questionário', auditoria: 'Auditoria' };
 const ORDEM_NIVEL = { alto: 0, medio: 1, baixo: 2 };
-// reprovada vem junto das vencidas (o selo a conta como atraso); reavaliar = avaliação no prazo, mas feita noutro tipo
-const GRUPOS = [['vencida', 'Vencidas'], ['reprovada', 'Reprovadas'], ['reavaliar', 'Reavaliar: o tipo mudou'], ['vence', 'Vencem em 30 dias'], ['pendente', 'Sem avaliação'], ['vigente', 'Em dia']];
+// reprovada vem junto das vencidas (o selo a conta como atraso); reavaliar = avaliação no prazo, mas feita noutro tipo;
+// respondido e link vencido (fatia 4) vêm do questionário e passam à frente da situação: são o que há a fazer agora
+const GRUPOS = [['vencida', 'Vencidas'], ['reprovada', 'Reprovadas'], ['reavaliar', 'Reavaliar: o tipo mudou'],
+    ['respondido', 'Questionário respondido, aguardando conclusão'], ['link_vencido', 'Link vencido sem resposta'],
+    ['vence', 'Vencem em 30 dias'], ['pendente', 'Sem avaliação'], ['vigente', 'Em dia']];
 const JANELA_DIAS = 30;
 
 const args = (...v) => escapeHTML(JSON.stringify(v));
@@ -24,8 +27,18 @@ const DIA = 86_400_000;
 const diasAte = (t) => (t.ultima_avaliacao && t.ultima_avaliacao.valido_ate
     ? Math.round((Date.parse(`${String(t.ultima_avaliacao.valido_ate).slice(0, 10)}T00:00:00Z`) - Date.parse(`${hojeSP()}T00:00:00Z`)) / DIA) : null);
 
-/** O grupo da fila: vigente com validade em até 30 dias vira "vence". */
-const grupoDe = (t) => (t.situacao === 'vigente' && (diasAte(t) ?? Infinity) <= JANELA_DIAS ? 'vence' : t.situacao);
+/** O questionário do fornecedor que pede ação: respondido esperando conclusão, ou link aberto já vencido. */
+function questionarioDe(homologacoes) {
+    const porParte = {};
+    for (const h of homologacoes) {
+        const q = h.status === 'respondida' ? 'respondido' : h.status === 'aberta' && h.expirada ? 'link_vencido' : null;
+        if (q && porParte[h.parte_id] !== 'respondido') porParte[h.parte_id] = q;
+    }
+    return porParte;
+}
+
+/** O grupo da fila: o questionário que pede ação primeiro; vigente com validade em até 30 dias vira "vence". */
+const grupoDe = (t, q) => q[t.id] || (t.situacao === 'vigente' && (diasAte(t) ?? Infinity) <= JANELA_DIAS ? 'vence' : t.situacao);
 
 const urgencia = (a, b) => (ORDEM_NIVEL[a.nivel] ?? 3) - (ORDEM_NIVEL[b.nivel] ?? 3) || (diasAte(a) ?? -Infinity) - (diasAte(b) ?? -Infinity) || a.nome.localeCompare(b.nome, 'pt-BR');
 
@@ -34,8 +47,12 @@ async function renderAvaliacoesTerceiros(c, h, a) {
     a.innerHTML = '';
     const proj = projetoAtivo();
     if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
-    let terceiros;
-    try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as avaliações.', e); return; }
+    let terceiros, homologacoes;
+    try {
+        [terceiros, homologacoes] = await Promise.all([api('GET', `/api/v1/projects/${proj.id}/terceiros`).then(lista),
+            // sem os questionários a fila segue com a situação (os dois grupos novos ficam vazios)
+            api('GET', `/api/v1/projects/${proj.id}/homologacoes`).then(lista, () => [])]);
+    } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as avaliações.', e); return; }
     if (!terceiros.length) {
         c.innerHTML = window.renderEmptyState({ titulo: 'Nenhum fornecedor para avaliar',
             texto: 'O tipo do fornecedor define o método de avaliação.',
@@ -44,7 +61,8 @@ async function renderAvaliacoesTerceiros(c, h, a) {
         return;
     }
     const porGrupo = Object.fromEntries(GRUPOS.map(([k]) => [k, []]));
-    for (const t of terceiros) (porGrupo[grupoDe(t)] || porGrupo.pendente).push(t);
+    const q = questionarioDe(homologacoes);
+    for (const t of terceiros) (porGrupo[grupoDe(t, q)] || porGrupo.pendente).push(t);
     c.innerHTML = GRUPOS.filter(([k]) => porGrupo[k].length).map(([k, rotulo]) => {
         const linhas = porGrupo[k].sort(urgencia).map((t) => {
             const d = diasAte(t);

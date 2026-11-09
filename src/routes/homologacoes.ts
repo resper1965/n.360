@@ -6,9 +6,14 @@ import { emailHomologacao } from '../services/emails';
 import { appUrl } from '../config/url';
 import {
   atualizarPergunta, cancelarHomologacao, concluirHomologacao, criarHomologacao, criarPergunta, lerHomologacao, listarHomologacoes, listarPerguntas,
+  novoLinkHomologacao, prorrogarHomologacao,
 } from '../services/homologacao';
 import { TIPOS_MODELO, ajustarPerguntaDoModelo, type TipoModelo } from '../services/fornecedor-modelos';
-import { validateBody, homologacaoAjusteSchema, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoPerguntaAtualizarSchema, homologacaoPerguntaCriarSchema } from '../schemas';
+import type { Context } from 'hono';
+import {
+  validateBody, homologacaoAjusteSchema, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoNovoLinkSchema, homologacaoPerguntaAtualizarSchema,
+  homologacaoPerguntaCriarSchema, homologacaoPrazoSchema,
+} from '../schemas';
 
 /**
  * F5: homologação de fornecedor por questionário. Montado em `/api/v1/projects/:projectId/homologacoes` (faixa privacy), então o
@@ -70,23 +75,29 @@ homologacoesApp.post('/', async (c) => {
     if (!ehEquipeNess(c.get('user'))) return c.json(SO_CONSULTORIA, 403);
     const v = await validateBody(c, homologacaoCriarSchema);
     if (!v.success) return v.response;
-    const r = await criarHomologacao(c.env.DB, pid(c), c.get('user').email, { parte_id: v.data.parte_id, dias: v.data.dias ?? 15 });
+    const r = await criarHomologacao(c.env.DB, pid(c), c.get('user').email, { parte_id: v.data.parte_id, dias: v.data.dias ?? 15, email: v.data.email });
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    const url = `${appUrl(c.env)}/homologacao#${r.token}`;
-    // Só com o envio configurado de verdade: sem a chave, a tela mostra o link para copiar.
-    let email_enviado = false;
-    if (v.data.email && c.env.RESEND_API_KEY) {
-      const db = c.env.DB;
-      const cliente = (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(pid(c)).first<string>('client_name')) ?? '';
-      const user = c.get('user');
-      const consultoria = await db.prepare('SELECT o.name FROM users u JOIN organizations o ON o.id = u.org_id WHERE u.id = ?').bind(user.id).first<string>('name');
-      const quem = { nome: user.name ?? null, email: user.email, organizacao: consultoria ?? null };
-      const m = emailHomologacao({ cliente, fornecedor: r.parte_nome, expiraEm: r.expira_em, link: url, quem });
-      email_enviado = await sendEmail(c, v.data.email, m.assunto, m, { from: remetente('n.privacy', cliente), replyTo: user.email });
-    }
-    return c.json({ id: r.id, url, expira_em: r.expira_em, email_enviado }, 201);
+    return c.json(await comLink(c, r, v.data.email), 201);
   } catch (e) { return erro500(c, 'Falha ao criar a homologação', e); }
 });
+
+type Criada = { id: string; token: string; expira_em: string; parte_nome: string };
+/** O link (com o token) sai UMA vez, nesta resposta; com e-mail e o envio configurado de verdade, também vai por e-mail. */
+async function comLink(c: Context<{ Bindings: Bindings; Variables: Variables }>, r: Criada, email?: string) {
+  const url = `${appUrl(c.env)}/homologacao#${r.token}`;
+  // Só com o envio configurado de verdade: sem a chave, a tela mostra o link para copiar.
+  let email_enviado = false;
+  if (email && c.env.RESEND_API_KEY) {
+    const db = c.env.DB;
+    const cliente = (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(pid(c)).first<string>('client_name')) ?? '';
+    const user = c.get('user');
+    const consultoria = await db.prepare('SELECT o.name FROM users u JOIN organizations o ON o.id = u.org_id WHERE u.id = ?').bind(user.id).first<string>('name');
+    const quem = { nome: user.name ?? null, email: user.email, organizacao: consultoria ?? null };
+    const m = emailHomologacao({ cliente, fornecedor: r.parte_nome, expiraEm: r.expira_em, link: url, quem });
+    email_enviado = await sendEmail(c, email, m.assunto, m, { from: remetente('n.privacy', cliente), replyTo: user.email });
+  }
+  return { id: r.id, url, expira_em: r.expira_em, email_enviado };
+}
 
 homologacoesApp.get('/:id', async (c) => {
   try {
@@ -111,4 +122,27 @@ homologacoesApp.post('/:id/cancelar', async (c) => {
     const r = await cancelarHomologacao(c.env.DB, pid(c), c.req.param('id'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao cancelar a homologação', e); }
+});
+
+/** Fatia 4: prorrogar o link aberto (inclusive vencido sem resposta); o prazo conta de agora. */
+homologacoesApp.put('/:id/prazo', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_CONSULTORIA, 403);
+    const v = await validateBody(c, homologacaoPrazoSchema);
+    if (!v.success) return v.response;
+    const r = await prorrogarHomologacao(c.env.DB, pid(c), c.req.param('id'), v.data.dias, c.get('user').email);
+    return r.ok ? c.json({ ok: true, expira_em: r.expira_em }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao prorrogar a homologação', e); }
+});
+
+/** Fatia 4: cancela o link aberto e cria outro, com as perguntas atuais; o link novo sai uma vez, como na criação. */
+homologacoesApp.post('/:id/novo-link', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_CONSULTORIA, 403);
+    const v = await validateBody(c, homologacaoNovoLinkSchema);
+    if (!v.success) return v.response;
+    const r = await novoLinkHomologacao(c.env.DB, pid(c), c.req.param('id'), c.get('user').email, { dias: v.data.dias ?? 15, email: v.data.email });
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    return c.json(await comLink(c, r, v.data.email), 201);
+  } catch (e) { return erro500(c, 'Falha ao gerar o link novo', e); }
 });
