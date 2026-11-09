@@ -100,6 +100,36 @@ describe('GET /desvios', () => {
   });
 });
 
+describe('GET /desvios — teto, descritores e trilha', () => {
+  const sensivel = async () => (await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel' AND project_id = 'proj-a'`).all<{ details: string }>()).results;
+
+  it('descritores do ativo (fabricante, protocolos_portas) aparecem para todos; ip só para o completo, com uma trilha e contagem', async () => {
+    const antes = (await sensivel()).length;
+    const mask = await (await chamar(tec, 'GET', `${P}/desvios?tipo=ativo`)).json() as { desvios: Record<string, any>[] };
+    expect(mask.desvios[0]).toMatchObject({ fabricante: 'SEL', protocolos_portas: [{ protocolo: 'modbus', porta: 502 }] });
+    expect(mask.desvios.every((d) => !('ip' in d))).toBe(true);
+    expect(JSON.stringify(mask)).not.toMatch(/ip_cifrado|ot1:|_hash/);
+    expect((await sensivel()).length).toBe(antes);
+    const f = await (await chamar(gestor, 'GET', `${P}/desvios?tipo=fluxo`)).json() as { desvios: Record<string, any>[] };
+    expect('fabricante' in f.desvios[0]).toBe(false);
+    expect((await sensivel()).length).toBe(antes);
+    await chamar(gestor, 'GET', `${P}/desvios?tipo=ativo`);
+    const depois = await sensivel();
+    expect(depois).toHaveLength(antes + 1);
+    expect(depois.at(-1)!.details).toBe('2 desvio(s) com IP sem máscara');
+  });
+
+  it('além de 200 desvios no site, a linha 201+ mantém origem, protocolo e porta', async () => {
+    await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s3', 'proj-a', 'SE Grande')`).run();
+    await env.DB.batch(Array.from({ length: 201 }, (_, i) => env.DB.prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, primeira_vez, ultima_vez)
+      VALUES (?, 'proj-a', 's3', 'fluxo', ?, ?, '2026-11-01T00:00:00Z', ?)`).bind(`g${i}`, `chave-g${i}`,
+      JSON.stringify({ protocolo: 'dnp3', porta: 20000, externo: false }), `2026-11-02T00:00:${String(i % 60).padStart(2, '0')}Z`)));
+    const { desvios } = await (await chamar(gestor, 'GET', `${P}/desvios?site_id=s3`)).json() as { desvios: Record<string, any>[] };
+    expect(desvios).toHaveLength(201);
+    for (const d of desvios) expect(d).toMatchObject({ protocolo: 'dnp3', porta: 20000, origem: { ativo: null, zona: null } });
+  });
+});
+
 describe('tratar e aceitar', () => {
   it('desvio de outro projeto → 404; tratar sem nota → 400', async () => {
     expect((await chamar(gestor, 'POST', `${P}/desvios/d-b/tratar`, { nota: 'ok' })).status).toBe(404);

@@ -20,14 +20,13 @@ const LOTE = 1000; // chaves por leitura (json_each)
 const BLOCO = 50; // statements por batch do D1
 
 /**
- * Corpo do POST (spec §4). A ponta conhecida vira nome do ativo e da zona; a desconhecida, null. Nunca IP, MAC nem a cifra deles:
- * o corpo é montado campo a campo, sem espalhar `dados`. `acao` do item prevalece sobre a do lote.
+ * Projeção por desvio, sem teto: a ponta conhecida vira nome do ativo e da zona (por id ou ip_hash), a desconhecida, null. Nunca IP, MAC
+ * nem a cifra/hash deles: o item é montado campo a campo, sem espalhar `dados`. `acao` do item prevalece sobre a do lote.
  */
-export async function corpoWebhook(env: Bindings, projectId: string, siteId: string, desvios: (LinhaDesvio & { acao?: AcaoDesvio })[],
-  acao: AcaoDesvio): Promise<Record<string, unknown>> {
+export async function projetarDesvios(env: Bindings, projectId: string, siteId: string, desvios: (LinhaDesvio & { acao?: AcaoDesvio })[],
+  acao: AcaoDesvio | null = null) {
   const db = env.DB;
-  const [site, ativos, zonas] = await Promise.all([
-    db.prepare('SELECT nome FROM ot_sites WHERE id = ? AND project_id = ?').bind(siteId, projectId).first<{ nome: string }>(),
+  const [ativos, zonas] = await Promise.all([
     ativosDoSite(db, projectId, siteId),
     db.prepare(`SELECT id, nome FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId)
       .all<{ id: string; nome: string }>(),
@@ -39,16 +38,26 @@ export async function corpoWebhook(env: Bindings, projectId: string, siteId: str
     const a = (typeof id === 'string' ? porId.get(id) : undefined) ?? (typeof hash === 'string' ? porId.get(`h:${hash}`) : undefined);
     return { ativo: a?.nome ?? null, zona: (a && zona.get(a.zona_id as string)) ?? null };
   };
+  return desvios.map((x) => {
+    const d = JSON.parse(x.dados) as Record<string, unknown>;
+    const [pp] = Array.isArray(d.protocolos_portas) ? d.protocolos_portas as { protocolo?: string; porta?: number }[] : [];
+    return { id: x.id, acao: x.acao ?? acao, situacao: x.situacao, tipo: x.tipo, protocolo: d.protocolo ?? pp?.protocolo ?? null,
+      porta: d.porta ?? pp?.porta ?? null, externo: !!d.externo, origem: ponta(d.origem_ativo_id, d.origem_ip_hash), destino: ponta(d.destino_ativo_id, d.destino_ip_hash),
+      primeira_vez: x.primeira_vez, ultima_vez: x.ultima_vez, ocorrencias: x.ocorrencias };
+  });
+}
+
+/** Corpo do POST (spec §4): a projeção acima, limitada a 200 itens, com o resto em `nao_listados`. */
+export async function corpoWebhook(env: Bindings, projectId: string, siteId: string, desvios: (LinhaDesvio & { acao?: AcaoDesvio })[],
+  acao: AcaoDesvio): Promise<Record<string, unknown>> {
+  const [site, itens] = await Promise.all([
+    env.DB.prepare('SELECT nome FROM ot_sites WHERE id = ? AND project_id = ?').bind(siteId, projectId).first<{ nome: string }>(),
+    projetarDesvios(env, projectId, siteId, desvios.slice(0, TETO_DESVIOS_POST), acao),
+  ]);
   const base = appUrl(env);
   return {
     evento: 'ot.desvio', projeto_id: projectId, site: { id: siteId, nome: site?.nome ?? null },
-    desvios: desvios.slice(0, TETO_DESVIOS_POST).map((x) => {
-      const d = JSON.parse(x.dados) as Record<string, unknown>;
-      const [pp] = Array.isArray(d.protocolos_portas) ? d.protocolos_portas as { protocolo?: string; porta?: number }[] : [];
-      return { id: x.id, acao: x.acao ?? acao, situacao: x.situacao, tipo: x.tipo, protocolo: d.protocolo ?? pp?.protocolo ?? null,
-        porta: d.porta ?? pp?.porta ?? null, externo: !!d.externo, origem: ponta(d.origem_ativo_id, d.origem_ip_hash), destino: ponta(d.destino_ativo_id, d.destino_ip_hash),
-        primeira_vez: x.primeira_vez, ultima_vez: x.ultima_vez, ocorrencias: x.ocorrencias, link: `${base}/ot/desvios/${x.id}` };
-    }),
+    desvios: itens.map((i) => ({ ...i, link: `${base}/ot/desvios/${i.id}` })),
     nao_listados: Math.max(0, desvios.length - TETO_DESVIOS_POST),
   };
 }

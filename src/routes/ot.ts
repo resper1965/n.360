@@ -9,7 +9,7 @@ import {
   otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
-import { avisar, corpoWebhook, type LinhaDesvio } from '../services/ot-desvio';
+import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
@@ -893,20 +893,23 @@ otApp.get('/desvios', async (c) => {
       .all<LinhaDesvio & { site_nome: string; achado_id: string | null; aceito_ate: string | null; nota: string | null }>();
     const porSite = new Map<string, typeof results>();
     for (const d of results) porSite.set(d.site_id, [...porSite.get(d.site_id) ?? [], d]);
-    const vistos = new Map<string, Record<string, any>>();
+    const vistos = new Map<string, Awaited<ReturnType<typeof projetarDesvios>>[number]>();
     for (const [siteId, lista] of porSite) {
-      const corpo = await corpoWebhook(c.env, projectId, siteId, lista, 'aberto') as { desvios: Record<string, any>[] };
-      for (const x of corpo.desvios) vistos.set(x.id, x);
+      for (const x of await projetarDesvios(c.env, projectId, siteId, lista)) vistos.set(x.id, x);
     }
     const chaves = chavesOt(c.env);
     let sensiveis = 0;
     const desvios = await Promise.all(results.map(async (d) => {
       const x = vistos.get(d.id);
-      const cifra = (JSON.parse(d.dados) as { ip_cifrado?: string }).ip_cifrado;
+      const dados = JSON.parse(d.dados) as { ip_cifrado?: string; fabricante?: string; protocolos_portas?: unknown };
+      const cifra = dados.ip_cifrado;
+      // descritores sem endereço, só do desvio de ativo: o que o consultor precisa para agir mesmo sem ver o IP
+      const desc = d.tipo === 'ativo' ? { ...dados.fabricante !== undefined && { fabricante: dados.fabricante },
+        ...dados.protocolos_portas !== undefined && { protocolos_portas: dados.protocolos_portas } } : {};
       const ip = completo && cifra && chaves ? { ip: await decifrarOt(cifra, chaves, aadOt(projectId, 'ot_desvios', d.id, 'ip')) } : {};
       if ('ip' in ip) sensiveis++;
       return { id: d.id, site_id: d.site_id, site_nome: d.site_nome, tipo: d.tipo, situacao: d.situacao, protocolo: x?.protocolo ?? null, porta: x?.porta ?? null,
-        externo: x?.externo ?? false, origem: x?.origem, destino: x?.destino, ...ip, primeira_vez: d.primeira_vez, ultima_vez: d.ultima_vez,
+        externo: x?.externo ?? false, origem: x?.origem, destino: x?.destino, ...desc, ...ip, primeira_vez: d.primeira_vez, ultima_vez: d.ultima_vez,
         ocorrencias: d.ocorrencias, aceito_ate: d.aceito_ate, nota: d.nota, achado_id: d.achado_id };
     }));
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} desvio(s) com IP sem máscara`);
