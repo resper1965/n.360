@@ -125,10 +125,10 @@ const orgDoProjeto = (db: D1Database, projectId: string) => db.prepare('SELECT o
 
 /**
  * O questionário do projeto para um tipo: as perguntas do modelo vivo (todas, `usada` = ativa no modelo e não desligada no projeto) e as
- * próprias do projeto (`origem = 'projeto'`, do tipo ou de todos). As `padrao` antigas de `homologacao_perguntas` são ignoradas: a 0106
+ * próprias do projeto (`origem = 'projeto'`, do tipo ou de todos; o grande provedor só tem o roteiro do modelo). As `padrao` antigas de `homologacao_perguntas` são ignoradas: a 0106
  * as apaga, e o código anterior pode ressemeá-las entre a migration e o deploy.
  */
-export async function perguntasDoProjeto(db: D1Database, projectId: string, tipo: TipoQuestionario): Promise<{ prazo_meses: number; a_validar: boolean; perguntas: PerguntaDoProjeto[] }> {
+export async function perguntasDoProjeto(db: D1Database, projectId: string, tipo: TipoModelo): Promise<{ prazo_meses: number; a_validar: boolean; perguntas: PerguntaDoProjeto[] }> {
   const orgId = (await orgDoProjeto(db, projectId)) ?? 'org_ness';
   const modelo = (await lerModelos(db, orgId)).find((m) => m.tipo === tipo)!;
   const [ajustes, proprias] = await db.batch([
@@ -138,7 +138,8 @@ export async function perguntasDoProjeto(db: D1Database, projectId: string, tipo
   ]);
   const desligadas = new Set((ajustes.results as { modelo_pergunta_id: string; ativa: number }[]).filter((a) => !a.ativa).map((a) => a.modelo_pergunta_id));
   const doModelo: PerguntaDoProjeto[] = modelo.perguntas.map((p) => ({ ...p, fonte: 'modelo', usada: !!p.ativa && !desligadas.has(p.id), tipo }));
-  const doProjeto: PerguntaDoProjeto[] = (proprias.results as { id: string; tema: string; texto: string; ordem: number; ativa: number; tipo: string | null }[])
+  // o grande provedor tem só o roteiro do modelo: pergunta própria do projeto é de questionário
+  const doProjeto: PerguntaDoProjeto[] = tipo === 'grande_provedor' ? [] : (proprias.results as { id: string; tema: string; texto: string; ordem: number; ativa: number; tipo: string | null }[])
     .map((p) => ({ ...p, fonte: 'projeto', usada: !!p.ativa, origem: 'projeto' }));
   return { prazo_meses: modelo.prazo_meses, a_validar: modelo.a_validar, perguntas: [...doModelo, ...doProjeto] };
 }

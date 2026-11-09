@@ -423,10 +423,18 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
     });
 
-    it('grande provedor (trust center) não mostra a seção nem busca homologações', async () => {
-        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'grande_provedor', metodo: 'trust_center', pode_questionario: false }) }, 'avaliacoes');
+    it('grande provedor (trust center) não mostra o questionário nem busca homologações; mostra o roteiro do modelo', async () => {
+        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'grande_provedor', metodo: 'trust_center', pode_questionario: false }),
+            [`GET ${H}/perguntas`]: { prazo_meses: 12, a_validar: true, perguntas: [
+                { id: 'g1', tema: 'Certificações', texto: 'Conferir as <b>certificações</b>', usada: true, fonte: 'modelo' },
+                { id: 'g2', tema: 'Localização', texto: 'Item desligado', usada: false, fonte: 'modelo' }] } }, 'avaliacoes');
         expect(el('tc-homologacao')).toBeNull();
-        expect(chamadas(f).some((k) => k.startsWith(`GET ${H}`))).toBe(false);
+        expect(chamadas(f)).not.toContain(`GET ${H}`);
+        expect(chamadas(f)).toContain(`GET ${H}/perguntas?tipo=grande_provedor`);
+        const roteiro = el('tc-roteiro');
+        expect(roteiro.textContent).toContain('Conferir as <b>certificações</b>');
+        expect(roteiro.textContent).not.toContain('Item desligado');
+        expect(roteiro.querySelector('b')).toBeNull();
     });
 
     it('#12 fornecedor crítico mostra a seção de questionário (método formal segue auditoria)', async () => {

@@ -157,6 +157,10 @@ async function renderTerceiro(c, h, a) {
     // O que só a aba aberta usa. Falha aqui não derruba a ficha: a aba diz que não carregou ou fica vazia.
     const extra = {};
     if (aba === 'criticidade') { try { extra.crit = await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`); } catch (e) { extra.crit = null; } }
+    // grande provedor: o roteiro de conferência do trust center, do modelo da consultoria (migration 0106)
+    if (aba === 'avaliacoes' && t.terceiro_tipo === 'grande_provedor') {
+        try { extra.roteiro = lista((await api('GET', `/api/v1/projects/${projectId}/homologacoes/perguntas?tipo=grande_provedor`)).perguntas); } catch (e) { extra.roteiro = null; }
+    }
     if (aba === 'avaliacoes' && t.pode_questionario) {
         try { extra.homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { extra.homologacoes = []; }
     }
@@ -244,7 +248,17 @@ function abaAvaliacoes(projectId, parteId, t, editar, extra) {
         <div id="tc-historico">${hist.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Método</th><th>Resultado</th><th>Vale até</th><th>Evidência</th><th>Observação</th><th>Por</th></tr></thead><tbody>${hist.map((x) =>
             `<tr><td>${dataBr(x.created_at)}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${dataBr(x.valido_ate)}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.observacao || '')}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
             : vazio('Nenhuma avaliação registrada.')}</div>
-        ${t.pode_questionario ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : ''}`;
+        ${t.pode_questionario ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : ''}
+        ${t.terceiro_tipo === 'grande_provedor' ? secaoRoteiro(extra.roteiro) : ''}`;
+}
+
+/** Roteiro de conferência do trust center (grande provedor): o que a equipe confere antes de registrar a avaliação. Só leitura. */
+function secaoRoteiro(roteiro) {
+    if (roteiro === null) return `${titulo('Roteiro de conferência do trust center')}<p class="t-dim">Não foi possível carregar o roteiro.</p>`;
+    const itens = lista(roteiro).filter((p) => p.usada);
+    return `${titulo('Roteiro de conferência do trust center')}
+        <p class="t-dim">Do modelo da consultoria (Conta e acessos &gt; Modelos de avaliação de fornecedor). Confira cada item antes de registrar a avaliação.</p>
+        ${itens.length ? `<ul id="tc-roteiro">${itens.map((p) => `<li><strong>${escapeHTML(p.tema)}:</strong> ${escapeHTML(p.texto)}</li>`).join('')}</ul>` : vazio('O roteiro do modelo está vazio.')}`;
 }
 
 // Perfil de segurança: a linha de `vendors` da parte (o mesmo perfil da tela Fornecedores do n.iso), salvo pelo PUT dela.

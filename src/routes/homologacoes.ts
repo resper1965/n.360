@@ -7,7 +7,7 @@ import { appUrl } from '../config/url';
 import {
   atualizarPergunta, cancelarHomologacao, concluirHomologacao, criarHomologacao, criarPergunta, lerHomologacao, listarHomologacoes, listarPerguntas,
 } from '../services/homologacao';
-import { TIPOS_QUESTIONARIO, ajustarPerguntaDoModelo, type TipoQuestionario } from '../services/fornecedor-modelos';
+import { TIPOS_MODELO, ajustarPerguntaDoModelo, type TipoModelo } from '../services/fornecedor-modelos';
 import { validateBody, homologacaoAjusteSchema, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoPerguntaAtualizarSchema, homologacaoPerguntaCriarSchema } from '../schemas';
 
 /**
@@ -23,9 +23,10 @@ const pid = (c: { req: { param: (k: string) => string | undefined } }) => c.req.
 // O questionário de um tipo (crítico, médio ou pequeno): o modelo vivo da consultoria, os ajustes e as perguntas próprias do projeto.
 homologacoesApp.get('/perguntas', async (c) => {
   try {
+    // grande_provedor devolve o roteiro de conferência do trust center (só do modelo), que a ficha mostra
     const tipo = c.req.query('tipo') || 'medio';
-    if (!(TIPOS_QUESTIONARIO as readonly string[]).includes(tipo)) return c.json({ error: 'tipo deve ser critico, medio ou pequeno' }, 400);
-    return c.json(await listarPerguntas(c.env.DB, pid(c), tipo as TipoQuestionario));
+    if (!(TIPOS_MODELO as readonly string[]).includes(tipo)) return c.json({ error: 'tipo deve ser critico, medio, pequeno ou grande_provedor' }, 400);
+    return c.json(await listarPerguntas(c.env.DB, pid(c), tipo as TipoModelo));
   } catch (e) { return erro500(c, 'Falha ao listar as perguntas', e); }
 });
 

@@ -32,7 +32,7 @@ function blocoProjeto(perguntas, editar, tipo) {
             <td><input class="form-input" id="qf-texto-${escapeHTML(p.id)}" maxlength="500" value="${escapeHTML(p.texto)}" aria-label="Pergunta"></td>
             <td>${p.tipo ? 'Este tipo' : 'Todos os tipos'}</td>
             <td><input type="checkbox" id="qf-ativa-${escapeHTML(p.id)}" ${p.ativa ? 'checked' : ''} aria-label="Ativa"></td>
-            <td><button class="btn btn-ghost btn-sm" data-action="salvarPerguntaProjeto" data-args='${args(p.id)}'>Salvar</button></td></tr>`
+            <td><button class="btn btn-ghost btn-sm" data-action="salvarPerguntaProjeto" data-args='${args(p.id)}' aria-label="${escapeHTML(`Salvar: ${p.texto}`)}">Salvar</button></td></tr>`
         : `<tr><td>${escapeHTML(p.tema)}</td><td>${escapeHTML(p.texto)}</td><td>${p.tipo ? 'Este tipo' : 'Todos os tipos'}</td><td>${p.ativa ? 'Sim' : 'Não'}</td><td></td></tr>`).join('');
     const nova = editar ? `<h4>Nova pergunta deste projeto</h4>
         <div class="d-flex flex-wrap items-end gap-3"><div class="form-group"><label class="form-label" for="qf-novo-tema">Tema</label><input class="form-input" id="qf-novo-tema" maxlength="80"></div>
@@ -56,7 +56,7 @@ function desenhar(c) {
         O grande provedor não recebe questionário: a equipe confere o trust center pelo roteiro, na ficha do fornecedor.</p>
         <div class="at-abas" role="tablist" aria-label="Tipos de fornecedor">${TIPOS.map(([id, r]) =>
             `<button type="button" role="tab" class="at-aba" id="qf-aba-${id}" aria-controls="qf-painel" aria-selected="${id === aba}" tabindex="${id === aba ? 0 : -1}"
-                data-action="questionariosAba" data-args='${args(id)}'>${escapeHTML(r)}</button>`).join('')}</div>
+                data-action="questionariosAba" data-action-keydown="questionariosTecla" data-arg-event data-args='${args(id)}'>${escapeHTML(r)}</button>`).join('')}</div>
         <div role="tabpanel" id="qf-painel" aria-labelledby="qf-aba-${aba}" tabindex="0">
             ${dados.a_validar ? '<p class="t-aviso">O modelo da consultoria para este tipo ainda tem conteúdo padrão, a validar.</p>' : ''}
             <p>Validade máxima da avaliação deste tipo: ${escapeHTML(String(dados.prazo_meses))} meses.</p>
@@ -85,9 +85,21 @@ window.renderQuestionariosFornecedor = async function (c, h, a) {
     desenhar(c);
 };
 
-window.questionariosAba = async function (tipo) {
+async function irParaAba(tipo) {
     estado.aba = tipo;
     await redesenhar();
+    const botao = el(`qf-aba-${tipo}`);
+    if (botao) botao.focus();
+}
+// Clique e teclado passam pela delegação com o evento primeiro (`data-arg-event`); setas, Home e End trocam de aba.
+window.questionariosAba = (_e, tipo) => irParaAba(tipo);
+window.questionariosTecla = function (e, atual) {
+    const i = TIPOS.findIndex(([x]) => x === atual);
+    const n = TIPOS.length;
+    const proxima = { ArrowRight: (i + 1) % n, ArrowLeft: (i + n - 1) % n, Home: 0, End: n - 1 }[e.key];
+    if (proxima === undefined) return undefined;
+    e.preventDefault();
+    return irParaAba(TIPOS[proxima][0]);
 };
 
 window.usarPerguntaModelo = async function (id) {

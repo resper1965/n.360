@@ -66,6 +66,8 @@ describe('modelos da consultoria', () => {
     await criarPergunta(env.DB, PA1, 'cons@a', { tema: 'Local', texto: 'Para todos os tipos deste projeto' });
     expect(await usadas(PA1, 'critico')).toEqual(expect.arrayContaining(['Só do crítico deste projeto', 'Para todos os tipos deste projeto']));
     expect(await usadas(PA1, 'pequeno')).toContain('Para todos os tipos deste projeto');
+    // o roteiro do grande provedor não recebe pergunta do projeto, nem a de todos os tipos
+    expect((await perguntasDoProjeto(env.DB, PA1, 'grande_provedor')).perguntas.every((p) => p.fonte === 'modelo')).toBe(true);
     expect(await usadas(PA1, 'pequeno')).not.toContain('Só do crítico deste projeto');
     expect(await usadas(PA2, 'critico')).not.toContain('Para todos os tipos deste projeto');
     // a pergunta padrão antiga do projeto (que o código velho ressemeava) é ignorada

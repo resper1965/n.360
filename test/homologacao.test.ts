@@ -67,7 +67,11 @@ describe('perguntas do projeto', () => {
     const n = (sql: string) => env.DB.prepare(sql).first<number>('n');
     expect(await n(`SELECT count(*) AS n FROM fornecedor_modelo_perguntas p JOIN fornecedor_modelos m ON m.id = p.modelo_id WHERE m.org_id = 'org_ness' AND m.tipo = 'medio'`)).toBe(PERGUNTAS_PADRAO.length);
     expect(await n(`SELECT count(*) AS n FROM homologacao_perguntas WHERE project_id = '${P}'`)).toBe(0);
-    expect((await chamar(consultor, 'GET', `${base}/perguntas?tipo=grande_provedor`)).status).toBe(400);
+    // grande provedor: o roteiro do trust center (só do modelo, sem pergunta do projeto); tipo fora da lista é 400
+    const roteiro = await json<R>(await chamar(consultor, 'GET', `${base}/perguntas?tipo=grande_provedor`));
+    expect(roteiro.perguntas.length).toBeGreaterThan(0);
+    expect(roteiro.perguntas.every((p) => p.fonte === 'modelo')).toBe(true);
+    expect((await chamar(consultor, 'GET', `${base}/perguntas?tipo=enorme`)).status).toBe(400);
   });
 
   it('o consultor cria, edita e desativa a pergunta própria; a do modelo não se edita por aqui; corpo inválido é 400; pergunta de outro projeto é 404', async () => {

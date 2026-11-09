@@ -6,7 +6,7 @@ import { emailHomologacaoRespondida } from './emails';
 import { log } from '../observability';
 import { PODE_QUESTIONARIO, registrarAvaliacao, type Avaliacao, type TipoTerceiro } from './terceiros';
 import { escolherDestinatarios, pessoasDoProjeto } from './avisos-prazo';
-import { perguntasDoEnvio, perguntasDoProjeto, type TipoQuestionario } from './fornecedor-modelos';
+import { perguntasDoEnvio, perguntasDoProjeto, type TipoModelo, type TipoQuestionario } from './fornecedor-modelos';
 
 /**
  * F5: homologação de fornecedor por questionário. O questionário é do projeto (`homologacao_perguntas`); cada envio
@@ -28,7 +28,7 @@ const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, s
 export type Pergunta = PerguntaCongelada & { ordem: number; ativa: number; origem: 'padrao' | 'projeto' };
 
 /** O questionário do projeto para um tipo: o modelo vivo da consultoria, com os ajustes e as perguntas próprias (`perguntasDoProjeto`). */
-export const listarPerguntas = (db: D1Database, projectId: string, tipo: TipoQuestionario) => perguntasDoProjeto(db, projectId, tipo);
+export const listarPerguntas = (db: D1Database, projectId: string, tipo: TipoModelo) => perguntasDoProjeto(db, projectId, tipo);
 
 /** Pergunta PRÓPRIA do projeto: `tipo` nulo vale para todos os tipos que recebem questionário. */
 export async function criarPergunta(db: D1Database, projectId: string, ator: string, d: { tema: string; texto: string; ordem?: number; tipo?: TipoQuestionario | null }): Promise<{ id: string }> {

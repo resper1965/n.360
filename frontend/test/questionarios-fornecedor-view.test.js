@@ -53,22 +53,43 @@ describe('Modelos de avaliação de fornecedor (Conta e acessos)', () => {
         expect([...document.querySelectorAll('[role="tab"]')].map((b) => b.textContent)).toEqual(['Crítico', 'Médio', 'Pequeno', 'Grande provedor']);
         expect(el('content').textContent).toContain('conteúdo padrão');
         expect(el('content').querySelector('b')).toBeNull();
-        window.modelosFornecedorAba('grande_provedor');
+        window.modelosFornecedorAba(null, 'grande_provedor');
         expect(el('content').textContent).toContain('Não vai ao fornecedor');
     });
 
     it('o admin salva o prazo, edita e cria pergunta pelas rotas da organização', async () => {
         await window.renderModelosFornecedor(...tela());
-        window.modelosFornecedorAba('critico');
+        window.modelosFornecedorAba(null, 'critico');
         el('mf-prazo').value = '18';
         await window.salvarPrazoModelo('critico');
         expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/fornecedor-modelos/critico', { prazo_meses: 18 });
         el('mf-ativa-c1').checked = false;
         await window.salvarPerguntaModelo('critico', 'c1');
-        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/fornecedor-modelos/critico/perguntas/c1', { tema: 'Segurança', texto: 'Há <b>política</b> c1?', ativa: false });
+        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/fornecedor-modelos/critico/perguntas/c1', { tema: 'Segurança', texto: 'Há <b>política</b> c1?', ativa: false, ordem: 10 });
+        // reordenar: a ordem vai no mesmo PUT; o botão diz qual pergunta salva
+        el('mf-ordem-c1').value = '5';
+        await window.salvarPerguntaModelo('critico', 'c1');
+        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/fornecedor-modelos/critico/perguntas/c1', expect.objectContaining({ ordem: 5 }));
+        expect(document.querySelector('[data-action="salvarPerguntaModelo"]').getAttribute('aria-label')).toBe('Salvar: Há <b>política</b> c1?');
         el('mf-novo-tema').value = 'Auditoria'; el('mf-novo-texto').value = 'Há relatório?';
         await window.criarPerguntaModelo('critico');
         expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/fornecedor-modelos/critico/perguntas', { tema: 'Auditoria', texto: 'Há relatório?' });
+    });
+
+    it('abas pelo teclado: setas, Home e End trocam de aba e o foco vai junto', async () => {
+        await window.renderModelosFornecedor(...tela());
+        window.modelosFornecedorAba(null, 'critico');
+        const tecla = (key) => ({ key, preventDefault: vi.fn() });
+        window.modelosFornecedorTecla(tecla('ArrowRight'), 'critico');
+        expect(document.activeElement.id).toBe('mf-aba-medio');
+        expect(el('mf-aba-medio').getAttribute('aria-selected')).toBe('true');
+        window.modelosFornecedorTecla(tecla('End'), 'medio');
+        expect(document.activeElement.id).toBe('mf-aba-grande_provedor');
+        window.modelosFornecedorTecla(tecla('ArrowRight'), 'grande_provedor');
+        expect(document.activeElement.id).toBe('mf-aba-critico');
+        const outra = tecla('a');
+        window.modelosFornecedorTecla(outra, 'critico');
+        expect(outra.preventDefault).not.toHaveBeenCalled();
     });
 
     it('sem pode_editar (consultor) não há campo nem botão', async () => {
@@ -96,8 +117,16 @@ describe('Questionários do projeto (n.privacy)', () => {
         el('qf-novo-tema').value = 'Local'; el('qf-novo-texto').value = 'Para todos?'; el('qf-novo-tipo').value = '';
         await window.criarPerguntaProjeto();
         expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/homologacoes/perguntas', { tema: 'Local', texto: 'Para todos?', tipo: null });
-        await window.questionariosAba('critico');
+        await window.questionariosAba(null, 'critico');
         expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/homologacoes/perguntas?tipo=critico');
+    });
+
+    it('abas do projeto pelo teclado', async () => {
+        await window.renderQuestionariosFornecedor(...tela());
+        await window.questionariosAba(null, 'medio');
+        await window.questionariosTecla({ key: 'ArrowLeft', preventDefault: vi.fn() }, 'medio');
+        expect(apiMock).toHaveBeenLastCalledWith('GET', '/api/v1/projects/p1/homologacoes/perguntas?tipo=critico');
+        expect(document.activeElement.id).toBe('qf-aba-critico');
     });
 
     it('ajuste recusado volta a caixa ao estado anterior', async () => {
