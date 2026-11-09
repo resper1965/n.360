@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Requisitos: "não aplicável" com justificativa (migration 0107)
+- Na tela de Requisitos (LGPD e ANPD), a consultoria marca um requisito como não aplicável ao projeto, com uma justificativa de pelo menos 20 caracteres, e pode fazê-lo voltar a se aplicar. A marcação vale também para os itens dentro do requisito (uma resolução inteira, por exemplo).
+- O requisito não aplicável sai da conta da cobertura: o total e a porcentagem contam só os aplicáveis, na tela, no painel do encarregado e no ponto de partida. O cliente vê a justificativa, quem marcou e quando.
+- O agente marca e desmarca com o "sim" do consultor, pela ferramenta de decisão nova `niso_excluir_requisito`.
+
 ### Fornecedores (TPRM): prorrogar, link novo e lembretes do questionário (fatia 4)
 - Na ficha do fornecedor, o questionário ainda sem resposta (vencido inclusive) ganha "Prorrogar" (o link passa a valer pelos dias informados, a contar de hoje) e "Novo link" (o link atual deixa de valer e sai um novo, com as perguntas atuais do modelo).
 - Três dias antes de o link vencer, o fornecedor recebe um lembrete por e-mail, uma vez, quando o e-mail dele foi informado no envio. Por segurança o lembrete não traz o link: pede para usar o e-mail original ou pedir um novo a quem enviou.

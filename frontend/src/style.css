@@ -2038,6 +2038,7 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 /* Cobertura da LGPD (views/requisitos.js): resumo que filtra, explicação recolhível e tabela legível. */
 .cob-fonte { max-width: 360px; }
 .cob-mudo { color: var(--text-dim); }
+.cob-exclusao { margin: 0 0 0.25rem; }
 .cob-subtitulo { margin: 16px 0 8px; }
 .cob-titulo { font: 600 var(--fs-lg) var(--font-head); margin: 0 0 12px; }
 .cob-cartoes { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }

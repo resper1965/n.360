@@ -335,3 +335,64 @@ describe('validação dos mapeamentos', () => {
         expect(el('modal-content').querySelector('button[data-action$="Mapeamento"]')).toBeNull();
     });
 });
+
+describe('requisito não aplicável (migration 0107)', () => {
+    const NA = {
+        fonte: 'lgpd',
+        resumo: { total: 1, cobertos: 0, parciais: 0, lacunas: 1, nao_aplicaveis: 2 },
+        itens: [
+            { requisito_id: 'lgpd:art7', referencia: 'art. 7', titulo: 'Bases', pai_id: null, situacao: 'nao_aplicavel', origens: [{ tipo: 'documento', id: 'd1', titulo: 'Política' }],
+                exclusao: { justificativa: 'Empresa <b>privada</b>, sem tratamento público', decidido_por: 'cons@ness.lat', decidido_em: '2026-11-09 12:00:00' } },
+            { requisito_id: 'lgpd:art37', referencia: 'art. 37', titulo: 'Registro', pai_id: 'lgpd:art7', situacao: 'nao_aplicavel', origens: [],
+                exclusao: { justificativa: 'Empresa privada, sem tratamento público', decidido_por: 'cons@ness.lat', decidido_em: '2026-11-09 12:00:00', herdada_de: 'art. 7' } },
+            { requisito_id: 'lgpd:art46', referencia: 'art. 46', titulo: 'Segurança', pai_id: null, situacao: 'lacuna', origens: [] },
+        ],
+    };
+    const linha = (ref) => [...el('c').querySelectorAll('tbody tr')].find((tr) => tr.querySelector('th').textContent === ref);
+
+    beforeEach(() => { S.fonteRequisitos = 'lgpd'; S.reqFiltro = 'todas'; window.ehEquipeNess = () => ['consultor', 'platform_admin'].includes(S.user.role); });
+
+    it('cartão e filtro "Não aplicáveis"; a justificativa, o autor e a data na linha; herdada diz de onde; sem "Ir a Documentos"', async () => {
+        servir(rotas({ 'GET /api/v1/projects/p9/requisitos/lacunas': NA }));
+        await abrir();
+        const cartao = [...el('c').querySelectorAll('.cob-cartao')].find((b) => b.textContent.includes('Não aplicáveis'));
+        expect(cartao.textContent).toContain('2');
+        expect(el('cob-resumo-t').textContent).toContain('0 de 1 requisitos cobertos');
+        const art7 = linha('art. 7');
+        expect(art7.textContent).toContain('Não aplicável');
+        expect(art7.textContent).toContain('Empresa <b>privada</b>');
+        expect(art7.textContent).toContain('cons@ness.lat');
+        expect(art7.textContent).toContain('Ligado antes da exclusão');
+        expect(art7.querySelector('b')).toBeNull();
+        expect(art7.querySelector('[data-action="irParaDocumentos"]')).toBeNull();
+        expect(linha('art. 37').textContent).toContain('Herdada de art. 7');
+        window.filtrarRequisitos('nao_aplicavel');
+        expect([...el('c').querySelectorAll('tbody th')].map((th) => th.textContent)).toEqual(['art. 7', 'art. 37']);
+    });
+
+    it('a equipe marca (com 20+ caracteres) e volta a aplicar; herdado e cliente não têm botão', async () => {
+        const f = servir(rotas({ 'GET /api/v1/projects/p9/requisitos/lacunas': NA,
+            'GET /api/v1/requisitos/lgpd%3Aart46': { ...LGPD[2], mapeamentos: [] }, 'GET /api/v1/requisitos/lgpd%3Aart37': { ...LGPD[1], mapeamentos: [] },
+            'GET /api/v1/requisitos/lgpd%3Aart7': { ...LGPD[0], mapeamentos: [] },
+            'PUT /api/v1/projects/p9/requisitos/lgpd%3Aart46/exclusao': { ok: true }, 'DELETE /api/v1/projects/p9/requisitos/lgpd%3Aart7/exclusao': { ok: true } }));
+        await abrir();
+        await window.abrirRequisito('lgpd:art37');
+        expect(el('req-aplicabilidade').textContent).toContain('Herdada de art. 7');
+        expect(el('req-aplicabilidade').querySelector('button')).toBeNull();
+        await window.abrirRequisito('lgpd:art46');
+        expect(el('req-aplicabilidade').querySelector('[data-action="marcarRequisitoNaoAplicavel"]')).not.toBeNull();
+        const pedir = vi.spyOn(window, 'pedirTexto').mockResolvedValueOnce('curto').mockResolvedValueOnce('  Artigo dirigido ao poder público.  ');
+        await window.marcarRequisitoNaoAplicavel('lgpd:art46');
+        expect(chamadas(f)).not.toContain('PUT /api/v1/projects/p9/requisitos/lgpd%3Aart46/exclusao');
+        await window.marcarRequisitoNaoAplicavel('lgpd:art46');
+        expect(pedir).toHaveBeenCalledTimes(2);
+        const put = f.mock.calls.find(([u, o]) => o?.method === 'PUT');
+        expect(JSON.parse(put[1].body)).toEqual({ justificativa: 'Artigo dirigido ao poder público.' });
+        vi.spyOn(window, 'confirmar').mockResolvedValue(true);
+        await window.voltarAAplicarRequisito('lgpd:art7');
+        expect(chamadas(f)).toContain('DELETE /api/v1/projects/p9/requisitos/lgpd%3Aart7/exclusao');
+        S.user = { role: 'org_admin' };
+        await window.abrirRequisito('lgpd:art46');
+        expect(el('req-aplicabilidade').querySelector('button')).toBeNull();
+    });
+});

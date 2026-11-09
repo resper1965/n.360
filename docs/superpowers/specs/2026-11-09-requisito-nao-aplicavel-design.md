@@ -1,6 +1,6 @@
 # Requisito "não aplicável" com justificativa (n.privacy)
 
-Data: 09/11/2026. Situação: **desenho aprovado pelo dono em 09/11/2026**; spec à espera da revisão dele.
+Data: 09/11/2026. Situação: **aprovada pelo dono em 09/11/2026** e construída (migration 0107; plano `docs/arquivo/planos/2026-11-09-requisito-nao-aplicavel.md`).
 Substitui a proposta de 01/11/2026 (PR #537), com as correções da revisão: migration 0107 (a 0106 já foi usada), o painel do
 encarregado pelo mesmo resumo e exemplos genéricos (nenhum dado de cliente no repositório).
 
