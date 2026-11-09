@@ -146,14 +146,17 @@ export async function concluirHomologacao(db: D1Database, projectId: string, id:
   const h = await lerHomologacao(db, projectId, id);
   if (!h) return falha(404, 'Homologação não encontrada');
   if (h.status !== 'respondida') return falha(409, 'Só homologação respondida pelo fornecedor pode ser concluída');
-  const tipo = await db.prepare('SELECT terceiro_tipo FROM partes WHERE id = ? AND project_id = ?').bind(h.parte_id, projectId).first<TipoTerceiro | null>('terceiro_tipo');
-  if (!ehQuestionario(tipo ?? null)) return falha(409, 'O tipo do terceiro mudou e ele não é mais avaliado por questionário');
+  const tipos = await db.prepare('SELECT p.terceiro_tipo, x.tipo FROM homologacoes x JOIN partes p ON p.id = x.parte_id WHERE x.id = ? AND x.project_id = ?')
+    .bind(id, projectId).first<{ terceiro_tipo: TipoTerceiro | null; tipo: TipoTerceiro | null }>();
+  const tipo = tipos?.terceiro_tipo ?? null;
+  if (!ehQuestionario(tipo)) return falha(409, 'O tipo do terceiro mudou e ele não é mais avaliado por questionário');
   const reserva = await db.prepare(`UPDATE homologacoes SET status = 'concluida', resultado = ?, concluida_por = ?, concluida_em = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND project_id = ? AND status = 'respondida'`).bind(d.resultado, ator, id, projectId).run();
   if (!reserva.meta.changes) return falha(409, 'Só homologação respondida pelo fornecedor pode ser concluída');
   const observacao = `Homologação por questionário (${h.percentual}% respondido)${d.observacao ? `: ${d.observacao}` : ''}`.slice(0, 2000);
   // O método é sempre `questionario` (o servidor decide): no crítico isso difere do método formal do tipo (auditoria).
-  const r = await registrarAvaliacao(db, projectId, h.parte_id, ator, { resultado: d.resultado, valido_ate: d.valido_ate, observacao }, 'questionario');
+  const r = await registrarAvaliacao(db, projectId, h.parte_id, ator, { resultado: d.resultado, valido_ate: d.valido_ate, observacao }, 'questionario',
+    tipos?.tipo ?? tipo); // o tipo do ENVIO: as respostas são do modelo daquele tipo
   if (!r.ok) {
     await db.prepare(`UPDATE homologacoes SET status = 'respondida', resultado = NULL, concluida_por = NULL, concluida_em = NULL WHERE id = ? AND project_id = ?`).bind(id, projectId).run();
     return r;

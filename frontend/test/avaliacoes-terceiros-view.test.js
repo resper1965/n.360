@@ -19,6 +19,7 @@ const T = (id, situacao, dias, extra = {}) => ({ id, nome: `Fornecedor ${id}`, t
 const LISTA = [
     T('ok', 'vigente', 200), T('breve', 'vigente', 10), T('v1', 'vencida', -5), T('v2', 'vencida', -40, { nivel: 'alto', terceiro_tipo: 'critico', metodo: 'auditoria' }),
     T('novo', 'pendente', null, { nivel: null, terceiro_tipo: null, metodo: null }), T('rep', 'reprovada', 100, { nome: 'Fornecedor <b>rep</b>' }),
+    T('mudou', 'reavaliar', 300, { nivel: 'alto', terceiro_tipo: 'critico', metodo: 'auditoria' }),
 ];
 const el = (id) => document.getElementById(id);
 const nomes = (grupo) => [...el(grupo).querySelectorAll('tbody tr')].map((tr) => tr.cells[0].textContent);
@@ -35,7 +36,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('fila de avaliações', () => {
     it('grupos com contagem, na ordem da urgência, e só os que têm fornecedor', async () => {
         await abrir();
-        expect([...el('c').querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Vencidas (2)', 'Vencem em 30 dias (1)', 'Sem avaliação (1)', 'Reprovadas (1)', 'Em dia (1)']);
+        expect([...el('c').querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Vencidas (2)', 'Reprovadas (1)', 'Reavaliar: o tipo mudou (1)', 'Vencem em 30 dias (1)', 'Sem avaliação (1)', 'Em dia (1)']);
         await abrir([T('ok', 'vigente', 200)]);
         expect([...el('c').querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Em dia (1)']);
     });

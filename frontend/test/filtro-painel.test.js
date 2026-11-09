@@ -146,6 +146,12 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         await window.renderTerceiros(el('c'), el('h'), el('a'));
         expect(el('c').textContent).toContain('Nada encontrado com a busca ou o filtro.');
         expect(chip().textContent).toContain('nunca avaliados');
+        // a reavaliação (o tipo mudou) também é "a avaliar": a prioridade do encarregado leva a ela
+        servir({ [`GET ${B}/terceiros`]: [
+            { id: 't3', nome: 'Fornecedor Reavaliar', terceiro_tipo: 'critico', metodo: 'auditoria', situacao: 'reavaliar', ultima_avaliacao: { valido_ate: daqui30, tipo_avaliado: 'medio' }, tratamentos: 1, documentos: 0 },
+        ] });
+        await window.renderTerceiros(el('c'), el('h'), el('a'));
+        expect(linhas().map((t) => t.includes('Fornecedor Reavaliar'))).toEqual([true]);
     });
 
     it('evidências vencidas e ações corretivas vencidas', async () => {

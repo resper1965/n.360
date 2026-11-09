@@ -11,7 +11,8 @@ const NIVEIS = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
 const TIPOS = { grande_provedor: 'Grande provedor', medio: 'Médio', pequeno: 'Pequeno', critico: 'Crítico' };
 const METODOS = { trust_center: 'Trust center', questionario: 'Questionário', auditoria: 'Auditoria' };
 const ORDEM_NIVEL = { alto: 0, medio: 1, baixo: 2 };
-const GRUPOS = [['vencida', 'Vencidas'], ['vence', 'Vencem em 30 dias'], ['pendente', 'Sem avaliação'], ['reprovada', 'Reprovadas'], ['vigente', 'Em dia']];
+// reprovada vem junto das vencidas (o selo a conta como atraso); reavaliar = avaliação no prazo, mas feita noutro tipo
+const GRUPOS = [['vencida', 'Vencidas'], ['reprovada', 'Reprovadas'], ['reavaliar', 'Reavaliar: o tipo mudou'], ['vence', 'Vencem em 30 dias'], ['pendente', 'Sem avaliação'], ['vigente', 'Em dia']];
 const JANELA_DIAS = 30;
 
 const args = (...v) => escapeHTML(JSON.stringify(v));

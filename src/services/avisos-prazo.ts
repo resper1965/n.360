@@ -121,6 +121,8 @@ const FONTES: Record<Fonte, string> = {
     FROM avaliacoes_terceiro a JOIN partes pa ON pa.id = a.parte_id JOIN projects p ON p.id = a.project_id
       LEFT JOIN (SELECT parte_id, count(DISTINCT alvo_id) AS q FROM parte_vinculos WHERE alvo_tipo = 'tratamento' GROUP BY parte_id) n ON n.parte_id = pa.id
     WHERE pa.status = 'ativa' AND a.resultado <> 'reprovado'
+      -- feita noutro tipo: a situação é "reavaliar" (situacaoDe), não há validade a avisar
+      AND (a.tipo_avaliado IS NULL OR pa.terceiro_tipo IS NULL OR a.tipo_avaliado = pa.terceiro_tipo)
       AND a.id = (SELECT a2.id FROM avaliacoes_terceiro a2 WHERE a2.parte_id = a.parte_id ORDER BY a2.created_at DESC, a2.rowid DESC LIMIT 1)`,
   titular_pedido: `SELECT t.id AS item_id, t.project_id, date(substr(t.prazo_em, 1, 10)) AS vence_em, 'Pedido do titular ' || t.protocolo AS titulo,
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(t.created_at, '-3 hours') AS criado_em

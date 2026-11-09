@@ -62,6 +62,7 @@ Antes de começar:
 | 4.6 | Avaliações (menu): abra a fila | O fornecedor aparece em "Em dia". Um fornecedor sem avaliação aparece em "Sem avaliação"; críticos primeiro. |
 | 4.7 | n.360 > Conta e acessos > "Modelos de avaliação de fornecedor" (como administrador da consultoria): aba Crítico, mude o prazo e o texto de uma pergunta | Cada tipo tem o seu modelo; o grande provedor é um roteiro. O aviso "conteúdo padrão" some quando o modelo é editado. Como consultor, a tela só mostra. |
 | 4.8 | n.privacy > Fornecedores > Questionários, aba Crítico | A pergunta editada no 4.7 aparece no bloco "Do modelo". Desmarque "Usar neste projeto" numa pergunta e crie uma pergunta "deste projeto" só para este tipo. |
+| 4.9a | Na ficha de um fornecedor médio, registre uma avaliação com validade além de 24 meses; depois com a data sugerida. Em seguida, responda a criticidade com um item "Alto" | A primeira é recusada com o prazo máximo; a sugerida é aceita. Ao virar Crítico, a situação passa a "Reavaliar", com "o tipo mudou de Médio para Crítico", e o fornecedor aparece na fila em "Reavaliar: o tipo mudou". |
 | 4.9 | Na ficha do fornecedor crítico, envie o questionário e abra o link | O fornecedor vê as perguntas do modelo crítico, sem a desmarcada e com a do projeto. Mudar o modelo depois não muda esse envio. |
 
 ## 5. n.privacy: atividades (RoPA)

@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { somarMeses } from '../src/services/fornecedor-modelos';
+import { hojeEmSaoPaulo } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { emailLigadoAoProjeto } from '../src/routes/public';
@@ -152,7 +154,8 @@ describe('12 e 13. agente por rota paralela', () => {
     const dec = { 'X-Agente-Ferramenta': 'niso_avaliar_fornecedor', 'X-Agente-Motivo': encodeURIComponent('questionário respondido') };
     const t = await comoAgente('PUT', `/api/v1/projects/${P}/terceiros/pt-org/tipo`, { terceiro_tipo: 'grande_provedor' }, dec);
     expect(t.status, await t.clone().text()).toBe(200);
-    const a = await comoAgente('POST', `/api/v1/projects/${P}/terceiros/pt-org/avaliacoes`, { resultado: 'aprovado', valido_ate: '2030-01-01' }, dec);
+    // dentro do prazo do modelo do tipo (fatia 2 do ciclo de avaliação): 6 meses cabe em qualquer tipo
+    const a = await comoAgente('POST', `/api/v1/projects/${P}/terceiros/pt-org/avaliacoes`, { resultado: 'aprovado', valido_ate: somarMeses(hojeEmSaoPaulo(), 6) }, dec);
     expect(a.status, await a.clone().text()).toBeLessThan(300);
   });
 });

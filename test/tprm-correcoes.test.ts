@@ -2,6 +2,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
+import { somarMeses } from '../src/services/fornecedor-modelos';
+import { hojeEmSaoPaulo } from '../src/services/hoje';
+
+// a validade não passa do prazo do modelo do tipo (fatia 2): 6 meses cabe em qualquer tipo
+const DENTRO_DO_PRAZO = somarMeses(hojeEmSaoPaulo(), 6);
 
 /**
  * Correções do TPRM (análise de 09/11/2026): DPA versionado só vale vigente; fornecedor inativo não recebe avaliação nem questionário
@@ -105,8 +110,8 @@ describe('tipo, criticidade e avaliação: a equipe e o administrador do cliente
     expect((await chamar(orgUser, 'POST', `${B}/terceiros/f-ext/criticidades`, CRIT)).status).toBe(403);
     expect((await chamar(orgAdmin, 'PUT', `${B}/terceiros/f-ext/tipo`, { terceiro_tipo: 'medio' })).status).toBe(200);
     expect((await chamar(orgAdmin, 'POST', `${B}/terceiros/f-ext/criticidades`, CRIT)).status).toBe(201);
-    expect((await chamar(orgAdmin, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(201);
+    expect((await chamar(orgAdmin, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: DENTRO_DO_PRAZO })).status).toBe(201);
     expect((await chamar(orgAdmin, 'POST', `${B}/homologacoes`, { parte_id: 'f-ext' })).status).toBe(403);
-    expect((await chamar(consultor, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(201);
+    expect((await chamar(consultor, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: DENTRO_DO_PRAZO })).status).toBe(201);
   });
 });

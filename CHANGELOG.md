@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Fornecedores (TPRM): validade pelo modelo e reavaliação quando o tipo muda (fatia 2)
+- A validade de uma avaliação de fornecedor não passa mais do prazo do modelo do tipo (crítico 12 meses, médio 24, pequeno 36, grande provedor 12, ou o que a consultoria definir em "Modelos de avaliação de fornecedor"). A tela já preenche a data com o máximo.
+- Quando a criticidade (ou a escolha manual) muda o tipo de um fornecedor com avaliação em dia, a situação vira "Reavaliar": a avaliação continua no histórico, mas deixa de valer, aparece como pendência e entra na fila de avaliações, num grupo próprio. A ficha diz de que tipo para qual mudou.
+- A fila de avaliações passa a mostrar as reprovadas logo depois das vencidas.
+
 ### Fornecedores (TPRM): modelos de avaliação da consultoria (migration 0106)
 - O questionário de avaliação de fornecedor passa a ser da consultoria: em Conta e acessos, "Modelos de avaliação de fornecedor" traz um modelo por tipo (crítico, médio, pequeno e o roteiro do trust center do grande provedor), com o prazo máximo da avaliação e as perguntas. Edita o administrador da consultoria; o consultor vê.
 - Cada projeto herda o modelo vivo: em n.privacy > Fornecedores > Questionários, a equipe desliga perguntas do modelo só para o projeto e acrescenta as próprias, de um tipo ou de todos. O envio usa o questionário do tipo do fornecedor e congela as perguntas, como antes.
