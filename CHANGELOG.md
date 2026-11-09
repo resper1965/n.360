@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Fornecedores (TPRM): prorrogar, link novo e lembretes do questionário (fatia 4)
+- Na ficha do fornecedor, o questionário ainda sem resposta (vencido inclusive) ganha "Prorrogar" (o link passa a valer pelos dias informados, a contar de hoje) e "Novo link" (o link atual deixa de valer e sai um novo, com as perguntas atuais do modelo).
+- Três dias antes de o link vencer, o fornecedor recebe um lembrete por e-mail, uma vez, quando o e-mail dele foi informado no envio. Por segurança o lembrete não traz o link: pede para usar o e-mail original ou pedir um novo a quem enviou.
+- A equipe recebe no sino o link que vence em 3 dias, o link vencido sem resposta e o questionário respondido há 2 dias sem conclusão. A fila de avaliações ganhou os grupos "Questionário respondido, aguardando conclusão" e "Link vencido sem resposta".
+
 ### Fornecedores (TPRM): crítico exige evidência (fatia 3)
 - No fornecedor crítico, a avaliação aprovada ou com ressalvas só é registrada com o link da evidência (relatório de auditoria, certificação, visita), tanto na ficha quanto ao concluir o questionário, que ganhou o campo. A reprovada não exige. A ficha avisa que o campo é obrigatório no crítico.
 

@@ -79,6 +79,7 @@ import integrations from './routes/integrations';
 import { exportacaoApp } from './routes/exportacao';
 import { manutencaoDiaria } from './manutencao';
 import { avisosDePrazo, hojeEmSaoPaulo, CRON_AVISOS } from './services/avisos-prazo';
+import { avisosDeHomologacao } from './services/homologacao';
 import { sondaInterna, CRON_SONDA } from './services/sonda';
 import { avisarSensores } from './services/ot-sensor';
 import { verificarSlo, CRON_SLO } from './services/slo';
@@ -695,8 +696,8 @@ export default Object.assign(app, {
   scheduled: (evento: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
     // ponytail: cron que não é o dos avisos nem o da sonda cai na manutenção, o comportamento de antes destas rotinas.
     ctx.waitUntil(
-      evento.cron === CRON_AVISOS ? Promise.allSettled([avisosDePrazo(env, hojeEmSaoPaulo()), avisarSensores(env, new Date())])
-          .then((rs) => rs.forEach((r, i) => r.status === 'rejected' && console.error(`cron avisos: falha em ${['avisosDePrazo', 'avisarSensores'][i]}`, r.reason)))
+      evento.cron === CRON_AVISOS ? Promise.allSettled([avisosDePrazo(env, hojeEmSaoPaulo()), avisarSensores(env, new Date()), avisosDeHomologacao(env)])
+          .then((rs) => rs.forEach((r, i) => r.status === 'rejected' && console.error(`cron avisos: falha em ${['avisosDePrazo', 'avisarSensores', 'avisosDeHomologacao'][i]}`, r.reason)))
         : evento.cron === CRON_SONDA ? sondaInterna(env)
         : evento.cron === CRON_SLO ? verificarSlo(env)
         : manutencaoDiaria(env)
