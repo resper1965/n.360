@@ -763,7 +763,8 @@ desativado volta ativa pelo modelo). Spec `2026-11-09-ciclo-avaliacao-fornecedor
 `SELECT origem, ativa, count(*) FROM homologacao_perguntas GROUP BY origem, ativa`. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name IN ('fornecedor_modelos','fornecedor_modelo_perguntas','homologacao_ajustes','homologacao_email_some')` (4 linhas) e
 `SELECT name FROM pragma_table_info('homologacoes') WHERE name IN ('tipo','email_destino','lembrete_em')` (3 linhas).
-**Pendente em produção.**
+Aplicada em produção em 09/11/2026, com backup antes: as conferências deram 4 e 3 linhas; antes havia só as 12 perguntas padrão de um projeto
+(nenhuma editada nem criada), que saíram, e as 3 avaliações ficaram com `tipo_avaliado`.
 
 ## 0105 — código de acompanhamento do pedido do titular (2026-11-06)
 
