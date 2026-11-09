@@ -159,3 +159,17 @@ export async function ajustarPerguntaDoModelo(db: D1Database, projectId: string,
   await logAudit(db, 'homologacao.ajuste', ator, `Pergunta ${modeloPerguntaId} do modelo ${ativa ? 'ligada' : 'desligada'} no questionário do projeto`, '', '', projectId);
   return true;
 }
+
+/** Meses do modelo do tipo (da organização do projeto): o teto da validade da avaliação (fatia 2). */
+export async function prazoDoTipo(db: D1Database, projectId: string, tipo: TipoModelo): Promise<number> {
+  const orgId = (await orgDoProjeto(db, projectId)) ?? 'org_ness';
+  await semearModelos(db, orgId);
+  return (await db.prepare('SELECT prazo_meses FROM fornecedor_modelos WHERE org_id = ? AND tipo = ?').bind(orgId, tipo).first<number>('prazo_meses')) ?? PRAZO_PADRAO[tipo];
+}
+
+/** AAAA-MM-DD + n meses, no calendário UTC (31/01 + 1 mês vira 03/03, como o `date(..., '+1 months')` do SQLite). */
+export function somarMeses(dia: string, n: number): string {
+  const d = new Date(`${dia}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
+}

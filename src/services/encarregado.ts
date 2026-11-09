@@ -122,11 +122,11 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     terceiros: {
       total: terceiros.length,
       sem_tipo: terceiros.filter((t) => !t.terceiro_tipo).length,
-      pendentes: terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').length,
+      pendentes: terceiros.filter((t) => t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')).length,
       vencidos: terceiros.filter((t) => t.situacao === 'vencida').length,
       reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length,
       // Contador do menu: sem tipo (nunca avaliado), pendente, vencido ou reprovado, sem contar duas vezes.
-      com_pendencia: terceiros.filter((t) => !t.terceiro_tipo || ['pendente', 'vencida', 'reprovada'].includes(t.situacao)).length,
+      com_pendencia: terceiros.filter((t) => !t.terceiro_tipo || ['pendente', 'vencida', 'reprovada', 'reavaliar'].includes(t.situacao)).length,
     },
     documentos: { revisao_vencida: await n(db, `SELECT count(*) AS n FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2`, projectId, dia) },
     evidencias,
