@@ -885,12 +885,13 @@ otApp.get('/desvios', async (c) => {
     const { db, user, projectId, sites } = await contexto(c);
     const completo = await podeVerCompleto(db, user, projectId);
     const { results } = await db.prepare(`SELECT d.*, s.nome AS site_nome,
-        (SELECT a.id FROM ot_achados a WHERE a.project_id = d.project_id AND a.chave_sensor = d.chave_sensor AND a.situacao = 'rascunho' LIMIT 1) AS achado_id
+        (SELECT a.id FROM ot_achados a WHERE a.project_id = d.project_id AND a.chave_sensor = d.chave_sensor AND a.situacao = 'rascunho' LIMIT 1) AS achado_id,
+        (SELECT a.levantamento_id FROM ot_achados a WHERE a.project_id = d.project_id AND a.chave_sensor = d.chave_sensor AND a.situacao = 'rascunho' LIMIT 1) AS achado_levantamento_id
       FROM ot_desvios d JOIN ot_sites s ON s.id = d.site_id AND s.project_id = d.project_id
       WHERE d.project_id = ? AND d.${NO_SITE} AND (? IS NULL OR d.situacao = ?) AND (? IS NULL OR d.site_id = ?) AND (? IS NULL OR d.tipo = ?)
       ORDER BY d.ultima_vez DESC LIMIT ${TETO_LEITURA_OT}`)
       .bind(projectId, sites, ...[c.req.query('situacao'), c.req.query('site_id'), c.req.query('tipo')].flatMap((v) => [v ?? null, v ?? null]))
-      .all<LinhaDesvio & { site_nome: string; achado_id: string | null; aceito_ate: string | null; nota: string | null }>();
+      .all<LinhaDesvio & { site_nome: string; achado_id: string | null; achado_levantamento_id: string | null; aceito_ate: string | null; nota: string | null }>();
     const porSite = new Map<string, typeof results>();
     for (const d of results) porSite.set(d.site_id, [...porSite.get(d.site_id) ?? [], d]);
     const vistos = new Map<string, Awaited<ReturnType<typeof projetarDesvios>>[number]>();
@@ -910,7 +911,7 @@ otApp.get('/desvios', async (c) => {
       if ('ip' in ip) sensiveis++;
       return { id: d.id, site_id: d.site_id, site_nome: d.site_nome, tipo: d.tipo, situacao: d.situacao, protocolo: x?.protocolo ?? null, porta: x?.porta ?? null,
         externo: x?.externo ?? false, origem: x?.origem, destino: x?.destino, ...desc, ...ip, primeira_vez: d.primeira_vez, ultima_vez: d.ultima_vez,
-        ocorrencias: d.ocorrencias, aceito_ate: d.aceito_ate, nota: d.nota, achado_id: d.achado_id };
+        ocorrencias: d.ocorrencias, aceito_ate: d.aceito_ate, nota: d.nota, achado_id: d.achado_id, achado_levantamento_id: d.achado_levantamento_id };
     }));
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} desvio(s) com IP sem máscara`);
     return c.json({ desvios });

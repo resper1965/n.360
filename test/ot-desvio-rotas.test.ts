@@ -92,11 +92,13 @@ describe('GET /desvios', () => {
   });
 
   it('achado_id é o rascunho com a mesma chave_sensor', async () => {
-    const { desvios } = await (await chamar(gestor, 'GET', `${P}/desvios?site_id=s2`)).json() as { desvios: { achado_id: string }[] };
+    const { desvios } = await (await chamar(gestor, 'GET', `${P}/desvios?site_id=s2`)).json() as { desvios: { achado_id: string; achado_levantamento_id: string }[] };
     expect(desvios[0].achado_id).toBe('ach1');
+    expect(desvios[0].achado_levantamento_id).toBe('lev1');
     // achado já enviado não conta
-    const f = await (await chamar(gestor, 'GET', `${P}/desvios?tipo=fluxo`)).json() as { desvios: { achado_id: string | null }[] };
+    const f = await (await chamar(gestor, 'GET', `${P}/desvios?tipo=fluxo`)).json() as { desvios: { achado_id: string | null; achado_levantamento_id: string | null }[] };
     expect(f.desvios[0].achado_id).toBeNull();
+    expect(f.desvios[0].achado_levantamento_id).toBeNull();
   });
 });
 

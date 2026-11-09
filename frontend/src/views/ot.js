@@ -36,7 +36,7 @@ async function renderOt(c, h, a) {
     // Filtros e lote são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
     if (S.otProjeto !== proj().id) {
         await esvaziarNotas(); // notas digitadas no projeto anterior vão para ele, antes de a tela mudar
-        S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; nomesDeAtivos.clear();
+        S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null; nomesDeAtivos.clear();
     }
     // Contagens das abas e aba de entrada: o que espera a pessoa. Falha aqui só tira a contagem (cada aba carrega e mostra o próprio erro).
     // Correm junto com o painel; só a primeira entrada (sem aba escolhida) espera por elas, porque decidem a aba.

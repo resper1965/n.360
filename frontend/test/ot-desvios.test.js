@@ -13,7 +13,7 @@ const el = (id) => document.getElementById(id);
 const pausa = () => new Promise((r) => setTimeout(r, 0));
 const DESVIOS = { desvios: [
     { id: 'd1', site_id: 's1', site_nome: 'SE Norte', tipo: 'fluxo', situacao: 'aberto', protocolo: 'modbus', porta: 502, externo: true, origem: { ativo: 'CLP <b id="xss">1</b>', zona: 'Supervisão' },
-        destino: { ativo: 'Host externo', zona: 'Externa' }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-08T10:00:00Z', ocorrencias: 4, aceito_ate: null, nota: null, achado_id: 'a1' },
+        destino: { ativo: 'Host externo', zona: 'Externa' }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-08T10:00:00Z', ocorrencias: 4, aceito_ate: null, nota: null, achado_id: 'a1', achado_levantamento_id: 'lv7' },
     { id: 'd2', site_id: 's1', site_nome: 'SE Norte', tipo: 'ativo', situacao: 'tratado', fabricante: 'Siemens', origem: { ativo: 'IED 7', zona: 'Supervisão' }, primeira_vez: '2026-11-02T10:00:00Z',
         ultima_vez: '2026-11-03T10:00:00Z', ocorrencias: 1, aceito_ate: null, nota: 'Cadastrado', achado_id: null }] };
 let chamadas;
@@ -81,6 +81,17 @@ describe('aba Desvios', () => {
         expect(JSON.parse(chamadas.find((c) => c.k.startsWith('POST')).opts.body)).toEqual({ nota: 'Regra criada' });
     });
 
+    it('409: fecha o modal, avisa e redesenha a lista', async () => {
+        await abrir('desvios', { [`POST ${B}/desvios/d1/tratar`]: [409, { error: 'Só desvio aberto pode ser tratado ou aceito' }] });
+        window.otTratarDesvio('d1');
+        el('modal-overlay').classList.add('open');
+        el('des-nota').value = 'x';
+        await window.otSalvarTratar('d1');
+        expect(el('modal-overlay').classList.contains('open')).toBe(false);
+        expect(document.body.textContent).toContain('Este desvio já não está aberto.');
+        expect(window.render).toHaveBeenCalled();
+    });
+
     it('Aceitar avisa da exceção 5.1.1, limita a data a 90 dias e exige justificativa e prazo', async () => {
         S.user.role = 'org_admin';
         await abrir('desvios', { [`POST ${B}/desvios/d1/aceitar`]: { ok: true } });
@@ -99,12 +110,21 @@ describe('aba Desvios', () => {
 
     it('Ver achado leva à aba Levantamento', async () => {
         await abrir('desvios');
-        window.otVerAchadoDesvio();
+        const botao = el('c').querySelector('[data-action="otVerAchadoDesvio"]');
+        window.otVerAchadoDesvio(...JSON.parse(botao.getAttribute('data-args')));
         expect(S.otAba).toBe('levantamento');
+        expect(S.otLevantamento).toBe('lv7');
     });
 });
 
 describe('cartão Pontos a esclarecer', () => {
+    it('mantém a linha de desvios mesmo se só os pontos falharem', async () => {
+        await abrir('levantamento', { [`GET ${B}/levantamentos`]: { levantamentos: [] }, [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] },
+            [`GET ${B}/sensores/pontos`]: [500, { error: 'x' }] });
+        await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
+        expect(el('ot-cartoes-coleta').textContent).toContain('2 desvios abertos');
+    });
+
     it('ganha a linha "N desvios abertos"', async () => {
         await abrir('levantamento', { [`GET ${B}/levantamentos`]: { levantamentos: [] }, [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] },
             [`GET ${B}/sensores/pontos`]: { ativos: 1, fluxos: 2 } });

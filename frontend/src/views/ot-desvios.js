@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, formatarData } from '../ui.js';
-import { mensagemDeErro, lista, opcoes, semRepetir } from '../ot-comum.js';
+import { mensagemDeErro, podeEditarOt, lista, opcoes, semRepetir } from '../ot-comum.js';
 
 // n.ot, aba "Desvios" (spec n-ot-desvio §5) sobre /ot/desvios (src/routes/ot.ts). A API decide o que cada pessoa vê (IP só a quem vê
 // o inventário completo); aqui só se escondem as ações que ela recusaria. Aceitar é do Gestor ARCiber (org_admin) e não substitui a exceção 5.1.1.
@@ -15,7 +15,6 @@ const TIPO = { fluxo: 'Fluxo', ativo: 'Ativo' };
 const PRAZO_MAXIMO = 90; // dias, o mesmo teto do servidor
 const dia = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const podeAceitar = () => S.user?.role === 'org_admin';
-const podeTratar = () => ['org_admin', 'consultor', 'consultant', 'consultoria_admin', 'platform_admin'].includes(S.user?.role);
 let desvios = [];
 
 const ponta = (p) => (p ? `${escapeHTML(p.ativo || '—')}${p.zona ? ` <span class="org-dica">(${escapeHTML(p.zona)})</span>` : ''}` : '—');
@@ -42,9 +41,9 @@ function linha(d) {
     const ativo = d.tipo === 'ativo';
     const sub = [d.ip, d.fabricante, Array.isArray(d.protocolos_portas) ? d.protocolos_portas.map((x) => (x.porta == null ? x.protocolo : `${x.protocolo}:${x.porta}`)).join(', ') : null].filter(Boolean);
     const aberto = d.situacao === 'aberto';
-    const acoes = [aberto && podeTratar() && `<button class="btn btn-sm" data-action="otTratarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Tratar ${nome}`)}">Tratar</button>`,
+    const acoes = [aberto && podeEditarOt() && `<button class="btn btn-sm" data-action="otTratarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Tratar ${nome}`)}">Tratar</button>`,
         aberto && podeAceitar() && `<button class="btn btn-sm" data-action="otAceitarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Aceitar temporariamente ${nome}`)}">Aceitar temporariamente</button>`,
-        d.achado_id && `<button class="btn btn-sm" data-action="otVerAchadoDesvio" aria-label="${escapeHTML(`Ver achado de ${nome}`)}">Ver achado</button>`].filter(Boolean);
+        d.achado_id && `<button class="btn btn-sm" data-action="otVerAchadoDesvio" data-args='${args(d.achado_levantamento_id)}' aria-label="${escapeHTML(`Ver achado de ${nome}`)}">Ver achado</button>`].filter(Boolean);
     return [escapeHTML(TIPO[d.tipo] || d.tipo), escapeHTML(d.site_nome),
         ativo ? `${ponta(d.origem)}${sub.length ? `<div class="org-dica f-mono">${escapeHTML(sub.join(' · '))}</div>` : ''}` : ponta(d.origem),
         ativo ? '—' : ponta(d.destino),
@@ -61,8 +60,8 @@ window.otFiltrarDesvios = (campo) => {
     window.render();
 };
 
-// Não há link direto: o desvio só guarda o id do achado, não o do levantamento. A pessoa cai na lista de levantamentos.
-window.otVerAchadoDesvio = () => { S.otAba = 'levantamento'; S.otLevantamento = null; window.render(); };
+// Abre a sessão do levantamento em que está o achado rascunho do desvio.
+window.otVerAchadoDesvio = (levId) => { S.otAba = 'levantamento'; S.otLevantamento = levId || null; window.render(); };
 
 function modal(titulo, campos, acao, id, rotulo) {
     openModal(`<div class="modal-header"><span class="modal-title">${titulo}</span></div>${campos}
