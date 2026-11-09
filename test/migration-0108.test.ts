@@ -1,8 +1,8 @@
-// test/migration-0107.test.ts
+// test/migration-0108.test.ts
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import { applySchema, execSql, seedTwoProjects } from './helpers/d1';
-import mig from '../migrations/0107_ot_desvios.sql?raw';
+import mig from '../migrations/0108_ot_desvios.sql?raw';
 
 const um = <T>(sql: string) => env.DB.prepare(sql).all<T>();
 const desvio = (id: string, o: { tipo?: string; chave?: string; dados?: string; situacao?: string } = {}) =>
@@ -11,7 +11,7 @@ const desvio = (id: string, o: { tipo?: string; chave?: string; dados?: string; 
      VALUES (?, 'proj-a', 's-a', ?, ?, ?, ?, '2026-11-01', '2026-11-01')`,
   ).bind(id, o.tipo ?? 'fluxo', o.chave ?? id, o.dados ?? '{}', o.situacao ?? 'aberto').run();
 
-describe('migration 0107: desvios do n.ot', () => {
+describe('migration 0108: desvios do n.ot', () => {
   beforeAll(async () => {
     await applySchema(); await seedTwoProjects();
     await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s-a', 'proj-a', 'SE A')`).run();

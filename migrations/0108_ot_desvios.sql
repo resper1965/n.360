@@ -1,4 +1,4 @@
--- 0107_ot_desvios.sql — n.ot: desvios (fluxo ou ativo fora do esperado) com situação e prazo de aceite. Aditiva e repetível.
+-- 0108_ot_desvios.sql — n.ot: desvios (fluxo ou ativo fora do esperado) com situação e prazo de aceite. Aditiva e repetível.
 -- Verificar depois de aplicar: SELECT name FROM sqlite_master WHERE name = 'ot_desvios' → 1 linha.
 CREATE TABLE IF NOT EXISTS ot_desvios (
     id TEXT PRIMARY KEY,
