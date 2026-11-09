@@ -139,7 +139,7 @@ describe('lista', () => {
         expect(el('c').textContent).toContain('Nada encontrado com a busca ou o filtro.');
         expect(f.mock.calls.length).toBe(antes);
         expect([...el('tc-f-nivel').options].map((o) => o.value)).toEqual(['', 'alto', 'medio', 'baixo', 'nao_avaliada']);
-        expect([...el('tc-f-situacao').options].map((o) => o.value)).toEqual(['', 'pendente', 'vigente', 'vencida', 'reprovada']);
+        expect([...el('tc-f-situacao').options].map((o) => o.value)).toEqual(['', 'pendente', 'vigente', 'vencida', 'reprovada', 'reavaliar']);
         expect(el('tc-f-nivel').getAttribute('data-action-change')).toBe('listaFiltrar');
     });
 
@@ -421,6 +421,17 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(s.textContent).toContain('75% (9 de 12)');
         expect(s.textContent).toContain('Link vencido');
         expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
+    });
+
+    it('reavaliar: o resumo diz de que tipo para qual mudou; a nova avaliação vem com a validade máxima e o teto', async () => {
+        await ficha({ [`GET ${B}/a`]: FICHA({ situacao: 'reavaliar', terceiro_tipo: 'critico', metodo: 'auditoria', validade_maxima: '2027-11-09',
+            ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-06-01', tipo_avaliado: 'medio' } }) }, 'avaliacoes');
+        const resumo = el('c').querySelector('.tc-resumo').textContent;
+        expect(resumo).toContain('Reavaliar');
+        expect(resumo).toContain('o tipo mudou de Médio para Crítico');
+        expect(el('tc-val').value).toBe('2027-11-09');
+        expect(el('tc-val').getAttribute('max')).toBe('2027-11-09');
+        expect(el('c').querySelector('label[for="tc-val"]').textContent).toContain('no máximo 09/11/2027');
     });
 
     it('grande provedor (trust center) não mostra o questionário nem busca homologações; mostra o roteiro do modelo', async () => {

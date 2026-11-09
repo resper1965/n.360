@@ -3,6 +3,11 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { pendenciasDe } from '../src/services/terceiros';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { somarMeses } from '../src/services/fornecedor-modelos';
+import { hojeEmSaoPaulo } from '../src/services/hoje';
+
+// a validade não passa do prazo do modelo do tipo (fatia 2): 6 meses cabe em qualquer tipo
+const DENTRO_DO_PRAZO = somarMeses(hojeEmSaoPaulo(), 6);
 
 /** Pendências do TPRM por fornecedor: tipo, criticidade, avaliação vigente e DPA (skill avaliacao-terceiros). */
 const P = 'tp-proj';
@@ -49,7 +54,7 @@ describe('GET /terceiros traz pendencias', () => {
     expect(l.some((t) => t.id === 'tp-x')).toBe(false);
     expect((await chamar(consultor, 'PUT', `${base}/tp-a/tipo`, { terceiro_tipo: 'medio' })).status).toBe(200);
     expect((await chamar(consultor, 'POST', `${base}/tp-a/criticidades`, { impacto: 'baixo', exclusividade: 'varias_alternativas', risco_financeiro: 'baixo', conformidade: 'sem_regulamentacao', risco_reputacional: 'baixo' })).status).toBe(201);
-    expect((await chamar(consultor, 'POST', `${base}/tp-a/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(201);
+    expect((await chamar(consultor, 'POST', `${base}/tp-a/avaliacoes`, { resultado: 'aprovado', valido_ate: DENTRO_DO_PRAZO })).status).toBe(201);
     expect((await chamar(consultor, 'POST', `${base}/tp-a/documentos`, { documento_id: 'tp-d', papel: 'dpa' })).status).toBe(201);
     l = (await (await chamar(consultor, 'GET', base)).json()) as Item[];
     expect(l.find((t) => t.id === 'tp-a')!.pendencias).toEqual([]);

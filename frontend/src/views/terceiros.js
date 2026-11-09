@@ -13,7 +13,7 @@ import { mascaraCnpj } from './empresa.js';
 const TIPOS = { grande_provedor: 'Grande provedor', medio: 'Médio', pequeno: 'Pequeno', critico: 'Crítico' };
 const METODOS = { trust_center: 'Trust center', questionario: 'Questionário', auditoria: 'Auditoria' };
 const RESULTADOS = { aprovado: 'Aprovado', com_ressalvas: 'Aprovado com ressalvas', reprovado: 'Reprovado' };
-const SITUACOES = { pendente: ['Pendente', 'neutral'], vigente: ['Vigente', 'success'], vencida: ['Vencida', 'danger'], reprovada: ['Reprovada', 'danger'] };
+const SITUACOES = { pendente: ['Pendente', 'neutral'], vigente: ['Vigente', 'success'], vencida: ['Vencida', 'danger'], reprovada: ['Reprovada', 'danger'], reavaliar: ['Reavaliar', 'warning'] };
 const PAPEIS_DOC = { dpa: 'DPA', contrato: 'Contrato', outro: 'Outro' };
 const STATUS_DOC = { rascunho: 'Rascunho', vigente: 'Vigente', publicado: 'Publicado', obsoleto: 'Obsoleto' };
 const ORIGENS = { vinculo: 'Vínculo', compartilhamento_externo: 'Compartilhamento externo' };
@@ -175,7 +175,10 @@ async function renderTerceiro(c, h, a) {
     const corpo = { cadastro: abaCadastro, criticidade: abaCriticidade, avaliacoes: abaAvaliacoes, seguranca: abaSeguranca,
         documentos: abaDocumentos, atividades: abaAtividades, suboperadores: abaSuboperadores }[aba](projectId, parteId, t, editar, extra);
     h.textContent = t.nome;
-    c.innerHTML = `<div class="tc"><p class="tc-resumo">${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${dataBr(t.ultima_avaliacao.valido_ate)}` : 'nunca avaliado'}
+    // reavaliar: a avaliação no prazo foi feita noutro tipo (o modelo e o prazo mudaram com a criticidade ou o tipo)
+    const mudou = t.situacao === 'reavaliar' && t.ultima_avaliacao
+        ? ` · o tipo mudou de ${escapeHTML(TIPOS[t.ultima_avaliacao.tipo_avaliado] || t.ultima_avaliacao.tipo_avaliado || '—')} para ${escapeHTML(TIPOS[t.terceiro_tipo] || '—')}: registre uma nova avaliação` : '';
+    c.innerHTML = `<div class="tc"><p class="tc-resumo">${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${dataBr(t.ultima_avaliacao.valido_ate)}` : 'nunca avaliado'}${mudou}
             · Criticidade: ${escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada')}</p>
         <p class="tc-resumo" id="tc-tprm">Situação do TPRM: ${escapeHTML(situacaoTprm(t))}</p>
         <div class="at-abas" role="tablist" aria-label="Abas do fornecedor">${ABAS.map(([id, r]) =>
@@ -240,7 +243,7 @@ function abaAvaliacoes(projectId, parteId, t, editar, extra) {
     return `${linhaMetodo(t)}
         ${podeAvaliar() && t.terceiro_tipo ? `${titulo('Nova avaliação')}<div id="tc-nova" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-res">Resultado</label><select class="form-input" id="tc-res">${opcoes(RESULTADOS)}</select></div>
-            <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-val">Vale até</label><input class="form-input" id="tc-val" type="date"></div>
+            <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-val">Vale até${t.validade_maxima ? ` (no máximo ${escapeHTML(dataBr(t.validade_maxima))})` : ''}</label><input class="form-input" id="tc-val" type="date"${t.validade_maxima ? ` value="${escapeHTML(t.validade_maxima)}" max="${escapeHTML(t.validade_maxima)}"` : ''}></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-url">Evidência (link)</label><input class="form-input" id="tc-url" maxlength="2000" placeholder="https://"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-obs">Observação</label><input class="form-input" id="tc-obs" maxlength="2000"></div>
             <button class="btn btn-primary btn-sm" data-action="registrarAvaliacaoTerceiro" data-args='${args(projectId, parteId)}'>Registrar</button></div>` : ''}

@@ -31,6 +31,11 @@ describe('situacaoDe', () => {
     expect(situacaoDe({ resultado: 'reprovado', valido_ate: '2999-01-01' })).toBe('reprovada');
     expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-10-09' }, '2026-10-09')).toBe('vigente');
     expect(situacaoDe({ resultado: 'com_ressalvas', valido_ate: '2026-10-09' }, '2026-10-10')).toBe('vencida');
+    // fatia 2: no prazo, mas feita noutro tipo, pede reavaliação; vencida e reprovada continuam como estão
+    expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-12-01', tipo_avaliado: 'medio' }, '2026-10-10', 'critico')).toBe('reavaliar');
+    expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-12-01', tipo_avaliado: 'critico' }, '2026-10-10', 'critico')).toBe('vigente');
+    expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-10-09', tipo_avaliado: 'medio' }, '2026-10-10', 'critico')).toBe('vencida');
+    expect(situacaoDe({ resultado: 'reprovado', valido_ate: '2026-12-01', tipo_avaliado: 'medio' }, '2026-10-10', 'critico')).toBe('reprovada');
   });
   it('o tipo define o método', () => {
     expect(METODO_DO_TIPO).toEqual({ grande_provedor: 'trust_center', medio: 'questionario', pequeno: 'questionario', critico: 'auditoria' });

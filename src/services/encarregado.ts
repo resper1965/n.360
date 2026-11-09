@@ -122,11 +122,11 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     terceiros: {
       total: terceiros.length,
       sem_tipo: terceiros.filter((t) => !t.terceiro_tipo).length,
-      pendentes: terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').length,
+      pendentes: terceiros.filter((t) => t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')).length,
       vencidos: terceiros.filter((t) => t.situacao === 'vencida').length,
       reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length,
       // Contador do menu: sem tipo (nunca avaliado), pendente, vencido ou reprovado, sem contar duas vezes.
-      com_pendencia: terceiros.filter((t) => !t.terceiro_tipo || ['pendente', 'vencida', 'reprovada'].includes(t.situacao)).length,
+      com_pendencia: terceiros.filter((t) => !t.terceiro_tipo || ['pendente', 'vencida', 'reprovada', 'reavaliar'].includes(t.situacao)).length,
     },
     documentos: { revisao_vencida: await n(db, `SELECT count(*) AS n FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2`, projectId, dia) },
     evidencias,
@@ -173,8 +173,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos', filtro: 'vencem_7_dias' });
   p('media', secao.evidencias.a_corrigir, (q) => `${q} ${q === 1 ? 'evidência vencida ou não conforme' : 'evidências vencidas ou não conformes'}`, 'evidence', planejar('Renove ou substitua o arquivo', 'Renovar as evidências', 'vencidas_ou_nao_conformes'));
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos', planejar('A data de revisão passou', 'Revisar os documentos'));
-  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado' : 'terceiros nunca avaliados'}`, 'terceiros',
-    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').map((t) => t.nome)), 'Avaliar os terceiros', 'pendentes'));
+  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado ou a reavaliar' : 'terceiros nunca avaliados ou a reavaliar'}`, 'terceiros',
+    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')).map((t) => t.nome)), 'Avaliar os terceiros', 'pendentes'));
   p('media', secao.tratamentos.sem_base_legal, (q) => `${q} ${q === 1 ? 'tratamento sem base legal' : 'tratamentos sem base legal'}`, 'ropa',
     planejar(exemplos(trat.filter(semBase).map((t) => t.nome)), 'Definir a base legal'));
   p('media', lgpdCarregada || cliente ? 0 : 1, () => 'Catálogo de requisitos LGPD não carregado', 'requisitos', planejar('Sem o catálogo, a cobertura da LGPD não é calculada', 'Abrir a cobertura'));
