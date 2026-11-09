@@ -1503,6 +1503,16 @@ CREATE TABLE IF NOT EXISTS documento_requisitos (
 CREATE INDEX IF NOT EXISTS idx_doc_requisitos_requisito ON documento_requisitos(requisito_id);
 CREATE INDEX IF NOT EXISTS idx_doc_requisitos_projeto ON documento_requisitos(project_id);
 
+-- Requisito "não aplicável" por projeto, com justificativa (migration 0107). Desmarcar apaga a linha; a trilha guarda a decisão.
+CREATE TABLE IF NOT EXISTS requisito_exclusoes (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    requisito_id TEXT NOT NULL REFERENCES requisitos(id) ON DELETE CASCADE,
+    justificativa TEXT NOT NULL CHECK (length(trim(justificativa)) >= 20 AND length(justificativa) <= 2000),
+    decidido_por TEXT NOT NULL,
+    decidido_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, requisito_id)
+);
+
 -- Ligações do tratamento (fatia 4.1, migration 0054)
 CREATE TABLE IF NOT EXISTS tratamento_itens (
     ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,

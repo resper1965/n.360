@@ -18,6 +18,15 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - Webhook `ot.desvio`: exige visão completa do inventário para cadastrar; corpo sem IP, MAC nem hash; assinado, até 3 tentativas, 5 s cada, sem seguir redirect. A entrega de webhooks ganhou novas tentativas, tempo limite e recusa de redirecionamento.
 - Rotas `GET /desvios` (com `?contagem=1`, só o total, para a aba e o cartão), `POST /desvios/:id/tratar` e `POST /desvios/:id/aceitar`. Migration 0107 (aditiva): tabela `ot_desvios`.
 
+### n.ot: MAC do gateway deixa de ir para os ativos
+- Com a sonda atrás de roteador ou firewall, os IPs de outra sub-rede chegavam todos com o MAC do gateway (numa subestação, 212 de 230 ativos com o mesmo MAC). O script `n-ot-resumo-zeek.py` passa a descartar o MAC do `conn.log` visto para 3 ou mais IPs, e o fabricante tirado dele; o MAC do `dhcp.log` fica sempre. Avisa no stderr quantos descartou.
+- O n.ot repete a defesa para resumos de versões antigas do script ou enviados à mão: MAC em 3 ou mais ativos do resumo não gera achado de completar MAC, não vai no ativo novo e não dá fabricante.
+
+### Requisitos: "não aplicável" com justificativa (migration 0107)
+- Na tela de Requisitos (LGPD e ANPD), a consultoria marca um requisito como não aplicável ao projeto, com uma justificativa de pelo menos 20 caracteres, e pode fazê-lo voltar a se aplicar. A marcação vale também para os itens dentro do requisito (uma resolução inteira, por exemplo).
+- O requisito não aplicável sai da conta da cobertura: o total e a porcentagem contam só os aplicáveis, na tela, no painel do encarregado e no ponto de partida. O cliente vê a justificativa, quem marcou e quando.
+- O agente marca e desmarca com o "sim" do consultor, pela ferramenta de decisão nova `niso_excluir_requisito`.
+
 ### Fornecedores (TPRM): prorrogar, link novo e lembretes do questionário (fatia 4)
 - Na ficha do fornecedor, o questionário ainda sem resposta (vencido inclusive) ganha "Prorrogar" (o link passa a valer pelos dias informados, a contar de hoje) e "Novo link" (o link atual deixa de valer e sai um novo, com as perguntas atuais do modelo).
 - Três dias antes de o link vencer, o fornecedor recebe um lembrete por e-mail, uma vez, quando o e-mail dele foi informado no envio. Por segurança o lembrete não traz o link: pede para usar o e-mail original ou pedir um novo a quem enviou.

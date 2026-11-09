@@ -66,6 +66,9 @@ Para cada item que o consultor mandar tratar, um por vez:
 - **Aprovação presa ao conteúdo**: mudar titulares, dados, ativos, prazo, descarte ou item ligado de uma atividade aprovada a deixa desatualizada. Avise antes de gravar e diga que a reaprovação é do cliente.
 - **Evidência vencida** volta a pendente; renovar é nova evidência ou nova validade, e a assinatura é do cliente.
 - **Cobertura da LGPD** conta documento **vigente** ligado ao requisito, ou controle implementado ligado por mapeamento **validado**. Documento em rascunho, mapeamento proposto e controle N/A não cobrem. Documento em arquivo cobre só publicado e com arquivo anexado.
+- **Requisito não aplicável** (LGPD, ANPD) exige justificativa de 20 caracteres ou mais e vale para os filhos do requisito. Só para o que
+  de fato não se aplica ao cliente (resolução dirigida a outro tipo de agente, base legal que ele não usa): nunca para "limpar" lacuna.
+  Marque pela `niso_excluir_requisito`, com o "sim" do consultor; o cliente vê a justificativa, o autor e a data.
 - **Prazo "não calculado"** é parâmetro legal não cadastrado: peça o cadastro ao encarregado; não invente número.
 - **Risco aceito** é ato do cliente; se as notas mudarem depois do aceite, ele volta a Aberto sozinho.
 

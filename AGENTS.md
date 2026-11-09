@@ -327,6 +327,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   mapeamento validado `equivalente`; `Implemented` com mapeamento `parcial` e parcial, e `Partial`/`In Progress` dao no maximo parcial
   (`equivalente` ou `parcial`); `Planned`, `Missing`, N/A e sem status, `relacionado` e `proposto` nao cobrem (`test/requisitos-cobertura-status.test.ts`). LGPD e GDPR entram por
   material juridico revisado, nao por codigo. O agente so le (`FORA_DO_AGENTE`).
+  **Requisito nao aplicavel (migration 0107, spec `docs/superpowers/specs/2026-11-09-requisito-nao-aplicavel-design.md`):** `requisito_exclusoes` (por
+  projeto e requisito; justificativa de 20 a 2000 caracteres, CHECK no banco; `decidido_por`/`decidido_em` do servidor; sem historico proprio, a trilha
+  `requisito.excluido`/`requisito.reincluido` sem o texto). `lacunasDaFonte` da `nao_aplicavel` ao excluido e aos descendentes (`exclusao.herdada_de`), que
+  vence a cobertura e mantem as `origens`; `resumoDeLacunas` traz `nao_aplicaveis` e o `total` so dos aplicaveis (o painel do encarregado usa o mesmo
+  resumo). `PUT|DELETE /projects/:id/requisitos/:requisitoId/exclusao` (faixa `privacy`), so a equipe (`ehEquipeNess`); filho de excluido da 409; o agente
+  pela decisao `niso_excluir_requisito` (`excluir`, `reincluir`). Tela de Requisitos: cartao e filtro "Nao aplicaveis", a justificativa, o autor e a data
+  na linha, e "Marcar como nao aplicavel"/"Voltar a aplicar" no detalhe do requisito, so para a equipe.
 - **RoPA como tratamento ligado (fatia 4, migrations 0054 e 0055)**: `ropa_records` CONTINUA sendo a tabela do tratamento (sem rename:
   a spec diz `tratamentos`, mas renomear tocaria 30+ arquivos por so um nome). `src/services/tratamentos.ts` e as rotas
   `/projects/:id/ropa/:rid/{ligacoes,itens,departamentos,transferencias,diagrama}` ligam o registro a itens, departamentos e
@@ -735,7 +742,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
   **O agente decide como o consultor (spec `docs/superpowers/specs/2026-10-23-agente-decide-como-consultor-design.md`).** O catalogo das decisoes
-  (11 ferramentas, 40 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-09: 40) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
+  (12 ferramentas, 42 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-09: 42) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
   `resolverAgente` (`src/middleware/agente.ts`): a rota de decisao exige os cabecalhos `X-Agente-Ferramenta`, `X-Agente-Confirmado: 1` (so o booleano `true` em
   `confirmado_pelo_usuario`) e `X-Agente-Motivo` (1 a 500 caracteres); valendo, o principal ganha `agente_decisao` e `ehEquipeNess` o aceita naquela rota e so nela.
   A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre

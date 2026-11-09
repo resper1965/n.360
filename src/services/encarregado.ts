@@ -1,7 +1,7 @@
 import { listarIncidentes } from './incidentes';
 import { listarPedidos } from './titular-pedidos';
 import { listarTerceiros } from './terceiros';
-import { lacunasDaFonte } from './requisitos';
+import { lacunasDaFonte, resumoDeLacunas } from './requisitos';
 import { lerParametros } from './parametros-legais';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
@@ -133,8 +133,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     riscos,
     acoes_por_prazo,
     lgpd: lgpdCarregada
-      ? { carregada: true, total: lacunas.length, cobertos: lacunas.filter((l) => l.situacao === 'coberto').length, parciais: lacunas.filter((l) => l.situacao === 'parcial').length, lacunas: lacunas.filter((l) => l.situacao === 'lacuna').length }
-      : { carregada: false },
+      ? { carregada: true as const, ...resumoDeLacunas(lacunas) } // o mesmo resumo da tela de Requisitos: o não aplicável fica fora do total
+      : { carregada: false as const },
     prazos_legais: { nao_definidos: parametros.filter((p) => !p.definido).map((p) => p.chave) },
   };
 
