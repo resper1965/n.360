@@ -446,27 +446,65 @@ function secaoHomologacao(projectId, parteId, homologacoes, editar) {
         return `<tr><td>${dataBr(h.created_at)}</td><td>${window.renderStatusBadge(rotulo, tom)}</td>
             <td>${escapeHTML(`${h.percentual}% (${h.respondidas} de ${h.total})`)}</td><td>${dataBr(String(h.expira_em || '').slice(0, 10))}</td>
             <td>${escapeHTML(RESULTADOS[h.resultado] || '')}</td>
-            <td style="text-align:right">${editar ? `<button class="btn btn-ghost btn-sm" data-action="revisarHomologacao" data-args='${args(projectId, parteId, h.id)}'>Revisar</button>` : ''}</td></tr>`;
+            <td style="text-align:right">${editar ? `<button class="btn btn-ghost btn-sm" data-action="revisarHomologacao" data-args='${args(projectId, parteId, h.id)}' aria-label="${escapeHTML(`Revisar o questionário de ${dataBr(h.created_at)}`)}">Revisar</button>
+                ${h.status === 'aberta' ? window.renderMaisAcoes([{ rotulo: 'Prorrogar', action: 'prorrogarHomologacao', args: [projectId, h.id] },
+                    { rotulo: 'Novo link', action: 'novoLinkHomologacao', args: [projectId, h.id] }], { nome: `questionário de ${dataBr(h.created_at)}` }) : ''}` : ''}</td></tr>`;
     }).join('');
     return `<h4 style="margin:1.25rem 0 0.5rem">Homologação por questionário</h4>
         <div id="tc-homologacao">${homologacoes.length
             ? `<table class="data-table"><thead><tr><th>Criada em</th><th>Situação</th><th>Respondido</th><th>Link vale até</th><th>Resultado</th><th></th></tr></thead><tbody>${linhas}</tbody></table>`
             : window.renderEmptyState({ titulo: 'Nenhum questionário enviado.', compacto: true })}
         ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; margin-top:0.75rem">
-            <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-dias">Link vale (dias)</label><input class="form-input" id="tc-hm-dias" type="number" min="1" max="60" value="15"></div>
+            <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-dias">Link vale (dias; também para prorrogar e para o novo link)</label><input class="form-input" id="tc-hm-dias" type="number" min="1" max="60" value="15"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-hm-email">E-mail do fornecedor (opcional)</label><input class="form-input" id="tc-hm-email" type="email" maxlength="254"></div>
             <button class="btn btn-sm" data-action="criarHomologacaoTerceiro" data-args='${args(projectId, parteId)}'>Homologar</button></div>
             <div id="tc-hm-link"></div>` : ''}</div>`;
 }
 
-window.criarHomologacaoTerceiro = async function (projectId, parteId) {
+/** Dias do campo "Link vale (dias)", ou null com o aviso. */
+const diasDoLink = () => {
     const dias = Number(el('tc-hm-dias').value);
-    if (!Number.isInteger(dias) || dias < 1 || dias > 60) { showToast('Informe a validade do link em dias, de 1 a 60', 'error'); return; }
+    if (Number.isInteger(dias) && dias >= 1 && dias <= 60) return dias;
+    showToast('Informe a validade do link em dias, de 1 a 60', 'error');
+    return null;
+};
+
+window.criarHomologacaoTerceiro = async function (projectId, parteId) {
+    const dias = diasDoLink();
+    if (!dias) return;
     const email = el('tc-hm-email').value.trim();
     let r;
     try {
         r = await api('POST', `/api/v1/projects/${projectId}/homologacoes`, email ? { parte_id: parteId, dias, email } : { parte_id: parteId, dias });
     } catch (e) { falha(e, 'Não foi possível criar a homologação'); return; }
+    await mostrarLink(r);
+};
+
+/** Fatia 4: prorroga o link aberto pelos dias do campo, contados de hoje. */
+window.prorrogarHomologacao = async function (projectId, id) {
+    const dias = diasDoLink();
+    if (!dias) return;
+    try {
+        const r = await api('PUT', `/api/v1/projects/${projectId}/homologacoes/${id}/prazo`, { dias });
+        showToast(`Link prorrogado até ${dataBr(String(r.expira_em || '').slice(0, 10))}.`, 'success');
+    } catch (e) { falha(e, 'Não foi possível prorrogar o link'); return; }
+    await repintar();
+};
+
+/** Fatia 4: cancela o link aberto e cria outro, com as perguntas atuais; o e-mail do campo, se houver, recebe o link novo. */
+window.novoLinkHomologacao = async function (projectId, id) {
+    const dias = diasDoLink();
+    if (!dias) return;
+    if (!(await window.confirmar('O link atual deixa de valer na hora e as respostas parciais não passam para o novo.', { titulo: 'Gerar link novo', rotulo: 'Gerar link novo' }))) return;
+    const email = el('tc-hm-email').value.trim();
+    let r;
+    try {
+        r = await api('POST', `/api/v1/projects/${projectId}/homologacoes/${id}/novo-link`, email ? { dias, email } : { dias });
+    } catch (e) { falha(e, 'Não foi possível gerar o link novo'); return; }
+    await mostrarLink(r);
+};
+
+async function mostrarLink(r) {
     await repintar();
     const alvo = el('tc-hm-link');
     if (!alvo) return;
@@ -474,7 +512,7 @@ window.criarHomologacaoTerceiro = async function (projectId, parteId) {
         <label class="form-label" for="tc-hm-url">Link do questionário, válido até ${dataBr(String(r.expira_em || '').slice(0, 10))}</label>
         <div style="display:flex; gap:0.5rem"><input class="form-input" id="tc-hm-url" readonly value="${escapeHTML(r.url)}"><button class="btn btn-ghost" data-action="copiarLinkHomologacao">Copiar</button></div>
         <p style="color:var(--text-dim); margin:0.5rem 0 0">${r.email_enviado ? 'O link também foi enviado por e-mail. ' : ''}Copie agora: o link não aparece de novo. Envie-o só ao fornecedor.</p></div>`;
-};
+}
 
 window.copiarLinkHomologacao = async function () {
     const campo = el('tc-hm-url');

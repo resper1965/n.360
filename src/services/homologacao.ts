@@ -6,6 +6,8 @@ import { emailHomologacaoRespondida } from './emails';
 import { log } from '../observability';
 import { PODE_QUESTIONARIO, registrarAvaliacao, type Avaliacao, type TipoTerceiro } from './terceiros';
 import { escolherDestinatarios, pessoasDoProjeto } from './avisos-prazo';
+import { modulosDaPessoa, recusaDaPessoa } from '../modulos';
+import { emailLembreteHomologacao } from './emails';
 import { perguntasDoEnvio, perguntasDoProjeto, type TipoModelo, type TipoQuestionario } from './fornecedor-modelos';
 
 /**
@@ -106,7 +108,8 @@ export async function lerHomologacao(db: D1Database, projectId: string, id: stri
 
 const ehQuestionario = (tipo: TipoTerceiro | null) => !!tipo && PODE_QUESTIONARIO.has(tipo);
 
-export async function criarHomologacao(db: D1Database, projectId: string, ator: string, d: { parte_id: string; dias: number }):
+/** `email`: o do fornecedor, gravado só enquanto a homologação está aberta (o gatilho `homologacao_email_some` o apaga), para o lembrete. */
+export async function criarHomologacao(db: D1Database, projectId: string, ator: string, d: { parte_id: string; dias: number; email?: string | null }):
   Promise<Falha | { ok: true; id: string; token: string; expira_em: string; parte_nome: string }> {
   const parte = await db.prepare(`SELECT id, tipo, terceiro_tipo, nome, status FROM partes WHERE id = ? AND project_id = ?`).bind(d.parte_id, projectId)
     .first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null; nome: string; status: string }>();
@@ -119,9 +122,10 @@ export async function criarHomologacao(db: D1Database, projectId: string, ator: 
   const token = genToken();
   const id = genId();
   const cliente = (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(projectId).first<string>('client_name')) ?? '';
-  const row = await db.prepare(`INSERT INTO homologacoes (id, project_id, parte_id, token_hash, expira_em, perguntas_json, criado_por, tipo)
-     VALUES (?, ?, ?, ?, datetime('now', ?), ?, ?, ?) RETURNING expira_em`)
-    .bind(id, projectId, parte.id, await sha256Hex(token), `+${d.dias} days`, JSON.stringify({ perguntas: ativas, fornecedor: parte.nome, cliente }), ator, tipo).first<{ expira_em: string }>();
+  const row = await db.prepare(`INSERT INTO homologacoes (id, project_id, parte_id, token_hash, expira_em, perguntas_json, criado_por, tipo, email_destino)
+     VALUES (?, ?, ?, ?, datetime('now', ?), ?, ?, ?, ?) RETURNING expira_em`)
+    .bind(id, projectId, parte.id, await sha256Hex(token), `+${d.dias} days`, JSON.stringify({ perguntas: ativas, fornecedor: parte.nome, cliente }), ator, tipo, d.email ?? null)
+    .first<{ expira_em: string }>();
   await logAudit(db, 'homologacao.criada', ator, `Homologação ${id} do terceiro ${parte.id}: ${ativas.length} perguntas, link válido por ${d.dias} dias`, '', '', projectId);
   return { ok: true, id, token, expira_em: row!.expira_em, parte_nome: parte.nome };
 }
@@ -164,6 +168,138 @@ export async function concluirHomologacao(db: D1Database, projectId: string, id:
   await db.prepare('UPDATE homologacoes SET avaliacao_id = ? WHERE id = ? AND project_id = ?').bind(r.id, id, projectId).run();
   await logAudit(db, 'homologacao.concluida', ator, `Homologação ${id} concluída (${d.resultado}), avaliação ${r.id}`, '', '', projectId);
   return { ok: true, avaliacao_id: r.id };
+}
+
+/**
+ * Fatia 4 (ciclo do link). Prorrogar: só `aberta`, inclusive já vencida sem resposta; o prazo conta de agora e o lembrete volta a
+ * poder sair (o prazo novo é outro). O token não muda (o gatilho `homologacao_imutavel` o protege).
+ */
+export async function prorrogarHomologacao(db: D1Database, projectId: string, id: string, dias: number, ator: string): Promise<Falha | { ok: true; expira_em: string }> {
+  const row = await db.prepare(`UPDATE homologacoes SET expira_em = datetime('now', ?), lembrete_em = NULL, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND project_id = ? AND status = 'aberta' RETURNING expira_em`).bind(`+${dias} days`, id, projectId).first<{ expira_em: string }>();
+  if (!row) {
+    const existe = await db.prepare('SELECT 1 FROM homologacoes WHERE id = ? AND project_id = ?').bind(id, projectId).first();
+    return existe ? falha(409, 'Só o questionário ainda sem resposta pode ser prorrogado') : falha(404, 'Homologação não encontrada');
+  }
+  await logAudit(db, 'homologacao.prorrogada', ator, `Homologação ${id}: link prorrogado por ${dias} dias`, '', '', projectId);
+  return { ok: true, expira_em: row.expira_em };
+}
+
+/**
+ * Novo link: cria outra homologação para o mesmo fornecedor, com as perguntas ATUAIS do modelo (as respostas parciais não passam:
+ * as perguntas podem ter mudado), e só então cancela a aberta. Se a antiga deixou de estar aberta no meio (o fornecedor enviou),
+ * a nova é cancelada e a resposta é 409: nada se perde.
+ */
+export async function novoLinkHomologacao(db: D1Database, projectId: string, id: string, ator: string, d: { dias: number; email?: string | null }):
+  ReturnType<typeof criarHomologacao> {
+  const antiga = await db.prepare('SELECT parte_id, status FROM homologacoes WHERE id = ? AND project_id = ?').bind(id, projectId).first<{ parte_id: string; status: string }>();
+  if (!antiga) return falha(404, 'Homologação não encontrada');
+  if (antiga.status !== 'aberta') return falha(409, 'Só o questionário ainda sem resposta ganha link novo');
+  const r = await criarHomologacao(db, projectId, ator, { parte_id: antiga.parte_id, dias: d.dias, email: d.email });
+  if (!r.ok) return r;
+  const c = await db.prepare(`UPDATE homologacoes SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ? AND status = 'aberta'`).bind(id, projectId).run();
+  if (!c.meta.changes) {
+    await db.prepare(`UPDATE homologacoes SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'aberta'`).bind(r.id).run();
+    return falha(409, 'O fornecedor enviou o questionário enquanto o link novo era criado: revise o enviado');
+  }
+  // a trilha que falha não pode esconder o link novo, que só sai nesta resposta (o banco guarda só o hash)
+  try { await logAudit(db, 'homologacao.novo_link', ator, `Homologação ${id} substituída por ${r.id}`, '', '', projectId); }
+  catch (e) { log('error', { msg: 'homologacao_novo_link_trilha_falhou', homologacao_id: r.id, projeto: projectId, erro: e instanceof Error ? e.message : String(e) }); }
+  return r;
+}
+
+type AvisoDoLink = { id: string; project_id: string; parte_nome: string; marca: string };
+const MARCAS: { tipo: string; titulo: string; texto: (n: string) => string; sql: string }[] = [
+  { tipo: 'homologacao_vence', titulo: 'Questionário vence em 3 dias', texto: (n) => `O link do questionário de ${n} vence em até 3 dias sem resposta.`,
+    sql: `h.status = 'aberta' AND datetime(h.expira_em) > datetime('now') AND datetime(h.expira_em) <= datetime('now', '+3 days')` },
+  // janela de 7 dias: pega o dia que a rotina não rodou, sem avisar de novo o que venceu há muito (o NOT EXISTS segura o repetido)
+  { tipo: 'homologacao_vencida', titulo: 'Questionário vencido sem resposta', texto: (n) => `O link do questionário de ${n} venceu sem resposta. Prorrogue ou gere um link novo.`,
+    sql: `h.status = 'aberta' AND datetime(h.expira_em) <= datetime('now') AND datetime(h.expira_em) > datetime('now', '-7 days')` },
+  { tipo: 'homologacao_parada', titulo: 'Questionário respondido aguardando conclusão', texto: (n) => `${n} respondeu o questionário há 2 dias ou mais. Revise e conclua.`,
+    sql: `h.status = 'respondida' AND datetime(h.enviada_em) <= datetime('now', '-2 days')` },
+];
+
+/**
+ * Rotina das 08:00 (junto dos avisos de prazo, `src/index.ts`). Sino da equipe (faixa privacy; os consultores designados ou os
+ * consultoria_admin, a regra de `escolherDestinatarios`) para o link que vence em 3 dias, o vencido sem resposta e o respondido
+ * parado; uma vez por homologação, marca e vencimento (prorrogar rearma). E UM lembrete por e-mail ao fornecedor, só com
+ * `email_destino` e com o envio configurado de verdade (sem a chave, marcar enviado seria mentir). O e-mail não leva o link:
+ * o banco só tem o hash do token. Falha de item vai a `falhas` e o resto segue.
+ */
+export async function avisosDeHomologacao(env: Pick<Bindings, 'DB' | 'RESEND_API_KEY' | 'APP_URL'>): Promise<{ avisos: number; lembretes: number; falhas: string[] }> {
+  const db = env.DB;
+  const r = { avisos: 0, lembretes: 0, falhas: [] as string[] };
+  const pessoas = new Map<string, Awaited<ReturnType<typeof pessoasDoProjeto>>>();
+  const destinosDe = async (projectId: string) => {
+    if (!pessoas.has(projectId)) {
+      const todas = await pessoasDoProjeto(db, projectId);
+      const comModulo = [];
+      for (const p of todas) if (!recusaDaPessoa('privacy', await modulosDaPessoa(db, p))) comModulo.push(p);
+      pessoas.set(projectId, escolherDestinatarios(comModulo, null));
+    }
+    return pessoas.get(projectId)!;
+  };
+  for (const m of MARCAS) {
+    try {
+      const { results } = await db.prepare(`SELECT h.id, h.project_id, pa.nome AS parte_nome, h.id || ':' || COALESCE(date(h.expira_em), '') AS marca
+         FROM homologacoes h JOIN partes pa ON pa.id = h.parte_id AND pa.project_id = h.project_id WHERE pa.status = 'ativa' AND ${m.sql}`).all<AvisoDoLink>();
+      for (const h of results) {
+        try {
+          const destinos = await destinosDe(h.project_id);
+          if (!destinos.length) continue;
+          const alvo = m.tipo === 'homologacao_parada' ? h.id : h.marca;
+          const res = await db.batch(destinos.map((p) => db.prepare(`INSERT INTO notifications (id, user_id, type, title, message, read, link, target_id, created_at)
+              SELECT ?1, ?2, ?3, ?4, ?5, 0, ?6, ?7, datetime('now')
+               WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE type = ?3 AND target_id = ?7 AND user_id = ?2)`)
+            .bind(genId(), p.id, m.tipo, m.titulo, m.texto(h.parte_nome), `/projects/${h.project_id}/terceiros`, alvo)));
+          r.avisos += res.reduce((n, x) => n + (x.meta.changes ?? 0), 0);
+        } catch (e) { r.falhas.push(`${m.tipo} ${h.id}: ${e instanceof Error ? e.message : String(e)}`); }
+      }
+    } catch (e) { r.falhas.push(`${m.tipo}: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  if (env.RESEND_API_KEY) await lembretes(env, r);
+  if (r.falhas.length) log('error', { msg: 'homologacao_avisos', ...r });
+  return r;
+}
+
+async function lembretes(env: Pick<Bindings, 'DB' | 'RESEND_API_KEY' | 'APP_URL'>, r: { lembretes: number; falhas: string[] }) {
+  const db = env.DB;
+  const { results } = await db.prepare(`SELECT h.id, h.project_id, h.email_destino, h.created_at, h.expira_em, h.criado_por, h.perguntas_json, pa.nome AS parte_nome
+     FROM homologacoes h JOIN partes pa ON pa.id = h.parte_id AND pa.project_id = h.project_id
+     WHERE h.status = 'aberta' AND h.enviada_em IS NULL AND h.lembrete_em IS NULL AND h.email_destino IS NOT NULL AND pa.status = 'ativa'
+       AND datetime(h.expira_em) > datetime('now') AND datetime(h.expira_em) <= datetime('now', '+3 days')`)
+    .all<{ id: string; project_id: string; email_destino: string; created_at: string; expira_em: string; criado_por: string | null; perguntas_json: string; parte_nome: string }>();
+  for (const h of results) {
+    try {
+      // reserva antes de enviar: duas rotinas ao mesmo tempo não mandam dois lembretes
+      const reserva = await db.prepare(`UPDATE homologacoes SET lembrete_em = CURRENT_TIMESTAMP WHERE id = ? AND lembrete_em IS NULL AND status = 'aberta'`).bind(h.id).run();
+      if (!reserva.meta.changes) continue;
+      const congelado = lerCongelado(h.perguntas_json);
+      const cliente = congelado.cliente ?? (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(h.project_id).first<string>('client_name')) ?? '';
+      // quem enviou; conta apagada ou anonimizada: alguém da equipe do projeto (a regra do sino), para a resposta ter destino
+      const quem = (h.criado_por ? await db.prepare(`SELECT u.name AS nome, u.email, o.name AS organizacao FROM users u LEFT JOIN organizations o ON o.id = u.org_id
+         WHERE lower(u.email) = lower(?) AND COALESCE(u.ativo, 1) <> 0`).bind(h.criado_por).first<{ nome: string | null; email: string; organizacao: string | null }>() : null)
+        ?? await equipeDoProjeto(db, h.project_id);
+      const m = emailLembreteHomologacao({ cliente, fornecedor: congelado.fornecedor ?? h.parte_nome, enviadoEm: h.created_at, expiraEm: h.expira_em, quem });
+      const ok = await enviarEmail(env, h.email_destino, m.assunto, m, { from: remetente('n.privacy', cliente), ...(quem ? { replyTo: quem.email } : {}) });
+      if (ok) r.lembretes++;
+      else {
+        await db.prepare('UPDATE homologacoes SET lembrete_em = NULL WHERE id = ?').bind(h.id).run();
+        r.falhas.push(`lembrete ${h.id}: envio recusado`);
+      }
+    } catch (e) {
+      r.falhas.push(`lembrete ${h.id}: ${e instanceof Error ? e.message : String(e)}`);
+      // libera a reserva: senão o lembrete nunca mais sai (a consulta pede lembrete_em nulo)
+      try { await db.prepare('UPDATE homologacoes SET lembrete_em = NULL WHERE id = ?').bind(h.id).run(); } catch { /* a falha já foi anotada */ }
+    }
+  }
+}
+
+async function equipeDoProjeto(db: D1Database, projectId: string) {
+  const [p] = escolherDestinatarios(await pessoasDoProjeto(db, projectId), null);
+  if (!p) return null;
+  const organizacao = await db.prepare('SELECT o.name FROM projects pr JOIN organizations o ON o.id = pr.org_id WHERE pr.id = ?').bind(projectId).first<string>('name');
+  return { nome: p.name, email: p.email, organizacao: organizacao ?? null };
 }
 
 // ─── Lado do fornecedor (rotas públicas) ────────────────────────────────────────────────────────────────────────────

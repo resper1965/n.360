@@ -475,6 +475,29 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(el('tc-hm-url').value).toBe('https://n360.ness.com.br/homologacao#abc');
     });
 
+    it('link aberto (vencido inclusive) ganha Prorrogar e Novo link; o respondido não (fatia 4)', async () => {
+        const f = await ficha({ [`GET ${H}`]: HOMOLOGACOES, [`PUT ${H}/h0/prazo`]: { ok: true, expira_em: '2026-12-01 10:00:00' },
+            [`POST ${H}/h0/novo-link`]: { id: 'h9', url: 'https://n360.ness.com.br/homologacao#novo', expira_em: '2026-12-01 10:00:00', email_enviado: false } }, 'avaliacoes');
+        const linhas = [...el('tc-homologacao').querySelectorAll('tbody tr')];
+        // uma ação à vista por linha, com nome único; prorrogar e novo link no "Mais ações" da linha
+        expect(linhas[1].querySelector('[data-action="revisarHomologacao"]').getAttribute('aria-label')).toBe('Revisar o questionário de 15/09/2026');
+        expect(linhas[1].querySelector('.mais-acoes-lista [data-action="prorrogarHomologacao"]')).not.toBeNull();
+        expect(linhas[0].querySelector('.mais-acoes')).toBeNull();
+        expect(linhas[0].querySelector('[data-action="prorrogarHomologacao"]')).toBeNull();
+        expect(linhas[1].querySelector('[data-action="prorrogarHomologacao"]')).not.toBeNull();
+        expect(linhas[1].querySelector('[data-action="novoLinkHomologacao"]')).not.toBeNull();
+        el('tc-hm-dias').value = '20';
+        await window.prorrogarHomologacao('p9', 'h0');
+        expect(corpoDe(f, `PUT ${H}/h0/prazo`)).toEqual({ dias: 20 });
+        const confirmar = vi.spyOn(window, 'confirmar').mockResolvedValue(true);
+        el('tc-hm-dias').value = '15';
+        el('tc-hm-email').value = 'novo@fornecedor.exemplo';
+        await window.novoLinkHomologacao('p9', 'h0');
+        expect(confirmar).toHaveBeenCalled();
+        expect(corpoDe(f, `POST ${H}/h0/novo-link`)).toEqual({ dias: 15, email: 'novo@fornecedor.exemplo' });
+        expect(el('tc-hm-url').value).toBe('https://n360.ness.com.br/homologacao#novo');
+    });
+
     it('revisar mostra as respostas escapadas; concluir exige validade e manda resultado, validade e observação', async () => {
         document.body.innerHTML = PALCO;
         const f = servir(rotas({ [`GET ${H}/h1`]: DETALHE, [`POST ${H}/h1/concluir`]: { ok: true, avaliacao_id: 'av1' }, [`GET ${H}`]: [] }));
