@@ -79,7 +79,11 @@ window.otAceitarDesvio = (id) => {
 };
 
 const enviar = (acao, id, corpo, ok, erro) => semRepetir(acao, async () => {
-    try { await api('POST', `/api/v1/projects/${proj().id}/ot/desvios/${encodeURIComponent(id)}/${acao === 'otSalvarTratar' ? 'tratar' : 'aceitar'}`, corpo); } catch (e) {
+    // Um literal por ação: o contrato tela-API (varredura estática) precisa enxergar cada caminho.
+    try {
+        if (acao === 'otSalvarTratar') await api('POST', `/api/v1/projects/${proj().id}/ot/desvios/${encodeURIComponent(id)}/tratar`, corpo);
+        else await api('POST', `/api/v1/projects/${proj().id}/ot/desvios/${encodeURIComponent(id)}/aceitar`, corpo);
+    } catch (e) {
         if (e?.status === 409) { window.closeModal?.(); showToast('Este desvio já não está aberto.', 'error'); window.render(); return; }
         falhou(e, erro); return;
     }
