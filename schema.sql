@@ -1651,7 +1651,9 @@ CREATE TABLE IF NOT EXISTS avaliacoes_terceiro (
     evidencia_url TEXT,
     observacao TEXT,
     avaliado_por TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- o tipo do fornecedor quando a avaliação foi feita (migration 0106): tipo diferente do atual pede reavaliação
+    tipo_avaliado TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_aval_terceiro_parte ON avaliacoes_terceiro(parte_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_aval_terceiro_projeto ON avaliacoes_terceiro(project_id, valido_ate);
@@ -2005,7 +2007,9 @@ CREATE TABLE IF NOT EXISTS homologacao_perguntas (
     ativa INTEGER NOT NULL DEFAULT 1 CHECK (ativa IN (0, 1)),
     origem TEXT NOT NULL DEFAULT 'projeto' CHECK (origem IN ('padrao', 'projeto')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- desde a 0106 só a pergunta PRÓPRIA do projeto: NULL = todos os tipos que recebem questionário
+    tipo TEXT CHECK (tipo IS NULL OR tipo IN ('critico', 'medio', 'pequeno'))
 );
 CREATE INDEX IF NOT EXISTS idx_homologacao_perguntas_projeto ON homologacao_perguntas(project_id, ordem);
 
@@ -2025,7 +2029,11 @@ CREATE TABLE IF NOT EXISTS homologacoes (
     concluida_em DATETIME,
     criado_por TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- migration 0106: o tipo no envio (o modelo usado); o e-mail do fornecedor só enquanto aberta (lembrete); quando o lembrete saiu
+    tipo TEXT,
+    email_destino TEXT,
+    lembrete_em DATETIME
 );
 CREATE INDEX IF NOT EXISTS idx_homologacoes_projeto ON homologacoes(project_id, parte_id, created_at);
 
@@ -2037,6 +2045,43 @@ WHEN NEW.perguntas_json IS NOT OLD.perguntas_json OR NEW.token_hash IS NOT OLD.t
   OR (OLD.status != 'aberta' AND NEW.status = 'aberta')
 BEGIN
     SELECT RAISE(ABORT, 'homologacao: perguntas e respostas enviadas sao imutaveis');
+END;
+
+-- Modelos de avaliação de fornecedor da consultoria (migration 0106): um por tipo; o projeto só desliga pergunta do modelo (homologacao_ajustes).
+CREATE TABLE IF NOT EXISTS fornecedor_modelos (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL CHECK (tipo IN ('critico', 'medio', 'pequeno', 'grande_provedor')),
+    prazo_meses INTEGER NOT NULL CHECK (prazo_meses BETWEEN 1 AND 60),
+    origem TEXT NOT NULL DEFAULT 'padrao' CHECK (origem IN ('padrao', 'consultoria')),
+    atualizado_por TEXT,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (org_id, tipo)
+);
+CREATE TABLE IF NOT EXISTS fornecedor_modelo_perguntas (
+    id TEXT PRIMARY KEY,
+    modelo_id TEXT NOT NULL REFERENCES fornecedor_modelos(id) ON DELETE CASCADE,
+    tema TEXT NOT NULL CHECK (length(tema) BETWEEN 1 AND 80),
+    texto TEXT NOT NULL CHECK (length(texto) BETWEEN 1 AND 500),
+    ordem INTEGER NOT NULL DEFAULT 0,
+    ativa INTEGER NOT NULL DEFAULT 1 CHECK (ativa IN (0, 1)),
+    origem TEXT NOT NULL DEFAULT 'consultoria' CHECK (origem IN ('padrao', 'consultoria')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_fornecedor_modelo_perguntas ON fornecedor_modelo_perguntas(modelo_id, ordem);
+CREATE TABLE IF NOT EXISTS homologacao_ajustes (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    modelo_pergunta_id TEXT NOT NULL REFERENCES fornecedor_modelo_perguntas(id) ON DELETE CASCADE,
+    ativa INTEGER NOT NULL DEFAULT 0 CHECK (ativa IN (0, 1)),
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, modelo_pergunta_id)
+);
+CREATE TRIGGER IF NOT EXISTS homologacao_email_some
+AFTER UPDATE OF status ON homologacoes
+WHEN NEW.status <> 'aberta' AND NEW.email_destino IS NOT NULL
+BEGIN
+    UPDATE homologacoes SET email_destino = NULL WHERE id = NEW.id;
 END;
 
 -- Convite com link para criar a senha (migration 0077): só o SHA-256 do token, 72 h, uso único (DELETE condicional), reenviar substitui.
