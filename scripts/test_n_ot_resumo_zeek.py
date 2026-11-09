@@ -59,6 +59,14 @@ class T(unittest.TestCase):
         self.assertEqual(macs["10.0.0.5"], ("00:30:a7:01:02:03", "SEL"))
         self.assertIn("49 MACs de gateway", err.getvalue())
 
+    def test_mac_gateway_limiar(self):
+        for n, fica in ((2, True), (3, False)):
+            conn = [self._c(**{"id.resp_h": "10.0.0.%d" % (10 + i), "resp_l2_addr": "00:30:a7:00:00:99"}) for i in range(n)]
+            with contextlib.redirect_stderr(io.StringIO()):
+                r = resumo.resumir(self._pasta(conn))
+            com_mac = [a["ip"] for a in r["ativos"] if a.get("mac") == "00:30:a7:00:00:99"]
+            self.assertEqual(len(com_mac), n if fica else 0, n)
+
     def test_gz(self):
         r = resumo.resumir(os.path.join(AQUI, "fixtures-zeek-gz"))
         self.assertEqual(sum(c["contagem"] for c in r["conexoes"]), 2)

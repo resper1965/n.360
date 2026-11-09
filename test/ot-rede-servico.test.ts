@@ -85,6 +85,17 @@ describe('planejarResumo', () => {
     expect(p.contagem.macs_gateway_ignorados).toBe(2);
   });
 
+  it('limiar do MAC de gateway: em 2 ativos fica (completa o MAC do inventariado), em 3 sai', async () => {
+    const mac = '00:09:0f:00:00:02';
+    const dois = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.10', { mac }), at('10.1.1.82', { mac })], []));
+    expect(dois.macs.map((m) => m.dados.mac)).toEqual([mac]); // 10.1.1.10 está no inventário sem MAC
+    expect(dois.ativos.map((a) => a.dados.mac)).toEqual([mac]);
+    expect(dois.contagem.macs_gateway_ignorados).toBe(0);
+    const tres = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.10', { mac }), at('10.1.1.82', { mac }), at('10.1.1.83', { mac })], []));
+    expect([tres.macs, tres.ativos]).toEqual([[], []]);
+    expect(tres.contagem.macs_gateway_ignorados).toBe(3);
+  });
+
   it('ativo com mais de 100 portas: só as 100 primeiras, na ordem do resumo', async () => {
     const portas = Array.from({ length: 150 }, (_, i) => 1000 + i);
     const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.40', { protocolos: ['modbus'], portas_servico: portas, mac: '00:30:a7:00:00:40' })], []));

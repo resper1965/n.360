@@ -101,6 +101,8 @@ const contar = (p: Plano) => {
   return p;
 };
 
+// mesmo limiar de MAC_GATEWAY_MIN_IPS em scripts/n-ot-resumo-zeek.py
+const MAC_GATEWAY_MIN_IPS = 3;
 /**
  * Resumo validado → achados de ativo, MACs a completar, fluxos com pontas do site e pendências (só hash). Comparação por `ip_hash` no
  * índice do site, sem decifrar. Na pendência o lado externo fica com hash nulo: IP externo nunca é guardado, nem como HMAC.
@@ -126,7 +128,7 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   // ativo novo só para IP que originou conexão, tem MAC, ou foi destino de TCP/aplicação identificada (outstation só responde; sem MAC no Zeek).
   // Broadcast de sub-rede só recebe UDP sem aplicação, então fica de fora.
   const vivos = new Set(conexoes.flatMap((c) => [c.origem, ...(c.transporte === 'tcp' || c.aplicacao ? [c.destino] : [])]));
-  // Sonda atrás de roteador/firewall: IPs de outra sub-rede chegam com o MAC do gateway. MAC em 3+ IPs do resumo (externos contam) é dele,
+  // Sonda atrás de roteador/firewall: IPs de outra sub-rede chegam com o MAC do gateway. MAC em MAC_GATEWAY_MIN_IPS+ IPs do resumo (externos contam) é dele,
   // não do ativo: nem completa MAC, nem vai no ativo novo, nem dá fabricante (o script tira o fabricante do OUI desse MAC).
   const ipsPorMac = new Map<string, Set<string>>();
   for (const a of resumo.ativos) {
@@ -135,7 +137,7 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   }
   const ipsVistos = new Set<string>();
   for (const a0 of resumo.ativos) {
-    const gateway = !!a0.mac && ipsPorMac.get(normalizarMac(a0.mac)!)!.size >= 3;
+    const gateway = !!a0.mac && ipsPorMac.get(normalizarMac(a0.mac)!)!.size >= MAC_GATEWAY_MIN_IPS;
     const a = gateway ? { ...a0, mac: undefined, fabricante: undefined } : a0;
     const x = normalizarIp(a.ip)!;
     if (!interno(x) || !ehHost(x) || ipsVistos.has(x)) continue;
