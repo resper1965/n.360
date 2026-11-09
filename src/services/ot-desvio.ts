@@ -54,7 +54,7 @@ export async function corpoWebhook(env: Bindings, projectId: string, siteId: str
 }
 
 /** Um POST por site, montado e entregue dentro do waitUntil: a montagem ou a entrega nunca segura nem derruba quem chamou. */
-function avisar(env: Bindings, ctx: Ctx, projectId: string, desvios: (LinhaDesvio & { acao?: AcaoDesvio })[], acao: AcaoDesvio) {
+export function avisar(env: Bindings, ctx: Ctx, projectId: string, desvios: (LinhaDesvio & { acao?: AcaoDesvio })[], acao: AcaoDesvio) {
   const sites = new Map<string, typeof desvios>();
   for (const d of desvios) sites.set(d.site_id, [...sites.get(d.site_id) ?? [], d]);
   for (const [siteId, lista] of sites) {
