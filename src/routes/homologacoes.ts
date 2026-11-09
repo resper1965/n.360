@@ -7,7 +7,8 @@ import { appUrl } from '../config/url';
 import {
   atualizarPergunta, cancelarHomologacao, concluirHomologacao, criarHomologacao, criarPergunta, lerHomologacao, listarHomologacoes, listarPerguntas,
 } from '../services/homologacao';
-import { validateBody, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoPerguntaAtualizarSchema, homologacaoPerguntaCriarSchema } from '../schemas';
+import { TIPOS_MODELO, ajustarPerguntaDoModelo, type TipoModelo } from '../services/fornecedor-modelos';
+import { validateBody, homologacaoAjusteSchema, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoPerguntaAtualizarSchema, homologacaoPerguntaCriarSchema } from '../schemas';
 
 /**
  * F5: homologação de fornecedor por questionário. Montado em `/api/v1/projects/:projectId/homologacoes` (faixa privacy), então o
@@ -19,8 +20,14 @@ export const homologacoesApp = new Hono<{ Bindings: Bindings; Variables: Variabl
 const SO_CONSULTORIA = { error: 'Somente a consultoria conduz a homologação de fornecedor' };
 const pid = (c: { req: { param: (k: string) => string | undefined } }) => c.req.param('projectId')!;
 
+// O questionário de um tipo (crítico, médio ou pequeno): o modelo vivo da consultoria, os ajustes e as perguntas próprias do projeto.
 homologacoesApp.get('/perguntas', async (c) => {
-  try { return c.json(await listarPerguntas(c.env.DB, pid(c))); } catch (e) { return erro500(c, 'Falha ao listar as perguntas', e); }
+  try {
+    // grande_provedor devolve o roteiro de conferência do trust center (só do modelo), que a ficha mostra
+    const tipo = c.req.query('tipo') || 'medio';
+    if (!(TIPOS_MODELO as readonly string[]).includes(tipo)) return c.json({ error: 'tipo deve ser critico, medio, pequeno ou grande_provedor' }, 400);
+    return c.json(await listarPerguntas(c.env.DB, pid(c), tipo as TipoModelo));
+  } catch (e) { return erro500(c, 'Falha ao listar as perguntas', e); }
 });
 
 homologacoesApp.post('/perguntas', async (c) => {
@@ -30,6 +37,17 @@ homologacoesApp.post('/perguntas', async (c) => {
     if (!v.success) return v.response;
     return c.json(await criarPergunta(c.env.DB, pid(c), c.get('user').email, v.data), 201);
   } catch (e) { return erro500(c, 'Falha ao criar a pergunta', e); }
+});
+
+// Liga ou desliga, só neste projeto, uma pergunta do modelo da consultoria (o texto do modelo não se edita aqui).
+homologacoesApp.put('/perguntas/modelo/:perguntaId', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_CONSULTORIA, 403);
+    const v = await validateBody(c, homologacaoAjusteSchema);
+    if (!v.success) return v.response;
+    const ok = await ajustarPerguntaDoModelo(c.env.DB, pid(c), c.req.param('perguntaId'), v.data.ativa, c.get('user').email);
+    return ok ? c.json({ ok: true }) : c.json({ error: 'Pergunta não encontrada no modelo desta consultoria' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao ajustar a pergunta', e); }
 });
 
 homologacoesApp.put('/perguntas/:perguntaId', async (c) => {

@@ -423,10 +423,18 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
     });
 
-    it('grande provedor (trust center) não mostra a seção nem busca homologações', async () => {
-        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'grande_provedor', metodo: 'trust_center', pode_questionario: false }) }, 'avaliacoes');
+    it('grande provedor (trust center) não mostra o questionário nem busca homologações; mostra o roteiro do modelo', async () => {
+        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'grande_provedor', metodo: 'trust_center', pode_questionario: false }),
+            [`GET ${H}/perguntas`]: { prazo_meses: 12, a_validar: true, perguntas: [
+                { id: 'g1', tema: 'Certificações', texto: 'Conferir as <b>certificações</b>', usada: true, fonte: 'modelo' },
+                { id: 'g2', tema: 'Localização', texto: 'Item desligado', usada: false, fonte: 'modelo' }] } }, 'avaliacoes');
         expect(el('tc-homologacao')).toBeNull();
-        expect(chamadas(f).some((k) => k.startsWith(`GET ${H}`))).toBe(false);
+        expect(chamadas(f)).not.toContain(`GET ${H}`);
+        expect(chamadas(f)).toContain(`GET ${H}/perguntas?tipo=grande_provedor`);
+        const roteiro = el('tc-roteiro');
+        expect(roteiro.textContent).toContain('Conferir as <b>certificações</b>');
+        expect(roteiro.textContent).not.toContain('Item desligado');
+        expect(roteiro.querySelector('b')).toBeNull();
     });
 
     it('#12 fornecedor crítico mostra a seção de questionário (método formal segue auditoria)', async () => {
@@ -465,22 +473,9 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(corpoDe(f, `POST ${H}/h1/concluir`)).toEqual({ resultado: 'com_ressalvas', valido_ate: '2027-10-15', observacao: 'Falta DPA' });
     });
 
-    it('perguntas do questionário: botão só para quem edita; avisa o modelo a validar; salvar e adicionar chamam a API', async () => {
+    it('as perguntas do questionário saíram da lista: moram em Fornecedores > Questionários', async () => {
         await lista();
-        expect(JSON.parse(el('a').querySelector('[data-action="abrirPerguntasHomologacao"]').getAttribute('data-args'))).toEqual(['p9']);
-        document.body.innerHTML = PALCO;
-        const f = servir(rotas({
-            [`GET ${H}/perguntas`]: { a_validar: true, perguntas: [{ id: 'q1', tema: 'Segurança', texto: 'Há <b>política</b>?', ordem: 10, ativa: 1, origem: 'padrao' }] },
-            [`PUT ${H}/perguntas/q1`]: { ok: true }, [`POST ${H}/perguntas`]: { id: 'q2' },
-        }));
-        await window.abrirPerguntasHomologacao('p9');
-        expect(el('modal-content').textContent).toContain('modelo genérico');
-        expect(el('modal-content').querySelector('b')).toBeNull();
-        document.querySelector('tr[data-pergunta="q1"] [data-campo="ativa"]').checked = false;
-        await window.salvarPerguntaHomologacao('p9', 'q1');
-        expect(corpoDe(f, `PUT ${H}/perguntas/q1`)).toEqual({ tema: 'Segurança', texto: 'Há <b>política</b>?', ativa: false });
-        el('tc-hp-tema').value = 'Continuidade'; el('tc-hp-texto').value = 'Há plano testado?';
-        await window.criarPerguntaHomologacao('p9');
-        expect(corpoDe(f, `POST ${H}/perguntas`)).toEqual({ tema: 'Continuidade', texto: 'Há plano testado?' });
+        expect(el('a').querySelector('[data-action="abrirPerguntasHomologacao"]')).toBeNull();
+        expect(window.abrirPerguntasHomologacao).toBeUndefined();
     });
 });

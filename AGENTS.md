@@ -467,8 +467,19 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `documentos.tipo = 'contrato'`; mudar esse CHECK reconstruiria `documentos` e quatro tabelas filhas). Efeitos do vencimento: fonte
   `avaliacao_terceiro` nos avisos de prazo (titulo com o numero de tratamentos que usam o terceiro) e
   `terceiros_com_avaliacao_vencida` em `GET .../ropa/:rid/ligacoes` (pelo vinculo ou pelo Compartilhamento Externo, so organizacao ativa; o mesmo no `com_terceiro_vencido` do encarregado). Sem pedido de aprovacao da avaliacao ainda (o CHECK da 0055 ja aceita). **Quem grava (decisao de 09/11/2026):** tipo, criticidade e avaliacao sao da equipe da consultoria e do `org_admin` do proprio projeto (`podeAvaliar` em `src/routes/terceiros.ts`; `org_user`, `client` e chave de API recebem 403); o questionario segue so da equipe; o agente grava pela `niso_avaliar_fornecedor`. Fornecedor inativo nao recebe avaliacao nem questionario (409) e o link do questionario dele deixa de valer (o mesmo 404).
-  **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (o questionario do projeto; o modelo padrao generico
-  e semeado na primeira leitura, `origem = 'padrao'` = "a validar pelo consultor"; pergunta nao se apaga, desativa) e `homologacoes`
+  **Modelos da consultoria (migration 0106, spec `docs/superpowers/specs/2026-11-09-ciclo-avaliacao-fornecedor-design.md`, fatia 1):** o questionario
+  nao e mais do projeto: `fornecedor_modelos` e `fornecedor_modelo_perguntas` guardam UM modelo por tipo e organizacao (critico, medio e pequeno sao
+  o questionario; o grande provedor e o roteiro de conferencia do trust center), semeados na primeira leitura com as 12 perguntas genericas e os prazos
+  provisorios 12/24/36/12 meses, "a validar" (`src/services/fornecedor-modelos.ts`). O projeto HERDA o modelo vivo: so desliga pergunta dele
+  (`homologacao_ajustes`) e acrescenta as proprias (`homologacao_perguntas`, `origem = 'projeto'`, com `tipo` ou de todos); `perguntasDoEnvio` monta o
+  que `criarHomologacao` congela, pelo tipo do fornecedor, e grava `homologacoes.tipo`. Rotas da organizacao em `/api/v1/fornecedor-modelos` (`exigirOrg`;
+  le a equipe, grava o `consultoria_admin` da propria e o `platform_admin` por `X-Org-Id`; fora do agente) e, no projeto, `GET .../homologacoes/perguntas?tipo=`
+  e `PUT .../homologacoes/perguntas/modelo/:id` (o ajuste; agente pela `niso_avaliar_fornecedor`, acao `ajustar_questionario`). Telas: "Modelos de avaliacao
+  de fornecedor" em Conta e acessos (`views/modelos-fornecedor.js`) e Fornecedores > Questionarios no n.privacy (`views/questionarios-fornecedor.js`); o
+  botao "Perguntas do questionario" da lista saiu. A 0106 ja traz as colunas das fatias seguintes (`avaliacoes_terceiro.tipo_avaliado`,
+  `homologacoes.email_destino` e `lembrete_em`, com o gatilho `homologacao_email_some`).
+  **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (desde a 0106 so as perguntas proprias do projeto; o semeio padrao
+  por projeto saiu; pergunta nao se apaga, desativa) e `homologacoes`
   (um envio por terceiro de tipo medio/pequeno: so o SHA-256 do token, `expira_em`, perguntas CONGELADAS (`perguntas_json` e o objeto `{perguntas, fornecedor, cliente}`: nome do fornecedor e do cliente tambem congelam na criacao; o array antigo e aceito e le o nome ao vivo, `lerCongelado`), respostas imutaveis depois do
   envio pelo gatilho `homologacao_imutavel`). Servico `src/services/homologacao.ts`; rotas `/projects/:id/homologacoes*` (faixa privacy;
   escrever e so da equipe, `ehEquipeNess`; o agente consultor escreve pela ferramenta `niso_avaliar_fornecedor`, com confirmacao e motivo) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
@@ -707,7 +718,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
   **O agente decide como o consultor (spec `docs/superpowers/specs/2026-10-23-agente-decide-como-consultor-design.md`).** O catalogo das decisoes
-  (11 ferramentas, 37 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-05: 37) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
+  (11 ferramentas, 38 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-09: 38) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
   `resolverAgente` (`src/middleware/agente.ts`): a rota de decisao exige os cabecalhos `X-Agente-Ferramenta`, `X-Agente-Confirmado: 1` (so o booleano `true` em
   `confirmado_pelo_usuario`) e `X-Agente-Motivo` (1 a 500 caracteres); valendo, o principal ganha `agente_decisao` e `ehEquipeNess` o aceita naquela rota e so nela.
   A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre

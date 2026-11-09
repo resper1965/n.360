@@ -35,6 +35,7 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'criar_homologacao', metodo: 'POST', caminho: `${P}/homologacoes`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'criar_pergunta_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/perguntas`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'editar_pergunta_homologacao', metodo: 'PUT', caminho: `${P}/homologacoes/perguntas/{perguntaId}`, corpo: true },
+  { ferramenta: 'niso_avaliar_fornecedor', acao: 'ajustar_questionario', metodo: 'PUT', caminho: `${P}/homologacoes/perguntas/modelo/{perguntaId}`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'concluir_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/concluir`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'cancelar_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/cancelar`, corpo: true },
   { ferramenta: 'niso_situacao_atividade', acao: 'mudar_situacao', metodo: 'POST', caminho: `${P}/ropa/{ropaId}/situacao`, corpo: true },

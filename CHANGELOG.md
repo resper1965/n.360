@@ -18,6 +18,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - Webhook `ot.desvio`: exige visão completa do inventário para cadastrar; corpo sem IP, MAC nem hash; assinado, até 3 tentativas, 5 s cada, sem seguir redirect. A entrega de webhooks ganhou novas tentativas, tempo limite e recusa de redirecionamento.
 - Rotas `GET /desvios`, `POST /desvios/:id/tratar` e `POST /desvios/:id/aceitar`. Migration 0106 (aditiva): tabela `ot_desvios`.
 
+### Fornecedores (TPRM): modelos de avaliação da consultoria (migration 0106)
+- O questionário de avaliação de fornecedor passa a ser da consultoria: em Conta e acessos, "Modelos de avaliação de fornecedor" traz um modelo por tipo (crítico, médio, pequeno e o roteiro do trust center do grande provedor), com o prazo máximo da avaliação e as perguntas. Edita o administrador da consultoria; o consultor vê.
+- Cada projeto herda o modelo vivo: em n.privacy > Fornecedores > Questionários, a equipe desliga perguntas do modelo só para o projeto e acrescenta as próprias, de um tipo ou de todos. O envio usa o questionário do tipo do fornecedor e congela as perguntas, como antes.
+- Os modelos nascem com as 12 perguntas genéricas de antes e prazos provisórios (crítico 12 meses, médio 24, pequeno 36, grande provedor 12), marcados "a validar". O botão "Perguntas do questionário" saiu da lista de Fornecedores.
+- Migration 0106 (aditiva): tabelas dos modelos e dos ajustes, e as colunas que as próximas fatias usam (tipo na avaliação e no envio, e-mail do fornecedor só enquanto o questionário está aberto). As perguntas padrão que cada projeto tinha saem (o modelo as substitui); as que a equipe editou ou criou ficam.
+
 ### Fornecedores (TPRM): correções da análise de 09/11
 - DPA em rascunho ou obsoleto deixa de contar como DPA: a pendência "DPA", o índice de confiança e o CSV só consideram o documento vigente (o em arquivo já exigia publicado com arquivo). A ficha passa a mostrar o índice calculado na hora, como a lista do n.iso.
 - Tipo, criticidade e avaliação do fornecedor passam a ser registrados só pela equipe da consultoria e pelo administrador do cliente; o usuário comum do cliente e a chave de API recebem recusa. O questionário segue só da equipe.

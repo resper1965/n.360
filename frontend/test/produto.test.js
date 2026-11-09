@@ -176,7 +176,7 @@ describe('casca', () => {
 });
 
 describe('conta e acessos', () => {
-    const CONTA = ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-identidade', 'nav-api-keys', 'nav-conectar-agente'];
+    const CONTA = ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-identidade', 'nav-modelos-fornecedor', 'nav-api-keys', 'nav-conectar-agente'];
     it('no n.360 o grupo "Conta e acessos" traz projetos, usuários, organizações, identidade, chaves de API e conectar agente', () => {
         montarApp();
         aplicarCasca('n360');
@@ -185,7 +185,7 @@ describe('conta e acessos', () => {
         for (const id of CONTA) expect(v, id).toContain(id);
         const grupo = el('group-conta');
         // Segurança do projeto (SSO/SCIM do projeto) mora em Conta e acessos, logo depois de Organizações
-        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-identidade', 'nav-seguranca-projeto', 'nav-api-keys', 'nav-conectar-agente']);
+        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-identidade', 'nav-seguranca-projeto', 'nav-modelos-fornecedor', 'nav-api-keys', 'nav-conectar-agente']);
         expect(grupo.dataset.foraDoProduto).toBe('');
         expect(el('label-group-conta').textContent).toBe('Conta e acessos');
         expect(el('nav-api-keys').textContent.trim()).toBe('Chaves de API');
@@ -237,12 +237,12 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
     };
     it('aceita só a lista fechada e tira o parâmetro do endereço, sem mexer no resto', () => {
         montar();
-        for (const t of ['projects', 'users', 'organizacoes', 'identidade-org', 'api-keys', 'conectar-agente']) {
+        for (const t of ['projects', 'users', 'organizacoes', 'identidade-org', 'modelos-fornecedor', 'api-keys', 'conectar-agente']) {
             ir(`/?tela=${t}&x=1#frag`);
             expect(telaPedida(), t).toBe(t);
             expect(location.pathname + location.search + location.hash).toBe('/?x=1#frag');
         }
-        expect(Object.keys(TELAS_DA_CONTA)).toEqual(['projects', 'users', 'organizacoes', 'identidade-org', 'api-keys', 'conectar-agente']);
+        expect(Object.keys(TELAS_DA_CONTA)).toEqual(['projects', 'users', 'organizacoes', 'identidade-org', 'modelos-fornecedor', 'api-keys', 'conectar-agente']);
     });
     it('valor fora da lista é ignorado (e sai do endereço do mesmo jeito)', () => {
         montar();

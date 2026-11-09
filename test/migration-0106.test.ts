@@ -1,49 +1,45 @@
 // test/migration-0106.test.ts
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
-import { applySchema, execSql, seedTwoProjects } from './helpers/d1';
-import mig from '../migrations/0106_ot_desvios.sql?raw';
+import { applySchema, execSql } from './helpers/d1';
+import mig from '../migrations/0106_fornecedor_modelos.sql?raw';
 
-const um = <T>(sql: string) => env.DB.prepare(sql).all<T>();
-const desvio = (id: string, o: { tipo?: string; chave?: string; dados?: string; situacao?: string } = {}) =>
-  env.DB.prepare(
-    `INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, situacao, primeira_vez, ultima_vez)
-     VALUES (?, 'proj-a', 's-a', ?, ?, ?, ?, '2026-11-01', '2026-11-01')`,
-  ).bind(id, o.tipo ?? 'fluxo', o.chave ?? id, o.dados ?? '{}', o.situacao ?? 'aberto').run();
+/** Migration 0106: modelos de avaliação de fornecedor da consultoria (spec 2026-11-09-ciclo-avaliacao-fornecedor-design). */
+const run = (sql: string, ...b: unknown[]) => env.DB.prepare(sql).bind(...b).run();
 
-describe('migration 0106: desvios do n.ot', () => {
+describe('migration 0106: modelos de fornecedor', () => {
   beforeAll(async () => {
-    await applySchema(); await seedTwoProjects();
-    await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s-a', 'proj-a', 'SE A')`).run();
+    await applySchema();
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO organizations (id, name, slug) VALUES ('m6-org', 'Consultoria', 'm6-org')`),
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('m6p', 'C', 'LGPD', 'Controller', 'Active', 'm6-org')`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('m6-f', 'm6p', 'organizacao', 'Fornecedor', 'critico')`),
+      env.DB.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate) VALUES ('m6-a', 'm6p', 'm6-f', 'auditoria', 'aprovado', '2099-01-01')`),
+      env.DB.prepare(`INSERT INTO homologacoes (id, project_id, parte_id, token_hash, expira_em, perguntas_json, email_destino) VALUES ('m6-h', 'm6p', 'm6-f', 'h', '2099-01-01', '[]', 'f@exemplo.invalid')`),
+      env.DB.prepare(`INSERT INTO homologacao_perguntas (id, project_id, tema, texto, origem) VALUES ('m6-q1', 'm6p', 'T', 'Padrão', 'padrao'), ('m6-q2', 'm6p', 'T', 'Própria', 'projeto')`),
+    ]);
+    await execSql(mig.replace(/ALTER TABLE [^;]*;/g, ''));
   });
 
-  it('cria a tabela e os 2 índices; a migração é repetível', async () => {
-    await execSql(mig);
-    expect((await um(`SELECT name FROM sqlite_master WHERE name = 'ot_desvios'`)).results).toHaveLength(1);
-    expect((await um(`SELECT name FROM sqlite_master WHERE name IN ('idx_ot_desvios_situacao','idx_ot_desvios_site')`)).results).toHaveLength(2);
+  it('dados: tipo da avaliação e do envio vêm do tipo atual; a pergunta padrão do projeto sai, a própria fica', async () => {
+    expect(await env.DB.prepare(`SELECT tipo_avaliado FROM avaliacoes_terceiro WHERE id = 'm6-a'`).first('tipo_avaliado')).toBe('critico');
+    expect(await env.DB.prepare(`SELECT tipo FROM homologacoes WHERE id = 'm6-h'`).first('tipo')).toBe('critico');
+    const ids = (await env.DB.prepare(`SELECT id FROM homologacao_perguntas WHERE project_id = 'm6p'`).all<{ id: string }>()).results.map((r) => r.id);
+    expect(ids).toEqual(['m6-q2']);
   });
 
-  it('recusa tipo fora de fluxo|ativo e situacao fora da lista', async () => {
-    await expect(desvio('d1', { tipo: 'rede' })).rejects.toThrow(/CHECK/);
-    await expect(desvio('d2', { situacao: 'fechado' })).rejects.toThrow(/CHECK/);
-    await desvio('d3', { tipo: 'ativo', situacao: 'aceito' });
+  it('modelo: um por tipo e organização; tipo e prazo fechados', async () => {
+    await run(`INSERT INTO fornecedor_modelos (id, org_id, tipo, prazo_meses) VALUES ('m6-m', 'm6-org', 'critico', 12)`);
+    await expect(run(`INSERT INTO fornecedor_modelos (id, org_id, tipo, prazo_meses) VALUES ('m6-m2', 'm6-org', 'critico', 24)`)).rejects.toThrow(/UNIQUE/);
+    await expect(run(`INSERT INTO fornecedor_modelos (id, org_id, tipo, prazo_meses) VALUES ('m6-m3', 'm6-org', 'enorme', 12)`)).rejects.toThrow();
+    await expect(run(`INSERT INTO fornecedor_modelos (id, org_id, tipo, prazo_meses) VALUES ('m6-m4', 'm6-org', 'medio', 61)`)).rejects.toThrow();
+    await run(`INSERT INTO fornecedor_modelo_perguntas (id, modelo_id, tema, texto) VALUES ('m6-mp', 'm6-m', 'T', 'Pergunta')`);
+    await run(`INSERT INTO homologacao_ajustes (project_id, modelo_pergunta_id) VALUES ('m6p', 'm6-mp')`);
+    await expect(run(`INSERT INTO homologacao_perguntas (id, project_id, tema, texto, tipo) VALUES ('m6-q3', 'm6p', 'T', 'X', 'grande_provedor')`)).rejects.toThrow();
   });
 
-  it('recusa (project_id, tipo, chave_sensor) repetido', async () => {
-    await desvio('d4', { chave: 'k' });
-    await expect(desvio('d5', { chave: 'k' })).rejects.toThrow(/UNIQUE/);
-    await desvio('d6', { chave: 'k', tipo: 'ativo' });
-  });
-
-  it('recusa ip/mac em claro em dados e aceita o cifrado', async () => {
-    await expect(desvio('d7', { dados: '{"ip":"10.0.0.1"}' })).rejects.toThrow(/CHECK/);
-    await expect(desvio('d8', { dados: '{"mac":"aa:bb"}' })).rejects.toThrow(/CHECK/);
-    await expect(desvio('d9', { dados: '{"ip_cifrado":"10.0.0.1"}' })).rejects.toThrow(/CHECK/);
-    await desvio('d10', { dados: '{"ip_cifrado":"ot1:abc"}' });
-  });
-
-  it('apagar o projeto apaga os desvios', async () => {
-    await env.DB.prepare(`DELETE FROM projects WHERE id = 'proj-a'`).run();
-    expect((await um(`SELECT 1 FROM ot_desvios WHERE project_id = 'proj-a'`)).results).toHaveLength(0);
+  it('o e-mail do fornecedor some quando a homologação sai de aberta', async () => {
+    await run(`UPDATE homologacoes SET status = 'respondida' WHERE id = 'm6-h'`);
+    expect(await env.DB.prepare(`SELECT email_destino FROM homologacoes WHERE id = 'm6-h'`).first('email_destino')).toBeNull();
   });
 });

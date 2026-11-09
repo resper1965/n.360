@@ -107,7 +107,13 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
  * Rotas que param no 400 e para as quais não há corpo simples que chegue à guarda. Cada uma com o
  * motivo; o relatório da tarefa as lista como "não provadas por corpo".
  */
-const NAO_PROVADAS_POR_CORPO: Record<string, string> = { ...NAO_PROVADAS_A, ...NAO_PROVADAS_S, ...NAO_PROVADAS_A2 };
+const NAO_PROVADAS_POR_CORPO: Record<string, string> = { ...NAO_PROVADAS_A, ...NAO_PROVADAS_S, ...NAO_PROVADAS_A2,
+  // modelos de fornecedor (0106): a organização vem da sessão (`exigirOrg`), não do caminho; `:tipo` é lista fechada (o id forjado dá 400) e
+  // a pergunta de outra consultoria dá 404 (test/fornecedor-modelos-rotas.test.ts)
+  'PUT /api/v1/fornecedor-modelos/:tipo': 'organização da sessão; tipo é lista fechada',
+  'POST /api/v1/fornecedor-modelos/:tipo/perguntas': 'organização da sessão; tipo é lista fechada',
+  'PUT /api/v1/fornecedor-modelos/:tipo/perguntas/:perguntaId': 'organização da sessão; pergunta alheia dá 404 em fornecedor-modelos-rotas.test.ts',
+};
 
 /** Rota sem parâmetro, não GET, que recebe referência ALHEIA no corpo e precisa recusar. */
 const CRIA_COM_REFERENCIA: Record<string, (alvo: Org) => unknown> = {
@@ -215,6 +221,7 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   pedidos: { tipo: 'dpia', papel_exigido: 'ciente' },
   parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
   avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
+  fornecedor_modelos: { tipo: 'critico', prazo_meses: 12 },
   titular_pedidos: { tipo: 'acesso' },
   // Portal do titular (0096): tipo da tratativa é enum do CHECK
   titular_pedido_tratativas: { tipo: 'nota' },

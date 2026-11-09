@@ -758,6 +758,19 @@ Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto)
 Cria `ot_desvios` (fluxo ou ativo fora do esperado; situação, prazo de aceite, `UNIQUE (project_id, tipo, chave_sensor)`, mesmo CHECK de IP/MAC cifrado dos achados) e 2 índices. Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'ot_desvios'` (1 linha).
 
+## 0106 — modelos de avaliação de fornecedor da consultoria (2026-11-09)
+
+Cria `fornecedor_modelos` (um por organização e tipo, com o prazo em meses), `fornecedor_modelo_perguntas` e `homologacao_ajustes` (o projeto
+desliga uma pergunta do modelo), mais o gatilho `homologacao_email_some`. `ALTER TABLE ADD COLUMN` (uma vez pelo runner): `homologacao_perguntas.tipo`,
+`avaliacoes_terceiro.tipo_avaliado`, `homologacoes.tipo`, `email_destino` e `lembrete_em`. Dados (uma vez): `tipo_avaliado` e `homologacoes.tipo`
+recebem o tipo atual da parte; as perguntas de projeto `origem = 'padrao'` saem (o modelo as substitui; a pergunta padrão que o projeto tinha
+desativado volta ativa pelo modelo). Spec `2026-11-09-ciclo-avaliacao-fornecedor-design`. Antes de aplicar:
+`SELECT origem, ativa, count(*) FROM homologacao_perguntas GROUP BY origem, ativa`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('fornecedor_modelos','fornecedor_modelo_perguntas','homologacao_ajustes','homologacao_email_some')` (4 linhas) e
+`SELECT name FROM pragma_table_info('homologacoes') WHERE name IN ('tipo','email_destino','lembrete_em')` (3 linhas).
+Aplicada em produção em 09/11/2026, com backup antes: as conferências deram 4 e 3 linhas; antes havia só as 12 perguntas padrão de um projeto
+(nenhuma editada nem criada), que saíram, e as 3 avaliações ficaram com `tipo_avaliado`.
+
 ## 0105 — código de acompanhamento do pedido do titular (2026-11-06)
 
 Coluna `titular_pedidos.acompanhamento_hash` por `ALTER TABLE ADD COLUMN` (roda uma vez pelo runner) e o índice único parcial
