@@ -465,7 +465,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`situacaoDe`: pendente, vigente, vencida, reprovada). `documento_partes` liga documento a terceiro como DPA/contrato/outro (a spec pede
   `documentos.tipo = 'contrato'`; mudar esse CHECK reconstruiria `documentos` e quatro tabelas filhas). Efeitos do vencimento: fonte
   `avaliacao_terceiro` nos avisos de prazo (titulo com o numero de tratamentos que usam o terceiro) e
-  `terceiros_com_avaliacao_vencida` em `GET .../ropa/:rid/ligacoes`. Sem pedido de aprovacao da avaliacao ainda (o CHECK da 0055 ja aceita).
+  `terceiros_com_avaliacao_vencida` em `GET .../ropa/:rid/ligacoes` (pelo vinculo ou pelo Compartilhamento Externo, so organizacao ativa; o mesmo no `com_terceiro_vencido` do encarregado). Sem pedido de aprovacao da avaliacao ainda (o CHECK da 0055 ja aceita). **Quem grava (decisao de 09/11/2026):** tipo, criticidade e avaliacao sao da equipe da consultoria e do `org_admin` do proprio projeto (`podeAvaliar` em `src/routes/terceiros.ts`; `org_user`, `client` e chave de API recebem 403); o questionario segue so da equipe; o agente grava pela `niso_avaliar_fornecedor`. Fornecedor inativo nao recebe avaliacao nem questionario (409) e o link do questionario dele deixa de valer (o mesmo 404).
   **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (o questionario do projeto; o modelo padrao generico
   e semeado na primeira leitura, `origem = 'padrao'` = "a validar pelo consultor"; pergunta nao se apaga, desativa) e `homologacoes`
   (um envio por terceiro de tipo medio/pequeno: so o SHA-256 do token, `expira_em`, perguntas CONGELADAS (`perguntas_json` e o objeto `{perguntas, fornecedor, cliente}`: nome do fornecedor e do cliente tambem congelam na criacao; o array antigo e aceito e le o nome ao vivo, `lerCongelado`), respostas imutaveis depois do
@@ -737,7 +737,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   impacto, probabilidade ou residual de risco aceito o devolve a `Open` sem o aceite (`aceiteCaiu`, trilha `risk.aceite_invalidado`); sair de `Accepted` por `status` tambem limpa `accepted_by`, `accepted_at` e `aceite_manual` e grava `risk.aceite_invalidado`; botao
   "Aceitar risco" nos dois modulos (`frontend/src/aceite-risco.js`); a migration 0082 levou o aceite digitado antigo a `Accepted` com
   `risks.aceite_manual = 1` ("Aceite registrado a mao"). (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
-  `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`); o indice de confianca, a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
+  `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`; o documento versionado so vale VIGENTE, `SQL_VERSIONADO_VALE`, como o em arquivo so publicado); o indice de confianca (calculado na leitura na lista do n.iso e na ficha), a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
   `dpa_url` ficam so como historico ("DPA declarado, sem documento", sem os 10 pontos); ligar e desligar documento do terceiro
   (`/terceiros/:parteId/documentos*`) e faixa `nucleo` (`SUBROTAS_NUCLEO` em `src/modulos.ts`) e recalcula o indice.
 

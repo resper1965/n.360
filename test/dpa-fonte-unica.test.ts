@@ -36,7 +36,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('dpa-leg', ?1, 'organizacao', 'Nuvem Legada'), ('dpa-sem', ?1, 'organizacao', 'Sem Nada'), ('dpa-doc', ?1, 'organizacao', 'Com Documento')`).bind(P),
     // o vínculo de terceiro faz o gatilho criar o perfil de segurança
     env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('dv1', ?1, 'dpa-leg', 'terceiro', 'projeto', ?1), ('dv2', ?1, 'dpa-sem', 'terceiro', 'projeto', ?1), ('dv3', ?1, 'dpa-doc', 'terceiro', 'projeto', ?1)`).bind(P),
-    env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('dpa-d1', ?1, 'DPA Nuvem'), ('dpa-d2', ?1, 'DPA Outro')`).bind(P),
+    env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo, status) VALUES ('dpa-d1', ?1, 'DPA Nuvem', 'vigente'), ('dpa-d2', ?1, 'DPA Outro', 'vigente')`).bind(P),
     env.DB.prepare(`INSERT INTO documento_partes (documento_id, parte_id, papel, project_id) VALUES ('dpa-d2', 'dpa-doc', 'dpa', ?)`).bind(P),
   ]);
   // o legado: DPA marcado à mão e link antigo, com os 10 pontos de antes

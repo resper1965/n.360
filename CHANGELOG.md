@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Fornecedores (TPRM): correções da análise de 09/11
+- DPA em rascunho ou obsoleto deixa de contar como DPA: a pendência "DPA", o índice de confiança e o CSV só consideram o documento vigente (o em arquivo já exigia publicado com arquivo). A ficha passa a mostrar o índice calculado na hora, como a lista do n.iso.
+- Tipo, criticidade e avaliação do fornecedor passam a ser registrados só pela equipe da consultoria e pelo administrador do cliente; o usuário comum do cliente e a chave de API recebem recusa. O questionário segue só da equipe.
+- Fornecedor inativo não recebe avaliação nem questionário, e o link de questionário aberto dele deixa de funcionar.
+- O aviso de fornecedor com avaliação vencida na atividade (e a contagem do encarregado) passa a considerar o parceiro do Compartilhamento Externo e a ignorar a organização inativa.
+- n.iso: cadastrar, salvar e remover a avaliação de segurança do fornecedor mostram o erro do servidor (antes falhavam em silêncio).
+- Parceiros: a organização que é só parte interessada mostra "Só parte interessada" em vez de "Avaliar como fornecedor", que abria uma ficha inexistente.
+
 ### n.privacy: consulta pública do pedido do titular pelo protocolo (migration 0105)
 - Quem abre a solicitação pelo portal recebe, na tela e no e-mail, o protocolo e um código de acompanhamento. Na página `/solicitacao`, "Acompanhar uma solicitação" mostra a situação, o tipo, a data de abertura, o prazo e a data da conclusão; o link do e-mail já abre a consulta.
 - A consulta não mostra nome, contato, descrição nem a resposta, que segue por e-mail. Protocolo ou código errado dão a mesma resposta, e as tentativas têm limite por endereço.

@@ -37,7 +37,7 @@ describe('GET /terceiros traz pendencias', () => {
       env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('u-tp', 'tp@ness.lat', 'x', 'TP', 'consultor', NULL, 'org_ness')`),
       env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-tp', ?, 'TP', 'tp@ness.lat', 'consultor', 'Consultor')`).bind(P),
       env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('tp-a', ?1, 'organizacao', 'Fornecedor Exemplo'), ('tp-b', ?1, 'organizacao', 'Fornecedor Sem Nada'), ('tp-x', ?2, 'organizacao', 'Fornecedor Alheio')`).bind(P, OUTRO),
-      env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('tp-d', ?, 'DPA Exemplo')`).bind(P),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo, status) VALUES ('tp-d', ?, 'DPA Exemplo', 'vigente')`).bind(P),
     ]);
     await habilitarPrivacy(P, OUTRO);
     consultor = await sessionFor({ id: 'u-tp', email: 'tp@ness.lat', role: 'consultor' });

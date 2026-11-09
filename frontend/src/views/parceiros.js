@@ -4,8 +4,9 @@ import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { podeEditar } from './partes.js';
 
 // Parceiros (n.privacy, Cadastros; spec 2026-10-19): as organizações ativas do projeto (partes `tipo = 'organizacao'`), como no
-// legado. Busca e ordem por nome na própria tela; "Avaliar como fornecedor" abre a ficha em Fornecedores (toda organização ativa
-// já é fornecedor lá). Excluir inativa a parte: os vínculos e o histórico ficam.
+// legado. Busca e ordem por nome na própria tela; "Avaliar como fornecedor" abre a ficha em Fornecedores. A organização que é só
+// parte interessada (`GET .../terceiros/candidatos`) não é fornecedor e não tem ficha: a linha diz isso em vez do botão (a equipe a
+// traz em Fornecedores > "Adicionar parte existente"). Excluir inativa a parte: os vínculos e o histórico ficam.
 
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const args = (...v) => escapeHTML(JSON.stringify(v));
@@ -13,16 +14,23 @@ const el = (id) => document.getElementById(id);
 const chave = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
-let estado = { projeto: null, parceiros: [], desc: false };
+let estado = { projeto: null, parceiros: [], candidatos: new Set(), desc: false };
 
 window.renderParceiros = async function (c, h, a) {
     h.textContent = 'Parceiros';
     const proj = projetoAtivo();
     if (!proj) { a.innerHTML = ''; c.innerHTML = window.renderSemProjeto(); return; }
     a.innerHTML = podeEditar() ? `<button class="btn btn-primary" data-action="parceiroAbrir" data-args='${args(null)}'>+ Novo parceiro</button>` : '';
-    let partes;
-    try { partes = await api('GET', `/api/v1/projects/${proj.id}/partes`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os parceiros.', e); return; }
-    estado = { projeto: proj.id, parceiros: (Array.isArray(partes) ? partes : []).filter((p) => p.tipo === 'organizacao' && p.status === 'ativa'), desc: false };
+    let partes, candidatos;
+    try {
+        [partes, candidatos] = await Promise.all([
+            api('GET', `/api/v1/projects/${proj.id}/partes`),
+            // dado secundário: sem ele, todo parceiro mostra o botão, como antes
+            api('GET', `/api/v1/projects/${proj.id}/terceiros/candidatos`).catch(() => []),
+        ]);
+    } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os parceiros.', e); return; }
+    estado = { projeto: proj.id, parceiros: (Array.isArray(partes) ? partes : []).filter((p) => p.tipo === 'organizacao' && p.status === 'ativa'),
+        candidatos: new Set((Array.isArray(candidatos) ? candidatos : []).map((x) => x.id)), desc: false };
     c.innerHTML = `<div class="d-flex flex-wrap items-center gap-3 mb-4">
             <input class="form-input" id="pc-busca" type="search" maxlength="120" placeholder="Buscar pelo nome" aria-label="Buscar pelo nome" data-action-input="parceirosDesenhar">
             <button type="button" class="btn btn-sm" id="pc-ordem" data-action="parceirosOrdem" aria-label="Inverter a ordem por nome">Nome A-Z</button>
@@ -44,7 +52,8 @@ function desenhar() {
         empresa,
         `<div class="acoes-linha">${ed ? `<button class="btn btn-ghost btn-sm" data-action="parceiroAbrir" data-args='${args(p.id)}'>Editar</button>
             <button class="btn btn-ghost btn-sm t-perigo" data-action="parceiroExcluir" data-args='${args(p.id)}' aria-label="${escapeHTML(`Excluir ${p.nome}`)}">Excluir</button>` : ''}
-            <button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(estado.projeto, p.id, 'criticidade')}'>Avaliar como fornecedor</button></div>`,
+            ${estado.candidatos.has(p.id) ? '<span class="t-dim">Só parte interessada</span>'
+        : `<button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(estado.projeto, p.id, 'criticidade')}'>Avaliar como fornecedor</button>`}</div>`,
     ]), { emptyState: busca ? 'Nenhum parceiro com essa busca.' : 'Nenhum parceiro cadastrado.',
         emptyHint: busca ? '' : 'Parceiros são as empresas com que o projeto se relaciona; cada um pode ser avaliado como fornecedor.' });
 }
