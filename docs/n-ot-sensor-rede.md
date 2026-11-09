@@ -193,6 +193,65 @@ Sem o ICSNPP, o Zeek identifica Modbus, DNP3 e pouco mais de protocolo industria
 - Tetos por sessão: 2.000 pendências e 2.000 achados.
 - **Subir o mesmo resumo de novo não duplica**: no modo manual e no automático, o filtro de novidade pula o que já está em rascunho, foi descartado há menos de 90 dias ou está pendente (a resposta conta esses itens em `repetidos`). Fluxo que já está no inventário (mesmas pontas, protocolo e porta) também não vira achado (`fluxos_conhecidos`).
 
+## Desvios
+
+Desvio é o que a sonda viu e o inventário aprovado não prevê. Serve para o consultor e o SOC saberem do tráfego fora do inventário sem esperar a revisão dos achados.
+
+### O que vira desvio
+
+- Só o **envio automático** da sonda. A importação manual não cria desvio.
+- Em todo envio aceito, o n.ot compara o resumo com o inventário **antes do filtro de novidade**: um item que já é achado em rascunho ou foi descartado continua sendo desvio. Desvio não é novidade.
+- Vira desvio o **ativo** novo e o **fluxo** que o inventário não tem, inclusive o fluxo pendente (cuja ponta interna ainda não foi aprovada). Cada desvio é único por projeto, tipo e chave; ver de novo só conta ocorrências.
+
+### Ciclo de vida
+
+| Situação | Como chega | O que acontece depois |
+|---|---|---|
+| **Aberto** | A sonda viu e o inventário não tem | Ver de novo soma ocorrências |
+| **Tratado** | Alguém registra uma **nota** (obrigatória) | Se o sensor vir de novo, **reabre e avisa** |
+| **Aceito** | Só o **Gestor ARCiber**, com justificativa e prazo de **até 90 dias** | Ver de novo no prazo só conta. Se reaparecer vencido, ou no cron diário, volta a aberto como `aceite_vencido` e avisa |
+| **Regularizado** | Automático, quando um lote **aprova** o item que veio de um achado do sensor | Se o item voltar a aparecer, reabre |
+
+**Limite conhecido:** se o item entrar no inventário por outro caminho (cadastro à mão, outra importação), o desvio fica aberto até alguém marcá-lo como tratado.
+
+**"Aceito" não é a exceção formal 5.1.1.** É um adiamento com prazo e justificativa dentro do n.ot; a exceção do requisito segue o seu processo próprio.
+
+Na aba **Desvios** (n.ot) há filtros por situação, site e tipo, e as ações Tratar e Aceitar temporariamente. O cartão **Pontos a esclarecer**, no topo do Levantamento, mostra "N desvios abertos". O IP de um desvio de ativo só aparece a quem vê o inventário completo, e cada visualização é registrada na trilha.
+
+### Webhook `ot.desvio`
+
+Para avisar o SOC, cadastre um webhook do projeto com o evento `ot.desvio` na lista de eventos.
+
+- Só recebe webhook cuja lista contém **exatamente** `ot.desvio`. Não há curinga.
+- **Cadastrar exige ver o inventário completo**, porque o corpo traz nome de ativo e zona.
+- O POST é assinado com HMAC em `X-nISO-Signature`. São até **3 tentativas** (agora, +2 s, +10 s), com **5 s** de tempo limite cada; o `event_id` é o mesmo nas tentativas, para o receptor deduplicar. **Redirecionamento não é seguido** (3xx conta como falha). Esgotar as tentativas soma o `failure_count` do webhook.
+- **Quando sai:** um POST por resumo aceito que abre ou reabre itens, e um por fechamento ou reabertura feito na tela ou pelo cron.
+- O corpo **não traz IP, MAC nem hash de IP**: as pontas vão como nome do ativo e da zona (`null` se a ponta não está no inventário). Até **200 itens** por POST; o excedente vem em `nao_listados`.
+
+```json
+{
+  "evento": "ot.desvio",
+  "projeto_id": "prj_123",
+  "site": { "id": "site_1", "nome": "Subestação Norte" },
+  "desvios": [
+    {
+      "id": "des_9f2", "acao": "aberto", "situacao": "aberto", "tipo": "fluxo",
+      "protocolo": "modbus", "porta": 502, "externo": false,
+      "origem": { "ativo": "Estação de engenharia 1", "zona": "Supervisão" },
+      "destino": { "ativo": null, "zona": null },
+      "primeira_vez": "2026-11-09T11:00:00.000Z", "ultima_vez": "2026-11-09T11:00:00.000Z", "ocorrencias": 1,
+      "link": "https://…/ot/desvios/des_9f2"
+    }
+  ],
+  "nao_listados": 0,
+  "event": "ot.desvio", "event_id": "…", "project_id": "prj_123", "timestamp": "2026-11-09T11:00:03.000Z"
+}
+```
+
+`acao` é `aberto`, `reaberto`, `aceite_vencido` ou `fechado` (tratado, aceito ou regularizado).
+
+**Recomendação:** ligue o webhook **só depois de aprovar o inventário inicial**. No primeiro dia a sonda vê tudo como novo e o aviso seria só ruído.
+
 ## Rede interna
 
 Conta como interna a rede privada IPv4, IPv6 ULA e link-local (169.254.0.0/16 e fe80::/10), mais as **Faixas internas com IP público** cadastradas no site. Se a sua rede usa IP público internamente, preencha esse campo antes de importar. Do contrário, esses IPs não viram ativos, a conexão entre um IP privado e um deles vira fluxo **externo**, e a conexão só entre eles é ignorada.
@@ -200,6 +259,6 @@ Conta como interna a rede privada IPv4, IPv6 ULA e link-local (169.254.0.0/16 e 
 ## Limites
 
 - Só vê o que passa pela porta espelhada, e só protocolos que o Zeek analisa (IEC 61850/GOOSE não aparecem sem porta).
-- Não indica VPN, não detecta ataque nem desvio.
+- Não indica VPN nem detecta ataque. O que chama de desvio é só o que o sensor viu e o inventário aprovado não tem (veja "Desvios").
 - No modo manual, o sensor não manda nada sozinho. No automático, depende do caminho de saída aprovado; sem ele, a sonda não envia.
 - A sonda não faz varredura e não recebe ordens do n.360: só escuta e manda o resumo.

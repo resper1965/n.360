@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: desvios do sensor de rede (migration 0106)
+- Todo resumo aceito da sonda é comparado com o inventário aprovado antes do filtro de novidade: ativo ou fluxo visto e não aprovado vira desvio (a importação manual não cria desvio). Nova aba "Desvios" no n.ot e a contagem "N desvios abertos" no cartão "Pontos a esclarecer".
+- Ciclo: aberto, tratado (com nota; reabre e avisa se o sensor vê de novo), aceito (só o Gestor ARCiber, justificativa e prazo de até 90 dias; vencido volta a aberto, também pelo cron diário) e regularizado (automático quando um lote aprova o item). Aceito não é a exceção formal 5.1.1.
+- Webhook `ot.desvio`: exige visão completa do inventário para cadastrar; corpo sem IP, MAC nem hash; assinado, até 3 tentativas, 5 s cada, sem seguir redirect. A entrega de webhooks ganhou novas tentativas, tempo limite e recusa de redirecionamento.
+- Rotas `GET /desvios`, `POST /desvios/:id/tratar` e `POST /desvios/:id/aceitar`. Migration 0106 (aditiva): tabela `ot_desvios`.
+
 ### Fornecedores (TPRM): correções da análise de 09/11
 - DPA em rascunho ou obsoleto deixa de contar como DPA: a pendência "DPA", o índice de confiança e o CSV só consideram o documento vigente (o em arquivo já exigia publicado com arquivo). A ficha passa a mostrar o índice calculado na hora, como a lista do n.iso.
 - Tipo, criticidade e avaliação do fornecedor passam a ser registrados só pela equipe da consultoria e pelo administrador do cliente; o usuário comum do cliente e a chave de API recebem recusa. O questionário segue só da equipe.
