@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
-import { hashPassword, verifyPassword } from '../src/helpers';
+import { hashPassword, verifyPassword, sha256Hex } from '../src/helpers';
 import { applySchema, workerEnv, sessionFor } from './helpers/d1';
 
 /**
@@ -71,5 +71,14 @@ describe('change-password', () => {
     const conc = await env.DB.prepare(`SELECT revogado_em, revogado_por FROM agente_concessoes WHERE id='c-s'`).first<any>();
     expect(conc.revogado_em).not.toBeNull();
     expect(conc.revogado_por).toBe('troca de senha');
+  });
+});
+
+describe('formato de senha', () => {
+  it('só o PBKDF2 (sal:hash) autentica: o SHA-256 sem sal de antes e o valor sem ":" não', async () => {
+    const senha = 'senha-boa-123';
+    expect(await verifyPassword(senha, await hashPassword(senha))).toBe(true);
+    expect(await verifyPassword(senha, await sha256Hex(senha))).toBe(false);
+    expect(await verifyPassword('', '')).toBe(false);
   });
 });

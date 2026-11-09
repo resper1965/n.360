@@ -803,12 +803,9 @@ export async function hashPassword(password: string, salt?: string): Promise<str
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  if (!stored.includes(':')) {
-    const msgBuffer = new TextEncoder().encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const legacyHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-    return constantTimeEqual(legacyHash, stored);
-  }
+  // Só o PBKDF2 (`sal:hash`). O SHA-256 sem sal de antes não autentica mais (0 contas com ele em produção, conferido em 09/11/2026);
+  // quem tivesse um entra pelo "Esqueci a senha". SEM_SENHA e qualquer valor sem ":" também caem aqui.
+  if (!stored.includes(':')) return false;
   const [salt] = stored.split(':');
   const rehash = await hashPassword(password, salt);
   return constantTimeEqual(rehash, stored);

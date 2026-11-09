@@ -757,6 +757,7 @@ Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto)
 
 Cria `requisito_exclusoes` (projeto e requisito; justificativa de 20 a 2000 caracteres no CHECK; quem e quando). Aditiva e repetível, sem dados.
 Spec `2026-11-09-requisito-nao-aplicavel-design`. Conferência depois: `SELECT name FROM sqlite_master WHERE name = 'requisito_exclusoes'` (1 linha).
+Aplicada em produção em 09/11/2026, com backup antes: a conferência deu 1 linha e `pragma_table_info` as 5 colunas.
 
 ## 0106 — modelos de avaliação de fornecedor da consultoria (2026-11-09)
 

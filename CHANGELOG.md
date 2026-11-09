@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Segurança: senha só no formato atual
+- O login deixa de aceitar senha gravada no formato antigo (SHA-256 sem sal) e a conversão automática dele no login sai. Nenhuma conta o usava em produção (conferido em 09/11); quem tivesse um entraria pelo "Esqueci a senha".
+
 ### Requisitos: "não aplicável" com justificativa (migration 0107)
 - Na tela de Requisitos (LGPD e ANPD), a consultoria marca um requisito como não aplicável ao projeto, com uma justificativa de pelo menos 20 caracteres, e pode fazê-lo voltar a se aplicar. A marcação vale também para os itens dentro do requisito (uma resolução inteira, por exemplo).
 - O requisito não aplicável sai da conta da cobertura: o total e a porcentagem contam só os aplicáveis, na tela, no painel do encarregado e no ponto de partida. O cliente vê a justificativa, quem marcou e quando.
