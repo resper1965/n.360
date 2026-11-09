@@ -67,6 +67,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     `SELECT count(DISTINCT u.ropa_id) AS n FROM (
         SELECT parte_id, alvo_id AS ropa_id FROM parte_vinculos WHERE project_id = ?1 AND alvo_tipo = 'tratamento'
         UNION SELECT parte_id, ropa_id FROM tratamento_externo_parceiros WHERE project_id = ?1) u JOIN partes p ON p.id = u.parte_id
+        JOIN ropa_records r ON r.id = u.ropa_id AND r.project_id = ?1 AND COALESCE(r.status, '') <> 'Inactive'
       WHERE p.tipo = 'organizacao' AND p.status = 'ativa'
         AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?2`, projectId, dia);
 

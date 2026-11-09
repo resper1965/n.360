@@ -39,7 +39,8 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('tc-doc', ?, 'DPA Nuvem')`).bind(P),
     env.DB.prepare(`INSERT INTO documento_partes (documento_id, parte_id, papel, project_id) VALUES ('tc-doc', 'f-dpa', 'dpa', ?)`).bind(P),
     env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('tc-ropa', ?, 'Folha de pagamento')`).bind(P),
-    env.DB.prepare(`INSERT INTO tratamento_externo_parceiros (ropa_id, parte_id, project_id) VALUES ('tc-ropa', 'f-ext', ?)`).bind(P),
+    env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, status) VALUES ('tc-cancelada', ?, 'Atividade cancelada', 'Inactive')`).bind(P),
+    env.DB.prepare(`INSERT INTO tratamento_externo_parceiros (ropa_id, parte_id, project_id) VALUES ('tc-ropa', 'f-ext', ?1), ('tc-cancelada', 'f-ext', ?1)`).bind(P),
     env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('tv5', ?, 'f-old', 'operador', 'tratamento', 'tc-ropa')`).bind(P),
     env.DB.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate, avaliado_por) VALUES
       ('av-ext', ?1, 'f-ext', 'questionario', 'aprovado', ?2, 'x'), ('av-old', ?1, 'f-old', 'questionario', 'aprovado', ?2, 'x')`).bind(P, VENCIDA),
@@ -92,7 +93,7 @@ describe('alertas do RoPA', () => {
     const { terceiros_com_avaliacao_vencida: vencidos } = (await r.json()) as { terceiros_com_avaliacao_vencida: { parte_id: string }[] };
     expect(vencidos.map((v) => v.parte_id)).toEqual(['f-ext']);
     const enc = (await (await chamar(consultor, 'GET', `${B}/encarregado`)).json()) as { tratamentos: { com_terceiro_vencido: number } };
-    expect(enc.tratamentos.com_terceiro_vencido).toBe(1);
+    expect(enc.tratamentos.com_terceiro_vencido).toBe(1); // a atividade cancelada não conta
   });
 });
 
