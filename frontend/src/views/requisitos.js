@@ -8,17 +8,19 @@ import { hojeSP } from '../hoje.js';
 // equivalências validadas pelo jurídico e, nas leis, a cobertura do projeto. Toda regra é do servidor
 // (`lacunasDaFonte`, src/services/requisitos.ts); aqui só se mostra, filtra e chama. Todo texto é escapado.
 
-const SITUACAO = { coberto: ['Coberto', 'success'], parcial: ['Parcial', 'warning'], lacuna: ['Lacuna', 'danger'] };
+const SITUACAO = { coberto: ['Coberto', 'success'], parcial: ['Parcial', 'warning'], lacuna: ['Lacuna', 'danger'], nao_aplicavel: ['Não aplicável', 'neutral'] };
 const TIPO_MAPA = { equivalente: 'Equivalente', parcial: 'Parcial', relacionado: 'Relacionado' };
 const ORIGEM = { documento: 'Documento', evidencia: 'Evidência', controle: 'Controle' };
-const FONTES_COM_COBERTURA = ['lgpd', 'gdpr'];
+// ANPD também: as resoluções inteiras são o caso típico de "não aplicável" (migration 0107)
+const FONTES_COM_COBERTURA = ['lgpd', 'anpd', 'gdpr'];
 // Lacuna primeiro: é onde há o que fazer. A ordem do catálogo (a do servidor) desempata.
-const PESO = { lacuna: 0, parcial: 1, coberto: 2 };
-const FILTROS = ['lacuna', 'parcial', 'coberto', 'todas'];
+const PESO = { lacuna: 0, parcial: 1, coberto: 2, nao_aplicavel: 3 };
+const FILTROS = ['lacuna', 'parcial', 'coberto', 'nao_aplicavel', 'todas'];
 // O que fazer, dito uma vez acima da lista (não em cada linha).
 const COMO_AVANCAR = {
     lacuna: 'Para cobrir uma lacuna, ligue a ela um documento vigente: em Documentos, abra o documento e use Ligar requisito.',
     parcial: 'Estes requisitos são atendidos em parte. Um documento vigente ligado a cada um os cobre por inteiro.',
+    nao_aplicavel: 'Estes requisitos foram marcados pela consultoria como não aplicáveis ao projeto, com a justificativa ao lado. Ficam fora do total da cobertura.',
 };
 
 const ehAdmin = () => !!S.user && S.user.role === 'platform_admin';
@@ -62,7 +64,8 @@ function resumoHtml(resumo, filtro) {
             ${cartao(resumo.lacunas, 'Lacunas', 'Nada atende', 'lacuna', filtro === 'lacuna', 'cob-lacuna')}
             ${cartao(resumo.parciais, 'Parciais', 'Atendem em parte', 'parcial', filtro === 'parcial', 'cob-parcial')}
             ${cartao(resumo.cobertos, 'Cobertos', 'Atendidos', 'coberto', filtro === 'coberto', 'cob-coberto')}
-            ${cartao(resumo.total, 'Total', 'Todos os requisitos', 'todas', filtro === 'todas')}
+            ${cartao(resumo.nao_aplicaveis || 0, 'Não aplicáveis', 'Fora do escopo do projeto', 'nao_aplicavel', filtro === 'nao_aplicavel')}
+            ${cartao(resumo.total + (resumo.nao_aplicaveis || 0), 'Total', 'Todos os requisitos', 'todas', filtro === 'todas')}
         </div></section>`;
 }
 
@@ -72,20 +75,28 @@ const COMO_CALCULA = `<details class="cob-como"><summary>Como a cobertura é cal
         <li><strong>Coberto:</strong> há um documento vigente ligado ao requisito, ou um controle IMPLEMENTADO ligado por equivalência validada pelo jurídico, ou uma evidência conforme e dentro da validade.</li>
         <li><strong>Parcial:</strong> o controle ligado ainda está parcial ou em andamento, ou só é equivalente em parte, ou a evidência é parcial.</li>
         <li><strong>Lacuna:</strong> nada disso existe ainda.</li>
+        <li><strong>Não aplicável:</strong> a consultoria marcou, com justificativa, que o requisito não vale para o projeto (vale também para os itens dentro dele). Fica fora do total.</li>
     </ul>
     <p>Não contam: documento em rascunho, controle apenas planejado, ausente ou não aplicável, e equivalência apenas relacionada ou ainda proposta.
     Para cobrir um requisito, ligue a ele um documento vigente (em Documentos, na ficha do documento).</p></details>`;
 
 function origensHtml(cob) {
     if (!cob) return '<span class="cob-mudo">—</span>';
-    if (!cob.origens.length) return '<span class="cob-mudo">Nada ligado ainda</span>';
-    return `<ul class="cob-origens">${cob.origens.map((o) => `<li>${ORIGEM[o.tipo] || 'Controle'}: ${escapeHTML(o.titulo)}</li>`).join('')}</ul>`;
+    const origens = cob.origens.length ? `<ul class="cob-origens">${cob.origens.map((o) => `<li>${ORIGEM[o.tipo] || 'Controle'}: ${escapeHTML(o.titulo)}</li>`).join('')}</ul>` : '';
+    if (cob.situacao === 'nao_aplicavel' && cob.exclusao) return exclusaoHtml(cob.exclusao) + (origens ? `<p class="cob-mudo">Ligado antes da exclusão:</p>${origens}` : '');
+    return origens || '<span class="cob-mudo">Nada ligado ainda</span>';
+}
+
+/** A justificativa, quem marcou e quando; herdada, a referência de onde vem. */
+function exclusaoHtml(e) {
+    const quem = `${escapeHTML(e.decidido_por || '')}, ${formatarData(e.decidido_em)}`;
+    return `<p class="cob-exclusao">${e.herdada_de ? `Herdada de ${escapeHTML(e.herdada_de)}: ` : ''}${escapeHTML(e.justificativa)}</p><p class="cob-mudo">${quem}</p>`;
 }
 
 function tabelaHtml(linhas) {
     const corpo = linhas.map(({ r, cob }) => {
         const [rot, tom] = cob ? SITUACAO[cob.situacao] || [cob.situacao, 'info'] : [null, null];
-        const passo = cob && cob.situacao !== 'coberto'
+        const passo = cob && (cob.situacao === 'lacuna' || cob.situacao === 'parcial')
             ? `<button type="button" class="btn btn-sm" data-action="irParaDocumentos" aria-label="${escapeHTML(`Ir a Documentos para cobrir ${r.referencia}`)}">Ir a Documentos</button>` : '';
         return `<tr><th scope="row" class="cob-ref">${escapeHTML(r.referencia)}</th><td>${escapeHTML(r.titulo)}</td>
             <td>${rot ? window.renderStatusBadge(rot, tom) : '—'}</td><td>${origensHtml(cob)}</td>
@@ -105,7 +116,7 @@ function listaHtml() {
         return window.renderEmptyState({ titulo: 'Nenhum requisito com este filtro', texto: 'Mude a situação ou a busca para ver outros.', acao: botao('Limpar filtros') });
     }
     const filtrada = filtro !== 'todas' || !!S.reqBusca;
-    return `<p class="cob-contagem" role="status">${linhas.length} ${linhas.length === 1 ? 'requisito' : 'requisitos'}${filtrada ? ` de ${resumo.total}` : ''}</p>${COMO_AVANCAR[filtro] ? `<p class="cob-guia">${COMO_AVANCAR[filtro]}</p>` : ''}${tabelaHtml(linhas)}`;
+    return `<p class="cob-contagem" role="status">${linhas.length} ${linhas.length === 1 ? 'requisito' : 'requisitos'}${filtrada ? ` de ${resumo.total + (resumo.nao_aplicaveis || 0)}` : ''}</p>${COMO_AVANCAR[filtro] ? `<p class="cob-guia">${COMO_AVANCAR[filtro]}</p>` : ''}${tabelaHtml(linhas)}`;
 }
 
 function redesenhar() {
@@ -160,7 +171,7 @@ async function renderRequisitos(c, h, a) {
     let r;
     try { r = await api('GET', `/api/v1/projects/${proj.id}/requisitos/lacunas?fonte=${encodeURIComponent(fonteId)}`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a cobertura do projeto.', e); return; }
     const cobertura = new Map(lista(r.itens).map((i) => [i.requisito_id, i]));
-    const resumo = r.resumo || { total: reqs.length, cobertos: 0, parciais: 0, lacunas: 0 };
+    const resumo = r.resumo || { total: reqs.length, cobertos: 0, parciais: 0, lacunas: 0, nao_aplicaveis: 0 };
     carga = { reqs, cobertura, resumo, filtro: filtroEfetivo(S.reqFiltro, resumo) };
     c.innerHTML = seletor + resumoHtml(resumo, carga.filtro) + COMO_CALCULA
         + `<div class="form-group cob-busca"><label class="form-label" for="req-busca">Buscar requisito</label>
@@ -235,10 +246,53 @@ window.abrirRequisito = async function (id, mantemRecusa) {
     openModal(`
         <h3>${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</h3>
         <p class="cob-mudo">${escapeHTML(r.fonte_id)}${r.papel ? ' · ' + escapeHTML(r.papel) : ''}</p>
+        ${aplicabilidadeHtml(r)}
         <h4 class="cob-subtitulo">Equivalências</h4>
         ${mapas ? `<table class="data-table"><thead><tr><th>Requisito</th><th>Tipo</th><th>Validação</th><th>Nota</th></tr></thead><tbody>${mapas}</tbody></table>`
             : window.renderEmptyState({ titulo: 'Nenhuma equivalência registrada.', compacto: true })}
     `, 'modal-large');
+};
+
+/** No projeto: se o requisito se aplica. Marcar e voltar a aplicar são só da equipe (o servidor barra o resto); herdado não tem botão. */
+function aplicabilidadeHtml(r) {
+    const cob = carga && carga.cobertura.get(r.id);
+    if (!cob) return '';
+    const equipe = !!window.ehEquipeNess?.();
+    let corpo;
+    if (cob.situacao === 'nao_aplicavel' && cob.exclusao) {
+        corpo = exclusaoHtml(cob.exclusao) + (equipe && !cob.exclusao.herdada_de
+            ? `<button class="btn btn-sm" data-action="voltarAAplicarRequisito" data-args='${args(r.id)}'>Voltar a aplicar</button>` : '');
+    } else {
+        corpo = `<p>Aplica-se ao projeto.</p>${equipe ? `<button class="btn btn-sm" data-action="marcarRequisitoNaoAplicavel" data-args='${args(r.id)}'>Marcar como não aplicável</button>` : ''}`;
+    }
+    return `<h4 class="cob-subtitulo">No projeto</h4><div id="req-aplicabilidade">${corpo}</div>`;
+}
+
+window.marcarRequisitoNaoAplicavel = async function (id) {
+    const proj = projetoAtivo();
+    if (!proj) return;
+    window.forceCloseModal();
+    const texto = await window.pedirTexto('Por que este requisito não se aplica ao projeto? A justificativa fica visível ao cliente e ao auditor, e vale também para os itens dentro dele.',
+        { titulo: 'Marcar como não aplicável', rotulo: 'Marcar' });
+    if (texto === null) return;
+    if (texto.trim().length < 20) { showToast('Explique em ao menos 20 caracteres por que o requisito não se aplica', 'error'); return; }
+    try {
+        await api('PUT', `/api/v1/projects/${proj.id}/requisitos/${encodeURIComponent(id)}/exclusao`, { justificativa: texto.trim() });
+        showToast('Requisito marcado como não aplicável.', 'success');
+        window.render();
+    } catch (e) { showToast((e && e.message) || 'Não foi possível marcar o requisito', 'error'); }
+};
+
+window.voltarAAplicarRequisito = async function (id) {
+    const proj = projetoAtivo();
+    if (!proj) return;
+    window.forceCloseModal();
+    if (!(await window.confirmar('O requisito volta a contar na cobertura do projeto, e os itens dentro dele também.', { titulo: 'Voltar a aplicar', rotulo: 'Voltar a aplicar' }))) return;
+    try {
+        await api('DELETE', `/api/v1/projects/${proj.id}/requisitos/${encodeURIComponent(id)}/exclusao`);
+        showToast('O requisito volta a se aplicar.', 'success');
+        window.render();
+    } catch (e) { showToast((e && e.message) || 'Não foi possível voltar a aplicar o requisito', 'error'); }
 };
 
 window.validarMapeamento = async function (de, para, tipo, requisitoId, nota) {

@@ -7,6 +7,11 @@ export const requisitoAtualizarSchema = z.object({
   titulo: z.string().trim().min(1).max(300),
 }).strict();
 
+/** Requisito "não aplicável" no projeto (migration 0107): a justificativa barra o "não se aplica" genérico. */
+export const requisitoExclusaoSchema = z.object({
+  justificativa: z.string().trim().min(20, 'Explique em ao menos 20 caracteres por que o requisito não se aplica').max(2000),
+}).strict();
+
 export const TIPOS_MAPEAMENTO = ['equivalente', 'parcial', 'relacionado'] as const;
 export const ESTADOS_MAPEAMENTO = ['proposto', 'validado_juridico'] as const;
 
