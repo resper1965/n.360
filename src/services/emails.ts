@@ -232,6 +232,28 @@ export function emailHomologacao(d: { cliente: string; fornecedor: string; expir
   });
 }
 
+/**
+ * Lembrete ao fornecedor 3 dias antes de o link vencer (fatia 4). Sem o link: o banco só guarda o hash do token. Pede que use o
+ * e-mail original ou peça um link novo a quem enviou (`reply_to`).
+ */
+export function emailLembreteHomologacao(d: { cliente: string; fornecedor: string; enviadoEm: string; expiraEm: string; quem: Pessoa | null }): EmailComAssunto {
+  const pede = d.cliente || 'Nosso cliente';
+  const prazo = dataBr(d.expiraEm);
+  return com(`Lembrete: questionário de homologação de ${d.fornecedor} vence em ${prazo}`, {
+    produto: 'n.privacy',
+    previa: `O questionário de homologação enviado por ${pede} vence em ${prazo}.`,
+    titulo: 'O questionário de homologação vence em breve',
+    saudacao: 'Olá,',
+    paragrafos: [`${pede} enviou a ${d.fornecedor}, em ${dataBr(d.enviadoEm)}, um questionário de homologação de fornecedor que ainda não foi respondido.`],
+    quemPede: d.quem ?? { organizacao: pede },
+    acao: 'Responder pelo link do e-mail original do questionário',
+    prazo,
+    notas: ['Por segurança, este lembrete não traz o link. Se não encontrar o e-mail original, responda a este e-mail e peça um link novo a quem enviou.'],
+    motivo: `${pede} indicou este endereço para responder pela empresa ${d.fornecedor}.`,
+    contato: d.quem,
+  });
+}
+
 export function emailAlertaSonda(assunto: string, linhas: string[]): EmailComAssunto {
   return com(assunto, {
     titulo: assunto,

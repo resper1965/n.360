@@ -38,6 +38,8 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'ajustar_questionario', metodo: 'PUT', caminho: `${P}/homologacoes/perguntas/modelo/{perguntaId}`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'concluir_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/concluir`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'cancelar_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/cancelar`, corpo: true },
+  { ferramenta: 'niso_avaliar_fornecedor', acao: 'prorrogar_homologacao', metodo: 'PUT', caminho: `${P}/homologacoes/{homologacaoId}/prazo`, corpo: true },
+  { ferramenta: 'niso_avaliar_fornecedor', acao: 'novo_link_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/novo-link`, corpo: true },
   { ferramenta: 'niso_situacao_atividade', acao: 'mudar_situacao', metodo: 'POST', caminho: `${P}/ropa/{ropaId}/situacao`, corpo: true },
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_capa', metodo: 'PUT', caminho: '/api/v1/capa/{acaoId}', corpo: true },
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_acao_da_atividade', metodo: 'PUT', caminho: `${P}/ropa/{ropaId}/acoes/{acaoId}`, corpo: true },

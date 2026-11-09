@@ -423,6 +423,15 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
     });
 
+    it('crítico: o campo de evidência da nova avaliação diz que é obrigatório; nos outros tipos, não', async () => {
+        await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'critico', metodo: 'auditoria' }) }, 'avaliacoes');
+        expect(document.querySelector('label[for="tc-url"]').textContent).toContain('obrigatória no crítico');
+        expect(el('tc-url').getAttribute('aria-required')).toBe('true');
+        await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'medio', metodo: 'questionario' }) }, 'avaliacoes');
+        expect(document.querySelector('label[for="tc-url"]').textContent).not.toContain('obrigatória');
+        expect(el('tc-url').hasAttribute('aria-required')).toBe(false);
+    });
+
     it('reavaliar: o resumo diz de que tipo para qual mudou; a nova avaliação vem com a validade máxima e o teto', async () => {
         await ficha({ [`GET ${B}/a`]: FICHA({ situacao: 'reavaliar', terceiro_tipo: 'critico', metodo: 'auditoria', validade_maxima: '2027-11-09',
             ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-06-01', tipo_avaliado: 'medio' } }) }, 'avaliacoes');
@@ -466,6 +475,29 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(el('tc-hm-url').value).toBe('https://n360.ness.com.br/homologacao#abc');
     });
 
+    it('link aberto (vencido inclusive) ganha Prorrogar e Novo link; o respondido não (fatia 4)', async () => {
+        const f = await ficha({ [`GET ${H}`]: HOMOLOGACOES, [`PUT ${H}/h0/prazo`]: { ok: true, expira_em: '2026-12-01 10:00:00' },
+            [`POST ${H}/h0/novo-link`]: { id: 'h9', url: 'https://n360.ness.com.br/homologacao#novo', expira_em: '2026-12-01 10:00:00', email_enviado: false } }, 'avaliacoes');
+        const linhas = [...el('tc-homologacao').querySelectorAll('tbody tr')];
+        // uma ação à vista por linha, com nome único; prorrogar e novo link no "Mais ações" da linha
+        expect(linhas[1].querySelector('[data-action="revisarHomologacao"]').getAttribute('aria-label')).toBe('Revisar o questionário de 15/09/2026');
+        expect(linhas[1].querySelector('.mais-acoes-lista [data-action="prorrogarHomologacao"]')).not.toBeNull();
+        expect(linhas[0].querySelector('.mais-acoes')).toBeNull();
+        expect(linhas[0].querySelector('[data-action="prorrogarHomologacao"]')).toBeNull();
+        expect(linhas[1].querySelector('[data-action="prorrogarHomologacao"]')).not.toBeNull();
+        expect(linhas[1].querySelector('[data-action="novoLinkHomologacao"]')).not.toBeNull();
+        el('tc-hm-dias').value = '20';
+        await window.prorrogarHomologacao('p9', 'h0');
+        expect(corpoDe(f, `PUT ${H}/h0/prazo`)).toEqual({ dias: 20 });
+        const confirmar = vi.spyOn(window, 'confirmar').mockResolvedValue(true);
+        el('tc-hm-dias').value = '15';
+        el('tc-hm-email').value = 'novo@fornecedor.exemplo';
+        await window.novoLinkHomologacao('p9', 'h0');
+        expect(confirmar).toHaveBeenCalled();
+        expect(corpoDe(f, `POST ${H}/h0/novo-link`)).toEqual({ dias: 15, email: 'novo@fornecedor.exemplo' });
+        expect(el('tc-hm-url').value).toBe('https://n360.ness.com.br/homologacao#novo');
+    });
+
     it('revisar mostra as respostas escapadas; concluir exige validade e manda resultado, validade e observação', async () => {
         document.body.innerHTML = PALCO;
         const f = servir(rotas({ [`GET ${H}/h1`]: DETALHE, [`POST ${H}/h1/concluir`]: { ok: true, avaliacao_id: 'av1' }, [`GET ${H}`]: [] }));
@@ -480,8 +512,9 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         await window.concluirHomologacao('p9', 'a', 'h1');
         expect(chamadas(f)).not.toContain(`POST ${H}/h1/concluir`);
         el('tc-hm-res').value = 'com_ressalvas'; el('tc-hm-val').value = '2027-10-15'; el('tc-hm-obs').value = 'Falta DPA';
+        el('tc-hm-ev').value = ' https://auditoria.exemplo.com/r ';
         await window.concluirHomologacao('p9', 'a', 'h1');
-        expect(corpoDe(f, `POST ${H}/h1/concluir`)).toEqual({ resultado: 'com_ressalvas', valido_ate: '2027-10-15', observacao: 'Falta DPA' });
+        expect(corpoDe(f, `POST ${H}/h1/concluir`)).toEqual({ resultado: 'com_ressalvas', valido_ate: '2027-10-15', evidencia_url: 'https://auditoria.exemplo.com/r', observacao: 'Falta DPA' });
     });
 
     it('as perguntas do questionário saíram da lista: moram em Fornecedores > Questionários', async () => {

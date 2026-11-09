@@ -190,12 +190,18 @@ export const homologacaoPerguntaAtualizarSchema = z.object({
 export const homologacaoCriarSchema = z.object({
   parte_id: z.string().trim().min(1).max(100),
   dias: z.number().int().min(1).max(60).optional(),
-  /** Se vier, o link vai por e-mail (o endereço não é gravado). */
+  /** Se vier, o link vai por e-mail; o endereço fica gravado só enquanto a homologação está aberta, para o lembrete (fatia 4). */
+  email: z.string().trim().email().max(254).optional(),
+}).strict();
+export const homologacaoPrazoSchema = z.object({ dias: z.number().int().min(1).max(60) }).strict();
+export const homologacaoNovoLinkSchema = z.object({
+  dias: z.number().int().min(1).max(60).optional(),
   email: z.string().trim().email().max(254).optional(),
 }).strict();
 export const homologacaoConcluirSchema = z.object({
   resultado: z.enum(['aprovado', 'com_ressalvas', 'reprovado']),
   valido_ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD'),
+  evidencia_url: urlWeb.nullish(),
   observacao: z.string().trim().max(1500).nullish(),
 }).strict();
 const tokenHomologacao = z.string().min(1).max(200);

@@ -483,6 +483,18 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `tipo_avaliado`; `situacaoDe` ganhou `reavaliar` (avaliacao no prazo feita noutro tipo: nao conta como vigente, entra nas pendencias como "Avaliacao" e o
   painel e o encarregado a contam como pendente, nao como atraso; nao gera aviso de vencimento; a conclusao do questionario grava o tipo do ENVIO, `homologacoes.tipo`). A ficha traz `validade_maxima` (a tela preenche e trava o campo) e "o tipo mudou de X
   para Y"; a fila ganhou o grupo "Reavaliar: o tipo mudou".
+  **Critico com evidencia (fatia 3, sem migration):** no tipo ATUAL `critico`, `registrarAvaliacao` recusa (400) `aprovado` e `com_ressalvas` sem
+  `evidencia_url`; `reprovado` nao exige. Vale para a manual, a conclusao do questionario (`homologacaoConcluirSchema` aceita `evidencia_url`; a tela tem o
+  campo `tc-hm-ev`) e a importacao (vira aviso).
+  **Ciclo do link (fatia 4, sem migration):** `PUT .../homologacoes/:id/prazo` (`{ dias }` 1 a 60, contados de agora; so `aberta`, vencida sem resposta
+  inclusive; zera `lembrete_em`) e `POST .../homologacoes/:id/novo-link` (`{ dias?, email? }`: cria outra para o mesmo fornecedor com as perguntas atuais e
+  so entao cancela a aberta; se ela deixou de estar aberta no meio, a nova e cancelada e a resposta e 409), so a equipe; o agente pelas acoes
+  `prorrogar_homologacao` e `novo_link_homologacao` da `niso_avaliar_fornecedor`. `avisosDeHomologacao` (`src/services/homologacao.ts`) roda no cron das
+  08:00 ao lado de `avisosDePrazo` (`src/index.ts`) e nao usa `avisos_prazo`: sino da equipe (faixa privacy, `escolherDestinatarios`) `homologacao_vence`
+  (vence em ate 3 dias), `homologacao_vencida` (venceu sem resposta nos ultimos 7 dias) e `homologacao_parada` (respondida ha 2 dias ou mais), uma vez por
+  pessoa pelo `target_id` (homologacao e vencimento: prorrogar rearma); e UM lembrete por e-mail ao `email_destino` (`emailLembreteHomologacao`, sem o link,
+  `reply_to` de quem criou), reservado por `lembrete_em` antes do envio, so com `RESEND_API_KEY`. A fila de avaliacoes ganhou os grupos "Questionario
+  respondido, aguardando conclusao" e "Link vencido sem resposta" (de `GET .../homologacoes`, a frente da situacao); a ficha tem "Prorrogar" e "Novo link".
   **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (desde a 0106 so as perguntas proprias do projeto; o semeio padrao
   por projeto saiu; pergunta nao se apaga, desativa) e `homologacoes`
   (um envio por terceiro de tipo medio/pequeno: so o SHA-256 do token, `expira_em`, perguntas CONGELADAS (`perguntas_json` e o objeto `{perguntas, fornecedor, cliente}`: nome do fornecedor e do cliente tambem congelam na criacao; o array antigo e aceito e le o nome ao vivo, `lerCongelado`), respostas imutaveis depois do
@@ -490,7 +502,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   escrever e so da equipe, `ehEquipeNess`; o agente consultor escreve pela ferramenta `niso_avaliar_fornecedor`, com confirmacao e motivo) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
   (token no CORPO, 404 igual para inexistente/vencido/enviado/cancelado, limite por IP), pagina `frontend/public/homologacao.*`. Concluir
   (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
-  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado. O envio do fornecedor avisa no
+  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco fica em `homologacoes.email_destino` so enquanto a homologacao esta aberta (o gatilho `homologacao_email_some` o apaga), para o lembrete da fatia 4. O envio do fornecedor avisa no
   sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
   parte, e os MESMOS recebem e-mail (`emailHomologacaoRespondida`: fornecedor, % respondido, link `/privacy?tela=terceiros`; nunca token nem
   resposta; so a quem o sino acabou de avisar, entao nao repete); falha do aviso ou do e-mail vai ao log e nao derruba o envio.
@@ -723,7 +735,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
   **O agente decide como o consultor (spec `docs/superpowers/specs/2026-10-23-agente-decide-como-consultor-design.md`).** O catalogo das decisoes
-  (11 ferramentas, 38 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-09: 38) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
+  (11 ferramentas, 40 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-09: 40) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
   `resolverAgente` (`src/middleware/agente.ts`): a rota de decisao exige os cabecalhos `X-Agente-Ferramenta`, `X-Agente-Confirmado: 1` (so o booleano `true` em
   `confirmado_pelo_usuario`) e `X-Agente-Motivo` (1 a 500 caracteres); valendo, o principal ganha `agente_decisao` e `ehEquipeNess` o aceita naquela rota e so nela.
   A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre

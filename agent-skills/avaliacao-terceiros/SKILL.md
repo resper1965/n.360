@@ -49,6 +49,11 @@ description: Use ao avaliar terceiros que tratam dado pessoal para o cliente (TP
 - `questionario`: o questionário respondido e assinado pelo terceiro (perguntas em `references/questionario-base.md`), com as
   evidências que ele anexou. Validade: a combinada com o cliente para reavaliação.
 - `auditoria`: relatório da visita ou auditoria, achados e plano de ação do terceiro. Validade: até a próxima auditoria planejada.
+- **Crítico:** o servidor recusa avaliação `aprovado` ou `com_ressalvas` sem `evidencia_url` (também ao concluir o questionário dele). Sem o
+  link da evidência, não proponha aprovar: peça o relatório ao consultor. `reprovado` não exige.
+- **Link do questionário:** link aberto que venceu ou vai vencer se prorroga (`prorrogar_homologacao`, `{ dias }` de 1 a 60, a contar de
+  hoje) ou se troca (`novo_link_homologacao`: o atual deixa de valer e as respostas parciais não passam). O link novo aparece uma vez na
+  resposta: entregue-o ao consultor, nunca o reescreva em outro lugar.
 
 `valido_ate` nunca é inventado: sai da evidência ou da regra de reavaliação que o cliente definiu. Sem isso, pergunte.
 
