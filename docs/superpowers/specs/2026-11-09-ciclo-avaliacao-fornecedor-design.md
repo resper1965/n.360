@@ -1,6 +1,6 @@
 # Ciclo de avaliação do fornecedor: modelos da consultoria, validade, crítico e lembretes (TPRM)
 
-Data: 09/11/2026. Situação: **aprovada pelo dono em 09/11/2026** (abordagem A); fatias 1 (migration 0106; plano `docs/arquivo/planos/2026-11-09-modelos-fornecedor.md`) e 2 (sem migration; plano `docs/superpowers/plans/2026-11-09-reavaliacao-fornecedor.md`) construídas.
+Data: 09/11/2026. Situação: **aprovada pelo dono em 09/11/2026** (abordagem A); fatias 1 (migration 0106; plano `docs/arquivo/planos/2026-11-09-modelos-fornecedor.md`), 2 (sem migration; plano `docs/arquivo/planos/2026-11-09-reavaliacao-fornecedor.md`) e 3 (sem migration nem plano: uma regra em `registrarAvaliacao` e o campo na conclusão) construídas.
 Base: a análise das rotinas de TPRM de 09/11/2026 (correções no #566) e as specs `2026-10-18-criticidade-fornecedor-design.md`
 e da homologação por questionário (F5, migration 0075).
 

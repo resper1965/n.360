@@ -423,6 +423,15 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
     });
 
+    it('crítico: o campo de evidência da nova avaliação diz que é obrigatório; nos outros tipos, não', async () => {
+        await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'critico', metodo: 'auditoria' }) }, 'avaliacoes');
+        expect(document.querySelector('label[for="tc-url"]').textContent).toContain('obrigatória no crítico');
+        expect(el('tc-url').getAttribute('aria-required')).toBe('true');
+        await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'medio', metodo: 'questionario' }) }, 'avaliacoes');
+        expect(document.querySelector('label[for="tc-url"]').textContent).not.toContain('obrigatória');
+        expect(el('tc-url').hasAttribute('aria-required')).toBe(false);
+    });
+
     it('reavaliar: o resumo diz de que tipo para qual mudou; a nova avaliação vem com a validade máxima e o teto', async () => {
         await ficha({ [`GET ${B}/a`]: FICHA({ situacao: 'reavaliar', terceiro_tipo: 'critico', metodo: 'auditoria', validade_maxima: '2027-11-09',
             ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-06-01', tipo_avaliado: 'medio' } }) }, 'avaliacoes');
@@ -480,8 +489,9 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         await window.concluirHomologacao('p9', 'a', 'h1');
         expect(chamadas(f)).not.toContain(`POST ${H}/h1/concluir`);
         el('tc-hm-res').value = 'com_ressalvas'; el('tc-hm-val').value = '2027-10-15'; el('tc-hm-obs').value = 'Falta DPA';
+        el('tc-hm-ev').value = ' https://auditoria.exemplo.com/r ';
         await window.concluirHomologacao('p9', 'a', 'h1');
-        expect(corpoDe(f, `POST ${H}/h1/concluir`)).toEqual({ resultado: 'com_ressalvas', valido_ate: '2027-10-15', observacao: 'Falta DPA' });
+        expect(corpoDe(f, `POST ${H}/h1/concluir`)).toEqual({ resultado: 'com_ressalvas', valido_ate: '2027-10-15', evidencia_url: 'https://auditoria.exemplo.com/r', observacao: 'Falta DPA' });
     });
 
     it('as perguntas do questionário saíram da lista: moram em Fornecedores > Questionários', async () => {

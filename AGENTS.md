@@ -482,6 +482,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `tipo_avaliado`; `situacaoDe` ganhou `reavaliar` (avaliacao no prazo feita noutro tipo: nao conta como vigente, entra nas pendencias como "Avaliacao" e o
   painel e o encarregado a contam como pendente, nao como atraso; nao gera aviso de vencimento; a conclusao do questionario grava o tipo do ENVIO, `homologacoes.tipo`). A ficha traz `validade_maxima` (a tela preenche e trava o campo) e "o tipo mudou de X
   para Y"; a fila ganhou o grupo "Reavaliar: o tipo mudou".
+  **Critico com evidencia (fatia 3, sem migration):** no tipo ATUAL `critico`, `registrarAvaliacao` recusa (400) `aprovado` e `com_ressalvas` sem
+  `evidencia_url`; `reprovado` nao exige. Vale para a manual, a conclusao do questionario (`homologacaoConcluirSchema` aceita `evidencia_url`; a tela tem o
+  campo `tc-hm-ev`) e a importacao (vira aviso).
   **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (desde a 0106 so as perguntas proprias do projeto; o semeio padrao
   por projeto saiu; pergunta nao se apaga, desativa) e `homologacoes`
   (um envio por terceiro de tipo medio/pequeno: so o SHA-256 do token, `expira_em`, perguntas CONGELADAS (`perguntas_json` e o objeto `{perguntas, fornecedor, cliente}`: nome do fornecedor e do cliente tambem congelam na criacao; o array antigo e aceito e le o nome ao vivo, `lerCongelado`), respostas imutaveis depois do

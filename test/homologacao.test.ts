@@ -138,7 +138,12 @@ describe('fluxo da homologação', () => {
     const { id: hid } = await json<{ id: string }>(criado);
     // marca "respondida" direto (sem passar pelo envio que avisa o sino, para não afetar a contagem de outros testes)
     await env.DB.prepare(`UPDATE homologacoes SET status = 'respondida', enviada_em = CURRENT_TIMESTAMP WHERE id = ?`).bind(hid).run();
-    const r = await chamar(consultor, 'POST', `${base}/${hid}/concluir`, { resultado: 'aprovado', valido_ate: dias(365) });
+    // crítico (fatia 3): aprovar sem evidência é 400 e a homologação volta a respondida, pronta para concluir de novo
+    const sem = await chamar(consultor, 'POST', `${base}/${hid}/concluir`, { resultado: 'aprovado', valido_ate: dias(365) });
+    expect(sem.status).toBe(400);
+    expect((await json<{ error: string }>(sem)).error).toContain('evidência');
+    expect((await json<{ status: string }>(await chamar(consultor, 'GET', `${base}/${hid}`))).status).toBe('respondida');
+    const r = await chamar(consultor, 'POST', `${base}/${hid}/concluir`, { resultado: 'aprovado', valido_ate: dias(365), evidencia_url: 'https://evidencia.exemplo.com/relatorio' });
     expect(r.status, await r.clone().text()).toBe(200);
     const { avaliacao_id } = await json<{ avaliacao_id: string }>(r);
     expect(await env.DB.prepare('SELECT metodo FROM avaliacoes_terceiro WHERE id = ?').bind(avaliacao_id).first<string>('metodo')).toBe('questionario');

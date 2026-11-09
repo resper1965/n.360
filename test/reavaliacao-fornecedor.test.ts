@@ -17,7 +17,7 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
 
 let consultor: Record<string, string>;
 const hoje = hojeEmSaoPaulo();
-const avaliar = (valido_ate: string) => chamar(consultor, 'POST', `${B}/terceiros/rv-f/avaliacoes`, { resultado: 'aprovado', valido_ate });
+const avaliar = (valido_ate: string) => chamar(consultor, 'POST', `${B}/terceiros/rv-f/avaliacoes`, { resultado: 'aprovado', valido_ate, evidencia_url: 'https://evidencia.exemplo.com/rv' });
 type T = { id: string; situacao: string; pendencias: string[]; terceiro_tipo: string; validade_maxima?: string; ultima_avaliacao: { tipo_avaliado: string } | null };
 const terceiro = async () => ((await (await chamar(consultor, 'GET', `${B}/terceiros`)).json()) as T[]).find((t) => t.id === 'rv-f')!;
 
