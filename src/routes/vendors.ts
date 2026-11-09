@@ -78,7 +78,7 @@ export const SQL_VENDORS_VISIVEIS = `SELECT v.id, p.project_id, p.nome AS name, 
     CASE WHEN COALESCE(v.dpa_signed, 0) = 1 OR trim(COALESCE(v.dpa_url, '')) <> '' THEN 1 ELSE 0 END AS dpa_declarado, v.dpa_url AS dpa_url_antigo,
     (SELECT json_group_array(json_object('id', x.id, 'titulo', x.titulo)) FROM (
       SELECT d.id, d.titulo FROM documento_partes dp JOIN documentos d ON d.id = dp.documento_id
-       WHERE dp.parte_id = p.id AND dp.project_id = p.project_id AND dp.papel = 'dpa'
+       WHERE dp.parte_id = p.id AND dp.project_id = p.project_id AND dp.papel = 'dpa' AND d.status = 'vigente'
       UNION ALL SELECT a.id, a.nome FROM documentos_arquivo_partes ap JOIN documentos_arquivo a ON a.id = ap.documento_arquivo_id
        WHERE ap.parte_id = p.id AND ap.project_id = p.project_id AND ap.papel = 'dpa' AND ${SQL_ARQUIVO_VALE}) x) AS dpa_documentos
   FROM partes p LEFT JOIN vendors v ON v.parte_id = p.id WHERE p.project_id = ? AND ${SQL_EH_FORNECEDOR}`;

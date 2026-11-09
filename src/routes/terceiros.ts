@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500 } from '../helpers';
+import { erro500, ehEquipeNess } from '../helpers';
 import { definirTipo, desligarDocumento, lerCriticidades, lerTerceiro, ligarDocumento, listarCandidatos, listarTerceiros, registrarAvaliacao, registrarCriticidade, type PapelDocumento } from '../services/terceiros';
 import { listarHomologacoes } from '../services/homologacao';
 import { validateBody, avaliacaoTerceiroSchema, criticidadeTerceiroSchema, terceiroDocumentoSchema, terceiroTipoSchema } from '../schemas';
@@ -8,8 +8,12 @@ import { validateBody, avaliacaoTerceiroSchema, criticidadeTerceiroSchema, terce
 /**
  * Núcleo do n.privacy, fatia 6: terceiros tipificados. Montado em `/api/v1/projects/:projectId/terceiros`, então o
  * `projectAccessMiddleware` já cortou o projeto antes daqui. O tipo define o método; a situação é derivada da validade.
+ * Tipo, criticidade e avaliação são da EQUIPE da consultoria (decisão de 09/11/2026), como o questionário: o cliente vê, não se
+ * autoaprova. O agente consultor grava pela ferramenta `niso_avaliar_fornecedor` (a porta o trata como equipe naquela rota).
  */
 export const terceirosApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+const SO_EQUIPE = { error: 'Tipo, criticidade e avaliação do fornecedor são registrados pela equipe da consultoria' };
 
 // A lista traz o resumo do último questionário não cancelado (Data de envio e % respondido), o mesmo dado da ficha.
 terceirosApp.get('/', async (c) => {
@@ -32,6 +36,7 @@ terceirosApp.get('/:parteId', async (c) => {
 
 terceirosApp.put('/:parteId/tipo', async (c) => {
   try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
     const v = await validateBody(c, terceiroTipoSchema);
     if (!v.success) return v.response;
     const r = await definirTipo(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, v.data.terceiro_tipo);
@@ -41,6 +46,7 @@ terceirosApp.put('/:parteId/tipo', async (c) => {
 
 terceirosApp.post('/:parteId/avaliacoes', async (c) => {
   try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
     const v = await validateBody(c, avaliacaoTerceiroSchema);
     if (!v.success) return v.response;
     const r = await registrarAvaliacao(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, v.data);
@@ -55,6 +61,7 @@ terceirosApp.get('/:parteId/criticidades', async (c) => {
 
 terceirosApp.post('/:parteId/criticidades', async (c) => {
   try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
     const v = await validateBody(c, criticidadeTerceiroSchema);
     if (!v.success) return v.response;
     const r = await registrarCriticidade(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, v.data);

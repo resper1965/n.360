@@ -83,7 +83,9 @@ export const SQL_EH_FORNECEDOR = `p.tipo = 'organizacao' AND p.status = 'ativa' 
  * mas só publicado e com arquivo anexado (`SQL_ARQUIVO_VALE`, alias `a`): rascunho, obsoleto e documento sem arquivo não provam nada.
  */
 export const SQL_ARQUIVO_VALE = `a.status = 'publicado' AND a.r2_key IS NOT NULL`;
-export const SQL_TEM_DPA = `(EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id AND d.project_id = p.project_id AND d.papel = 'dpa')
+/** O documento versionado só prova o DPA VIGENTE (rascunho e obsoleto não valem), como o em arquivo só publicado (`SQL_ARQUIVO_VALE`). Alias `dv`. */
+export const SQL_VERSIONADO_VALE = `dv.status = 'vigente'`;
+export const SQL_TEM_DPA = `(EXISTS (SELECT 1 FROM documento_partes d JOIN documentos dv ON dv.id = d.documento_id WHERE d.parte_id = p.id AND d.project_id = p.project_id AND d.papel = 'dpa' AND ${SQL_VERSIONADO_VALE})
   OR EXISTS (SELECT 1 FROM documentos_arquivo_partes ap JOIN documentos_arquivo a ON a.id = ap.documento_arquivo_id
               WHERE ap.parte_id = p.id AND ap.project_id = p.project_id AND ap.papel = 'dpa' AND ${SQL_ARQUIVO_VALE}))`;
 
@@ -177,12 +179,15 @@ export async function lerTerceiro(db: D1Database, projectId: string, parteId: st
     // responsável do fornecedor: a pessoa com o vínculo `responsavel` sobre esta organização (o vínculo que o núcleo já tem)
     db.prepare(`SELECT v.id AS vinculo_id, p.id, p.nome, p.email FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.papel = 'responsavel' AND v.alvo_tipo = 'parte' AND v.alvo_id = ? AND v.project_id = ? ORDER BY p.nome`).bind(parteId, projectId),
   ]);
-  return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca: seg.results[0] ?? null, responsaveis: resp.results,
+  // o índice sai calculado agora, como na lista do n.iso (`comIndiceAtual`): o gravado envelhece quando o DPA muda de situação
+  const perfil = seg.results[0] as (PerfilDoIndice & Record<string, unknown>) | undefined;
+  const seguranca = perfil ? { ...perfil, trust_score: indiceDeConfianca(perfil, t.dpa), diligence_level: nivelDeDiligencia(indiceDeConfianca(perfil, t.dpa)) } : null;
+  return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca, responsaveis: resp.results,
     historico: hist.results as Avaliacao[], documentos_ligados: docs.results, suboperadores: subs.results, tratamentos_afetados: trat.results };
 }
 
 const parteDoProjeto = (db: D1Database, projectId: string, parteId: string) =>
-  db.prepare(`SELECT id, tipo, terceiro_tipo FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId).first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null }>();
+  db.prepare(`SELECT id, tipo, terceiro_tipo, status FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId).first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null; status: string }>();
 
 export async function definirTipo(db: D1Database, projectId: string, parteId: string, ator: string, tipo: TipoTerceiro | null): Promise<Falha | { ok: true }> {
   const p = await parteDoProjeto(db, projectId, parteId);
@@ -206,6 +211,7 @@ export async function registrarAvaliacao(db: D1Database, projectId: string, part
   const p = await parteDoProjeto(db, projectId, parteId);
   if (!p) return falha(404, 'Parte não encontrada');
   if (p.tipo !== 'organizacao') return falha(400, 'Só organização é terceiro');
+  if (p.status !== 'ativa') return falha(409, 'Fornecedor inativo não recebe avaliação: reative a organização antes');
   if (!p.terceiro_tipo) return falha(400, 'Defina o tipo do terceiro antes de registrar a avaliação');
   if (!dataValida(d.valido_ate)) return falha(400, 'valido_ate precisa ser uma data AAAA-MM-DD');
   if (d.valido_ate < hoje()) return falha(400, 'valido_ate não pode estar no passado');

@@ -64,8 +64,10 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
        FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.project_id = ? AND COALESCE(r.status, '') <> 'Inactive'`
   ).bind(projectId).all<{ id: string; nome: string; legal_basis: string | null; base_legal_id: string | null; owner: string | null; owner_parte_id: string | null; dpia_required: number | null; base_titulo: string | null; base_gdpr: string | null; adicionais: string | null; tem_dpia: number; tem_lia: number }>();
   const comTerceiroVencido = await n(db,
-    `SELECT count(DISTINCT v.alvo_id) AS n FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
-      WHERE v.project_id = ?1 AND v.alvo_tipo = 'tratamento' AND p.tipo = 'organizacao'
+    `SELECT count(DISTINCT u.ropa_id) AS n FROM (
+        SELECT parte_id, alvo_id AS ropa_id FROM parte_vinculos WHERE project_id = ?1 AND alvo_tipo = 'tratamento'
+        UNION SELECT parte_id, ropa_id FROM tratamento_externo_parceiros WHERE project_id = ?1) u JOIN partes p ON p.id = u.parte_id
+      WHERE p.tipo = 'organizacao' AND p.status = 'ativa'
         AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?2`, projectId, dia);
 
   const tratamentos = {

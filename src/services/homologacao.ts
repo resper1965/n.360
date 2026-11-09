@@ -136,9 +136,10 @@ const ehQuestionario = (tipo: TipoTerceiro | null) => !!tipo && PODE_QUESTIONARI
 
 export async function criarHomologacao(db: D1Database, projectId: string, ator: string, d: { parte_id: string; dias: number }):
   Promise<Falha | { ok: true; id: string; token: string; expira_em: string; parte_nome: string }> {
-  const parte = await db.prepare(`SELECT id, tipo, terceiro_tipo, nome FROM partes WHERE id = ? AND project_id = ?`).bind(d.parte_id, projectId)
-    .first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null; nome: string }>();
+  const parte = await db.prepare(`SELECT id, tipo, terceiro_tipo, nome, status FROM partes WHERE id = ? AND project_id = ?`).bind(d.parte_id, projectId)
+    .first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null; nome: string; status: string }>();
   if (!parte) return falha(404, 'Terceiro não encontrado');
+  if (parte.status !== 'ativa') return falha(409, 'Fornecedor inativo não recebe questionário: reative a organização antes');
   if (parte.tipo !== 'organizacao' || !ehQuestionario(parte.terceiro_tipo)) return falha(400, 'Este terceiro não recebe questionário: defina o tipo como médio, pequeno ou crítico');
   const { perguntas } = await listarPerguntas(db, projectId);
   const ativas: PerguntaCongelada[] = perguntas.filter((p) => p.ativa).map(({ id, tema, texto }) => ({ id, tema, texto }));
@@ -194,10 +195,10 @@ export async function concluirHomologacao(db: D1Database, projectId: string, id:
 
 type Aberta = { id: string; project_id: string; parte_id: string; perguntas_json: string; respostas_json: string; expira_em: string };
 
-/** Só homologação ABERTA e no prazo: inexistente, vencida, enviada ou cancelada dão o mesmo null (sem oráculo). */
+/** Só homologação ABERTA, no prazo e de fornecedor ATIVO: inexistente, vencida, enviada, cancelada ou de organização inativa dão o mesmo null (sem oráculo). */
 export async function homologacaoDoToken(db: D1Database, token: string): Promise<Aberta | null> {
-  return db.prepare(`SELECT id, project_id, parte_id, perguntas_json, respostas_json, expira_em FROM homologacoes
-     WHERE token_hash = ? AND status = 'aberta' AND datetime(expira_em) > datetime('now')`).bind(await sha256Hex(token)).first<Aberta>();
+  return db.prepare(`SELECT h.id, h.project_id, h.parte_id, h.perguntas_json, h.respostas_json, h.expira_em FROM homologacoes h JOIN partes p ON p.id = h.parte_id
+     WHERE h.token_hash = ? AND h.status = 'aberta' AND datetime(h.expira_em) > datetime('now') AND p.status = 'ativa'`).bind(await sha256Hex(token)).first<Aberta>();
 }
 
 /** O que a página do fornecedor vê: o cliente, o próprio nome, as perguntas congeladas e as próprias respostas. */

@@ -60,4 +60,22 @@ describe('lista de fornecedores do n.iso', () => {
         expect(confirmar.mock.calls[0][0]).toMatch(/fornecedor continua cadastrado/);
         expect(apiMock).toHaveBeenCalledWith('DELETE', '/api/v1/vendors/v1');
     });
+
+    it('erro do servidor ao cadastrar, salvar ou remover aparece num aviso; nome vazio também (antes falhava em silêncio)', async () => {
+        const toasts = () => [...document.querySelectorAll('.toast-error')].map((t) => t.textContent);
+        window.openNewVendorModal('p1');
+        document.getElementById('vnd-name').value = '';
+        await window.createVendor('p1');
+        expect(toasts().join(' ')).toContain('Informe o nome do fornecedor');
+        apiMock.mockRejectedValue(new Error('Fornecedor já cadastrado neste projeto'));
+        window.openNewVendorModal('p1');
+        document.getElementById('vnd-name').value = 'Alfa Nuvem';
+        await window.createVendor('p1');
+        expect(toasts().join(' ')).toContain('Fornecedor já cadastrado neste projeto');
+        window.openEditVendorModal('pa1');
+        await window.updateVendor('pa1');
+        vi.spyOn(window, 'confirmar').mockResolvedValue(true);
+        await window.deleteVendor('v1');
+        expect(toasts().length).toBeGreaterThanOrEqual(4);
+    });
 });
