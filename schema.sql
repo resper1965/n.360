@@ -2633,7 +2633,7 @@ CREATE TABLE IF NOT EXISTS ot_sensor_envios (
 );
 CREATE INDEX IF NOT EXISTS idx_ot_sensor_envios ON ot_sensor_envios(sensor_id, created_at);
 
--- ─── n.ot: desvios (0106) ───
+-- ─── n.ot: desvios (0107) ───
 CREATE TABLE IF NOT EXISTS ot_desvios (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

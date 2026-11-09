@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0106** (`ls migrations/*.sql | tail -1`). São 107 arquivos
+- Última migration no repositório: **0107** (`ls migrations/*.sql | tail -1`). São 107 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -753,7 +753,7 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
 
-## 0106 — desvios do n.ot (2026-11-09)
+## 0107 — desvios do n.ot (2026-11-09)
 
 Cria `ot_desvios` (fluxo ou ativo fora do esperado; situação, prazo de aceite, `UNIQUE (project_id, tipo, chave_sensor)`, mesmo CHECK de IP/MAC cifrado dos achados) e 2 índices. Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'ot_desvios'` (1 linha).

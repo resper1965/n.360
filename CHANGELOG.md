@@ -12,11 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
-### n.ot: desvios do sensor de rede (migration 0106)
+### n.ot: desvios do sensor de rede (migration 0107)
 - Todo resumo aceito da sonda é comparado com o inventário aprovado antes do filtro de novidade: ativo ou fluxo visto e não aprovado vira desvio (a importação manual não cria desvio). Nova aba "Desvios" no n.ot e a contagem "N desvios abertos" no cartão "Pontos a esclarecer".
 - Ciclo: aberto, tratado (com nota; reabre e avisa se o sensor vê de novo), aceito (só o Gestor ARCiber, justificativa e prazo de até 90 dias; vencido volta a aberto, também pelo cron diário) e regularizado (automático quando um lote aprova o item). Aceito não é a exceção formal 5.1.1.
 - Webhook `ot.desvio`: exige visão completa do inventário para cadastrar; corpo sem IP, MAC nem hash; assinado, até 3 tentativas, 5 s cada, sem seguir redirect. A entrega de webhooks ganhou novas tentativas, tempo limite e recusa de redirecionamento.
-- Rotas `GET /desvios`, `POST /desvios/:id/tratar` e `POST /desvios/:id/aceitar`. Migration 0106 (aditiva): tabela `ot_desvios`.
+- Rotas `GET /desvios`, `POST /desvios/:id/tratar` e `POST /desvios/:id/aceitar`. Migration 0107 (aditiva): tabela `ot_desvios`.
 
 ### Fornecedores (TPRM): modelos de avaliação da consultoria (migration 0106)
 - O questionário de avaliação de fornecedor passa a ser da consultoria: em Conta e acessos, "Modelos de avaliação de fornecedor" traz um modelo por tipo (crítico, médio, pequeno e o roteiro do trust center do grande provedor), com o prazo máximo da avaliação e as perguntas. Edita o administrador da consultoria; o consultor vê.
