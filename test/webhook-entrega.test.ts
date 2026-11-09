@@ -13,18 +13,23 @@ import { applySchema, workerEnv, sessionFor } from './helpers/d1';
 const P = 'p-wh';
 const SEM_ESPERA = { esperas: [0, 0, 0] };
 
-/** fetch simulado: DoH público para todo host; a entrega responde pela fila `respostas` (Response ou Error), depois 200. */
-function fetchSimulado(respostas: (number | Error)[] = []) {
-  const entregas: { url: string; headers: Record<string, string>; body: string }[] = [];
+/** DoH simulado: todo host resolve para `ip` (só registro A). */
+const doh = (url: string, ip: string) => {
+  const tipo = new URL(url).searchParams.get('type');
+  return { ok: true, json: async () => ({ Answer: tipo === 'A' ? [{ type: 1, data: ip }] : [] }) } as any;
+};
+
+/** fetch simulado: DoH resolve para `ip`; a entrega responde pela fila `respostas` (status, Error ou 'pendura'), depois 200. */
+function fetchSimulado(respostas: (number | Error | 'pendura')[] = [], ip = '93.184.216.34') {
+  const entregas: { url: string; headers: Record<string, string>; body: string; init: RequestInit }[] = [];
   const fn = vi.fn(async (url: string, init?: RequestInit) => {
-    if (String(url).startsWith('https://cloudflare-dns.com/')) {
-      const tipo = new URL(url).searchParams.get('type');
-      return { ok: true, json: async () => ({ Answer: tipo === 'A' ? [{ type: 1, data: '93.184.216.34' }] : [] }) } as any;
-    }
-    entregas.push({ url: String(url), headers: init!.headers as Record<string, string>, body: String(init!.body) });
+    if (String(url).startsWith('https://cloudflare-dns.com/')) return doh(url, ip);
+    entregas.push({ url: String(url), headers: init!.headers as Record<string, string>, body: String(init!.body), init: init! });
     const r = respostas.shift() ?? 200;
     if (r instanceof Error) throw r;
-    return new Response(null, { status: r });
+    // Receptor pendurado: só termina quando o sinal aborta.
+    if (r === 'pendura') return new Promise<Response>((_, rej) => init!.signal!.addEventListener('abort', () => rej(init!.signal!.reason)));
+    return new Response(null, { status: r, headers: r >= 300 && r < 400 ? { Location: 'https://outro.example/x' } : {} });
   });
   return { fn: fn as unknown as typeof fetch, entregas, mock: fn };
 }
@@ -94,6 +99,30 @@ describe('entregarEvento', () => {
     expect(f.mock).not.toHaveBeenCalled();
   });
 
+  it('receptor pendurado → estoura o tempo limite, conta falha e resolve', async () => {
+    await semear([['w-pendura', 'https://a.example/h', 'ot.desvio']]);
+    const f = fetchSimulado(['pendura', 'pendura', 'pendura']);
+    expect(await entregarEvento(env as any, P, 'ot.desvio', {}, { ...SEM_ESPERA, tempoLimiteMs: 20, fetchFn: f.fn })).toEqual({ entregues: 0, falhas: 1 });
+    expect(f.entregas).toHaveLength(3);
+    expect((await linha('w-pendura')).failure_count).toBe(1);
+  });
+
+  it('302 → falha, sem seguir o Location (redirect manual)', async () => {
+    await semear([['w-302', 'https://a.example/h', 'ot.desvio']]);
+    const f = fetchSimulado([302, 302, 302]);
+    expect(await entregarEvento(env as any, P, 'ot.desvio', {}, { ...SEM_ESPERA, fetchFn: f.fn })).toEqual({ entregues: 0, falhas: 1 });
+    expect(f.entregas.map(e => e.url)).toEqual(Array(3).fill('https://a.example/h'));
+    expect(f.entregas.every(e => e.init.redirect === 'manual')).toBe(true);
+    expect((await linha('w-302')).failure_count).toBe(1);
+  });
+
+  it('host que resolve para IP interno → não entrega', async () => {
+    await semear([['w-rebind', 'https://rebind.example/h', 'ot.desvio']]);
+    const f = fetchSimulado([], '10.0.0.5');
+    expect(await entregarEvento(env as any, P, 'ot.desvio', {}, { ...SEM_ESPERA, fetchFn: f.fn })).toEqual({ entregues: 0, falhas: 1 });
+    expect(f.entregas).toHaveLength(0);
+  });
+
   it('banco indisponível → não lança', async () => {
     const f = fetchSimulado();
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -148,6 +177,23 @@ describe('POST /api/v1/webhooks/test/:id (resposta inalterada)', () => {
     expect(r.status).toBe(502);
     expect(await r.json()).toMatchObject({ ok: false, error: 'Falha ao disparar o webhook de teste', request_id: expect.any(String) });
     expect((await linha('w-teste')).failure_count).toBe(1);
+  });
+
+  it('302 → mesma forma de resposta de um não-2xx: { ok: true, status: 302 }, sem seguir', async () => {
+    espiao = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 302, headers: { Location: 'https://outro.example/x' } }));
+    const r = await testar();
+    expect(await r.json()).toEqual({ ok: true, status: 302 });
+    expect(espiao).toHaveBeenCalledTimes(1);
+    expect((espiao.mock.calls[0][1] as RequestInit).redirect).toBe('manual');
+  });
+
+  it('host que resolve para IP interno → 400 da guarda de rebinding, sem entrega', async () => {
+    await semear([['w-teste', 'https://rebind.example/h', 'risk.created']]);
+    espiao = vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string) => doh(url, '10.0.0.5')) as any);
+    const r = await testar();
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: 'Webhook host resolves to a non-public address (SSRF Guard)' });
+    expect(espiao.mock.calls.every(([u]) => String(u).startsWith('https://cloudflare-dns.com/'))).toBe(true);
   });
 
   it('URL interna → 400 da guarda de SSRF, sem fetch', async () => {

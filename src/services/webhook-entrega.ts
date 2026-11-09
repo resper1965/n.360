@@ -12,8 +12,11 @@ export type ResultadoEnvio =
   | { tipo: 'resposta'; resp: Response }
   | { tipo: 'erro'; erro: unknown };
 
+/** Receptor pendurado não segura a tentativa (nem o waitUntil): estoura, vira erro e conta como falha. */
+export const TEMPO_LIMITE_MS = 5000;
+
 /** Uma tentativa: guarda de SSRF, corpo assinado e POST. Não toca no banco nem lança. */
-export async function enviarUmaVez(webhook: WebhookAlvo, corpo: string, fetchFn: typeof fetch = fetch): Promise<ResultadoEnvio> {
+export async function enviarUmaVez(webhook: WebhookAlvo, corpo: string, fetchFn: typeof fetch = fetch, tempoLimiteMs = TEMPO_LIMITE_MS): Promise<ResultadoEnvio> {
   if (!isValidWebhookUrl(webhook.url)) return { tipo: 'url_invalida' };
   // S8: resolve o host IMEDIATAMENTE antes de disparar — se o DNS foi apontado
   // para um IP interno depois da criação (rebinding), barra aqui.
@@ -23,7 +26,8 @@ export async function enviarUmaVez(webhook: WebhookAlvo, corpo: string, fetchFn:
     // Webhook antigo pode não ter segredo (a coluna aceitava ''); nesse caso
     // segue sem assinatura em vez de quebrar a integração existente.
     if (webhook.secret) cabecalhos['X-nISO-Signature'] = await signWebhook(webhook.secret, corpo);
-    return { tipo: 'resposta', resp: await fetchFn(webhook.url, { method: 'POST', headers: cabecalhos, body: corpo }) };
+    // redirect manual: seguir levaria a um host que o DoH não viu. O 3xx volta como resposta não-2xx (falha na entrega).
+    return { tipo: 'resposta', resp: await fetchFn(webhook.url, { method: 'POST', headers: cabecalhos, body: corpo, redirect: 'manual', signal: AbortSignal.timeout(tempoLimiteMs) }) };
   } catch (erro) {
     return { tipo: 'erro', erro };
   }
@@ -43,9 +47,9 @@ export async function entregarEvento(
   projectId: string,
   evento: string,
   corpo: Record<string, unknown>,
-  opcoes: { tentativas?: number; esperas?: number[]; fetchFn?: typeof fetch } = {},
+  opcoes: { tentativas?: number; esperas?: number[]; fetchFn?: typeof fetch; tempoLimiteMs?: number } = {},
 ): Promise<{ entregues: number; falhas: number }> {
-  const { tentativas = 3, esperas = [0, 2000, 10000], fetchFn = fetch } = opcoes;
+  const { tentativas = 3, esperas = [0, 2000, 10000], fetchFn = fetch, tempoLimiteMs = TEMPO_LIMITE_MS } = opcoes;
   let entregues = 0, falhas = 0;
   try {
     // LIKE só pré-filtra (o `_` é curinga lá); a comparação exata é a de baixo. shortcut: LIMIT 500, nenhum projeto chega perto.
@@ -58,9 +62,9 @@ export async function entregarEvento(
       let ok = false;
       for (let i = 0; i < tentativas && !ok; i++) {
         if (esperas[i]) await new Promise(r => setTimeout(r, esperas[i]));
-        const r = await enviarUmaVez(w, texto, fetchFn);
+        const r = await enviarUmaVez(w, texto, fetchFn, tempoLimiteMs);
         if (r.tipo === 'url_invalida') break;
-        ok = r.tipo === 'resposta' && r.resp.ok;
+        ok = r.tipo === 'resposta' && r.resp.ok; // 3xx não é ok: com redirect manual, nunca chega ao Location
       }
       try {
         if (ok) await env.DB.prepare('UPDATE webhooks SET last_triggered_at = ? WHERE id = ?').bind(new Date().toISOString(), w.id).run();
