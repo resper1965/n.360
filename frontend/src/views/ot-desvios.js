@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, formatarData } from '../ui.js';
 import { mensagemDeErro, podeEditarOt, lista, opcoes, semRepetir } from '../ot-comum.js';
+import { hojeSP, emDiasSP } from '../hoje.js';
 
 // n.ot, aba "Desvios" (spec n-ot-desvio §5) sobre /ot/desvios (src/routes/ot.ts). A API decide o que cada pessoa vê (IP só a quem vê
 // o inventário completo); aqui só se escondem as ações que ela recusaria. Aceitar é do Gestor ARCiber (org_admin) e não substitui a exceção 5.1.1.
@@ -13,7 +14,6 @@ const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const SITUACAO = { aberto: ['warning', 'Aberto'], tratado: ['info', 'Tratado'], aceito: ['neutral', 'Aceito'], regularizado: ['success', 'Regularizado'] };
 const TIPO = { fluxo: 'Fluxo', ativo: 'Ativo' };
 const PRAZO_MAXIMO = 90; // dias, o mesmo teto do servidor
-const dia = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const podeAceitar = () => S.user?.role === 'org_admin';
 let desvios = [];
 
@@ -72,10 +72,9 @@ window.otTratarDesvio = (id) => modal('Tratar desvio', `<div class="form-group">
     <textarea class="form-input" id="des-nota" rows="3" maxlength="500" autofocus></textarea><p class="org-dica">O que foi feito. Não escreva IP, nomes ou dados pessoais.</p></div>`, 'otSalvarTratar', id, 'Tratar');
 
 window.otAceitarDesvio = (id) => {
-    const hoje = new Date();
     modal('Aceitar temporariamente', `<p class="org-dica mb-3">Não substitui a exceção formal 5.1.1. O desvio volta a abrir se o prazo vencer.</p>
         <div class="form-group"><label class="form-label" for="des-just">Justificativa</label><textarea class="form-input" id="des-just" rows="3" maxlength="500" autofocus></textarea></div>
-        <div class="form-group"><label class="form-label" for="des-ate">Aceito até</label><input class="form-input" type="date" id="des-ate" min="${dia(hoje)}" max="${dia(new Date(hoje.getTime() + PRAZO_MAXIMO * 86400000))}">
+        <div class="form-group"><label class="form-label" for="des-ate">Aceito até</label><input class="form-input" type="date" id="des-ate" min="${hojeSP()}" max="${emDiasSP(PRAZO_MAXIMO)}">
         <p class="org-dica">No máximo ${PRAZO_MAXIMO} dias.</p></div>`, 'otSalvarAceite', id, 'Aceitar');
 };
 
