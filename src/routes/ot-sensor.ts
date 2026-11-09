@@ -3,6 +3,7 @@ import { chavesOt } from '../services/ot-cifra';
 import { hojeEmSaoPaulo } from '../services/hoje';
 import { ddmm, EVIDENCIA_SENSOR, filtrarNovidade, gravarPlano, planejarResumo, resumoRedeSchema, type Contagens } from '../services/ot-rede';
 import { autenticarSensor } from '../services/ot-sensor';
+import { detectarDesvios } from '../services/ot-desvio';
 import type { Bindings } from '../index';
 
 /**
@@ -35,8 +36,9 @@ async function lerAte(req: Request, teto: number): Promise<string | null> {
   return new TextDecoder().decode(tudo);
 }
 
-// `_ctx` mantém a assinatura dos handlers do fetch (como handlerOtColeta); os testes injetam `deps` na 4ª posição.
-export async function handlerOtSensor(req: Request, env: Bindings, _ctx: ExecutionContext, deps = { gravarPlano }): Promise<Response> {
+// `ctx` leva a entrega do webhook de desvio (waitUntil); os testes injetam `deps` na 4ª posição.
+export async function handlerOtSensor(req: Request, env: Bindings, ctx: ExecutionContext,
+  deps: { gravarPlano?: typeof gravarPlano; detectarDesvios?: typeof detectarDesvios } = {}): Promise<Response> {
   if (req.method !== 'POST') return recusa(405, 'Use POST');
   const auth = await autenticarSensor(env, req);
   if (!auth.ok) return recusa(auth.status, auth.error);
@@ -111,7 +113,7 @@ export async function handlerOtSensor(req: Request, env: Bindings, _ctx: Executi
       const evidencia = EVIDENCIA_SENSOR(resumo.conexoes.reduce((n, x) => n + x.contagem, 0), p.inicio, p.fim);
       // Limite aceito: a marca não guarda o gravarPlano; um pedido de mais de 10 min sobreposto a uma tomada pode gravar rascunhos
       // duplicados (o filtro de novidade atenua no envio seguinte).
-      k = await deps.gravarPlano(db, chaves, { projectId: sensor.projectId, siteId: sensor.siteId, levantamentoId, criadoPor: `sensor:${sensor.id}`, evidencia, plano: novos });
+      k = await (deps.gravarPlano ?? gravarPlano)(db, chaves, { projectId: sensor.projectId, siteId: sensor.siteId, levantamentoId, criadoPor: `sensor:${sensor.id}`, evidencia, plano: novos });
     }
     const contagens = { ...k, ativos_conhecidos: plano.contagem.ativos_conhecidos, fluxos_conhecidos: plano.contagem.fluxos_conhecidos, repetidos };
     const fim = await db.prepare(`UPDATE ot_sensor_envios SET situacao = 'concluido', contagens = ?, atualizado_em = CURRENT_TIMESTAMP
@@ -127,6 +129,10 @@ export async function handlerOtSensor(req: Request, env: Bindings, _ctx: Executi
     await logAudit(db, 'ot.sensor.resumo', `sensor:${sensor.id}`, `Envio ${envioId} da sonda ${sensor.id}: levantamento ${levantamentoId ?? 'nenhum'}; `
       + Object.entries(contagens).map(([c, n]) => `${c} ${n}`).join(', '), '', '', sensor.projectId, { tipo: 'ot_sensor', id: sensor.id })
       .catch((e) => console.error('ot.sensor.resumo: falha na trilha', e));
+    // Desvio sobre o plano de ANTES do filtro de novidade (o que está em rascunho ainda não está aprovado). Falha só vai ao log.
+    try {
+      await (deps.detectarDesvios ?? detectarDesvios)(env, ctx, { projectId: sensor.projectId, siteId: sensor.siteId, sensorId: sensor.id, plano, agora: new Date() });
+    } catch (e) { console.error('ot.desvio', e); }
     return json({ recebido: true, envio_id: envioId }, 200);
   } catch (e) {
     // Libera a linha deste pedido (atualizado_em volta para antes da janela de 10 min): o reenvio imediato a assume, reusa a sessão

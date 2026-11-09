@@ -80,6 +80,7 @@ import { manutencaoDiaria } from './manutencao';
 import { avisosDePrazo, hojeEmSaoPaulo, CRON_AVISOS } from './services/avisos-prazo';
 import { sondaInterna, CRON_SONDA } from './services/sonda';
 import { avisarSensores } from './services/ot-sensor';
+import { reabrirVencidos } from './services/ot-desvio';
 import { verificarSlo, CRON_SLO } from './services/slo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
@@ -692,8 +693,8 @@ export default Object.assign(app, {
   scheduled: (evento: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
     // ponytail: cron que não é o dos avisos nem o da sonda cai na manutenção, o comportamento de antes destas rotinas.
     ctx.waitUntil(
-      evento.cron === CRON_AVISOS ? Promise.allSettled([avisosDePrazo(env, hojeEmSaoPaulo()), avisarSensores(env, new Date())])
-          .then((rs) => rs.forEach((r, i) => r.status === 'rejected' && console.error(`cron avisos: falha em ${['avisosDePrazo', 'avisarSensores'][i]}`, r.reason)))
+      evento.cron === CRON_AVISOS ? Promise.allSettled([avisosDePrazo(env, hojeEmSaoPaulo()), avisarSensores(env, new Date()), reabrirVencidos(env, ctx, new Date())])
+          .then((rs) => rs.forEach((r, i) => r.status === 'rejected' && console.error(`cron avisos: falha em ${['avisosDePrazo', 'avisarSensores', 'reabrirVencidos'][i]}`, r.reason)))
         : evento.cron === CRON_SONDA ? sondaInterna(env)
         : evento.cron === CRON_SLO ? verificarSlo(env)
         : manutencaoDiaria(env)

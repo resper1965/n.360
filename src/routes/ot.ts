@@ -498,7 +498,9 @@ otApp.post('/lotes/:id/aprovar', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
     if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não aprova lote' }, 403);
-    const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'));
+    const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'), { env: c.env,
+      // o getter `c.executionCtx` lança sem contexto (app.request, testes): aí a entrega segue solta, sem waitUntil
+      ctx: { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } } });
     if (!r.ok) return c.json({ error: r.error }, r.status);
     const { ok: _ok, ...n } = r;
     await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`
