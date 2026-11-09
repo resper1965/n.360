@@ -479,6 +479,10 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         const f = await ficha({ [`GET ${H}`]: HOMOLOGACOES, [`PUT ${H}/h0/prazo`]: { ok: true, expira_em: '2026-12-01 10:00:00' },
             [`POST ${H}/h0/novo-link`]: { id: 'h9', url: 'https://n360.ness.com.br/homologacao#novo', expira_em: '2026-12-01 10:00:00', email_enviado: false } }, 'avaliacoes');
         const linhas = [...el('tc-homologacao').querySelectorAll('tbody tr')];
+        // uma ação à vista por linha, com nome único; prorrogar e novo link no "Mais ações" da linha
+        expect(linhas[1].querySelector('[data-action="revisarHomologacao"]').getAttribute('aria-label')).toBe('Revisar o questionário de 15/09/2026');
+        expect(linhas[1].querySelector('.mais-acoes-lista [data-action="prorrogarHomologacao"]')).not.toBeNull();
+        expect(linhas[0].querySelector('.mais-acoes')).toBeNull();
         expect(linhas[0].querySelector('[data-action="prorrogarHomologacao"]')).toBeNull();
         expect(linhas[1].querySelector('[data-action="prorrogarHomologacao"]')).not.toBeNull();
         expect(linhas[1].querySelector('[data-action="novoLinkHomologacao"]')).not.toBeNull();

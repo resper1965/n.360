@@ -202,7 +202,9 @@ export async function novoLinkHomologacao(db: D1Database, projectId: string, id:
     await db.prepare(`UPDATE homologacoes SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'aberta'`).bind(r.id).run();
     return falha(409, 'O fornecedor enviou o questionário enquanto o link novo era criado: revise o enviado');
   }
-  await logAudit(db, 'homologacao.novo_link', ator, `Homologação ${id} substituída por ${r.id}`, '', '', projectId);
+  // a trilha que falha não pode esconder o link novo, que só sai nesta resposta (o banco guarda só o hash)
+  try { await logAudit(db, 'homologacao.novo_link', ator, `Homologação ${id} substituída por ${r.id}`, '', '', projectId); }
+  catch (e) { log('error', { msg: 'homologacao_novo_link_trilha_falhou', homologacao_id: r.id, projeto: projectId, erro: e instanceof Error ? e.message : String(e) }); }
   return r;
 }
 
@@ -274,8 +276,10 @@ async function lembretes(env: Pick<Bindings, 'DB' | 'RESEND_API_KEY' | 'APP_URL'
       if (!reserva.meta.changes) continue;
       const congelado = lerCongelado(h.perguntas_json);
       const cliente = congelado.cliente ?? (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(h.project_id).first<string>('client_name')) ?? '';
-      const quem = h.criado_por ? await db.prepare(`SELECT u.name AS nome, u.email, o.name AS organizacao FROM users u LEFT JOIN organizations o ON o.id = u.org_id
-         WHERE lower(u.email) = lower(?)`).bind(h.criado_por).first<{ nome: string | null; email: string; organizacao: string | null }>() : null;
+      // quem enviou; conta apagada ou anonimizada: alguém da equipe do projeto (a regra do sino), para a resposta ter destino
+      const quem = (h.criado_por ? await db.prepare(`SELECT u.name AS nome, u.email, o.name AS organizacao FROM users u LEFT JOIN organizations o ON o.id = u.org_id
+         WHERE lower(u.email) = lower(?) AND COALESCE(u.ativo, 1) <> 0`).bind(h.criado_por).first<{ nome: string | null; email: string; organizacao: string | null }>() : null)
+        ?? await equipeDoProjeto(db, h.project_id);
       const m = emailLembreteHomologacao({ cliente, fornecedor: congelado.fornecedor ?? h.parte_nome, enviadoEm: h.created_at, expiraEm: h.expira_em, quem });
       const ok = await enviarEmail(env, h.email_destino, m.assunto, m, { from: remetente('n.privacy', cliente), ...(quem ? { replyTo: quem.email } : {}) });
       if (ok) r.lembretes++;
@@ -283,8 +287,19 @@ async function lembretes(env: Pick<Bindings, 'DB' | 'RESEND_API_KEY' | 'APP_URL'
         await db.prepare('UPDATE homologacoes SET lembrete_em = NULL WHERE id = ?').bind(h.id).run();
         r.falhas.push(`lembrete ${h.id}: envio recusado`);
       }
-    } catch (e) { r.falhas.push(`lembrete ${h.id}: ${e instanceof Error ? e.message : String(e)}`); }
+    } catch (e) {
+      r.falhas.push(`lembrete ${h.id}: ${e instanceof Error ? e.message : String(e)}`);
+      // libera a reserva: senão o lembrete nunca mais sai (a consulta pede lembrete_em nulo)
+      try { await db.prepare('UPDATE homologacoes SET lembrete_em = NULL WHERE id = ?').bind(h.id).run(); } catch { /* a falha já foi anotada */ }
+    }
   }
+}
+
+async function equipeDoProjeto(db: D1Database, projectId: string) {
+  const [p] = escolherDestinatarios(await pessoasDoProjeto(db, projectId), null);
+  if (!p) return null;
+  const organizacao = await db.prepare('SELECT o.name FROM projects pr JOIN organizations o ON o.id = pr.org_id WHERE pr.id = ?').bind(projectId).first<string>('name');
+  return { nome: p.name, email: p.email, organizacao: organizacao ?? null };
 }
 
 // ─── Lado do fornecedor (rotas públicas) ────────────────────────────────────────────────────────────────────────────

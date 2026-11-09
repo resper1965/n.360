@@ -446,9 +446,9 @@ function secaoHomologacao(projectId, parteId, homologacoes, editar) {
         return `<tr><td>${dataBr(h.created_at)}</td><td>${window.renderStatusBadge(rotulo, tom)}</td>
             <td>${escapeHTML(`${h.percentual}% (${h.respondidas} de ${h.total})`)}</td><td>${dataBr(String(h.expira_em || '').slice(0, 10))}</td>
             <td>${escapeHTML(RESULTADOS[h.resultado] || '')}</td>
-            <td style="text-align:right">${editar ? `${h.status === 'aberta' ? `<button class="btn btn-ghost btn-sm" data-action="prorrogarHomologacao" data-args='${args(projectId, h.id)}'>Prorrogar</button>
-                <button class="btn btn-ghost btn-sm" data-action="novoLinkHomologacao" data-args='${args(projectId, h.id)}'>Novo link</button>` : ''}
-                <button class="btn btn-ghost btn-sm" data-action="revisarHomologacao" data-args='${args(projectId, parteId, h.id)}'>Revisar</button>` : ''}</td></tr>`;
+            <td style="text-align:right">${editar ? `<button class="btn btn-ghost btn-sm" data-action="revisarHomologacao" data-args='${args(projectId, parteId, h.id)}' aria-label="${escapeHTML(`Revisar o questionário de ${dataBr(h.created_at)}`)}">Revisar</button>
+                ${h.status === 'aberta' ? window.renderMaisAcoes([{ rotulo: 'Prorrogar', action: 'prorrogarHomologacao', args: [projectId, h.id] },
+                    { rotulo: 'Novo link', action: 'novoLinkHomologacao', args: [projectId, h.id] }], { nome: `questionário de ${dataBr(h.created_at)}` }) : ''}` : ''}</td></tr>`;
     }).join('');
     return `<h4 style="margin:1.25rem 0 0.5rem">Homologação por questionário</h4>
         <div id="tc-homologacao">${homologacoes.length

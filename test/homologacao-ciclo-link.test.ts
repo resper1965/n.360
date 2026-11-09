@@ -134,5 +134,11 @@ describe('avisos da rotina das 08:00', () => {
     expect((await linha(com.id))!.lembrete_em).not.toBeNull();
     await avisosDeHomologacao(comChave);
     expect(enviados).toHaveLength(1);
+    // quem enviou não existe mais (conta apagada ou anonimizada): a resposta vai à equipe do projeto
+    const orfa = await criar({ email: 'outro@fornecedor.lat' });
+    await venceEm(orfa.id, '+2 days');
+    await env.DB.prepare(`UPDATE homologacoes SET criado_por = 'apagado@cl.lat' WHERE id = ?`).bind(orfa.id).run();
+    await avisosDeHomologacao(comChave);
+    expect(enviados.map((e) => [e.to[0], e.reply_to])).toContainEqual(['outro@fornecedor.lat', 'cons@cl.lat']);
   });
 });
