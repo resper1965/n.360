@@ -32,7 +32,7 @@ Antes de começar:
 
 | # | Faça | Esperado |
 |---|---|---|
-| 2.1 | Olhe o menu | Dashboard e Empresas; Cadastros (Áreas, Ativos, Titulares, Dados de titular, Parceiros, Pessoas); Mapeamento (Atividades, DPIA, LIA); Diagnóstico (Gaps, Riscos); Fornecedores (Fornecedores, Avaliações); Documentos e Solicitações; Mais (Referência jurídica, Incidentes, Consentimentos, Cobertura da LGPD, Políticas, Evidências, Treinamento, Papéis e comitê, Importar programa); Assistente. |
+| 2.1 | Olhe o menu | Dashboard e Empresas; Cadastros (Áreas, Ativos, Titulares, Dados de titular, Parceiros, Pessoas); Mapeamento (Atividades, DPIA, LIA); Diagnóstico (Gaps, Riscos); Fornecedores (Fornecedores, Avaliações, Questionários); Documentos e Solicitações; Mais (Referência jurídica, Incidentes, Consentimentos, Cobertura da LGPD, Políticas, Evidências, Treinamento, Papéis e comitê, Importar programa); Assistente. |
 
 ## 3. n.privacy: cadastros
 
@@ -60,6 +60,9 @@ Antes de começar:
 | 4.4 | Aba Documentos: ligue como DPA um documento de Documentos (seção 6.3), publicado e com arquivo | A pendência "DPA" some e a linha do topo diz "Completo". Um documento sem arquivo não conta como DPA. |
 | 4.5 | Aba Segurança: marque MFA e salve. Abra o n.iso, em Fornecedores | O mesmo fornecedor aparece com MFA marcado. |
 | 4.6 | Avaliações (menu): abra a fila | O fornecedor aparece em "Em dia". Um fornecedor sem avaliação aparece em "Sem avaliação"; críticos primeiro. |
+| 4.7 | n.360 > Conta e acessos > "Modelos de avaliação de fornecedor" (como administrador da consultoria): aba Crítico, mude o prazo e o texto de uma pergunta | Cada tipo tem o seu modelo; o grande provedor é um roteiro. O aviso "conteúdo padrão" some quando o modelo é editado. Como consultor, a tela só mostra. |
+| 4.8 | n.privacy > Fornecedores > Questionários, aba Crítico | A pergunta editada no 4.7 aparece no bloco "Do modelo". Desmarque "Usar neste projeto" numa pergunta e crie uma pergunta "deste projeto" só para este tipo. |
+| 4.9 | Na ficha do fornecedor crítico, envie o questionário e abra o link | O fornecedor vê as perguntas do modelo crítico, sem a desmarcada e com a do projeto. Mudar o modelo depois não muda esse envio. |
 
 ## 5. n.privacy: atividades (RoPA)
 
