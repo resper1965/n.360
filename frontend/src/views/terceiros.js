@@ -50,9 +50,8 @@ async function renderTerceiros(c, h, a) {
     const cadastrar = podeEditar() && proj ? `<button class="btn btn-primary" data-action="openNovaParteModal" data-args='${args(proj.id, 'organizacao')}'>Cadastrar fornecedor</button>` : '';
     // Regulador e cliente (só parte interessada no n.iso) não entram na lista; quem quiser tratá-los como fornecedor os adiciona aqui.
     const adicionar = podeEditar() && proj ? `<button class="btn" data-action="abrirAdicionarTerceiro" data-args='${args(proj.id)}'>Adicionar parte existente</button>` : '';
-    // O questionário de homologação (F5) é do projeto: a equipe revisa e edita as perguntas antes de enviar.
-    const perguntas = podeEditar() && proj ? `<button class="btn" data-action="abrirPerguntasHomologacao" data-args='${args(proj.id)}'>Perguntas do questionário</button>` : '';
-    a.innerHTML = perguntas + adicionar + cadastrar;
+    // As perguntas do questionário moram em Fornecedores > Questionários (modelo da consultoria + ajustes do projeto, migration 0106).
+    a.innerHTML = adicionar + cadastrar;
     if (!proj) {
         c.innerHTML = window.renderSemProjeto();
         return;
@@ -513,50 +512,6 @@ window.cancelarHomologacao = async function (projectId, parteId, id) {
     } catch (e) { falha(e, 'Não foi possível cancelar a homologação'); }
 };
 
-window.abrirPerguntasHomologacao = async function (projectId) {
-    let d;
-    try { d = await api('GET', `/api/v1/projects/${projectId}/homologacoes/perguntas`); } catch (e) { falha(e, 'Não foi possível abrir as perguntas'); return; }
-    const perguntas = lista(d && d.perguntas);
-    const linha = (p) => `<tr data-pergunta="${escapeHTML(p.id)}">
-        <td><input class="form-input" data-campo="tema" maxlength="80" value="${escapeHTML(p.tema)}" aria-label="Tema"></td>
-        <td><input class="form-input" data-campo="texto" maxlength="500" value="${escapeHTML(p.texto)}" aria-label="Pergunta"></td>
-        <td><input type="checkbox" data-campo="ativa" ${p.ativa ? 'checked' : ''} aria-label="Ativa"></td>
-        <td>${p.origem === 'padrao' ? 'Padrão, a validar' : 'Do projeto'}</td>
-        <td><button class="btn btn-ghost btn-sm" data-action="salvarPerguntaHomologacao" data-args='${args(projectId, p.id)}'>Salvar</button></td></tr>`;
-    openModal(`
-        <h3>Perguntas do questionário de homologação</h3>
-        ${d && d.a_validar ? '<p style="color:var(--warning)">As perguntas marcadas como padrão são um modelo genérico: revise e ajuste antes de enviar ao fornecedor.</p>' : ''}
-        <p style="color:var(--text-dim)">Um envio já feito guarda as perguntas da época; a mudança vale para os próximos. Pergunta não se apaga: desmarque "Ativa".</p>
-        <table class="data-table" id="tc-hp-lista"><thead><tr><th>Tema</th><th>Pergunta</th><th>Ativa</th><th>Origem</th><th></th></tr></thead><tbody>${perguntas.map(linha).join('')}</tbody></table>
-        <h4 style="margin:1.25rem 0 0.5rem">Nova pergunta</h4>
-        <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
-            <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hp-tema">Tema</label><input class="form-input" id="tc-hp-tema" maxlength="80"></div>
-            <div class="form-group" style="flex:3; margin:0"><label class="form-label" for="tc-hp-texto">Pergunta</label><input class="form-input" id="tc-hp-texto" maxlength="500"></div>
-            <button class="btn btn-sm" data-action="criarPerguntaHomologacao" data-args='${args(projectId)}'>Adicionar</button></div>
-    `, 'modal-large');
-};
-
-window.salvarPerguntaHomologacao = async function (projectId, perguntaId) {
-    const tr = [...document.querySelectorAll('#tc-hp-lista tr[data-pergunta]')].find((x) => x.dataset.pergunta === perguntaId);
-    if (!tr) return;
-    const campo = (n) => tr.querySelector(`[data-campo="${n}"]`);
-    try {
-        await api('PUT', `/api/v1/projects/${projectId}/homologacoes/perguntas/${perguntaId}`, { tema: campo('tema').value.trim(), texto: campo('texto').value.trim(), ativa: campo('ativa').checked });
-        showToast('Pergunta salva.', 'success');
-        await window.abrirPerguntasHomologacao(projectId);
-    } catch (e) { falha(e, 'Não foi possível salvar a pergunta'); }
-};
-
-window.criarPerguntaHomologacao = async function (projectId) {
-    const tema = el('tc-hp-tema').value.trim();
-    const texto = el('tc-hp-texto').value.trim();
-    if (!tema || !texto) { showToast('Informe o tema e a pergunta', 'error'); return; }
-    try {
-        await api('POST', `/api/v1/projects/${projectId}/homologacoes/perguntas`, { tema, texto });
-        showToast('Pergunta adicionada.', 'success');
-        await window.abrirPerguntasHomologacao(projectId);
-    } catch (e) { falha(e, 'Não foi possível adicionar a pergunta'); }
-};
 
 window.renderTerceiros = renderTerceiros;
 window.renderTerceiro = renderTerceiro;

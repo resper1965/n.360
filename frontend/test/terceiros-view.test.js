@@ -465,22 +465,9 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(corpoDe(f, `POST ${H}/h1/concluir`)).toEqual({ resultado: 'com_ressalvas', valido_ate: '2027-10-15', observacao: 'Falta DPA' });
     });
 
-    it('perguntas do questionário: botão só para quem edita; avisa o modelo a validar; salvar e adicionar chamam a API', async () => {
+    it('as perguntas do questionário saíram da lista: moram em Fornecedores > Questionários', async () => {
         await lista();
-        expect(JSON.parse(el('a').querySelector('[data-action="abrirPerguntasHomologacao"]').getAttribute('data-args'))).toEqual(['p9']);
-        document.body.innerHTML = PALCO;
-        const f = servir(rotas({
-            [`GET ${H}/perguntas`]: { a_validar: true, perguntas: [{ id: 'q1', tema: 'Segurança', texto: 'Há <b>política</b>?', ordem: 10, ativa: 1, origem: 'padrao' }] },
-            [`PUT ${H}/perguntas/q1`]: { ok: true }, [`POST ${H}/perguntas`]: { id: 'q2' },
-        }));
-        await window.abrirPerguntasHomologacao('p9');
-        expect(el('modal-content').textContent).toContain('modelo genérico');
-        expect(el('modal-content').querySelector('b')).toBeNull();
-        document.querySelector('tr[data-pergunta="q1"] [data-campo="ativa"]').checked = false;
-        await window.salvarPerguntaHomologacao('p9', 'q1');
-        expect(corpoDe(f, `PUT ${H}/perguntas/q1`)).toEqual({ tema: 'Segurança', texto: 'Há <b>política</b>?', ativa: false });
-        el('tc-hp-tema').value = 'Continuidade'; el('tc-hp-texto').value = 'Há plano testado?';
-        await window.criarPerguntaHomologacao('p9');
-        expect(corpoDe(f, `POST ${H}/perguntas`)).toEqual({ tema: 'Continuidade', texto: 'Há plano testado?' });
+        expect(el('a').querySelector('[data-action="abrirPerguntasHomologacao"]')).toBeNull();
+        expect(window.abrirPerguntasHomologacao).toBeUndefined();
     });
 });
