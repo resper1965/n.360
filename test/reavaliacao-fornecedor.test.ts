@@ -4,6 +4,7 @@ import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { somarMeses, salvarPrazo } from '../src/services/fornecedor-modelos';
 import { hojeEmSaoPaulo } from '../src/services/hoje';
+import { criarHomologacao, concluirHomologacao } from '../src/services/homologacao';
 
 /** Fatia 2 do ciclo de avaliação do fornecedor: teto da validade pelo prazo do modelo e "reavaliar" quando o tipo muda. */
 const P = 'rv-proj', ORG = 'rv-org';
@@ -27,7 +28,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'LGPD', 'Controller', 'Active', ?)`).bind(P, ORG),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('rv-cons', 'cons@rv.teste', 'x', 'Cons', 'consultor', NULL, ?)`).bind(ORG),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-rv', ?, 'Cons', 'cons@rv.teste', 'consultor', 'Consultor')`).bind(P),
-    env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('rv-f', ?, 'organizacao', 'Fornecedor', 'medio')`).bind(P),
+    env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('rv-f', ?1, 'organizacao', 'Fornecedor', 'medio'), ('rv-g', ?1, 'organizacao', 'Outro', 'medio')`).bind(P),
     env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('rv-v', ?1, 'rv-f', 'terceiro', 'projeto', ?1)`).bind(P),
   ]);
   await habilitarPrivacy(P);
@@ -56,7 +57,9 @@ describe('teto da validade e reavaliação', () => {
     expect(t).toMatchObject({ terceiro_tipo: 'critico', situacao: 'reavaliar' });
     expect(t.pendencias).toContain('Avaliação');
     const enc = (await (await chamar(consultor, 'GET', `${B}/encarregado`)).json()) as { terceiros: { pendentes: number; com_pendencia: number } };
-    expect(enc.terceiros).toMatchObject({ pendentes: 1, com_pendencia: 1 });
+    expect(enc.terceiros).toMatchObject({ pendentes: 2, com_pendencia: 2 }); // rv-f a reavaliar e rv-g nunca avaliado
+    const prioridades = (enc as unknown as { prioridades: { texto: string; contexto?: string; filtro?: string }[] }).prioridades;
+    expect(prioridades.find((x) => x.texto.includes('a reavaliar'))).toMatchObject({ contexto: expect.stringContaining('Fornecedor'), filtro: 'pendentes' });
   });
 
   it('a avaliação nova no tipo atual vale pelo prazo dele (crítico: 12 meses, ou o que a consultoria definir) e volta a vigente', async () => {
@@ -67,5 +70,20 @@ describe('teto da validade e reavaliação', () => {
     const t = await terceiro();
     expect(t).toMatchObject({ situacao: 'vigente' });
     expect(t.ultima_avaliacao!.tipo_avaliado).toBe('critico');
+  });
+
+  it('o questionário concluído depois da troca de tipo grava o tipo do ENVIO: a avaliação nasce "reavaliar", não "vigente"', async () => {
+    const h = await criarHomologacao(env.DB, P, 'cons@rv.teste', { parte_id: 'rv-g', dias: 15 });
+    expect(h.ok).toBe(true);
+    if (!h.ok) return;
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE homologacoes SET status = 'respondida', enviada_em = CURRENT_TIMESTAMP WHERE id = ?`).bind(h.id),
+      env.DB.prepare(`UPDATE partes SET terceiro_tipo = 'pequeno' WHERE id = 'rv-g'`),
+    ]);
+    const r = await concluirHomologacao(env.DB, P, h.id, 'cons@rv.teste', { resultado: 'aprovado', valido_ate: somarMeses(hoje, 6) });
+    expect(r.ok).toBe(true);
+    const g = ((await (await chamar(consultor, 'GET', `${B}/terceiros`)).json()) as T[]).find((t) => t.id === 'rv-g')!;
+    expect(g.ultima_avaliacao!.tipo_avaliado).toBe('medio');
+    expect(g.situacao).toBe('reavaliar');
   });
 });

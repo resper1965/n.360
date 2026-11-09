@@ -215,8 +215,11 @@ export type NovaAvaliacao = { resultado: Avaliacao['resultado']; valido_ate: str
 /**
  * Registra a avaliação. A validade é obrigatória e não pode estar no passado. `metodoForcado` é decidido pelo SERVIDOR (só a
  * conclusão do questionário o usa, para gravar `questionario` mesmo no crítico, cujo método formal é `auditoria`); nunca vem do corpo.
+ * `tipoAvaliado` também é do servidor: a conclusão do questionário passa o tipo do envio (o modelo que o fornecedor respondeu), para
+ * que um tipo trocado depois do envio dê "reavaliar" e não "vigente"; sem ele, vale o tipo atual.
  */
-export async function registrarAvaliacao(db: D1Database, projectId: string, parteId: string, ator: string, d: NovaAvaliacao, metodoForcado?: Metodo): Promise<Falha | { ok: true; id: string; metodo: Metodo }> {
+export async function registrarAvaliacao(db: D1Database, projectId: string, parteId: string, ator: string, d: NovaAvaliacao, metodoForcado?: Metodo,
+  tipoAvaliado?: TipoTerceiro | null): Promise<Falha | { ok: true; id: string; metodo: Metodo }> {
   const p = await parteDoProjeto(db, projectId, parteId);
   if (!p) return falha(404, 'Parte não encontrada');
   if (p.tipo !== 'organizacao') return falha(400, 'Só organização é terceiro');
@@ -231,7 +234,7 @@ export async function registrarAvaliacao(db: D1Database, projectId: string, part
   const metodo = metodoForcado ?? METODO_DO_TIPO[p.terceiro_tipo];
   const id = crypto.randomUUID();
   await db.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por, tipo_avaliado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, projectId, parteId, metodo, d.resultado, d.valido_ate, d.evidencia_url ?? null, d.observacao ?? null, ator, p.terceiro_tipo).run();
+    .bind(id, projectId, parteId, metodo, d.resultado, d.valido_ate, d.evidencia_url ?? null, d.observacao ?? null, ator, tipoAvaliado ?? p.terceiro_tipo).run();
   await logAudit(db, 'terceiro.avaliacao', ator, `Parte ${parteId}: avaliação ${metodo} (${d.resultado}) válida até ${d.valido_ate}`, '', '', projectId);
   return { ok: true, id, metodo };
 }

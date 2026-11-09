@@ -480,7 +480,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Validade e reavaliacao (fatia 2, sem migration):** `registrarAvaliacao` recusa (400) `valido_ate` alem de hoje + `prazo_meses` do modelo do tipo ATUAL
   (`prazoDoTipo`/`somarMeses` em `src/services/fornecedor-modelos.ts`; vale para a manual, a conclusao do questionario e a importacao, que vira aviso) e grava
   `tipo_avaliado`; `situacaoDe` ganhou `reavaliar` (avaliacao no prazo feita noutro tipo: nao conta como vigente, entra nas pendencias como "Avaliacao" e o
-  painel e o encarregado a contam como pendente, nao como atraso). A ficha traz `validade_maxima` (a tela preenche e trava o campo) e "o tipo mudou de X
+  painel e o encarregado a contam como pendente, nao como atraso; nao gera aviso de vencimento; a conclusao do questionario grava o tipo do ENVIO, `homologacoes.tipo`). A ficha traz `validade_maxima` (a tela preenche e trava o campo) e "o tipo mudou de X
   para Y"; a fila ganhou o grupo "Reavaliar: o tipo mudou".
   **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (desde a 0106 so as perguntas proprias do projeto; o semeio padrao
   por projeto saiu; pergunta nao se apaga, desativa) e `homologacoes`
