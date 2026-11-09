@@ -25,6 +25,8 @@ const ABAS = [['cadastro', 'Cadastro'], ['criticidade', 'Criticidade'], ['avalia
     ['documentos', 'Documentos'], ['atividades', 'Atividades de tratamento'], ['suboperadores', 'Suboperadores']];
 
 const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
+// Tipo, criticidade e avaliação: a equipe e o administrador do cliente (decisão de 09/11/2026); o questionário e o resto, só a equipe.
+const podeAvaliar = () => podeEditar() || S.user?.role === 'org_admin';
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
@@ -222,7 +224,7 @@ function abaCadastro(projectId, parteId, t, editar, extra = {}) {
         ${blocoResponsaveis(projectId, parteId, t, editar, extra.pessoas)}
         ${titulo('Tipo e método')}
         <div id="tc-tipo">
-            ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-tipo-sel">Tipo do fornecedor</label>
+            ${podeAvaliar() ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-tipo-sel">Tipo do fornecedor</label>
                 <select class="form-input" id="tc-tipo-sel"><option value="">— sem tipo —</option>${opcoes(TIPOS, t.terceiro_tipo)}</select></div>
                 <button class="btn btn-sm" data-action="salvarTipoTerceiro" data-args='${args(projectId, parteId)}'>Salvar</button></div>`
                 : `<p>${escapeHTML(TIPOS[t.terceiro_tipo] || 'Sem tipo')}</p>`}
@@ -233,7 +235,7 @@ function abaCadastro(projectId, parteId, t, editar, extra = {}) {
 function abaAvaliacoes(projectId, parteId, t, editar, extra) {
     const hist = lista(t.historico);
     return `${linhaMetodo(t)}
-        ${editar && t.terceiro_tipo ? `${titulo('Nova avaliação')}<div id="tc-nova" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
+        ${podeAvaliar() && t.terceiro_tipo ? `${titulo('Nova avaliação')}<div id="tc-nova" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-res">Resultado</label><select class="form-input" id="tc-res">${opcoes(RESULTADOS)}</select></div>
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-val">Vale até</label><input class="form-input" id="tc-val" type="date"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-url">Evidência (link)</label><input class="form-input" id="tc-url" maxlength="2000" placeholder="https://"></div>
@@ -381,7 +383,7 @@ const CRITERIOS_CRITICIDADE = [
 ];
 const respostaEmTexto = (c, v) => (c.opcoes.find(([x]) => x === v) || [v, v || ''])[1];
 
-const abaCriticidade = (projectId, parteId, t, editar, extra) => secaoCriticidade(projectId, parteId, t, extra.crit, editar);
+const abaCriticidade = (projectId, parteId, t, editar, extra) => secaoCriticidade(projectId, parteId, t, extra.crit, podeAvaliar());
 
 function secaoCriticidade(projectId, parteId, t, crit, editar) {
     const cabeca = '<h4>Avaliação de criticidade</h4>';

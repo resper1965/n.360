@@ -5,7 +5,7 @@ import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos }
 
 /**
  * Correções do TPRM (análise de 09/11/2026): DPA versionado só vale vigente; fornecedor inativo não recebe avaliação nem questionário
- * e some dos alertas do RoPA; o parceiro do Compartilhamento Externo conta; tipo, criticidade e avaliação são só da equipe.
+ * e some dos alertas do RoPA; o parceiro do Compartilhamento Externo conta; tipo, criticidade e avaliação são da equipe e do org_admin.
  */
 const P = 'tc-tprm';
 const B = `/api/v1/projects/${P}`;
@@ -18,7 +18,7 @@ const publico = (acao: string, corpo: unknown) => app.fetch(new Request(`http://
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
 }), workerEnv());
 
-let consultor: Record<string, string>, orgAdmin: Record<string, string>;
+let consultor: Record<string, string>, orgAdmin: Record<string, string>, orgUser: Record<string, string>;
 const VENCIDA = '2020-01-01';
 
 beforeAll(async () => {
@@ -27,7 +27,8 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'LGPD', 'Controller', 'Active', 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES
       ('tc-cons', 'cons@ness.teste', 'x', 'Cons', 'consultor', NULL, 'org_ness'),
-      ('tc-adm', 'adm@cliente.teste', 'x', 'Adm', 'org_admin', ?1, 'org_ness')`).bind(P),
+      ('tc-adm', 'adm@cliente.teste', 'x', 'Adm', 'org_admin', ?1, 'org_ness'),
+      ('tc-usr', 'usr@cliente.teste', 'x', 'Usr', 'org_user', ?1, 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-tc', ?, 'Cons', 'cons@ness.teste', 'consultor', 'Consultor')`).bind(P),
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES
       ('f-dpa', ?1, 'organizacao', 'Nuvem DPA', 'pequeno'), ('f-ina', ?1, 'organizacao', 'Antigo Ltda', 'pequeno'),
@@ -46,9 +47,10 @@ beforeAll(async () => {
   await env.DB.prepare(`UPDATE partes SET status = 'inativa' WHERE id = 'f-old'`).run();
   await env.DB.prepare(`UPDATE vendors SET has_iso27001 = 1, trust_score = 99, diligence_level = 'Low' WHERE parte_id = 'f-dpa'`).run();
   await habilitarPrivacy(P);
-  await concederModulos(['tc-cons', 'tc-adm'], ['privacy']);
+  await concederModulos(['tc-cons', 'tc-adm', 'tc-usr'], ['privacy']);
   consultor = await sessionFor({ id: 'tc-cons', email: 'cons@ness.teste', role: 'consultor' });
   orgAdmin = await sessionFor({ id: 'tc-adm', email: 'adm@cliente.teste', role: 'org_admin', client_project_id: P });
+  orgUser = await sessionFor({ id: 'tc-usr', email: 'usr@cliente.teste', role: 'org_user', client_project_id: P });
 });
 
 type T = { id: string; dpa: boolean; pendencias: string[]; seguranca?: { trust_score: number; diligence_level: string } };
@@ -94,13 +96,16 @@ describe('alertas do RoPA', () => {
   });
 });
 
-describe('tipo, criticidade e avaliação são da equipe', () => {
-  const CRIT = { impacto: 'baixo', exclusividade: 'baixo', risco_financeiro: 'baixo', conformidade: 'baixo', risco_reputacional: 'baixo' };
-  it('o administrador do cliente recebe 403; o consultor grava', async () => {
-    expect((await chamar(orgAdmin, 'PUT', `${B}/terceiros/f-ext/tipo`, { terceiro_tipo: 'medio' })).status).toBe(403);
-    expect((await chamar(orgAdmin, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(403);
-    expect((await chamar(orgAdmin, 'POST', `${B}/terceiros/f-ext/criticidades`, CRIT)).status).toBe(403);
-    expect((await chamar(consultor, 'PUT', `${B}/terceiros/f-ext/tipo`, { terceiro_tipo: 'medio' })).status).toBe(200);
+describe('tipo, criticidade e avaliação: a equipe e o administrador do cliente', () => {
+  const CRIT = { impacto: 'baixo', exclusividade: 'varias_alternativas', risco_financeiro: 'baixo', conformidade: 'sem_regulamentacao', risco_reputacional: 'baixo' };
+  it('o usuário comum do cliente recebe 403; o administrador do cliente e o consultor gravam; o questionário segue só da equipe', async () => {
+    expect((await chamar(orgUser, 'PUT', `${B}/terceiros/f-ext/tipo`, { terceiro_tipo: 'medio' })).status).toBe(403);
+    expect((await chamar(orgUser, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(403);
+    expect((await chamar(orgUser, 'POST', `${B}/terceiros/f-ext/criticidades`, CRIT)).status).toBe(403);
+    expect((await chamar(orgAdmin, 'PUT', `${B}/terceiros/f-ext/tipo`, { terceiro_tipo: 'medio' })).status).toBe(200);
+    expect((await chamar(orgAdmin, 'POST', `${B}/terceiros/f-ext/criticidades`, CRIT)).status).toBe(201);
+    expect((await chamar(orgAdmin, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(201);
+    expect((await chamar(orgAdmin, 'POST', `${B}/homologacoes`, { parte_id: 'f-ext' })).status).toBe(403);
     expect((await chamar(consultor, 'POST', `${B}/terceiros/f-ext/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(201);
   });
 });

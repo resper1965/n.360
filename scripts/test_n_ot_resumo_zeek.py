@@ -1,4 +1,4 @@
-import contextlib, gzip, http.server, importlib.util, io, json, os, shutil, socket, tempfile, threading, unittest
+import contextlib, gzip, http.server, importlib.util, io, json, os, shutil, socket, tempfile, threading, time, unittest
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(AQUI, "fixtures-zeek")
@@ -361,7 +361,8 @@ class Enviar(unittest.TestCase):
     def test_so_fila(self):
         vazia = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, vazia)
-        self.na_fila("20261031T000000.json", "antigo")
+        # main() usa o relógio de verdade (sem AGORA): o arquivo da fila nasce agora, senão vence os 7 dias e o teste quebra com a data
+        self.na_fila(time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + ".json", "antigo")
         Servidor.codigos = [200]
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(resumo.main([vazia, "--enviar", "--so-fila", "--conf", self.conf, "--estado", self.estado]), 0)

@@ -14,7 +14,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ### Fornecedores (TPRM): correções da análise de 09/11
 - DPA em rascunho ou obsoleto deixa de contar como DPA: a pendência "DPA", o índice de confiança e o CSV só consideram o documento vigente (o em arquivo já exigia publicado com arquivo). A ficha passa a mostrar o índice calculado na hora, como a lista do n.iso.
-- Tipo, criticidade e avaliação do fornecedor passam a ser registrados só pela equipe da consultoria, como o questionário; o administrador do cliente vê, mas não grava.
+- Tipo, criticidade e avaliação do fornecedor passam a ser registrados só pela equipe da consultoria e pelo administrador do cliente; o usuário comum do cliente e a chave de API recebem recusa. O questionário segue só da equipe.
 - Fornecedor inativo não recebe avaliação nem questionário, e o link de questionário aberto dele deixa de funcionar.
 - O aviso de fornecedor com avaliação vencida na atividade (e a contagem do encarregado) passa a considerar o parceiro do Compartilhamento Externo e a ignorar a organização inativa.
 - n.iso: cadastrar, salvar e remover a avaliação de segurança do fornecedor mostram o erro do servidor (antes falhavam em silêncio).
