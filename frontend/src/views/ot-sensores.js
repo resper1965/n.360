@@ -146,6 +146,8 @@ export async function preencherCartoes(p, sites) {
     if (!sensores.length) return;
     let pontos = null;
     try { pontos = await api('GET', `/api/v1/projects/${p.id}/ot/sensores/pontos`); } catch { /* o cartão de saúde segue sem a contagem */ }
+    let nDesvios = null;
+    try { nDesvios = lista(await api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto`), 'desvios').length; } catch { /* a linha some */ }
     const slot = el('ot-cartoes-slot');
     if (!slot) return; // outra tela já foi desenhada
     const emDia = sensores.filter((s) => s.saude === 'em_dia').length;
@@ -157,5 +159,5 @@ export async function preencherCartoes(p, sites) {
         <p>${renderStatusBadge(corSaude, `${emDia} de ${sensores.length}`)} <span>· Último resumo ${escapeHTML(ultimo ? haQuanto(ultimo) : 'nunca')}</span></p></section>
         <section class="card" aria-labelledby="ot-pontos-titulo"><h3 id="ot-pontos-titulo">Pontos a esclarecer</h3>
         ${pontos ? `<p>${n(pontos.ativos, 'ativo', 'ativos')} · ${n(pontos.fluxos, 'fluxo', 'fluxos')} <span class="badge selo-info">${seloDoAchado({ evidencia: EVIDENCIA_SENSOR })}</span></p>
-        <p class="org-dica">Rascunhos que a sonda trouxe e ninguém revisou.</p>` : '<p class="org-dica">Não foi possível contar os pontos agora.</p>'}</section></div>`;
+        <p class="org-dica">Rascunhos que a sonda trouxe e ninguém revisou.</p>${nDesvios === null ? '' : `<p>${n(nDesvios, 'desvio aberto', 'desvios abertos')}</p>`}` : '<p class="org-dica">Não foi possível contar os pontos agora.</p>'}</section></div>`;
 }
