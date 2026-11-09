@@ -142,7 +142,7 @@ export async function cancelarHomologacao(db: D1Database, projectId: string, id:
  * avaliações); se `registrarAvaliacao` recusar (data, tipo), o status volta a `respondida`.
  */
 export async function concluirHomologacao(db: D1Database, projectId: string, id: string, ator: string,
-  d: { resultado: Avaliacao['resultado']; valido_ate: string; observacao?: string | null }): Promise<Falha | { ok: true; avaliacao_id: string }> {
+  d: { resultado: Avaliacao['resultado']; valido_ate: string; evidencia_url?: string | null; observacao?: string | null }): Promise<Falha | { ok: true; avaliacao_id: string }> {
   const h = await lerHomologacao(db, projectId, id);
   if (!h) return falha(404, 'Homologação não encontrada');
   if (h.status !== 'respondida') return falha(409, 'Só homologação respondida pelo fornecedor pode ser concluída');
@@ -155,7 +155,7 @@ export async function concluirHomologacao(db: D1Database, projectId: string, id:
   if (!reserva.meta.changes) return falha(409, 'Só homologação respondida pelo fornecedor pode ser concluída');
   const observacao = `Homologação por questionário (${h.percentual}% respondido)${d.observacao ? `: ${d.observacao}` : ''}`.slice(0, 2000);
   // O método é sempre `questionario` (o servidor decide): no crítico isso difere do método formal do tipo (auditoria).
-  const r = await registrarAvaliacao(db, projectId, h.parte_id, ator, { resultado: d.resultado, valido_ate: d.valido_ate, observacao }, 'questionario',
+  const r = await registrarAvaliacao(db, projectId, h.parte_id, ator, { resultado: d.resultado, valido_ate: d.valido_ate, evidencia_url: d.evidencia_url, observacao }, 'questionario',
     tipos?.tipo ?? tipo); // o tipo do ENVIO: as respostas são do modelo daquele tipo
   if (!r.ok) {
     await db.prepare(`UPDATE homologacoes SET status = 'respondida', resultado = NULL, concluida_por = NULL, concluida_em = NULL WHERE id = ? AND project_id = ?`).bind(id, projectId).run();

@@ -196,6 +196,7 @@ export const homologacaoCriarSchema = z.object({
 export const homologacaoConcluirSchema = z.object({
   resultado: z.enum(['aprovado', 'com_ressalvas', 'reprovado']),
   valido_ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD'),
+  evidencia_url: urlWeb.nullish(),
   observacao: z.string().trim().max(1500).nullish(),
 }).strict();
 const tokenHomologacao = z.string().min(1).max(200);

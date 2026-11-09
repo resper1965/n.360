@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Fornecedores (TPRM): crítico exige evidência (fatia 3)
+- No fornecedor crítico, a avaliação aprovada ou com ressalvas só é registrada com o link da evidência (relatório de auditoria, certificação, visita), tanto na ficha quanto ao concluir o questionário, que ganhou o campo. A reprovada não exige. A ficha avisa que o campo é obrigatório no crítico.
+
 ### Fornecedores (TPRM): validade pelo modelo e reavaliação quando o tipo muda (fatia 2)
 - A validade de uma avaliação de fornecedor não passa mais do prazo do modelo do tipo (crítico 12 meses, médio 24, pequeno 36, grande provedor 12, ou o que a consultoria definir em "Modelos de avaliação de fornecedor"). A tela já preenche a data com o máximo.
 - Quando a criticidade (ou a escolha manual) muda o tipo de um fornecedor com avaliação em dia, a situação vira "Reavaliar": a avaliação continua no histórico, mas deixa de valer, aparece como pendência e entra na fila de avaliações, num grupo próprio. A ficha diz de que tipo para qual mudou.

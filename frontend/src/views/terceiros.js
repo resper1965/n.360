@@ -244,7 +244,7 @@ function abaAvaliacoes(projectId, parteId, t, editar, extra) {
         ${podeAvaliar() && t.terceiro_tipo ? `${titulo('Nova avaliação')}<div id="tc-nova" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-res">Resultado</label><select class="form-input" id="tc-res">${opcoes(RESULTADOS)}</select></div>
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-val">Vale até${t.validade_maxima ? ` (no máximo ${escapeHTML(dataBr(t.validade_maxima))})` : ''}</label><input class="form-input" id="tc-val" type="date"${t.validade_maxima ? ` value="${escapeHTML(t.validade_maxima)}" max="${escapeHTML(t.validade_maxima)}"` : ''}></div>
-            <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-url">Evidência (link)</label><input class="form-input" id="tc-url" maxlength="2000" placeholder="https://"></div>
+            <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-url">Evidência (link${t.terceiro_tipo === 'critico' ? ', obrigatória no crítico salvo reprovado' : ''})</label><input class="form-input" id="tc-url" maxlength="2000" placeholder="https://"${t.terceiro_tipo === 'critico' ? ' aria-required="true"' : ''}></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-obs">Observação</label><input class="form-input" id="tc-obs" maxlength="2000"></div>
             <button class="btn btn-primary btn-sm" data-action="registrarAvaliacaoTerceiro" data-args='${args(projectId, parteId)}'>Registrar</button></div>` : ''}
         ${titulo('Histórico de avaliações')}
@@ -503,6 +503,7 @@ window.revisarHomologacao = async function (projectId, parteId, id) {
             <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-res">Resultado</label><select class="form-input" id="tc-hm-res">${Object.entries(RESULTADOS).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-val">Vale até</label><input class="form-input" id="tc-hm-val" type="date"></div>
+            <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-hm-ev">Evidência (link; obrigatória no fornecedor crítico, salvo reprovado)</label><input class="form-input" id="tc-hm-ev" maxlength="2000" placeholder="https://"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-hm-obs">Observação</label><input class="form-input" id="tc-hm-obs" maxlength="1500"></div>
             <button class="btn btn-primary btn-sm" data-action="concluirHomologacao" data-args='${args(projectId, parteId, id)}'>Concluir</button></div>` : ''}
         ${['aberta', 'respondida'].includes(h.status) ? `<div style="margin-top:1rem"><button class="btn btn-ghost btn-sm" data-action="cancelarHomologacao" data-args='${args(projectId, parteId, id)}'>Cancelar homologação</button></div>` : ''}
@@ -514,7 +515,8 @@ window.concluirHomologacao = async function (projectId, parteId, id) {
     const validoAte = el('tc-hm-val').value;
     if (!validoAte) { showToast('Informe até quando a avaliação vale', 'error'); return; }
     try {
-        await api('POST', `/api/v1/projects/${projectId}/homologacoes/${id}/concluir`, { resultado: el('tc-hm-res').value, valido_ate: validoAte, observacao: el('tc-hm-obs').value.trim() || null });
+        await api('POST', `/api/v1/projects/${projectId}/homologacoes/${id}/concluir`, { resultado: el('tc-hm-res').value, valido_ate: validoAte,
+            evidencia_url: el('tc-hm-ev').value.trim() || null, observacao: el('tc-hm-obs').value.trim() || null });
         showToast('Homologação concluída e avaliação registrada.', 'success');
         window.abrirTerceiro(projectId, parteId, 'avaliacoes');
     } catch (e) { falha(e, 'Não foi possível concluir a homologação'); }
