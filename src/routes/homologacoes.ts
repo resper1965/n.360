@@ -7,8 +7,8 @@ import { appUrl } from '../config/url';
 import {
   atualizarPergunta, cancelarHomologacao, concluirHomologacao, criarHomologacao, criarPergunta, lerHomologacao, listarHomologacoes, listarPerguntas,
 } from '../services/homologacao';
-import { TIPOS_QUESTIONARIO, type TipoQuestionario } from '../services/fornecedor-modelos';
-import { validateBody, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoPerguntaAtualizarSchema, homologacaoPerguntaCriarSchema } from '../schemas';
+import { TIPOS_QUESTIONARIO, ajustarPerguntaDoModelo, type TipoQuestionario } from '../services/fornecedor-modelos';
+import { validateBody, homologacaoAjusteSchema, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoPerguntaAtualizarSchema, homologacaoPerguntaCriarSchema } from '../schemas';
 
 /**
  * F5: homologação de fornecedor por questionário. Montado em `/api/v1/projects/:projectId/homologacoes` (faixa privacy), então o
@@ -36,6 +36,17 @@ homologacoesApp.post('/perguntas', async (c) => {
     if (!v.success) return v.response;
     return c.json(await criarPergunta(c.env.DB, pid(c), c.get('user').email, v.data), 201);
   } catch (e) { return erro500(c, 'Falha ao criar a pergunta', e); }
+});
+
+// Liga ou desliga, só neste projeto, uma pergunta do modelo da consultoria (o texto do modelo não se edita aqui).
+homologacoesApp.put('/perguntas/modelo/:perguntaId', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_CONSULTORIA, 403);
+    const v = await validateBody(c, homologacaoAjusteSchema);
+    if (!v.success) return v.response;
+    const ok = await ajustarPerguntaDoModelo(c.env.DB, pid(c), c.req.param('perguntaId'), v.data.ativa, c.get('user').email);
+    return ok ? c.json({ ok: true }) : c.json({ error: 'Pergunta não encontrada no modelo desta consultoria' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao ajustar a pergunta', e); }
 });
 
 homologacoesApp.put('/perguntas/:perguntaId', async (c) => {

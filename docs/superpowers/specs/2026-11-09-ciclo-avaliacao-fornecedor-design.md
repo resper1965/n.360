@@ -106,7 +106,7 @@ conclusão do questionário (o formulário de conclusão ganha o campo). `reprov
 
 | Rota | Quem | Agente |
 |---|---|---|
-| `GET /api/v1/fornecedor-modelos` (`?org=` só `platform_admin`) | equipe (leitura) | lê |
+| `GET /api/v1/fornecedor-modelos` (organização por `X-Org-Id` só para o `platform_admin`) | equipe (leitura) | fora (lê o questionário pelo projeto) |
 | `PUT /api/v1/fornecedor-modelos/:tipo` (prazo) e `POST/PUT .../:tipo/perguntas[/:id]` | `consultoria_admin` da org, `platform_admin` | `FORA_DO_AGENTE` |
 | `GET /projects/:id/homologacoes/perguntas?tipo=` (montado, com origem de cada pergunta) | quem lê o projeto | lê |
 | `PUT /projects/:id/homologacoes/perguntas/modelo/:perguntaId` (`{ ativa }`, o ajuste) | equipe | `niso_avaliar_fornecedor` |
