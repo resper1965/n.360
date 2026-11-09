@@ -883,14 +883,21 @@ otApp.delete('/sensores/:id', async (c) => {
 otApp.get('/desvios', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
+    const filtros = [c.req.query('situacao'), c.req.query('site_id'), c.req.query('tipo')].flatMap((v) => [v ?? null, v ?? null]);
+    const onde = `d.project_id = ? AND d.${NO_SITE} AND (? IS NULL OR d.situacao = ?) AND (? IS NULL OR d.site_id = ?) AND (? IS NULL OR d.tipo = ?)`;
+    // contagem das abas e do cartão: só o número, sem projeção, sem decifrar e sem trilha de ver_sensivel
+    if (c.req.query('contagem') === '1') {
+      const r = await db.prepare(`SELECT count(*) AS total FROM ot_desvios d WHERE ${onde}`).bind(projectId, sites, ...filtros).first<{ total: number }>();
+      return c.json({ total: r?.total ?? 0 });
+    }
     const completo = await podeVerCompleto(db, user, projectId);
     const { results } = await db.prepare(`SELECT d.*, s.nome AS site_nome,
         (SELECT a.id FROM ot_achados a WHERE a.project_id = d.project_id AND a.chave_sensor = d.chave_sensor AND a.situacao = 'rascunho' LIMIT 1) AS achado_id,
         (SELECT a.levantamento_id FROM ot_achados a WHERE a.project_id = d.project_id AND a.chave_sensor = d.chave_sensor AND a.situacao = 'rascunho' LIMIT 1) AS achado_levantamento_id
       FROM ot_desvios d JOIN ot_sites s ON s.id = d.site_id AND s.project_id = d.project_id
-      WHERE d.project_id = ? AND d.${NO_SITE} AND (? IS NULL OR d.situacao = ?) AND (? IS NULL OR d.site_id = ?) AND (? IS NULL OR d.tipo = ?)
+      WHERE ${onde}
       ORDER BY d.ultima_vez DESC LIMIT ${TETO_LEITURA_OT}`)
-      .bind(projectId, sites, ...[c.req.query('situacao'), c.req.query('site_id'), c.req.query('tipo')].flatMap((v) => [v ?? null, v ?? null]))
+      .bind(projectId, sites, ...filtros)
       .all<LinhaDesvio & { site_nome: string; achado_id: string | null; achado_levantamento_id: string | null; aceito_ate: string | null; nota: string | null }>();
     const porSite = new Map<string, typeof results>();
     for (const d of results) porSite.set(d.site_id, [...porSite.get(d.site_id) ?? [], d]);
@@ -928,9 +935,10 @@ async function fecharDesvio(c: C, situacao: 'tratado' | 'aceito', nota: string, 
     const existe = await db.prepare(`SELECT 1 FROM ot_desvios WHERE id = ? AND project_id = ? AND ${NO_SITE}`).bind(id, projectId, sites).first();
     return existe ? c.json({ error: 'Só desvio aberto pode ser tratado ou aceito' }, 409) : NAO_ENCONTRADO(c, 'Desvio');
   }
-  await trilha(c, `ot.desvio.${situacao}`, projectId, `Desvio ${id} ${situacao}`, { tipo: 'ot_desvio', id });
+  // aviso antes da trilha: o UPDATE já gravou, e uma falha da trilha não pode levar o webhook junto
   // o getter `c.executionCtx` lança sem contexto (app.request, testes): aí o aviso é solto, sem waitUntil
   avisar(c.env, { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } }, projectId, [linha], 'fechado');
+  await trilha(c, `ot.desvio.${situacao}`, projectId, `Desvio ${id} ${situacao}`, { tipo: 'ot_desvio', id });
   return c.json({ ok: true });
 }
 

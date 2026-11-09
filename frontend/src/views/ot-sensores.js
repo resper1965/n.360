@@ -145,8 +145,8 @@ export async function preencherCartoes(p, sites) {
     const sensores = (lidas?.por || []).flatMap((x) => x.sensores);
     if (!sensores.length) return;
     const [pontos, desv] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sensores/pontos`).catch(() => null), // o cartão de saúde segue sem a contagem
-        api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto`).catch(() => null)]); // e sem a linha de desvios
-    const nDesvios = desv ? lista(desv, 'desvios').length : null;
+        api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto&contagem=1`).catch(() => null)]); // e sem a linha de desvios
+    const nDesvios = typeof desv?.total === 'number' ? desv.total : null;
     const slot = el('ot-cartoes-slot');
     if (!slot) return; // outra tela já foi desenhada
     const emDia = sensores.filter((s) => s.saude === 'em_dia').length;

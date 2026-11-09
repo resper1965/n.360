@@ -117,16 +117,20 @@ export async function detectarDesvios(env: Bindings, ctx: Ctx, a: { projectId: s
     } else {
       // a guarda na situação lida: mudança na tela entre a leitura e aqui não é sobrescrita
       // aceito vencido sai com a mesma ação do cron: uma situação, uma ação para o SOC
+      // regularizado depois de o plano ser calculado (`agora`): o plano está velho e não o reabre
       stmts.push({ acao: e.situacao === 'aceito' ? 'aceite_vencido' : 'reaberto', s: db.prepare(`UPDATE ot_desvios SET situacao = 'aberto', aceito_ate = NULL, ultima_vez = ?, ocorrencias = ocorrencias + 1,
-        sensor_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND situacao = ? RETURNING *`).bind(agora, sensorId, e.id, e.situacao) });
+        sensor_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND situacao = ? AND (situacao <> 'regularizado' OR datetime(updated_at) < datetime(?)) RETURNING *`)
+        .bind(agora, sensorId, e.id, e.situacao, agora) });
     }
   }
   const n = { abertos: 0, reabertos: 0, atualizados: 0 };
   const porAcao = { aberto: 0, reaberto: 0, aceite_vencido: 0, fechado: 0 };
   const avisos: (LinhaDesvio & { acao: AcaoDesvio })[] = [];
+  let falha: unknown; // bloco que falha: os anteriores já gravaram e ainda ganham trilha e aviso; o erro sobe depois
   for (let i = 0; i < stmts.length; i += BLOCO) {
     const parte = stmts.slice(i, i + BLOCO);
-    const rs = await db.batch(parte.map((p) => p.s));
+    let rs: D1Result[];
+    try { rs = await db.batch(parte.map((p) => p.s)); } catch (e) { falha = e; break; }
     rs.forEach((r, j) => {
       const acao = parte[j].acao;
       if (!acao) { n.atualizados += r.meta.changes; return; }
@@ -143,6 +147,7 @@ export async function detectarDesvios(env: Bindings, ctx: Ctx, a: { projectId: s
     await trilha(env, 'ot.desvio.aceite_vencido', ator, `${porAcao.aceite_vencido} desvio(s) com aceite vencido reaberto(s) no site ${siteId}`, projectId);
   }
   if (avisos.length) avisar(env, ctx, projectId, avisos, 'aberto');
+  if (falha) throw falha;
   return n;
 }
 

@@ -172,10 +172,25 @@ describe('detecção pelo envio da sonda', () => {
     const c = await cenario();
     await c.enviar();
     const fluxo = (await c.desvios())[1];
-    await env.DB.prepare(`UPDATE ot_desvios SET situacao = 'regularizado' WHERE id = ?`).bind(fluxo.id).run();
+    // regularizado antes do envio (a guarda compara updated_at com o instante do plano)
+    await env.DB.prepare(`UPDATE ot_desvios SET situacao = 'regularizado', updated_at = datetime('now', '-1 minute') WHERE id = ?`).bind(fluxo.id).run();
     const posts = await c.enviar();
     expect((await c.desvios())[1]).toMatchObject({ id: fluxo.id, situacao: 'aberto' });
     expect(posts.map((p) => p.desvios.map((d: any) => [d.id, d.acao]))).toEqual([[[fluxo.id, 'reaberto']]]);
+  });
+
+  it('regularizado depois de o plano ser calculado: o plano velho não o reabre', async () => {
+    const c = await cenario();
+    await c.enviar();
+    const fluxo = (await c.desvios())[1];
+    const doPlano = new Date(Date.now() - 60_000); // plano calculado um minuto antes da regularização
+    await env.DB.prepare(`UPDATE ot_desvios SET situacao = 'regularizado', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(fluxo.id).run();
+    const plano: Plano = { ativos: [], macs: [], fluxos: [], contagem: {} as Plano['contagem'],
+      pendentes: [{ chave: fluxo.chave_sensor, origem_ip_hash: null, destino_ip_hash: null, dados: { protocolo: 'modbus', porta: 502 } }] };
+    const { r, posts } = await comCtx((ctx) => detectarDesvios(workerEnv(), ctx, { projectId: 'proj-a', siteId: c.site, sensorId: c.sensor, plano, agora: doPlano }));
+    expect(r).toEqual({ abertos: 0, reabertos: 0, atualizados: 0 });
+    expect(posts).toHaveLength(0);
+    expect((await c.desvios())[1]).toMatchObject({ id: fluxo.id, situacao: 'regularizado' });
   });
 
   it('aceito com prazo futuro + reenvio: só atualiza, sem webhook', async () => {
@@ -267,6 +282,31 @@ describe('falha ao montar o aviso', () => {
     expect((await c.desvios()).map((d) => d.situacao)).toEqual(['aberto']);
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'ot.desvio.aberto' AND details LIKE ?`).bind(`% ${c.site}`).first())
       .toEqual({ n: 1 });
+  });
+
+  it('segundo bloco do batch falha: o primeiro, já gravado, tem trilha e webhook; o erro sobe', async () => {
+    const c = await cenario();
+    let n = 0;
+    const db = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === 'batch') return (s: D1PreparedStatement[]) => { if (++n === 2) throw new Error('batch indisponível'); return t.batch(s); };
+        const v = (t as any)[k];
+        return typeof v === 'function' ? v.bind(t) : v;
+      },
+    });
+    const plano: Plano = { ativos: [], macs: [], fluxos: [], contagem: {} as Plano['contagem'],
+      pendentes: Array.from({ length: 60 }, (_, i) => ({ chave: `k-bloco-${c.site}-${i}`, origem_ip_hash: null, destino_ip_hash: null, dados: { protocolo: 'modbus', porta: i } })) };
+    const antes = entregas.length;
+    const ctx = createExecutionContext();
+    await expect(detectarDesvios({ ...workerEnv(), DB: db }, ctx, { projectId: 'proj-a', siteId: c.site, sensorId: c.sensor, plano, agora: new Date() }))
+      .rejects.toThrow('batch indisponível');
+    await waitOnExecutionContext(ctx);
+    expect(await c.desvios()).toHaveLength(50);
+    expect(await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.desvio.aberto' AND details LIKE ?`).bind(`% ${c.site}`).first())
+      .toEqual({ details: `50 desvio(s) aberto(s) no site ${c.site}` });
+    const posts = entregas.slice(antes);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].desvios).toHaveLength(50);
   });
 
   it('reabrirVencidos com dois projetos e o aviso do primeiro falhando: os dois reabrem e têm trilha; o segundo é avisado', async () => {

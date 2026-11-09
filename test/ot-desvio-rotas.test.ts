@@ -102,6 +102,21 @@ describe('GET /desvios', () => {
   });
 });
 
+describe('GET /desvios?contagem=1', () => {
+  const sensivel = async () => (await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel' AND project_id = 'proj-a'`).first<{ n: number }>())!.n;
+
+  it('só o número, com os filtros e os sites de quem pede, sem trilha de ver_sensivel', async () => {
+    const antes = await sensivel();
+    const total = async (h: H, q = '') => (await (await chamar(h, 'GET', `${P}/desvios?contagem=1${q}`)).json()) as Record<string, unknown>;
+    expect(await total(gestor)).toEqual({ total: 3 });
+    expect(await total(gestor, '&tipo=ativo')).toEqual({ total: 2 });
+    expect(await total(gestor, '&situacao=aberto&site_id=s2')).toEqual({ total: 1 });
+    expect(await total(tec)).toEqual({ total: 2 }); // só o s1
+    expect(await total(tec, '&site_id=s2')).toEqual({ total: 0 });
+    expect(await sensivel()).toBe(antes);
+  });
+});
+
 describe('GET /desvios — teto, descritores e trilha', () => {
   const sensivel = async () => (await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel' AND project_id = 'proj-a'`).all<{ details: string }>()).results;
 
@@ -161,6 +176,10 @@ describe('tratar e aceitar', () => {
     expect((await chamar(gestor, 'POST', `${P}/desvios/d-a1/aceitar`, { justificativa: 'ok', ate: dia(91) })).status).toBe(400);
     expect((await chamar(gestor, 'POST', `${P}/desvios/d-a1/aceitar`, { justificativa: 'ok', ate: dia(-1) })).status).toBe(400);
     expect((await chamar(gestor, 'POST', `${P}/desvios/d-a1/aceitar`, { justificativa: '', ate: dia(30) })).status).toBe(400);
+    // data impossível passa na comparação de texto, mas datetime() daria NULL e o aceite nunca venceria
+    for (const ate of ['2026-13-01', '2026-11-32', `${dia(30).slice(0, 7)}-32`]) {
+      expect((await chamar(gestor, 'POST', `${P}/desvios/d-a1/aceitar`, { justificativa: 'ok', ate })).status).toBe(400);
+    }
   });
 
   it('Gestor aceita por 90 dias: aceito, aceito_ate, webhook fechado e trilha só com ids', async () => {

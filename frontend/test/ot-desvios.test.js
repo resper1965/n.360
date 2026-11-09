@@ -23,12 +23,14 @@ function servir(rotas) {
         const u = new URL(url, 'http://localhost');
         const k = `${opts.method || 'GET'} ${u.pathname}`;
         chamadas.push({ k, q: u.search, opts });
-        if (!(k in rotas)) return resposta({ error: `API route not found: ${k}` }, 404);
-        const r = rotas[k];
+        const kq = k + u.search; // rota com a query exata (a contagem) vence a do caminho
+        if (!(kq in rotas) && !(k in rotas)) return resposta({ error: `API route not found: ${k}` }, 404);
+        const r = kq in rotas ? rotas[kq] : rotas[k];
         return Array.isArray(r) ? resposta(r[1], r[0]) : resposta(r);
     }));
 }
-const BASE = { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }] }, [`GET ${B}/desvios`]: DESVIOS };
+const CONTAGEM = `GET ${B}/desvios?situacao=aberto&contagem=1`;
+const BASE = { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }] }, [`GET ${B}/desvios`]: DESVIOS, [CONTAGEM]: { total: 2 } };
 async function abrir(aba, rotas = {}) {
     servir({ ...BASE, ...rotas });
     S.otAba = aba;
@@ -44,7 +46,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('aba Desvios', () => {
     it('aparece com a contagem de abertos no rótulo', async () => {
-        await abrir('desvios', { [`GET ${B}/desvios`]: { desvios: [DESVIOS.desvios[0]] } });
+        await abrir('desvios', { [CONTAGEM]: { total: 1 } });
         await vi.waitFor(() => expect([...document.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toContain('Desvios · 1 aberto'));
     });
 
@@ -130,5 +132,7 @@ describe('cartão Pontos a esclarecer', () => {
             [`GET ${B}/sensores/pontos`]: { ativos: 1, fluxos: 2 } });
         await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
         expect(el('ot-cartoes-coleta').textContent).toContain('2 desvios abertos');
+        // contagem pelo modo só-número: a lista completa (que decifra e grava ver_sensivel) não é pedida
+        expect(chamadas.filter((c) => c.k === `GET ${B}/desvios`).every((c) => c.q === '?situacao=aberto&contagem=1')).toBe(true);
     });
 });

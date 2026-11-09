@@ -42,15 +42,15 @@ async function renderOt(c, h, a) {
     // Correm junto com o painel; só a primeira entrada (sem aba escolhida) espera por elas, porque decidem a aba.
     const contagens = Promise.all([api('GET', `/api/v1/projects/${proj().id}/ot/lotes`).then((r) => lista(r, 'lotes')),
         api('GET', `/api/v1/projects/${proj().id}/ot/levantamentos`).then((r) => lista(r, 'levantamentos')),
-        api('GET', `/api/v1/projects/${proj().id}/ot/desvios?situacao=aberto`).then((r) => lista(r, 'desvios'))].map((x) => x.catch(() => [])))
-        .then(([lotes, levs, desv]) => {
+        api('GET', `/api/v1/projects/${proj().id}/ot/desvios?situacao=aberto&contagem=1`).then((r) => r?.total ?? 0)].map((x) => x.catch(() => [])))
+        .then(([lotes, levs, nDesv]) => {
             const emRevisao = lotes.filter((l) => l.status === 'em_revisao');
             const abertos = levs.filter((l) => l.situacao !== 'encerrado').length;
             // O consultoria_admin só aprova no projeto em que está designado, e a tela não sabe disso: ele entra pelo Inventário.
             const aprova = podeAprovarOt() && S.user?.role !== 'consultoria_admin';
             return { entrada: aprova && emRevisao.some((l) => l.criado_por !== S.user?.id) ? 'coleta' : 'inventario',
                 conta: { coleta: emRevisao.length && ` · ${emRevisao.length} em revisão`, levantamento: abertos && ` · ${abertos} ${abertos === 1 ? 'aberto' : 'abertos'}`,
-                    desvios: desv.length && ` · ${desv.length} ${desv.length === 1 ? 'aberto' : 'abertos'}` } };
+                    desvios: +nDesv && ` · ${nDesv} ${nDesv === 1 ? 'aberto' : 'abertos'}` } };
         });
     const abas = abasDoPapel();
     const aba = abas.some(([v]) => v === S.otAba) ? S.otAba : (await contagens).entrada;

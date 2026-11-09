@@ -250,6 +250,8 @@ Para avisar o SOC, cadastre um webhook do projeto com o evento `ot.desvio` na li
 
 `acao` é `aberto`, `reaberto`, `aceite_vencido` ou `fechado` (tratado, aceito ou regularizado).
 
+O `link` abre o n.ot, não o desvio: não há página por desvio. O SOC acha o item na aba **Desvios**, filtrando pelo site do corpo (`site.nome`) e pela situação, e confere pelo tipo, protocolo, porta e pontas; o `id` é o mesmo da linha.
+
 **Recomendação:** ligue o webhook **só depois de aprovar o inventário inicial**. No primeiro dia a sonda vê tudo como novo e o aviso seria só ruído.
 
 ## Rede interna

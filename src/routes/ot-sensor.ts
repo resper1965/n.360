@@ -92,6 +92,7 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
   try {
     const chaves = chavesOt(env)!;
     const site = await db.prepare('SELECT faixas_internas FROM ot_sites WHERE id = ? AND project_id = ?').bind(sensor.siteId, sensor.projectId).first<{ faixas_internas: string }>();
+    const agora = new Date(); // antes de ler o inventário: o desvio regularizado depois disto não é reaberto por este plano
     const plano = await planejarResumo(db, chaves, sensor.projectId, { id: sensor.siteId, faixas: JSON.parse(site?.faixas_internas ?? '[]') as string[] }, resumo);
     const { plano: novos, repetidos } = await filtrarNovidade(db, sensor.projectId, plano);
     let k: Contagens = { ativos_novos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, nao_importados: 0, pendentes_nao_importados: 0 };
@@ -131,7 +132,7 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
       .catch((e) => console.error('ot.sensor.resumo: falha na trilha', e));
     // Desvio sobre o plano de ANTES do filtro de novidade (o que está em rascunho ainda não está aprovado). Falha só vai ao log.
     try {
-      await (deps.detectarDesvios ?? detectarDesvios)(env, ctx, { projectId: sensor.projectId, siteId: sensor.siteId, sensorId: sensor.id, plano, agora: new Date() });
+      await (deps.detectarDesvios ?? detectarDesvios)(env, ctx, { projectId: sensor.projectId, siteId: sensor.siteId, sensorId: sensor.id, plano, agora });
     } catch (e) { console.error('ot.desvio', e); }
     return json({ recebido: true, envio_id: envioId }, 200);
   } catch (e) {

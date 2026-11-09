@@ -149,6 +149,8 @@ export const PRAZO_MAX_ACEITE_DIAS = 90;
 const diaUtc = (d: Date) => d.toISOString().slice(0, 10);
 export const otDesvioAceitarSchema = z.object({
   justificativa: livreSemPii(500, 1),
-  ate: data.refine((v) => v >= diaUtc(new Date()) && v <= diaUtc(new Date(Date.now() + PRAZO_MAX_ACEITE_DIAS * 86_400_000)),
-    `Prazo de hoje até ${PRAZO_MAX_ACEITE_DIAS} dias`),
+  // dia de calendário real: 2026-13-01 passaria na comparação de texto, e datetime() dele é NULL (o aceite nunca venceria)
+  ate: data.refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v, 'Data inexistente')
+    .refine((v) => v >= diaUtc(new Date()) && v <= diaUtc(new Date(Date.now() + PRAZO_MAX_ACEITE_DIAS * 86_400_000)),
+      `Prazo de hoje até ${PRAZO_MAX_ACEITE_DIAS} dias`),
 }).strict();

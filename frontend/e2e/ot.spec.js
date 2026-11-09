@@ -426,7 +426,7 @@ test('desvios: o gestor lista, trata com nota e aceita com prazo', async ({ page
     const req = route.request();
     const path = new URL(req.url()).pathname;
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
-    if (req.method() === 'GET' && path === `${B}/desvios`) return json({ desvios: abertos });
+    if (req.method() === 'GET' && path === `${B}/desvios`) return json(new URL(req.url()).searchParams.get('contagem') ? { total: abertos.length } : { desvios: abertos });
     if (req.method() === 'GET' && path === `${B}/sites`) return json({ sites: [{ id: 's1', nome: 'SE Norte' }] });
     const m = path.match(/\/desvios\/(d\d)\/(tratar|aceitar)$/);
     if (req.method() === 'POST' && m) {

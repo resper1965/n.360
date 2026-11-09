@@ -126,7 +126,7 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 
 - **Runtime:** Hono no Cloudflare Workers; um Worker serve API, páginas públicas e o frontend.
 - **Banco:** D1 (SQLite), 137 tabelas
-  (2026-11-05: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`).
+  (2026-11-09: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`).
   Trilha de auditoria append-only por trigger.
 - **KV:** sessões, tokens e rate limit (`SESSIONS`); estado do OAuth do MCP (`OAUTH_KV`).
 - **R2:** evidências, documentos e arquivos de importação (`STORAGE`); trilha arquivada (`TRILHA`).
