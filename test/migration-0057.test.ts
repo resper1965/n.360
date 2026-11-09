@@ -19,7 +19,8 @@ describe('migration 0057 — terceiros tipificados', () => {
 
   it('o schema canônico tem a coluna e as tabelas', async () => {
     expect(await colunas('partes')).toContain('terceiro_tipo');
-    expect(await colunas('avaliacoes_terceiro')).toEqual(['id', 'project_id', 'parte_id', 'metodo', 'resultado', 'valido_ate', 'evidencia_url', 'observacao', 'avaliado_por', 'created_at']);
+    // `tipo_avaliado` veio depois, na 0106
+    expect(await colunas('avaliacoes_terceiro')).toEqual(['id', 'project_id', 'parte_id', 'metodo', 'resultado', 'valido_ate', 'evidencia_url', 'observacao', 'avaliado_por', 'created_at', 'tipo_avaliado']);
     expect(await colunas('documento_partes')).toEqual(['documento_id', 'parte_id', 'papel', 'project_id', 'created_at']);
   });
 
@@ -70,7 +71,8 @@ describe('migration 0057 — terceiros tipificados', () => {
       .replace(/\b(idx_aval_terceiro_parte|idx_aval_terceiro_projeto|idx_doc_partes_parte)\b/g, '$1_t');
     await execSql(sufixar(sem));
     await execSql(sufixar(sem));
-    expect(await colunas('avaliacoes_terceiro_t')).toEqual(await colunas('avaliacoes_terceiro'));
+    // as colunas da 0057 (o schema canônico tem também `tipo_avaliado`, da 0106)
+    expect(await colunas('avaliacoes_terceiro_t')).toEqual((await colunas('avaliacoes_terceiro')).filter((c) => c !== 'tipo_avaliado'));
     // os CHECKs e NOT NULL são os DA MIGRATION (a tabela _t nasceu dela)
     await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('pa57b', 'p57', 'organizacao', 'Outra')`).run();
     const t = (valido: string | null, metodo = 'auditoria') => env.DB.prepare(`INSERT INTO avaliacoes_terceiro_t (id, project_id, parte_id, metodo, resultado, valido_ate) VALUES (lower(hex(randomblob(4))), 'p57', 'pa57b', ?, 'aprovado', ?)`).bind(metodo, valido);

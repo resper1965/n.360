@@ -15,6 +15,7 @@ import { leadsApp } from './routes/leads';
 import { funilApp } from './routes/funil';
 import { proposalsApp } from './routes/proposals';
 import { organizacaoApp } from './routes/organizacao';
+import { fornecedorModelosApp } from './routes/fornecedor-modelos';
 import { organizacoesApp } from './routes/organizacoes';
 import { servicosApp } from './routes/servicos';
 import { propostasApp, CSP_DOCUMENTO } from './routes/propostas';
@@ -422,6 +423,8 @@ app.route('/api/v1/leads', leadsApp);
 app.route('/api/v1/funil', funilApp);
 app.route('/api/v1/proposals', proposalsApp);
 app.route('/api/v1/org', organizacaoApp);
+// Modelos de avaliação de fornecedor da consultoria (migration 0106): fora de projeto, pela organização.
+app.route('/api/v1/fornecedor-modelos', fornecedorModelosApp);
 // Organizações (consultorias): só platform_admin (fatia 5).
 app.route('/api/v1/platform/orgs', organizacoesApp);
 app.route('/api/v1/servicos', servicosApp);

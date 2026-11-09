@@ -171,7 +171,19 @@ export const avaliacaoTerceiroSchema = z.object({
 // ─── Homologação de fornecedor por questionário (F5) ─────────────────────────────────────────────────────────────
 const temaPergunta = z.string().trim().min(1).max(80);
 const textoPergunta = z.string().trim().min(1).max(500);
-export const homologacaoPerguntaCriarSchema = z.object({ tema: temaPergunta, texto: textoPergunta, ordem: z.number().int().min(0).max(100_000).optional() }).strict();
+export const homologacaoPerguntaCriarSchema = z.object({
+  tema: temaPergunta, texto: textoPergunta, ordem: z.number().int().min(0).max(100_000).optional(),
+  /** pergunta própria do projeto (0106): de um tipo, ou de todos (null/ausente) */
+  tipo: z.enum(['critico', 'medio', 'pequeno']).nullable().optional(),
+}).strict();
+/** O projeto liga ou desliga uma pergunta do modelo da consultoria (0106). */
+export const homologacaoAjusteSchema = z.object({ ativa: z.boolean() }).strict();
+/** Modelos de avaliação de fornecedor da consultoria (0106). */
+export const fornecedorModeloPrazoSchema = z.object({ prazo_meses: z.number().int().min(1).max(60) }).strict();
+export const fornecedorModeloPerguntaSchema = z.object({ tema: temaPergunta, texto: textoPergunta }).strict();
+export const fornecedorModeloPerguntaAtualizarSchema = z.object({
+  tema: temaPergunta.optional(), texto: textoPergunta.optional(), ordem: z.number().int().min(0).max(100_000).optional(), ativa: z.boolean().optional(),
+}).strict().refine((d) => Object.keys(d).length > 0, 'Informe ao menos um campo');
 export const homologacaoPerguntaAtualizarSchema = z.object({
   tema: temaPergunta.optional(), texto: textoPergunta.optional(), ordem: z.number().int().min(0).max(100_000).optional(), ativa: z.boolean().optional(),
 }).strict().refine((d) => Object.keys(d).length > 0, 'Informe ao menos um campo');

@@ -26,6 +26,8 @@ import './views/terceiros.js';
 import './views/ripd-ficha.js';
 import './views/lia-ficha.js';
 import './views/avaliacoes-terceiros.js';
+import './views/questionarios-fornecedor.js';
+import './views/modelos-fornecedor.js';
 import './views/catalogos.js';
 import './views/parceiros.js';
 import './views/mapa-de-risco.js';

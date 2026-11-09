@@ -6,6 +6,7 @@ import { emailHomologacaoRespondida } from './emails';
 import { log } from '../observability';
 import { PODE_QUESTIONARIO, registrarAvaliacao, type Avaliacao, type TipoTerceiro } from './terceiros';
 import { escolherDestinatarios, pessoasDoProjeto } from './avisos-prazo';
+import { perguntasDoEnvio, perguntasDoProjeto, type TipoModelo, type TipoQuestionario } from './fornecedor-modelos';
 
 /**
  * F5: homologação de fornecedor por questionário. O questionário é do projeto (`homologacao_perguntas`); cada envio
@@ -18,50 +19,22 @@ export type Resposta = { resposta: (typeof RESPOSTAS)[number]; justificativa?: s
 export type Respostas = Record<string, Resposta>;
 type PerguntaCongelada = { id: string; tema: string; texto: string };
 
-/**
- * Modelo padrão, genérico, A VALIDAR PELO CONSULTOR: não é texto jurídico nem modelo oficial. Semeado no projeto na primeira
- * leitura com id determinístico (hash do projeto e da posição); editar a pergunta a torna `origem = 'projeto'`.
- */
-export const PERGUNTAS_PADRAO: ReadonlyArray<{ tema: string; texto: string }> = [
-  { tema: 'Segurança da informação', texto: 'A empresa mantém uma política de segurança da informação aprovada pela direção e comunicada aos colaboradores?' },
-  { tema: 'Segurança da informação', texto: 'O acesso aos dados do cliente é restrito por perfil, com segundo fator de autenticação nos acessos administrativos e remotos?' },
-  { tema: 'Segurança da informação', texto: 'Os dados do cliente são criptografados em trânsito e em repouso?' },
-  { tema: 'Certificações', texto: 'A empresa tem certificação ou relatório de auditoria independente vigente (por exemplo, ISO/IEC 27001, ISO/IEC 27701 ou SOC 2)? Indique qual na justificativa.' },
-  { tema: 'Contrato e DPA', texto: 'A empresa aceita firmar acordo de tratamento de dados (DPA) com as obrigações de operador?' },
-  { tema: 'Subprocessadores', texto: 'A empresa mantém lista atualizada de subprocessadores e avisa o cliente antes de incluir ou trocar um?' },
-  { tema: 'Incidentes', texto: 'Existe processo documentado de resposta a incidentes, com comunicação ao cliente em prazo acordado?' },
-  { tema: 'Incidentes', texto: 'Nos últimos 24 meses, todo incidente que envolveu dados pessoais foi comunicado aos clientes afetados?' },
-  { tema: 'Transferência internacional', texto: 'Os dados do cliente são armazenados ou acessados fora do Brasil? Se sim, indique os países na justificativa.' },
-  { tema: 'Retenção e eliminação', texto: 'Ao fim do contrato, a empresa devolve ou elimina os dados do cliente e fornece comprovação?' },
-  { tema: 'Encarregado', texto: 'A empresa indicou encarregado ou contato responsável por proteção de dados? Indique o canal institucional na justificativa.' },
-  { tema: 'Direitos dos titulares', texto: 'A empresa apoia o cliente no atendimento aos pedidos dos titulares dentro dos prazos?' },
-];
+// O conteúdo padrão mora nos modelos da consultoria (migration 0106); reexportado para quem já o importava daqui.
+export { PERGUNTAS_PADRAO } from './fornecedor-modelos';
 
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
 
-/** Idempotente: só insere as perguntas padrão que o projeto ainda não tem (pergunta não se apaga, só desativa). */
-export async function semearPerguntas(db: D1Database, projectId: string): Promise<void> {
-  // id determinístico por projeto e posição, sem expor o id do projeto na página pública
-  const ids = await Promise.all(PERGUNTAS_PADRAO.map(async (_p, i) => `hp-${(await sha256Hex(`${projectId}:homologacao:${i + 1}`)).slice(0, 24)}`));
-  await db.batch(PERGUNTAS_PADRAO.map((p, i) => db.prepare(
-    `INSERT OR IGNORE INTO homologacao_perguntas (id, project_id, tema, texto, ordem, origem) VALUES (?, ?, ?, ?, ?, 'padrao')`,
-  ).bind(ids[i], projectId, p.tema, p.texto, (i + 1) * 10)));
-}
-
 export type Pergunta = PerguntaCongelada & { ordem: number; ativa: number; origem: 'padrao' | 'projeto' };
 
-export async function listarPerguntas(db: D1Database, projectId: string): Promise<{ a_validar: boolean; perguntas: Pergunta[] }> {
-  await semearPerguntas(db, projectId);
-  const { results } = await db.prepare(`SELECT id, tema, texto, ordem, ativa, origem FROM homologacao_perguntas WHERE project_id = ? ORDER BY ordem, created_at, id`)
-    .bind(projectId).all<Pergunta>();
-  return { a_validar: results.some((p) => p.ativa && p.origem === 'padrao'), perguntas: results };
-}
+/** O questionário do projeto para um tipo: o modelo vivo da consultoria, com os ajustes e as perguntas próprias (`perguntasDoProjeto`). */
+export const listarPerguntas = (db: D1Database, projectId: string, tipo: TipoModelo) => perguntasDoProjeto(db, projectId, tipo);
 
-export async function criarPergunta(db: D1Database, projectId: string, ator: string, d: { tema: string; texto: string; ordem?: number }): Promise<{ id: string }> {
+/** Pergunta PRÓPRIA do projeto: `tipo` nulo vale para todos os tipos que recebem questionário. */
+export async function criarPergunta(db: D1Database, projectId: string, ator: string, d: { tema: string; texto: string; ordem?: number; tipo?: TipoQuestionario | null }): Promise<{ id: string }> {
   const id = genId();
-  const ordem = d.ordem ?? ((await db.prepare('SELECT COALESCE(MAX(ordem), 0) + 10 AS o FROM homologacao_perguntas WHERE project_id = ?').bind(projectId).first<number>('o')) ?? 10);
-  await db.prepare(`INSERT INTO homologacao_perguntas (id, project_id, tema, texto, ordem) VALUES (?, ?, ?, ?, ?)`).bind(id, projectId, d.tema, d.texto, ordem).run();
+  const ordem = d.ordem ?? ((await db.prepare(`SELECT COALESCE(MAX(ordem), 0) + 10 AS o FROM homologacao_perguntas WHERE project_id = ? AND origem = 'projeto'`).bind(projectId).first<number>('o')) ?? 10);
+  await db.prepare(`INSERT INTO homologacao_perguntas (id, project_id, tema, texto, ordem, tipo) VALUES (?, ?, ?, ?, ?, ?)`).bind(id, projectId, d.tema, d.texto, ordem, d.tipo ?? null).run();
   await logAudit(db, 'homologacao.perguntas', ator, `Pergunta ${id} criada no questionário de homologação`, '', '', projectId);
   return { id };
 }
@@ -74,9 +47,8 @@ export async function atualizarPergunta(db: D1Database, projectId: string, pergu
   if (d.texto !== undefined) { sets.push('texto = ?'); vals.push(d.texto); }
   if (d.ordem !== undefined) { sets.push('ordem = ?'); vals.push(d.ordem); }
   if (d.ativa !== undefined) { sets.push('ativa = ?'); vals.push(d.ativa ? 1 : 0); }
-  // texto ou tema editado deixa de ser o padrão: o consultor assumiu a pergunta
-  if (d.tema !== undefined || d.texto !== undefined) sets.push(`origem = 'projeto'`);
-  const r = await db.prepare(`UPDATE homologacao_perguntas SET ${[...sets, 'updated_at = CURRENT_TIMESTAMP'].join(', ')} WHERE id = ? AND project_id = ?`)
+  // só a pergunta própria do projeto; a do modelo se liga e desliga pelo ajuste (`ajustarPerguntaDoModelo`)
+  const r = await db.prepare(`UPDATE homologacao_perguntas SET ${[...sets, 'updated_at = CURRENT_TIMESTAMP'].join(', ')} WHERE id = ? AND project_id = ? AND origem = 'projeto'`)
     .bind(...vals, perguntaId, projectId).run();
   if (!r.meta.changes) return false;
   await logAudit(db, 'homologacao.perguntas', ator, `Pergunta ${perguntaId} alterada (${Object.keys(d).join(', ')})`, '', '', projectId);
@@ -141,15 +113,15 @@ export async function criarHomologacao(db: D1Database, projectId: string, ator: 
   if (!parte) return falha(404, 'Terceiro não encontrado');
   if (parte.status !== 'ativa') return falha(409, 'Fornecedor inativo não recebe questionário: reative a organização antes');
   if (parte.tipo !== 'organizacao' || !ehQuestionario(parte.terceiro_tipo)) return falha(400, 'Este terceiro não recebe questionário: defina o tipo como médio, pequeno ou crítico');
-  const { perguntas } = await listarPerguntas(db, projectId);
-  const ativas: PerguntaCongelada[] = perguntas.filter((p) => p.ativa).map(({ id, tema, texto }) => ({ id, tema, texto }));
-  if (!ativas.length) return falha(400, 'O questionário do projeto não tem pergunta ativa');
+  const tipo = parte.terceiro_tipo as TipoQuestionario; // ehQuestionario garantiu crítico, médio ou pequeno
+  const ativas: PerguntaCongelada[] = await perguntasDoEnvio(db, projectId, tipo);
+  if (!ativas.length) return falha(400, 'O questionário deste tipo não tem pergunta ativa');
   const token = genToken();
   const id = genId();
   const cliente = (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(projectId).first<string>('client_name')) ?? '';
-  const row = await db.prepare(`INSERT INTO homologacoes (id, project_id, parte_id, token_hash, expira_em, perguntas_json, criado_por)
-     VALUES (?, ?, ?, ?, datetime('now', ?), ?, ?) RETURNING expira_em`)
-    .bind(id, projectId, parte.id, await sha256Hex(token), `+${d.dias} days`, JSON.stringify({ perguntas: ativas, fornecedor: parte.nome, cliente }), ator).first<{ expira_em: string }>();
+  const row = await db.prepare(`INSERT INTO homologacoes (id, project_id, parte_id, token_hash, expira_em, perguntas_json, criado_por, tipo)
+     VALUES (?, ?, ?, ?, datetime('now', ?), ?, ?, ?) RETURNING expira_em`)
+    .bind(id, projectId, parte.id, await sha256Hex(token), `+${d.dias} days`, JSON.stringify({ perguntas: ativas, fornecedor: parte.nome, cliente }), ator, tipo).first<{ expira_em: string }>();
   await logAudit(db, 'homologacao.criada', ator, `Homologação ${id} do terceiro ${parte.id}: ${ativas.length} perguntas, link válido por ${d.dias} dias`, '', '', projectId);
   return { ok: true, id, token, expira_em: row!.expira_em, parte_nome: parte.nome };
 }
