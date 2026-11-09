@@ -56,30 +56,34 @@ describe('percentual', () => {
 });
 
 describe('perguntas do projeto', () => {
-  it('o modelo padrão é semeado na primeira leitura, uma vez só, marcado a validar', async () => {
-    const r = await json<{ a_validar: boolean; perguntas: { id: string; origem: string; ativa: number }[] }>(await chamar(consultor, 'GET', `${base}/perguntas`));
+  it('o questionário do tipo vem do modelo vivo da consultoria, semeado uma vez, a validar; nada é semeado no projeto', async () => {
+    type R = { a_validar: boolean; prazo_meses: number; perguntas: { id: string; origem: string; ativa: number; fonte: string; usada: boolean }[] };
+    const r = await json<R>(await chamar(consultor, 'GET', `${base}/perguntas?tipo=medio`));
     expect(r.perguntas).toHaveLength(PERGUNTAS_PADRAO.length);
     expect(r.a_validar).toBe(true);
-    expect(r.perguntas.every((p) => p.origem === 'padrao' && p.ativa === 1)).toBe(true);
-    await chamar(consultor, 'GET', `${base}/perguntas`);
-    expect((await env.DB.prepare('SELECT count(*) AS n FROM homologacao_perguntas WHERE project_id = ?').bind(P).first<{ n: number }>())!.n).toBe(PERGUNTAS_PADRAO.length);
+    expect(r.prazo_meses).toBe(24);
+    expect(r.perguntas.every((p) => p.fonte === 'modelo' && p.origem === 'padrao' && p.usada)).toBe(true);
+    await chamar(consultor, 'GET', `${base}/perguntas?tipo=medio`);
+    const n = (sql: string) => env.DB.prepare(sql).first<number>('n');
+    expect(await n(`SELECT count(*) AS n FROM fornecedor_modelo_perguntas p JOIN fornecedor_modelos m ON m.id = p.modelo_id WHERE m.org_id = 'org_ness' AND m.tipo = 'medio'`)).toBe(PERGUNTAS_PADRAO.length);
+    expect(await n(`SELECT count(*) AS n FROM homologacao_perguntas WHERE project_id = '${P}'`)).toBe(0);
+    expect((await chamar(consultor, 'GET', `${base}/perguntas?tipo=grande_provedor`)).status).toBe(400);
   });
 
-  it('o consultor cria, edita (vira do projeto) e desativa; corpo inválido é 400; pergunta de outro projeto é 404', async () => {
+  it('o consultor cria, edita e desativa a pergunta própria; a do modelo não se edita por aqui; corpo inválido é 400; pergunta de outro projeto é 404', async () => {
     const nova = await chamar(consultor, 'POST', `${base}/perguntas`, { tema: 'Continuidade', texto: 'Existe plano de continuidade testado no último ano?' });
     expect(nova.status, await nova.clone().text()).toBe(201);
     const { id } = await json<{ id: string }>(nova);
-    const primeira = (await json<{ perguntas: { id: string }[] }>(await chamar(consultor, 'GET', `${base}/perguntas`))).perguntas[0].id;
-    expect((await chamar(consultor, 'PUT', `${base}/perguntas/${primeira}`, { texto: 'Há política de segurança aprovada?' })).status).toBe(200);
+    const doModelo = (await json<{ perguntas: { id: string }[] }>(await chamar(consultor, 'GET', `${base}/perguntas?tipo=medio`))).perguntas[0].id;
+    expect((await chamar(consultor, 'PUT', `${base}/perguntas/${doModelo}`, { texto: 'Há política de segurança aprovada?' })).status).toBe(404);
+    expect((await chamar(consultor, 'PUT', `${base}/perguntas/${id}`, { texto: 'Existe plano de continuidade testado?' })).status).toBe(200);
     expect((await chamar(consultor, 'PUT', `${base}/perguntas/${id}`, { ativa: false })).status).toBe(200);
-    const r = await json<{ a_validar: boolean; perguntas: { id: string; origem: string; ativa: number; texto: string }[] }>(await chamar(consultor, 'GET', `${base}/perguntas`));
-    expect(r.perguntas.find((p) => p.id === primeira)).toMatchObject({ origem: 'projeto', texto: 'Há política de segurança aprovada?' });
-    expect(r.perguntas.find((p) => p.id === id)).toMatchObject({ ativa: 0 });
+    const r = await json<{ perguntas: { id: string; fonte: string; ativa: number; texto: string }[] }>(await chamar(consultor, 'GET', `${base}/perguntas?tipo=medio`));
+    expect(r.perguntas.find((p) => p.id === id)).toMatchObject({ fonte: 'projeto', ativa: 0, texto: 'Existe plano de continuidade testado?' });
     expect((await chamar(consultor, 'POST', `${base}/perguntas`, { tema: 'X', texto: '' })).status).toBe(400);
-    expect((await chamar(consultor, 'PUT', `${base}/perguntas/${primeira}`, { origem: 'padrao' })).status).toBe(400);
+    expect((await chamar(consultor, 'PUT', `${base}/perguntas/${id}`, { origem: 'padrao' })).status).toBe(400);
     await env.DB.prepare(`INSERT INTO homologacao_perguntas (id, project_id, tema, texto) VALUES ('hm-q-alheia', ?, 'T', 'P')`).bind(OUTRO).run();
-    const idAlheia = 'hm-q-alheia';
-    expect((await chamar(consultor, 'PUT', `${base}/perguntas/${idAlheia}`, { texto: 'x' })).status).toBe(404);
+    expect((await chamar(consultor, 'PUT', `${base}/perguntas/hm-q-alheia`, { texto: 'x' })).status).toBe(404);
   });
 
   it('cliente lê mas não edita; o agente lê mas não edita; pessoa sem o n.privacy recebe 403', async () => {

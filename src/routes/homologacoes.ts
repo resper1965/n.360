@@ -7,6 +7,7 @@ import { appUrl } from '../config/url';
 import {
   atualizarPergunta, cancelarHomologacao, concluirHomologacao, criarHomologacao, criarPergunta, lerHomologacao, listarHomologacoes, listarPerguntas,
 } from '../services/homologacao';
+import { TIPOS_QUESTIONARIO, type TipoQuestionario } from '../services/fornecedor-modelos';
 import { validateBody, homologacaoConcluirSchema, homologacaoCriarSchema, homologacaoPerguntaAtualizarSchema, homologacaoPerguntaCriarSchema } from '../schemas';
 
 /**
@@ -19,8 +20,13 @@ export const homologacoesApp = new Hono<{ Bindings: Bindings; Variables: Variabl
 const SO_CONSULTORIA = { error: 'Somente a consultoria conduz a homologação de fornecedor' };
 const pid = (c: { req: { param: (k: string) => string | undefined } }) => c.req.param('projectId')!;
 
+// O questionário de um tipo (crítico, médio ou pequeno): o modelo vivo da consultoria, os ajustes e as perguntas próprias do projeto.
 homologacoesApp.get('/perguntas', async (c) => {
-  try { return c.json(await listarPerguntas(c.env.DB, pid(c))); } catch (e) { return erro500(c, 'Falha ao listar as perguntas', e); }
+  try {
+    const tipo = c.req.query('tipo') || 'medio';
+    if (!(TIPOS_QUESTIONARIO as readonly string[]).includes(tipo)) return c.json({ error: 'tipo deve ser critico, medio ou pequeno' }, 400);
+    return c.json(await listarPerguntas(c.env.DB, pid(c), tipo as TipoQuestionario));
+  } catch (e) { return erro500(c, 'Falha ao listar as perguntas', e); }
 });
 
 homologacoesApp.post('/perguntas', async (c) => {
