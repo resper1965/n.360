@@ -9,6 +9,8 @@ import { chave } from './tratamentos-importar';
 import { aadOt, cifrarEnderecos, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
 import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventario';
 import { resolverPendentes } from './ot-rede';
+import { fecharRegularizados } from './ot-desvio';
+import type { Bindings } from '../index';
 import { COLS_FLUXO, fluxosDoSite, indiceFluxos, pontasDoSite, prepararFluxo, type FluxoExistente } from './ot-fluxo-achado';
 
 export const TETO_ITENS = TETO_ITENS_LOTE;
@@ -244,7 +246,8 @@ async function recifrar(chaves: ChavesOt, projectId: string, itemId: string, ati
  * erro é recusado. Cada ativo gravado recebe `verificado_por` e `ultima_verificacao_em` (evidência do 4.3.1). A trava é a troca
  * `em_revisao` → `gravando` (duas aprovações simultâneas gravam uma vez); lote preso em `gravando` há 10 min é retomado.
  */
-export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string):
+export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string,
+  desvio?: { env: Bindings; ctx: Pick<ExecutionContext, 'waitUntil'> }):
   Promise<Falha | { ok: true; criados: number; atualizados: number; recusados: number; pendentes: number; fluxos_pendentes_resolvidos: number }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);
   if (!lote.ok) return lote;
@@ -337,6 +340,14 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   if (tocados.size) {
     try { fluxos_pendentes_resolvidos = await resolverPendentes(db, chaves, projectId, [...tocados]); }
     catch (e) { console.error('ot: segunda passagem do sensor de rede falhou', e); }
+  }
+  // Desvio cuja chave o lote gravou vira regularizado. A chave vem do achado de origem (o item do lote não a carrega). Falha só no log.
+  if (desvio && n.criados + n.atualizados) {
+    try {
+      const { results } = await db.prepare(`SELECT DISTINCT a.chave_sensor AS c FROM ot_achados a JOIN ot_lote_itens i ON i.id = a.lote_item_id
+        WHERE i.lote_id = ? AND i.decisao = 'gravado' AND a.project_id = ? AND a.chave_sensor IS NOT NULL LIMIT ${TETO_LEITURA_OT}`).bind(loteId, projectId).all<{ c: string }>();
+      await fecharRegularizados(desvio.env, desvio.ctx, projectId, results.map((r) => r.c));
+    } catch (e) { console.error('ot.desvio: falha ao regularizar', e); }
   }
   return { ok: true, ...n, pendentes, fluxos_pendentes_resolvidos };
 }

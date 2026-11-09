@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: desvios do sensor de rede (migration 0108)
+- Todo resumo aceito da sonda é comparado com o inventário aprovado antes do filtro de novidade: ativo ou fluxo visto e não aprovado vira desvio (a importação manual não cria desvio). Nova aba "Desvios" no n.ot e a contagem "N desvios abertos" no cartão "Pontos a esclarecer".
+- Ciclo: aberto, tratado (com nota; reabre e avisa se o sensor vê de novo), aceito (só o Gestor ARCiber, justificativa e prazo de até 90 dias; vencido volta a aberto, também pelo cron diário) e regularizado (automático quando um lote aprova o item). Aceito não é a exceção formal 5.1.1.
+- Webhook `ot.desvio`: exige visão completa do inventário para cadastrar; corpo sem IP, MAC nem hash; assinado, até 3 tentativas, 5 s cada, sem seguir redirect. A entrega de webhooks ganhou novas tentativas, tempo limite e recusa de redirecionamento.
+- Rotas `GET /desvios` (com `?contagem=1`, só o total, para a aba e o cartão), `POST /desvios/:id/tratar` e `POST /desvios/:id/aceitar`. Migration 0108 (aditiva): tabela `ot_desvios`.
+
 ### n.ot: MAC do gateway deixa de ir para os ativos
 - Com a sonda atrás de roteador ou firewall, os IPs de outra sub-rede chegavam todos com o MAC do gateway (numa subestação, 212 de 230 ativos com o mesmo MAC). O script `n-ot-resumo-zeek.py` passa a descartar o MAC do `conn.log` visto para 3 ou mais IPs, e o fabricante tirado dele; o MAC do `dhcp.log` fica sempre. Avisa no stderr quantos descartou.
 - O n.ot repete a defesa para resumos de versões antigas do script ou enviados à mão: MAC em 3 ou mais ativos do resumo não gera achado de completar MAC, não vai no ativo novo e não dá fabricante.

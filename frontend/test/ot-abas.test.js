@@ -61,7 +61,7 @@ describe('abas da casca /ot', () => {
         servirOt({ [`GET ${B}/requisitos`]: { requisitos: [] } });
         await abrir('catalogo');
         const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
-        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Levantamento', 'Saídas', 'Acessos e agente']);
+        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Levantamento', 'Desvios', 'Saídas', 'Acessos e agente']);
         for (const role of ['client', 'org_user']) {
             S.user = { id: 'u', role };
             await abrir('catalogo');

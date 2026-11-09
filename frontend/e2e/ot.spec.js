@@ -414,3 +414,48 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Pontos a esclarecer');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
 });
+
+// Desvios (spec n-ot-desvio §5): listar, tratar (nota obrigatória) e aceitar (só o Gestor ARCiber). API mockada com estado.
+test('desvios: o gestor lista, trata com nota e aceita com prazo', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const desvio = (id, ativo) => ({ id, site_id: 's1', site_nome: 'SE Norte', tipo: 'fluxo', situacao: 'aberto', protocolo: 'modbus', porta: 502, externo: false,
+    origem: { ativo, zona: 'Supervisão' }, destino: { ativo: 'Historiador', zona: 'DMZ' }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-08T10:00:00Z', ocorrencias: 3, aceito_ate: null, nota: null, achado_id: null });
+  const abertos = [desvio('d1', 'CLP-01'), desvio('d2', 'CLP-02')];
+  const posts = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (req.method() === 'GET' && path === `${B}/desvios`) return json(new URL(req.url()).searchParams.get('contagem') ? { total: abertos.length } : { desvios: abertos });
+    if (req.method() === 'GET' && path === `${B}/sites`) return json({ sites: [{ id: 's1', nome: 'SE Norte' }] });
+    const m = path.match(/\/desvios\/(d\d)\/(tratar|aceitar)$/);
+    if (req.method() === 'POST' && m) {
+      posts.push([m[2], req.postDataJSON()]);
+      abertos.splice(abertos.findIndex((d) => d.id === m[1]), 1);
+      return json({ ok: true });
+    }
+    if (req.method() === 'GET' && /\/(lotes|levantamentos|acessos)$/.test(path)) return json({ lotes: [], levantamentos: [], acessos: [] });
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await expect(page.getByRole('tab', { name: 'Desvios · 2 abertos' })).toBeVisible();
+  await page.getByRole('tab', { name: /^Desvios/ }).click();
+  const conteudo = page.locator('#content');
+  await expect(conteudo).toContainText('CLP-01');
+  await expect(conteudo).toContainText('modbus:502');
+  await page.getByRole('button', { name: 'Tratar Fluxo em SE Norte' }).first().click();
+  await page.getByRole('button', { name: 'Tratar', exact: true }).click(); // sem nota: não envia
+  expect(posts).toEqual([]);
+  await page.getByLabel('Nota').fill('Regra de firewall criada');
+  await page.getByRole('button', { name: 'Tratar', exact: true }).click();
+  await expect(conteudo).not.toContainText('CLP-01');
+  await page.getByRole('button', { name: /Aceitar temporariamente Fluxo/ }).click();
+  await expect(page.locator('#modal-content')).toContainText('Não substitui a exceção formal 5.1.1');
+  await page.getByLabel('Justificativa').fill('Janela de manutenção');
+  await page.locator('#des-ate').fill(await page.locator('#des-ate').getAttribute('max'));
+  await page.getByRole('button', { name: 'Aceitar', exact: true }).click();
+  await expect(conteudo).not.toContainText('CLP-02');
+  expect(posts.map((p) => p[0])).toEqual(['tratar', 'aceitar']);
+  expect(posts[0][1]).toEqual({ nota: 'Regra de firewall criada' });
+});
