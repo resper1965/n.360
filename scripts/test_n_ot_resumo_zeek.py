@@ -10,7 +10,7 @@ resumo = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(resumo)
 
 RAIZ = {"formato", "gerado_em", "periodo", "zeek_versao", "capture_loss", "versao_script", "ativos", "conexoes"}
-ATIVO = {"ip", "mac", "fabricante", "protocolos", "portas_servico", "primeira_vez", "ultima_vez"}
+ATIVO = {"ip", "mac", "mac_dhcp", "fabricante", "protocolos", "portas_servico", "primeira_vez", "ultima_vez"}
 CONEXAO = {"origem", "destino", "transporte", "porta", "aplicacao", "contagem", "primeira_vez", "ultima_vez"}
 
 
@@ -66,6 +66,28 @@ class T(unittest.TestCase):
                 r = resumo.resumir(self._pasta(conn))
             com_mac = [a["ip"] for a in r["ativos"] if a.get("mac") == "00:30:a7:00:00:99"]
             self.assertEqual(len(com_mac), n if fica else 0, n)
+
+    def test_mac_gateway_conta_toda_observacao(self):
+        g, x = "00:09:0f:00:00:03", "00:30:a7:00:00:04"
+        conn = [self._c(**{"id.resp_h": "10.0.0.10", "resp_l2_addr": x})]  # A primeiro com X, depois com G
+        conn += [self._c(**{"id.resp_h": ip, "resp_l2_addr": g}) for ip in ("10.0.0.10", "10.0.0.11", "10.0.0.12")]
+        with contextlib.redirect_stderr(io.StringIO()):
+            r = resumo.resumir(self._pasta(conn))
+        macs = {a["ip"]: a.get("mac") for a in r["ativos"]}
+        self.assertEqual((macs["10.0.0.10"], macs["10.0.0.11"], macs["10.0.0.12"]), (x, None, None))
+        conn[0], conn[1] = conn[1], conn[0]  # A termina com G: sai tambem dele
+        with contextlib.redirect_stderr(io.StringIO()):
+            r = resumo.resumir(self._pasta(conn))
+        self.assertEqual([a for a in r["ativos"] if a.get("mac") == g], [])
+
+    def test_mac_dhcp_em_3_ips_fica_marcado(self):
+        m = "00:0e:8c:00:00:05"  # rotacao de lease: o mesmo cliente em 3 IPs
+        dhcp = [{"assigned_addr": "10.0.0.%d" % i, "mac": m} for i in (20, 21, 22)]
+        r = resumo.resumir(self._pasta([self._c()], dhcp=dhcp))
+        marcados = {a["ip"]: (a.get("mac"), a.get("mac_dhcp")) for a in r["ativos"] if a["ip"] in ("10.0.0.20", "10.0.0.21", "10.0.0.22")}
+        self.assertEqual(marcados, {ip: (m, True) for ip in ("10.0.0.20", "10.0.0.21", "10.0.0.22")})
+        self.assertNotIn("mac_dhcp", self.ativo("10.1.1.10"))
+        self.assertTrue(self.ativo("10.1.1.20")["mac_dhcp"])
 
     def test_gz(self):
         r = resumo.resumir(os.path.join(AQUI, "fixtures-zeek-gz"))

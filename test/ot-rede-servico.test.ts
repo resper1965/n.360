@@ -96,6 +96,17 @@ describe('planejarResumo', () => {
     expect(tres.contagem.macs_gateway_ignorados).toBe(3);
   });
 
+  it('MAC do dhcp.log (mac_dhcp) em 3 ativos fica; sem a marca sai', async () => {
+    const mac = '00:0e:8c:00:00:06';
+    const tres = (marca: object) => [at('10.1.1.10', { mac, ...marca }), at('10.1.1.84', { mac, ...marca }), at('10.1.1.85', { mac, ...marca })];
+    const dhcp = await planejarResumo(env.DB, chaves, PJ, site, resumo(tres({ mac_dhcp: true }), []));
+    expect(dhcp.macs.map((m) => m.dados)).toEqual([{ ip: '10.1.1.10', mac, nome: 'RTU 1' }]);
+    expect(dhcp.contagem.macs_gateway_ignorados).toBe(0);
+    const sem = await planejarResumo(env.DB, chaves, PJ, site, resumo(tres({}), []));
+    expect(sem.macs).toEqual([]);
+    expect(sem.contagem.macs_gateway_ignorados).toBe(3);
+  });
+
   it('ativo com mais de 100 portas: só as 100 primeiras, na ordem do resumo', async () => {
     const portas = Array.from({ length: 150 }, (_, i) => 1000 + i);
     const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.40', { protocolos: ['modbus'], portas_servico: portas, mac: '00:30:a7:00:00:40' })], []));

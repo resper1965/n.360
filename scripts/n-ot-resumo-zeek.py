@@ -99,6 +99,7 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES,
             if porta_ok(r.get("id.resp_p")):
                 marcas[(r.get("id.orig_h"), r.get("id.resp_h"), r["id.resp_p"])] = nome
     ativos, conns, ts_all = {}, {}, []
+    ips_por_mac = {}  # MAC -> IPs de toda observacao do conn.log, nao so do primeiro MAC que o ativo guardou
 
     def ativo(ip):
         return ativos.setdefault(ip, {"mac": None, "dhcp": None, "protocolos": set(), "portas": set(), "ini": None, "fim": None, "peso": 0})
@@ -124,7 +125,10 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES,
             a = ativo(ip)
             a["peso"] += 1
             tempo(a, ts)
-            a["mac"] = a["mac"] or mac_ok(mac)
+            m = mac_ok(mac)
+            a["mac"] = a["mac"] or m
+            if m:
+                ips_por_mac.setdefault(m, set()).add(ip)
         s = ativos[d]
         if p:
             s["portas"].add(p)
@@ -161,11 +165,7 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES,
         print("aviso: %d ativos; mantidos os %d mais frequentes" % (len(la), limite_ativos), file=sys.stderr)
         la = la[:limite_ativos]
 
-    ips_por_mac = {}
-    for a in ativos.values():
-        if a["mac"]:
-            ips_por_mac[a["mac"]] = ips_por_mac.get(a["mac"], 0) + 1
-    gateway = {m for m, n in ips_por_mac.items() if n >= MAC_GATEWAY_MIN_IPS}
+    gateway = {m for m, ips in ips_por_mac.items() if len(ips) >= MAC_GATEWAY_MIN_IPS}
     descartados = 0
     out_a = []
     for ip, a in la:
@@ -174,6 +174,8 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES,
         descartados += bool(a["mac"] and not mac)
         if mac:
             x["mac"] = mac
+            if a["dhcp"]:
+                x["mac_dhcp"] = True  # o n.ot nao aplica a regra do gateway a MAC do dhcp.log
             if mac[:8] in OUI:
                 x["fabricante"] = OUI[mac[:8]]
         x["protocolos"] = sorted(a["protocolos"])

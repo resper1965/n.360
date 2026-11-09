@@ -59,6 +59,7 @@ export const resumoRedeSchema = z.object({
   ativos: z.array(z.object({
     ip,
     mac: z.string().refine((s) => normalizarMac(s) !== null, 'MAC inválido').optional(),
+    mac_dhcp: z.boolean().optional(), // MAC do dhcp.log: do próprio cliente, fora da regra do gateway
     fabricante: livreSemPii(100).optional(),
     protocolos: z.array(protocolo).max(PROTOCOLOS_REDE.length),
     portas_servico: z.array(porta).max(65536),
@@ -132,12 +133,12 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   // não do ativo: nem completa MAC, nem vai no ativo novo, nem dá fabricante (o script tira o fabricante do OUI desse MAC).
   const ipsPorMac = new Map<string, Set<string>>();
   for (const a of resumo.ativos) {
-    const m = a.mac && normalizarMac(a.mac);
+    const m = a.mac && a.mac_dhcp !== true && normalizarMac(a.mac);
     if (m) ipsPorMac.set(m, (ipsPorMac.get(m) ?? new Set()).add(normalizarIp(a.ip)!));
   }
   const ipsVistos = new Set<string>();
   for (const a0 of resumo.ativos) {
-    const gateway = !!a0.mac && ipsPorMac.get(normalizarMac(a0.mac)!)!.size >= MAC_GATEWAY_MIN_IPS;
+    const gateway = !!a0.mac && a0.mac_dhcp !== true && ipsPorMac.get(normalizarMac(a0.mac)!)!.size >= MAC_GATEWAY_MIN_IPS;
     const a = gateway ? { ...a0, mac: undefined, fabricante: undefined } : a0;
     const x = normalizarIp(a.ip)!;
     if (!interno(x) || !ehHost(x) || ipsVistos.has(x)) continue;
