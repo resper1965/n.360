@@ -11,7 +11,8 @@ import { hojeSP } from '../hoje.js';
 const SITUACAO = { coberto: ['Coberto', 'success'], parcial: ['Parcial', 'warning'], lacuna: ['Lacuna', 'danger'], nao_aplicavel: ['Não aplicável', 'neutral'] };
 const TIPO_MAPA = { equivalente: 'Equivalente', parcial: 'Parcial', relacionado: 'Relacionado' };
 const ORIGEM = { documento: 'Documento', evidencia: 'Evidência', controle: 'Controle' };
-const FONTES_COM_COBERTURA = ['lgpd', 'gdpr'];
+// ANPD também: as resoluções inteiras são o caso típico de "não aplicável" (migration 0107)
+const FONTES_COM_COBERTURA = ['lgpd', 'anpd', 'gdpr'];
 // Lacuna primeiro: é onde há o que fazer. A ordem do catálogo (a do servidor) desempata.
 const PESO = { lacuna: 0, parcial: 1, coberto: 2, nao_aplicavel: 3 };
 const FILTROS = ['lacuna', 'parcial', 'coberto', 'nao_aplicavel', 'todas'];
@@ -115,7 +116,7 @@ function listaHtml() {
         return window.renderEmptyState({ titulo: 'Nenhum requisito com este filtro', texto: 'Mude a situação ou a busca para ver outros.', acao: botao('Limpar filtros') });
     }
     const filtrada = filtro !== 'todas' || !!S.reqBusca;
-    return `<p class="cob-contagem" role="status">${linhas.length} ${linhas.length === 1 ? 'requisito' : 'requisitos'}${filtrada ? ` de ${resumo.total}` : ''}</p>${COMO_AVANCAR[filtro] ? `<p class="cob-guia">${COMO_AVANCAR[filtro]}</p>` : ''}${tabelaHtml(linhas)}`;
+    return `<p class="cob-contagem" role="status">${linhas.length} ${linhas.length === 1 ? 'requisito' : 'requisitos'}${filtrada ? ` de ${resumo.total + (resumo.nao_aplicaveis || 0)}` : ''}</p>${COMO_AVANCAR[filtro] ? `<p class="cob-guia">${COMO_AVANCAR[filtro]}</p>` : ''}${tabelaHtml(linhas)}`;
 }
 
 function redesenhar() {

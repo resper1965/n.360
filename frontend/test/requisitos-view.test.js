@@ -368,6 +368,16 @@ describe('requisito não aplicável (migration 0107)', () => {
         expect(linha('art. 37').textContent).toContain('Herdada de art. 7');
         window.filtrarRequisitos('nao_aplicavel');
         expect([...el('c').querySelectorAll('tbody th')].map((th) => th.textContent)).toEqual(['art. 7', 'art. 37']);
+        expect(el('c').querySelector('.cob-contagem').textContent).toBe('2 requisitos de 3'); // o "de M" conta todos, como o cartão Total
+    });
+
+    it('as resoluções da ANPD também mostram a cobertura do projeto (e, com ela, a aplicabilidade)', async () => {
+        S.fonteRequisitos = 'anpd';
+        const f = servir(rotas({ 'GET /api/v1/requisitos/fontes': [...FONTES, { id: 'anpd', nome: 'Resoluções da ANPD', versao: '2026', vigente_desde: null, requisitos: 3 }],
+            'GET /api/v1/projects/p9/requisitos/lacunas': { ...NA, fonte: 'anpd' } }));
+        await abrir();
+        expect(chamadas(f)).toContain('GET /api/v1/projects/p9/requisitos/lacunas');
+        expect(el('c').querySelector('.cob-resumo')).not.toBeNull();
     });
 
     it('a equipe marca (com 20+ caracteres) e volta a aplicar; herdado e cliente não têm botão', async () => {
