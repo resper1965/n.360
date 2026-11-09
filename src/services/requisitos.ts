@@ -6,6 +6,7 @@ import { MAPEAMENTOS } from '../data/mapeamento-privacidade-iso';
 import { hojeEmSaoPaulo } from './hoje';
 import { SQL_ARQUIVO_VALE } from './terceiros';
 import { sqlClasseControle, classeDoControle } from './classe-controle';
+import { logAudit } from '../helpers';
 
 /**
  * Catálogo de requisitos (fatia 2 do núcleo do n.privacy, spec 4.5). Global: sem project_id.
@@ -210,12 +211,20 @@ export type OrigemCobertura =
   | { tipo: 'documento'; id: string; titulo: string; arquivo?: true } // arquivo: documento em arquivo (0086), não o versionado
   | { tipo: 'evidencia'; id: string; titulo: string; status: string }
   | { tipo: 'controle'; id: string; titulo: string; status: string; mapeamento: 'equivalente' | 'parcial' };
-export type Lacuna = { requisito_id: string; referencia: string; titulo: string; pai_id: string | null; situacao: 'coberto' | 'parcial' | 'lacuna'; origens: OrigemCobertura[] };
+export type Exclusao = { justificativa: string; decidido_por: string; decidido_em: string; herdada_de?: string };
+export type Lacuna = {
+  requisito_id: string; referencia: string; titulo: string; pai_id: string | null;
+  situacao: 'coberto' | 'parcial' | 'lacuna' | 'nao_aplicavel'; origens: OrigemCobertura[]; exclusao?: Exclusao;
+};
 
-/** Resumo de uma lista de lacunas: a mesma conta em GET /requisitos/lacunas e no painel de ponto de partida. */
+/**
+ * Resumo de uma lista de lacunas: a mesma conta em GET /requisitos/lacunas, no ponto de partida e no painel do encarregado. O `total`
+ * conta só os aplicáveis: excluir não pode subir a porcentagem de cobertura.
+ */
 export function resumoDeLacunas(itens: Lacuna[]) {
   const total = (s: Lacuna['situacao']) => itens.filter((i) => i.situacao === s).length;
-  return { total: itens.length, cobertos: total('coberto'), parciais: total('parcial'), lacunas: total('lacuna') };
+  const [cobertos, parciais, lacunas] = [total('coberto'), total('parcial'), total('lacuna')];
+  return { total: cobertos + parciais + lacunas, cobertos, parciais, lacunas, nao_aplicaveis: total('nao_aplicavel') };
 }
 
 /**
@@ -225,9 +234,11 @@ export function resumoDeLacunas(itens: Lacuna[]) {
  * (com `equivalente` ou `parcial`; nunca coberto); senão é **lacuna**. `Planned`, `Missing`, `Not Applicable` e sem status não contam.
  * Mapeamento `relacionado` e `proposto` nunca cobrem. Evidência (fatia 8) ligada ao requisito cobre se `conforming` e dentro da validade
  * (ou sem validade); `partial` dá cobertura parcial; vencida, pendente ou `non_conforming` não conta.
+ * **Não aplicável** (migration 0107): o requisito excluído no projeto, ou com um ancestral excluído (`herdada_de`), vence a cobertura e
+ * mantém as `origens` (a tela mostra a contradição).
  */
 export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: string): Promise<Lacuna[]> {
-  const [reqs, docs, ctrls, evids] = await db.batch([
+  const [reqs, docs, ctrls, evids, excl] = await db.batch([
     db.prepare('SELECT id, referencia, titulo, pai_id FROM requisitos WHERE fonte_id = ? ORDER BY rowid').bind(fonte),
     db.prepare(
       `SELECT dr.requisito_id AS requisito_id, d.id AS id, d.titulo AS titulo, 0 AS arquivo
@@ -257,7 +268,10 @@ export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: s
         WHERE er.project_id = ?1 AND e.project_id = ?1 AND e.evaluation_status IN ('conforming', 'partial')
           AND (e.valido_ate IS NULL OR substr(e.valido_ate, 1, 10) >= ?3) AND er.requisito_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)`
     ).bind(projectId, fonte, hojeEmSaoPaulo()),
+    db.prepare(`SELECT requisito_id, justificativa, decidido_por, decidido_em FROM requisito_exclusoes
+       WHERE project_id = ?1 AND requisito_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)`).bind(projectId, fonte),
   ]);
+  const exclusoes = new Map((excl.results as (Exclusao & { requisito_id: string })[]).map(({ requisito_id, ...e }) => [requisito_id, e]));
   const origens = new Map<string, OrigemCobertura[]>();
   const somar = (rid: string, o: OrigemCobertura) => origens.set(rid, [...(origens.get(rid) ?? []), o]);
   for (const d of docs.results as { requisito_id: string; id: string; titulo: string; arquivo: number }[]) somar(d.requisito_id, { tipo: 'documento', id: d.id, titulo: d.titulo, ...(d.arquivo ? { arquivo: true as const } : {}) });
@@ -265,11 +279,65 @@ export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: s
   for (const c of ctrls.results as { requisito_id: string; id: string; titulo: string; status: string; tipo: 'equivalente' | 'parcial' }[]) {
     somar(c.requisito_id, { tipo: 'controle', id: c.id, titulo: c.titulo, status: c.status, mapeamento: c.tipo });
   }
-  return (reqs.results as { id: string; referencia: string; titulo: string; pai_id: string | null }[]).map((r) => {
+  type Req = { id: string; referencia: string; titulo: string; pai_id: string | null };
+  const lista = reqs.results as Req[];
+  const porId = new Map(lista.map((r) => [r.id, r]));
+  return lista.map((r) => {
     const o = origens.get(r.id) ?? [];
+    const exclusao = exclusaoDe(r, porId, exclusoes);
+    if (exclusao) return { requisito_id: r.id, referencia: r.referencia, titulo: r.titulo, pai_id: r.pai_id, situacao: 'nao_aplicavel' as const, origens: o, exclusao };
     const cobre = o.some((x) => x.tipo === 'documento' || (x.tipo === 'evidencia' && x.status === 'conforming') || (x.tipo === 'controle' && x.mapeamento === 'equivalente' && classeDoControle(x.status) === 'feito'));
     return { requisito_id: r.id, referencia: r.referencia, titulo: r.titulo, pai_id: r.pai_id, situacao: cobre ? 'coberto' : o.length ? 'parcial' : 'lacuna', origens: o };
   });
+}
+
+/** A exclusão do próprio requisito ou a do primeiro ancestral excluído (`herdada_de` = a referência dele). Ciclo no catálogo não trava. */
+function exclusaoDe(r: { id: string; pai_id: string | null }, porId: Map<string, { id: string; referencia: string; pai_id: string | null }>, exclusoes: Map<string, Exclusao>): Exclusao | null {
+  const propria = exclusoes.get(r.id);
+  if (propria) return propria;
+  const vistos = new Set([r.id]);
+  for (let pai = r.pai_id ? porId.get(r.pai_id) : undefined; pai && !vistos.has(pai.id); pai = pai.pai_id ? porId.get(pai.pai_id) : undefined) {
+    vistos.add(pai.id);
+    const e = exclusoes.get(pai.id);
+    if (e) return { ...e, herdada_de: pai.referencia };
+  }
+  return null;
+}
+
+type FalhaReq = { ok: false; status: 404 | 409; error: string };
+
+/** O requisito e o ancestral excluído mais próximo (o pai, o avô...), de qualquer fonte; null se não existe. */
+async function requisitoComAncestral(db: D1Database, projectId: string, requisitoId: string) {
+  const req = await db.prepare('SELECT id, referencia, pai_id FROM requisitos WHERE id = ?').bind(requisitoId).first<{ id: string; referencia: string; pai_id: string | null }>();
+  if (!req) return null;
+  const { results } = await db.prepare(`WITH RECURSIVE acima(id, pai_id, nivel) AS (
+       SELECT id, pai_id, 0 FROM requisitos WHERE id = ?1
+       UNION ALL SELECT r.id, r.pai_id, a.nivel + 1 FROM requisitos r JOIN acima a ON r.id = a.pai_id WHERE a.nivel < 20)
+     SELECT r.referencia FROM acima a JOIN requisito_exclusoes e ON e.requisito_id = a.id AND e.project_id = ?2 JOIN requisitos r ON r.id = a.id
+      WHERE a.nivel > 0 ORDER BY a.nivel LIMIT 1`).bind(requisitoId, projectId).all<{ referencia: string }>();
+  return { req, excluidoAcima: results[0]?.referencia ?? null };
+}
+
+/** Marca o requisito como não aplicável no projeto (cria ou troca a justificativa). A trilha não leva o texto. */
+export async function excluirRequisito(db: D1Database, projectId: string, requisitoId: string, justificativa: string, ator: string): Promise<FalhaReq | { ok: true }> {
+  const r = await requisitoComAncestral(db, projectId, requisitoId);
+  if (!r) return { ok: false, status: 404, error: 'Requisito não encontrado' };
+  if (r.excluidoAcima) return { ok: false, status: 409, error: `Este requisito já não se aplica pela exclusão de ${r.excluidoAcima}: a decisão é lá` };
+  await db.prepare(`INSERT INTO requisito_exclusoes (project_id, requisito_id, justificativa, decidido_por, decidido_em) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT (project_id, requisito_id) DO UPDATE SET justificativa = excluded.justificativa, decidido_por = excluded.decidido_por, decidido_em = CURRENT_TIMESTAMP`)
+    .bind(projectId, requisitoId, justificativa.trim(), ator).run();
+  await logAudit(db, 'requisito.excluido', ator, `Requisito ${r.req.referencia} marcado como não aplicável`, '', '', projectId);
+  return { ok: true };
+}
+
+/** Volta o requisito a ser aplicável (apaga a exclusão). */
+export async function reincluirRequisito(db: D1Database, projectId: string, requisitoId: string, ator: string): Promise<FalhaReq | { ok: true }> {
+  const req = await db.prepare('SELECT referencia FROM requisitos WHERE id = ?').bind(requisitoId).first<string>('referencia');
+  if (!req) return { ok: false, status: 404, error: 'Requisito não encontrado' };
+  const d = await db.prepare('DELETE FROM requisito_exclusoes WHERE project_id = ? AND requisito_id = ?').bind(projectId, requisitoId).run();
+  if (!d.meta.changes) return { ok: false, status: 404, error: 'Este requisito não está marcado como não aplicável' };
+  await logAudit(db, 'requisito.reincluido', ator, `Requisito ${req} volta a se aplicar`, '', '', projectId);
+  return { ok: true };
 }
 
 // ─── Referência jurídica: contagem e validação dos mapeamentos ───────────────────────────────────────

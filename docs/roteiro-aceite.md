@@ -95,6 +95,7 @@ Antes de começar:
 | 6.5 | Só como administrador da plataforma: "Validar mapeamentos propostos" | Mostra a contagem, pede confirmação e depois mostra "Validado por <seu e-mail> em <data>". Faça só se você é quem valida. |
 | 6.6 | Consentimentos: registre um | O consentimento fica ligado à atividade. |
 | 6.7 | Cobertura da LGPD e Dashboard | Abrem sem erro; a cobertura explica a regra (só o implementado cobre). |
+| 6.8 | Cobertura da LGPD (ou da ANPD): abra um requisito que não vale para o cliente e use "Marcar como não aplicável" com uma justificativa; depois "Voltar a aplicar" | Com menos de 20 caracteres é recusado. Marcado, ele (e os itens dentro dele, com "Herdada de") vai para o cartão "Não aplicáveis" com a justificativa, o seu e-mail e a data, e sai do total da cobertura; o painel do encarregado mostra os mesmos números. Como cliente, os botões não aparecem. |
 
 ## 7. n.privacy: RIPD e LIA
 
