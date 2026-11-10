@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Desempenho: menos viagens ao banco (#369)
+- O banco de produção fica na costa leste dos EUA e os usuários estão no Brasil: cada consulta era uma viagem longa, e a checagem de login fazia até cinco em fila antes da tela pedir o próprio dado. Agora faz uma só (as leituras da organização, dos documentos legais, da política do projeto e do segundo fator vão juntas).
+- O Worker passa a usar o Smart Placement: a Cloudflare o executa perto do banco quando compensa. Em 7 dias até 09/11, o p95 fora das rotas de IA estava em 1.058 ms, contra o teto de 800 ms; a comparação sai depois de 24 horas no ar.
+
 ### Segurança: senha só no formato atual
 - O login deixa de aceitar senha gravada no formato antigo (SHA-256 sem sal) e a conversão automática dele no login sai. Nenhuma conta o usava em produção (conferido em 09/11); quem tivesse um entraria pelo "Esqueci a senha".
 

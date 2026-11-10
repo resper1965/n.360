@@ -33,6 +33,10 @@
 		"directory": "frontend/dist",
 		"binding": "ASSETS"
 	},
+	// Smart Placement (#369): o D1 roda em ENAM e os usuários estão no Brasil; cada consulta era uma viagem longa e a requisição
+	// faz várias. Com "smart" a Cloudflare executa o Worker perto do banco quando compensa (o arquivo estático segue saindo da borda).
+	// Voltar atrás: apagar este bloco.
+	"placement": { "mode": "smart" },
 	"observability": {
 		"enabled": true
 	},

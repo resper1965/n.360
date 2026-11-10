@@ -782,7 +782,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - O catch-all estatico (`c.env.ASSETS.fetch`) DEVE ser a ultima rota em
   `src/index.ts`.
 - `authMiddleware` roda antes das rotas `/api/v1/*`; `projectAccessMiddleware`
-  logo apos, em `/api/v1/projects/:projectId/*`. Rotas realmente publicas (auth,
+  logo apos, em `/api/v1/projects/:projectId/*`. **O D1 fica em ENAM e os usuarios no Brasil (#369):** cada consulta e uma viagem
+  longa. As leituras que o `authMiddleware` faz em toda requisicao vao num `db.batch` so (`lerChecagens` em `src/middleware/auth.ts`,
+  com volta ao caminho uma a uma se o batch falhar); leitura nova de toda requisicao entra nesse batch, nunca em `await` proprio
+  (`test/auth-idas-ao-banco.test.ts` conta as viagens). O Worker usa Smart Placement (`"placement"` no `wrangler.jsonc`). Rotas realmente publicas (auth,
   public) sao montadas antes do `authMiddleware`.
 - Chave de API autoriza escrita pelo campo `permissions` (`write`/`admin`), nao
   pelo allow-list — este existe para papeis **humanos** read-only. Ver o
