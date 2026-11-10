@@ -87,16 +87,18 @@ export function emailCodigoPoliticas(d: { cliente: string; codigo: string }): Em
 }
 
 /** Retorno ao titular que abriu uma solicitação pelo portal público: o número de protocolo para acompanhar o atendimento. */
-export function emailProtocoloTitular(d: { protocolo: string }): EmailComAssunto {
+export function emailProtocoloTitular(d: { protocolo: string; codigo: string; link: string }): EmailComAssunto {
   return com(`Recebemos sua solicitação — protocolo ${d.protocolo}`, {
-    previa: `Sua solicitação foi recebida. Guarde o protocolo ${d.protocolo}.`,
+    previa: `Sua solicitação foi recebida. Guarde o protocolo ${d.protocolo} e o código de acompanhamento.`,
     titulo: 'Solicitação recebida',
     saudacao: ola(null),
     paragrafos: [
       'Recebemos sua solicitação sobre seus dados pessoais.',
-      `Guarde este número de protocolo para acompanhar o atendimento: ${d.protocolo}.`,
+      `Protocolo: ${d.protocolo}. Código de acompanhamento: ${d.codigo}.`,
+      'Com os dois você acompanha a situação do atendimento. A resposta chega por e-mail.',
     ],
-    notas: ['Se você não fez esta solicitação, ignore este e-mail.'],
+    botao: { rotulo: 'Acompanhar a solicitação', url: d.link },
+    notas: ['Não compartilhe o código: quem o tiver vê a situação do seu pedido.', 'Se você não fez esta solicitação, ignore este e-mail.'],
     motivo: 'você abriu uma solicitação sobre seus dados pessoais no portal desta organização.',
   });
 }
@@ -230,6 +232,28 @@ export function emailHomologacao(d: { cliente: string; fornecedor: string; expir
   });
 }
 
+/**
+ * Lembrete ao fornecedor 3 dias antes de o link vencer (fatia 4). Sem o link: o banco só guarda o hash do token. Pede que use o
+ * e-mail original ou peça um link novo a quem enviou (`reply_to`).
+ */
+export function emailLembreteHomologacao(d: { cliente: string; fornecedor: string; enviadoEm: string; expiraEm: string; quem: Pessoa | null }): EmailComAssunto {
+  const pede = d.cliente || 'Nosso cliente';
+  const prazo = dataBr(d.expiraEm);
+  return com(`Lembrete: questionário de homologação de ${d.fornecedor} vence em ${prazo}`, {
+    produto: 'n.privacy',
+    previa: `O questionário de homologação enviado por ${pede} vence em ${prazo}.`,
+    titulo: 'O questionário de homologação vence em breve',
+    saudacao: 'Olá,',
+    paragrafos: [`${pede} enviou a ${d.fornecedor}, em ${dataBr(d.enviadoEm)}, um questionário de homologação de fornecedor que ainda não foi respondido.`],
+    quemPede: d.quem ?? { organizacao: pede },
+    acao: 'Responder pelo link do e-mail original do questionário',
+    prazo,
+    notas: ['Por segurança, este lembrete não traz o link. Se não encontrar o e-mail original, responda a este e-mail e peça um link novo a quem enviou.'],
+    motivo: `${pede} indicou este endereço para responder pela empresa ${d.fornecedor}.`,
+    contato: d.quem,
+  });
+}
+
 export function emailAlertaSonda(assunto: string, linhas: string[]): EmailComAssunto {
   return com(assunto, {
     titulo: assunto,
@@ -248,5 +272,22 @@ export function emailAvisoOtSensivel(d: { quem: string; oQue: string; justificat
     botao: { rotulo: 'Abrir o n.ot', url: `${d.url}/ot` },
     notas: ['Se este acesso não era esperado, fale com quem o fez e revise a trilha de auditoria do projeto.'],
     motivo: 'este endereço está cadastrado como Gestor ARCiber (titular ou suplente) do projeto no n.360.',
+  });
+}
+
+/** Encaminhamento de pedido do titular a um ponto focal (n.privacy). Nunca leva nome, contato, descrição nem resposta do titular. */
+export function emailEncaminhamentoTitular(d: { protocolo: string; tipo: string; prazo: string; mensagem: string; nome: string | null; quem: Pessoa }): EmailComAssunto {
+  const prazo = dataBr(d.prazo);
+  return com(`Pedido de titular ${d.protocolo}: precisamos da sua ajuda até ${prazo}`, {
+    produto: 'n.privacy',
+    previa: `${d.tipo}. Prazo interno: ${prazo}.`,
+    titulo: 'Pedido de titular de dados encaminhado a você',
+    saudacao: ola(d.nome),
+    paragrafos: [`Um pedido de titular de dados (${d.tipo}, protocolo ${d.protocolo}) precisa de informações da sua área.`, d.mensagem],
+    quemPede: d.quem,
+    acao: 'Responder a este e-mail com as informações pedidas',
+    prazo,
+    motivo: 'este endereço foi indicado como ponto focal para pedidos de titulares de dados.',
+    contato: d.quem,
   });
 }

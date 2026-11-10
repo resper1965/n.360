@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CANAIS_PEDIDO, STATUS_PEDIDO, TIPOS_PEDIDO } from '../services/titular-pedidos';
 import { RISCOS } from '../services/incidentes';
+import { CANAIS_ANPD, COMPROMETIMENTOS, CRITERIOS_RISCO, SEVERIDADES_INCIDENTE, TIPOS_INCIDENTE } from './nucleo';
 import { PERGUNTAS_IMPORTAVEIS } from '../services/impacto';
 import { IDS_ETAPAS } from '../services/ciclo';
 
@@ -140,6 +141,18 @@ export const incidentePropostoSchema = z.object({
   comunicacao_anpd_em: instante.nullish(),
   comunicacao_titular_em: instante.nullish(),
   status: z.enum(['aberto', 'avaliado', 'comunicado', 'encerrado']),
+  // Registro completo (0098) e comunicação à ANPD (0099): opcionais, para o arquivo antigo seguir valendo. Áreas e titulares x dados
+  // não entram: são cadastro do projeto, ligados depois pela tela.
+  origem_alerta: z.string().trim().max(500).nullish(),
+  severidade: z.enum(SEVERIDADES_INCIDENTE).nullish(),
+  tipo: z.enum(TIPOS_INCIDENTE).nullish(),
+  comprometimento: z.array(z.enum(COMPROMETIMENTOS)).max(3).nullish(),
+  titulares_estimados: z.number().int().min(0).max(1_000_000_000).nullish(),
+  criterios_risco: z.array(z.enum(CRITERIOS_RISCO)).max(7).refine((xs) => !xs.includes('nenhum') || xs.length === 1, '"nenhum" não vai com outros critérios').nullish(),
+  fim_em: instante.nullish(),
+  anpd_protocolo: z.string().trim().min(1).max(100).nullish(),
+  anpd_canal: z.enum(CANAIS_ANPD).nullish(),
+  anpd_justificativa: z.string().trim().max(5000).nullish(),
 }).strict();
 export type IncidenteProposto = z.infer<typeof incidentePropostoSchema>;
 export const OBRIGATORIOS_INCIDENTE = ['protocolo', 'risco_titular'] as const;

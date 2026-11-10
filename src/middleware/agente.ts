@@ -83,6 +83,7 @@ export const CABECALHO_CONFIRMADO = 'X-Agente-Confirmado';
 const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/(users|admin\/users)(\/|$)/, 'gestão de usuários'],
   [/^\/api\/v1\/platform(\/|$)/, 'administração da plataforma (consultorias)'],
+  [/^\/api\/v1\/fornecedor-modelos(\/|$)/, 'os modelos de avaliação de fornecedor são do administrador da consultoria, pela interface'],
   [/^\/api\/v1\/dashboard(\/|$)/, 'o painel global agrega todos os clientes'],
   [/^\/api\/v1\/carteira(\/|$)/, 'a carteira agrega os projetos do consultor; o agente está preso a um projeto'],
   [/^\/api\/v1\/(assessments|leads|proposals|funil)(\/|$)/, 'área comercial'],
@@ -122,17 +123,20 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/mesclar$/, 'mesclar cadastros é feito pela interface, com a prévia do que muda', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos-arquivo(\/|$)/, 'documento em arquivo (cadastro, envio e exclusão) é feito pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
   // Rascunho de IA do n.privacy é da tela, para a pessoa revisar (fatia 5.3); o agente já é a IA.
+  [/^\/api\/v1\/projects\/[^/]+\/titular-pedidos\/[^/]+\/(identidade|encaminhamentos(\/[^/]+)?)$/, 'identidade e encaminhamento do pedido do titular são atos de pessoa, pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/(ropa\/copiloto|ropa\/[^/]+\/sugestao|titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/, 'rascunho de IA do n.privacy é pela interface'],
   // Parecidos por significado (embeddings) servem ao "Cadastrar agora" da entrevista, na tela; o agente já é a IA.
   [/^\/api\/v1\/projects\/[^/]+\/similares$/, 'parecidos por significado são recurso de IA da tela'],
   // Exportação em arquivo (F4 e as antigas do n.iso): planilha e Word são da tela; o agente lê os mesmos dados em JSON.
-  [/^\/api\/v1\/projects\/[^/]+\/(export\/(atividades|ripd|riscos-atividade|acoes-atividade|lia|risks|vendors|training|audit-log|assets)|dpia\/[^/]+\/docx|documentos\/[^/]+\/docx|ropa\/[^/]+\/lia\/docx)$/, 'exportação em arquivo é pela interface'],
+  [/^\/api\/v1\/projects\/[^/]+\/(export\/(atividades|ripd|riscos-atividade|acoes-atividade|lia|pedidos-titular|risks|vendors|training|audit-log|assets)|dpia\/[^/]+\/docx|documentos\/[^/]+\/docx|ropa\/[^/]+\/lia\/docx|incidentes\/[^/]+\/docx)$/, 'exportação em arquivo é pela interface'],
   [/^\/api\/v1\/management-reviews\/[^/]+$/,'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
   // Bancada da trilha (spec 2026-10-15): o rascunho de IA é da tela; concluir, reabrir e bloquear passo são decisões (`niso_decidir_passo`).
   [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/, 'rascunho de IA da trilha é pela interface; o agente já é a IA', ['POST']],
   // Ficha em abas (spec 2026-10-16): anexo de gap e relatório são da tela; a situação é decisão (`niso_situacao_atividade`).
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/gaps\/[^/]+\/anexos(\/[^/]+)?$/, 'anexo de gap é arquivo enviado por uma pessoa, pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/incidentes\/[^/]+\/anexos(\/[^/]+)?$/, 'evidência do incidente é arquivo enviado por uma pessoa, pela interface'],
+  [/^\/api\/v1\/projects\/[^/]+\/incidentes\/[^/]+\/historico\/csv$/, 'exportação CSV é download de pessoa, como as /export/*'],
+  [/^\/api\/v1\/projects\/[^/]+\/incidentes\/[^/]+\/acoes\/[^/]+\/anexos(\/[^/]+)?$/, 'anexo da ação do incidente é arquivo enviado por uma pessoa, pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/relatorio$/, 'impressão da atividade é pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/etapas\/[^/]+\/rascunho$/, 'rascunho de IA da etapa é pela interface; o agente já é a IA', ['POST']],
 ];

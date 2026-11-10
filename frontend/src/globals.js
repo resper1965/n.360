@@ -1020,6 +1020,9 @@ window.updateHeaderUser = function updateHeaderUser() {
             // projeto) sai da Configuração comercial e fica em Conta e acessos, para quem a administra.
             const navIdentidade = document.getElementById('nav-identidade');
             if (navIdentidade) navIdentidade.style.display = !window.comercialAtivo() && ['platform_admin', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
+            // Modelos de avaliação de fornecedor: a equipe da consultoria lê; o administrador dela edita (o servidor decide).
+            const navModelos = document.getElementById('nav-modelos-fornecedor');
+            if (navModelos) navModelos.style.display = ['platform_admin', 'consultoria_admin', 'consultor', 'consultant'].includes(S.user?.role) ? '' : 'none';
             // Organizações: exclusivo do platform_admin (rotas /platform/orgs).
             const navOrgs = document.getElementById('nav-organizacoes');
             if (navOrgs) navOrgs.style.display = (S.user && S.user.role === 'platform_admin') ? '' : 'none';

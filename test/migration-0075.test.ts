@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import { execSql, applySchema } from './helpers/d1';
 import migration0075 from '../migrations/0075_homologacao_fornecedor.sql?raw';
+import migration0106 from '../migrations/0106_fornecedor_modelos.sql?raw';
 
 /** F5: questionário de homologação (`homologacao_perguntas`) e envios (`homologacoes`) com o gatilho de imutabilidade. */
 const colunas = async (t: string) => (await env.DB.prepare(`SELECT name FROM pragma_table_info('${t}')`).all<{ name: string }>()).results.map((c) => c.name);
@@ -22,6 +23,8 @@ describe('migration 0075 — homologação de fornecedor', () => {
     expect(await colunas('homologacoes')).toEqual(['id', 'project_id', 'parte_id', 'token_hash', 'expira_em', 'status', 'perguntas_json', 'respostas_json',
       'enviada_em', 'resultado', 'avaliacao_id', 'concluida_por', 'concluida_em', 'criado_por', 'created_at', 'updated_at']);
     expect(await env.DB.prepare(`SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'homologacao_imutavel'`).first()).not.toBeNull();
+    // as colunas que a 0106 acrescenta a estas tabelas (o gatilho do schema canônico lê `email_destino`), e então o schema canônico
+    await execSql((migration0106.match(/ALTER TABLE (homologacoes|homologacao_perguntas) [^;]*;/g) ?? []).join('\n'));
     await applySchema(); // convive com o schema canônico
   }, 30_000);
 

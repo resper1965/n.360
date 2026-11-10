@@ -55,6 +55,18 @@ describe('porta de decisão do agente', () => {
     expect(t.project_id).toBe('p-dec');
   });
 
+  it('concluir ação corretiva do incidente: só pela ferramenta niso_concluir_acao; editar sem concluir é livre', async () => {
+    await env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, incidente_id, title, status) VALUES ('ca-in','p-dec','in-2','Trocar senhas','Open')`).run();
+    const url = '/api/v1/projects/p-dec/incidentes/in-2/acoes/ca-in';
+    expect((await comoAgente('PUT', url, {}, { status: 'Closed' })).status).toBe(403);
+    expect((await comoAgente('PUT', url, {}, { status: 'In Progress' })).status).toBe(200);
+    const r = await comoAgente('PUT', url, DECISAO('niso_concluir_acao', 'cliente confirmou a troca'), { status: 'Closed' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await env.DB.prepare(`SELECT status, completed_at FROM corrective_actions WHERE id='ca-in'`).first<any>())).toMatchObject({ status: 'Closed' });
+    // Anexo da ação é arquivo de pessoa: fora do agente.
+    expect((await comoAgente('GET', `${url}/anexos`)).status).toBe(403);
+  });
+
   it('ato do cliente segue recusado mesmo com ferramenta, confirmação e motivo', async () => {
     const r = await comoAgente('PUT', '/api/v1/risks/rk-1', DECISAO('niso_concluir_acao'), { status: 'Accepted' });
     expect(r.status).toBe(403);

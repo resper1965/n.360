@@ -237,6 +237,7 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   pedidos: { tipo: 'dpia', papel_exigido: 'ciente' },
   parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
   avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
+  fornecedor_modelos: { tipo: 'critico', prazo_meses: 12 },
   titular_pedidos: { tipo: 'acesso' },
   titular_pedido_tratativas: { tipo: 'nota' },
   catalogo_itens: { tipo: 'titular' },
@@ -253,6 +254,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_fluxos: { externo: 1, origem_zona_id: (id: string) => id },
   // n.ot (0092): fonte do lote é enum do CHECK
   ot_lotes: { fonte: 'manual' },
+  // n.ot (0108): tipo do desvio é enum do CHECK
+  ot_desvios: { tipo: 'fluxo' },
   ot_levantamentos: { tipo: 'entrevista' },
   // n.ot (0095): assinatura tem 64 caracteres e mapeamento é objeto JSON (CHECKs)
   ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },

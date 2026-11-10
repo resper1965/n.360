@@ -61,7 +61,7 @@ const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/[^/]+\/(riscos|acoes)(\/[^/]+)?$/,
   /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|sugestao|impacto|ciclo|bases)$/,
   // Exportação (F4): riscos, ações e LIA das atividades; atividades e RIPD seguem no núcleo pelo segmento `export`.
-  /^export\/(riscos-atividade|acoes-atividade|lia)$/,
+  /^export\/(riscos-atividade|acoes-atividade|lia|pedidos-titular)$/,
   /^ropa\/[^/]+\/lia(\/(docx|questionario|logs))?$/,
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^evidence\/[^/]+\/requisitos$/,

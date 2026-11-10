@@ -50,11 +50,11 @@ function servidor(inicial, extra = {}) {
     return { f, puts, estado: () => atual };
 }
 
-async function abrir(inicial = contrato, { editavel = true, extra = {} } = {}) {
+async function abrir(inicial = contrato, { editavel = true, extra = {}, ficha = {} } = {}) {
     const srv = servidor(inicial, extra);
     const recarregarFicha = vi.fn(async () => {});
     const painel = el('painel');
-    const aba = await montar(painel, { projectId: 'p9', ropaId: 'r1', ficha: {}, editavel, recarregarFicha });
+    const aba = await montar(painel, { projectId: 'p9', ropaId: 'r1', ficha, editavel, recarregarFicha });
     return { ...srv, painel, aba, recarregarFicha };
 }
 const tudo = () => new Promise((ok) => setTimeout(ok, 0));
@@ -156,6 +156,21 @@ describe('aba Base Jurídica', () => {
         await esperar(() => !el('modal-overlay').classList.contains('open') && recarregarFicha.mock.calls.length > 0);
         expect(el('modal-overlay').classList.contains('open')).toBe(false);
         expect(recarregarFicha).toHaveBeenCalled();
+    });
+
+    it('a base marcada já vem com a finalidade da atividade (Escopo), que a pessoa pode ajustar antes de gravar', async () => {
+        const { painel, puts } = await abrir(SEM_PENDENCIA(), { ficha: { registro: { finalidade: 'Concessão de benefício (exemplo)' } } });
+        [...painel.querySelectorAll('button')].find((b) => b.textContent === '+ Adicionar Inciso').click();
+        const nova = [...el('modal-content').querySelectorAll('input[type="checkbox"]')].find((c) => c.value === 'lgpd:art7:i');
+        nova.checked = true; nova.dispatchEvent(new Event('change', { bubbles: true }));
+        const fin = el('modal-content').querySelector('textarea');
+        expect(fin.value).toBe('Concessão de benefício (exemplo)');
+        expect(el('at-base-gravar').disabled).toBe(false);
+        expect(puts).toHaveLength(0); // sugestão na tela, nada gravado sozinho
+        fin.value = 'Ajustada (exemplo)'; fin.dispatchEvent(new Event('input', { bubbles: true }));
+        el('at-base-gravar').click();
+        await esperar(() => puts.length === 1);
+        expect(puts[0].lgpd.at(-1)).toEqual({ requisito_id: 'lgpd:art7:i', finalidade: 'Ajustada (exemplo)' });
     });
 
     it('com finalidade pendente de outro inciso, o modal avisa e não deixa gravar (o servidor recusaria a lista)', async () => {

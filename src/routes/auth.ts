@@ -235,12 +235,6 @@ authApp.post('/login', async (c) => {
     // Credencial correta zera a contagem: a janela existe para tentativa
     // seguida de erro, não para punir quem errou uma vez ontem.
     await c.env.SESSIONS.delete(chaves.falhas);
-    // ponytail: auto-migrate legacy SHA-256 hash to PBKDF2
-    if (!user.password_hash.includes(':')) {
-      const newHash = await hashPassword(password);
-      await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(newHash, user.id).run();
-    }
-    
     const requiresChange = user.requires_password_change === 1;
     const exigeMfa = user.totp_enabled === 1;
 

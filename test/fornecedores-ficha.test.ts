@@ -33,7 +33,7 @@ beforeAll(async () => {
     // r1 nas duas origens (conta uma vez, origem vínculo); r2 só no vínculo; r3 só no compartilhamento externo
     env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('ff-v1', ?1, 'ff-a', 'operador', 'tratamento', 'ff-r1'), ('ff-v2', ?1, 'ff-a', 'operador', 'tratamento', 'ff-r2')`).bind(P),
     env.DB.prepare(`INSERT INTO tratamento_externo_parceiros (ropa_id, parte_id, project_id) VALUES ('ff-r1', 'ff-a', ?1), ('ff-r3', 'ff-a', ?1)`).bind(P),
-    env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('ff-d1', ?, 'DPA Exemplo'), ('ff-d2', ?, 'Contrato Exemplo')`).bind(P, P),
+    env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo, status) VALUES ('ff-d1', ?, 'DPA Exemplo', 'vigente'), ('ff-d2', ?, 'Contrato Exemplo', 'vigente')`).bind(P, P),
     env.DB.prepare(`INSERT INTO documento_partes (documento_id, parte_id, papel, project_id) VALUES ('ff-d1', 'ff-a', 'dpa', ?1), ('ff-d2', 'ff-b', 'contrato', ?1)`).bind(P),
   ]);
   await habilitarPrivacy(P, OUTRO);

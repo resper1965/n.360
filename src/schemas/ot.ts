@@ -139,3 +139,18 @@ export const VALIDADE_MAX_DIAS = 30;
 // Agente de coleta (L5): interruptor do Gestor ARCiber e chave `ot_coleta` (validade em dias, 1..VALIDADE_MAX_DIAS).
 export const otAgenteInterruptorSchema = z.object({ ligado: z.boolean() }).strict();
 export const otAgenteChaveSchema = z.object({ nome: livreSemPii(100, 1), dias: z.number().int().min(1).max(VALIDADE_MAX_DIAS).optional() }).strict();
+
+/** Cadastro da sonda de rede: nome sem PII e a faixa de onde ela envia (obrigatória). */
+export const sensorCriarSchema = z.object({ nome: livreSemPii(80, 1), faixa_origem: faixaCidr }).strict();
+
+/** Desvio (spec n-ot-desvio): tratar exige nota; aceitar exige justificativa e prazo de hoje até 90 dias. Só ids vão à trilha, nota e justificativa ficam na linha. */
+export const otDesvioTratarSchema = z.object({ nota: livreSemPii(500, 1) }).strict();
+export const PRAZO_MAX_ACEITE_DIAS = 90;
+const diaUtc = (d: Date) => d.toISOString().slice(0, 10);
+export const otDesvioAceitarSchema = z.object({
+  justificativa: livreSemPii(500, 1),
+  // dia de calendário real: 2026-13-01 passaria na comparação de texto, e datetime() dele é NULL (o aceite nunca venceria)
+  ate: data.refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v, 'Data inexistente')
+    .refine((v) => v >= diaUtc(new Date()) && v <= diaUtc(new Date(Date.now() + PRAZO_MAX_ACEITE_DIAS * 86_400_000)),
+      `Prazo de hoje até ${PRAZO_MAX_ACEITE_DIAS} dias`),
+}).strict();

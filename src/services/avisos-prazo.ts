@@ -15,7 +15,7 @@ import { log } from '../observability';
 import { passoPorId } from '../data/passos/catalogo';
 import type { Bindings } from '../index';
 
-export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia' | 'documento_arquivo';
+export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia' | 'documento_arquivo' | 'encaminhamento_titular';
 
 export type ItemPrazo = {
   fonte: Fonte;
@@ -121,6 +121,8 @@ const FONTES: Record<Fonte, string> = {
     FROM avaliacoes_terceiro a JOIN partes pa ON pa.id = a.parte_id JOIN projects p ON p.id = a.project_id
       LEFT JOIN (SELECT parte_id, count(DISTINCT alvo_id) AS q FROM parte_vinculos WHERE alvo_tipo = 'tratamento' GROUP BY parte_id) n ON n.parte_id = pa.id
     WHERE pa.status = 'ativa' AND a.resultado <> 'reprovado'
+      -- feita noutro tipo: a situação é "reavaliar" (situacaoDe), não há validade a avisar
+      AND (a.tipo_avaliado IS NULL OR pa.terceiro_tipo IS NULL OR a.tipo_avaliado = pa.terceiro_tipo)
       AND a.id = (SELECT a2.id FROM avaliacoes_terceiro a2 WHERE a2.parte_id = a.parte_id ORDER BY a2.created_at DESC, a2.rowid DESC LIMIT 1)`,
   titular_pedido: `SELECT t.id AS item_id, t.project_id, date(substr(t.prazo_em, 1, 10)) AS vence_em, 'Pedido do titular ' || t.protocolo AS titulo,
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(t.created_at, '-3 hours') AS criado_em
@@ -141,6 +143,13 @@ const FONTES: Record<Fonte, string> = {
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
     FROM documentos_arquivo d JOIN projects p ON p.id = d.project_id LEFT JOIN partes pa ON pa.id = d.responsavel_parte_id AND pa.project_id = d.project_id
     WHERE d.status <> 'obsoleto' AND d.sem_vencimento = 0 AND d.vencimento IS NOT NULL`,
+  // Encaminhamento do pedido do titular a ponto focal (0104): só D0 e atraso (o prazo interno é curto; ver itensDoDia).
+  encaminhamento_titular: `SELECT e.id AS item_id, e.project_id, e.prazo AS vence_em,
+      'Encaminhamento do pedido ' || t.protocolo || ' a ' || pa.nome AS titulo,
+      COALESCE(NULLIF(trim(pr.email), ''), pr.nome) AS responsavel
+    FROM titular_pedido_encaminhamentos e JOIN titular_pedidos t ON t.id = e.pedido_id JOIN partes pa ON pa.id = e.parte_id
+      JOIN projects p ON p.id = e.project_id LEFT JOIN partes pr ON pr.id = t.responsavel_parte_id AND pr.project_id = t.project_id
+    WHERE e.status = 'aguardando'`,
 };
 
 /** Os itens que têm marco hoje. Uma fonte que falha vai para `falhas` e as outras seguem. */
@@ -157,7 +166,7 @@ export async function itensDoDia(db: D1Database, hoje: string): Promise<{ itens:
         const marco = marcoDoDia(r.vence_em, hoje);
         // Carência (pedido e incidente): prazo que nasceu vencido não gera atraso na semana ISO em que o registro foi criado.
         if (marco?.startsWith('atraso-') && criado_em && r.vence_em < criado_em && semanaIso(hoje) === semanaIso(criado_em)) continue;
-        if (!marco) continue;
+        if (!marco || (fonte === 'encaminhamento_titular' && marco === 'D-7')) continue;
         // Passo da trilha: o título do passo no lugar de "Item p3_3 da fase 3". Id fora do catálogo mantém o texto antigo.
         const passo = fonte === 'checklist' && r.passo_id ? passoPorId(r.passo_id) : undefined;
         itens.push({ fonte, ...r, ...(passo ? { titulo: `Passo: ${passo.titulo}` } : { passo_id: undefined }), marco });
@@ -216,18 +225,18 @@ export type ResultadoAvisos = { avisos_criados: number; emails_enviados: number;
 
 const ROTULO: Record<Fonte, string> = {
   capa: 'CAPA', checklist: 'Passo da trilha', auditoria: 'Auditoria', certificado: 'Certificado',
-  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência', documento_arquivo: 'Documento',
+  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência', documento_arquivo: 'Documento', encaminhamento_titular: 'Encaminhamento',
 };
 
 /** Tela de cada fonte no clique do sino (frontend/src/globals.js, handleNotificationClick). */
 const TELA: Record<Fonte, string> = {
-  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence', documento_arquivo: '/documentos-arquivo',
+  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence', documento_arquivo: '/documentos-arquivo', encaminhamento_titular: '/titular',
 };
 
 /** Faixa do módulo de cada fonte (a mesma de `src/modulos.ts` para a tela que o aviso abre): só recebe quem tem o módulo. */
 const FAIXA_DA_FONTE: Record<Fonte, Faixa> = {
   capa: 'iso', checklist: 'iso', auditoria: 'iso', certificado: 'iso', link_auditor: 'iso', politica: 'iso',
-  avaliacao_terceiro: 'privacy', titular_pedido: 'privacy',
+  avaliacao_terceiro: 'privacy', titular_pedido: 'privacy', encaminhamento_titular: 'privacy',
   documento: 'nucleo', excecao: 'nucleo', incidente: 'nucleo', evidencia: 'nucleo', documento_arquivo: 'nucleo',
 };
 
@@ -239,7 +248,7 @@ export function tituloDoAviso(item: Pick<ItemDoDia, 'fonte' | 'marco' | 'titulo'
   const d7 = item.marco === 'D-7';
   if (item.fonte === 'politica') return `Política ${item.titulo.split(' ')[0]} precisa de revisão${d7 ? ' em 7 dias' : ''}`;
   if (item.fonte === 'documento') return `Documento ${item.titulo} precisa de revisão${d7 ? ' em 7 dias' : ''}`;
-  if (item.fonte === 'excecao' || item.fonte === 'avaliacao_terceiro' || item.fonte === 'titular_pedido' || item.fonte === 'incidente' || item.fonte === 'evidencia' || item.fonte === 'documento_arquivo') return `${item.titulo} ${quando(item.marco)}`;
+  if (item.fonte === 'excecao' || item.fonte === 'avaliacao_terceiro' || item.fonte === 'titular_pedido' || item.fonte === 'incidente' || item.fonte === 'evidencia' || item.fonte === 'documento_arquivo' || item.fonte === 'encaminhamento_titular') return `${item.titulo} ${quando(item.marco)}`;
   if (item.fonte === 'auditoria') return `Auditoria ${d7 ? 'em 7 dias' : 'hoje'}`;
   return `${ROTULO[item.fonte]} ${quando(item.marco)}`;
 }

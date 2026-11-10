@@ -385,7 +385,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
     selos: {
       capa: { abertas: capaAbertas, vencidas: vencidasCapa.length },
       evidencias: { em_analise: ev?.andamento ?? 0, ruins: ev?.falta ?? 0 },
-      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente').length, vencidos: vencidos.length, reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length },
+      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente' || t.situacao === 'reavaliar').length, vencidos: vencidos.length, reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length },
       pedidos: { abertos: pedidosAbertos },
     },
     comecando, controles_avaliados: avaliados,

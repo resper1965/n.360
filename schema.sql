@@ -669,7 +669,9 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     -- Ação da atividade de tratamento do n.privacy, migration 0073
     ropa_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
     -- Ficha em abas (migration 0079)
-    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000)
+    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000),
+    -- Tratamento da ação corretiva do incidente (0100)
+    tratamento TEXT CHECK (tratamento IS NULL OR tratamento IN ('contencao', 'correcao', 'aperfeicoamento'))
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -1501,6 +1503,16 @@ CREATE TABLE IF NOT EXISTS documento_requisitos (
 CREATE INDEX IF NOT EXISTS idx_doc_requisitos_requisito ON documento_requisitos(requisito_id);
 CREATE INDEX IF NOT EXISTS idx_doc_requisitos_projeto ON documento_requisitos(project_id);
 
+-- Requisito "não aplicável" por projeto, com justificativa (migration 0107). Desmarcar apaga a linha; a trilha guarda a decisão.
+CREATE TABLE IF NOT EXISTS requisito_exclusoes (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    requisito_id TEXT NOT NULL REFERENCES requisitos(id) ON DELETE CASCADE,
+    justificativa TEXT NOT NULL CHECK (length(trim(justificativa)) >= 20 AND length(justificativa) <= 2000),
+    decidido_por TEXT NOT NULL,
+    decidido_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, requisito_id)
+);
+
 -- Ligações do tratamento (fatia 4.1, migration 0054)
 CREATE TABLE IF NOT EXISTS tratamento_itens (
     ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
@@ -1649,7 +1661,9 @@ CREATE TABLE IF NOT EXISTS avaliacoes_terceiro (
     evidencia_url TEXT,
     observacao TEXT,
     avaliado_por TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- o tipo do fornecedor quando a avaliação foi feita (migration 0106): tipo diferente do atual pede reavaliação
+    tipo_avaliado TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_aval_terceiro_parte ON avaliacoes_terceiro(parte_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_aval_terceiro_projeto ON avaliacoes_terceiro(project_id, valido_ate);
@@ -1750,10 +1764,18 @@ CREATE TABLE IF NOT EXISTS titular_pedidos (
     criado_por TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Conferência de identidade do titular (migration 0104): só registro; quem e quando vêm da sessão.
+    identidade_metodo TEXT CHECK (identidade_metodo IN ('documento_foto', 'dados_cadastrais', 'canal_autenticado', 'presencial', 'outro')),
+    identidade_obs TEXT CHECK (length(identidade_obs) <= 500),
+    identidade_por TEXT,
+    identidade_em TEXT,
+    -- Consulta pública (migration 0105): só o SHA-256 do código de acompanhamento gerado na abertura pelo portal.
+    acompanhamento_hash TEXT,
     UNIQUE (project_id, protocolo),
     CHECK (status NOT IN ('respondido', 'negado') OR respondido_em IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_titular_pedidos_projeto ON titular_pedidos(project_id, status, prazo_em);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_titular_pedidos_acompanhamento ON titular_pedidos(acompanhamento_hash) WHERE acompanhamento_hash IS NOT NULL;
 
 -- Portal público de solicitações do titular (migration 0096): um link por projeto (só o SHA-256 do token).
 CREATE TABLE IF NOT EXISTS titular_portais (
@@ -1776,6 +1798,32 @@ CREATE TABLE IF NOT EXISTS titular_pedido_tratativas (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_titular_tratativas_pedido ON titular_pedido_tratativas(pedido_id, created_at);
+
+-- Encaminhamento do pedido do titular a ponto focal (migration 0104).
+CREATE TABLE IF NOT EXISTS titular_pedido_encaminhamentos (
+    id TEXT PRIMARY KEY,
+    pedido_id TEXT NOT NULL REFERENCES titular_pedidos(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parte_id TEXT NOT NULL REFERENCES partes(id),
+    prazo TEXT NOT NULL,
+    mensagem TEXT NOT NULL CHECK (length(mensagem) BETWEEN 1 AND 2000),
+    status TEXT NOT NULL DEFAULT 'aguardando' CHECK (status IN ('aguardando', 'respondido', 'cancelado')),
+    retorno TEXT CHECK (length(retorno) <= 5000),
+    enviado_por TEXT NOT NULL,
+    enviado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    retorno_por TEXT,
+    retorno_em DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status <> 'respondido' OR (retorno IS NOT NULL AND length(retorno) >= 1))
+);
+CREATE INDEX IF NOT EXISTS idx_titular_encaminhamentos_pedido ON titular_pedido_encaminhamentos(pedido_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_titular_encaminhamentos_prazo ON titular_pedido_encaminhamentos(project_id, status, prazo);
+CREATE TRIGGER IF NOT EXISTS titular_encaminhamentos_do_projeto BEFORE INSERT ON titular_pedido_encaminhamentos
+WHEN NOT EXISTS (SELECT 1 FROM titular_pedidos t WHERE t.id = NEW.pedido_id AND t.project_id IS NEW.project_id)
+  OR NOT EXISTS (SELECT 1 FROM partes p WHERE p.id = NEW.parte_id AND p.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'pedido ou pessoa de outro projeto');
+END;
 
 CREATE TABLE IF NOT EXISTS incidentes (
     id TEXT PRIMARY KEY,
@@ -1804,6 +1852,10 @@ CREATE TABLE IF NOT EXISTS incidentes (
     titulares_estimados INTEGER CHECK (titulares_estimados IS NULL OR titulares_estimados >= 0),
     criterios_risco TEXT CHECK (criterios_risco IS NULL OR json_valid(criterios_risco)),
     fim_em TEXT,
+    -- Comunicação à ANPD (0099).
+    anpd_protocolo TEXT CHECK (anpd_protocolo IS NULL OR length(anpd_protocolo) <= 100),
+    anpd_canal TEXT CHECK (anpd_canal IS NULL OR anpd_canal IN ('sei', 'formulario_anpd', 'email', 'outro')),
+    anpd_justificativa TEXT CHECK (anpd_justificativa IS NULL OR length(anpd_justificativa) <= 5000),
     UNIQUE (project_id, protocolo),
     CHECK (status <> 'encerrado' OR risco_titular IS NOT NULL),
     CHECK (status <> 'encerrado' OR risco_titular <> 'relevante' OR comunicacao_anpd_em IS NOT NULL)
@@ -1965,7 +2017,9 @@ CREATE TABLE IF NOT EXISTS homologacao_perguntas (
     ativa INTEGER NOT NULL DEFAULT 1 CHECK (ativa IN (0, 1)),
     origem TEXT NOT NULL DEFAULT 'projeto' CHECK (origem IN ('padrao', 'projeto')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- desde a 0106 só a pergunta PRÓPRIA do projeto: NULL = todos os tipos que recebem questionário
+    tipo TEXT CHECK (tipo IS NULL OR tipo IN ('critico', 'medio', 'pequeno'))
 );
 CREATE INDEX IF NOT EXISTS idx_homologacao_perguntas_projeto ON homologacao_perguntas(project_id, ordem);
 
@@ -1985,7 +2039,11 @@ CREATE TABLE IF NOT EXISTS homologacoes (
     concluida_em DATETIME,
     criado_por TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- migration 0106: o tipo no envio (o modelo usado); o e-mail do fornecedor só enquanto aberta (lembrete); quando o lembrete saiu
+    tipo TEXT,
+    email_destino TEXT,
+    lembrete_em DATETIME
 );
 CREATE INDEX IF NOT EXISTS idx_homologacoes_projeto ON homologacoes(project_id, parte_id, created_at);
 
@@ -1997,6 +2055,43 @@ WHEN NEW.perguntas_json IS NOT OLD.perguntas_json OR NEW.token_hash IS NOT OLD.t
   OR (OLD.status != 'aberta' AND NEW.status = 'aberta')
 BEGIN
     SELECT RAISE(ABORT, 'homologacao: perguntas e respostas enviadas sao imutaveis');
+END;
+
+-- Modelos de avaliação de fornecedor da consultoria (migration 0106): um por tipo; o projeto só desliga pergunta do modelo (homologacao_ajustes).
+CREATE TABLE IF NOT EXISTS fornecedor_modelos (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL CHECK (tipo IN ('critico', 'medio', 'pequeno', 'grande_provedor')),
+    prazo_meses INTEGER NOT NULL CHECK (prazo_meses BETWEEN 1 AND 60),
+    origem TEXT NOT NULL DEFAULT 'padrao' CHECK (origem IN ('padrao', 'consultoria')),
+    atualizado_por TEXT,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (org_id, tipo)
+);
+CREATE TABLE IF NOT EXISTS fornecedor_modelo_perguntas (
+    id TEXT PRIMARY KEY,
+    modelo_id TEXT NOT NULL REFERENCES fornecedor_modelos(id) ON DELETE CASCADE,
+    tema TEXT NOT NULL CHECK (length(tema) BETWEEN 1 AND 80),
+    texto TEXT NOT NULL CHECK (length(texto) BETWEEN 1 AND 500),
+    ordem INTEGER NOT NULL DEFAULT 0,
+    ativa INTEGER NOT NULL DEFAULT 1 CHECK (ativa IN (0, 1)),
+    origem TEXT NOT NULL DEFAULT 'consultoria' CHECK (origem IN ('padrao', 'consultoria')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_fornecedor_modelo_perguntas ON fornecedor_modelo_perguntas(modelo_id, ordem);
+CREATE TABLE IF NOT EXISTS homologacao_ajustes (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    modelo_pergunta_id TEXT NOT NULL REFERENCES fornecedor_modelo_perguntas(id) ON DELETE CASCADE,
+    ativa INTEGER NOT NULL DEFAULT 0 CHECK (ativa IN (0, 1)),
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, modelo_pergunta_id)
+);
+CREATE TRIGGER IF NOT EXISTS homologacao_email_some
+AFTER UPDATE OF status ON homologacoes
+WHEN NEW.status <> 'aberta' AND NEW.email_destino IS NOT NULL
+BEGIN
+    UPDATE homologacoes SET email_destino = NULL WHERE id = NEW.id;
 END;
 
 -- Convite com link para criar a senha (migration 0077): só o SHA-256 do token, 72 h, uso único (DELETE condicional), reenviar substitui.
@@ -2439,9 +2534,11 @@ CREATE TABLE IF NOT EXISTS ot_achados (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     pergunta_id TEXT REFERENCES ot_roteiro_perguntas(id) ON DELETE SET NULL, -- 0094
     lote_item_id TEXT, -- 0094
+    chave_sensor TEXT, -- 0101
     FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ot_achados_sessao ON ot_achados(levantamento_id, situacao);
+CREATE INDEX IF NOT EXISTS idx_ot_achados_chave_sensor ON ot_achados(project_id, chave_sensor); -- 0101
 CREATE INDEX IF NOT EXISTS idx_ot_achados_lote_item ON ot_achados(lote_item_id); -- 0094
 
 CREATE TABLE IF NOT EXISTS ot_roteiro_perguntas (
@@ -2496,11 +2593,82 @@ CREATE TABLE IF NOT EXISTS ot_fluxos_pendentes (
     destino_ip_hash TEXT,
     dados TEXT NOT NULL CHECK (json_valid(dados) AND json_type(dados) = 'object'),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    chave_sensor TEXT, -- 0101
     CHECK (origem_ip_hash IS NOT NULL OR destino_ip_hash IS NOT NULL),
     FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_origem ON ot_fluxos_pendentes(project_id, origem_ip_hash);
 CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_destino ON ot_fluxos_pendentes(project_id, destino_ip_hash);
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_chave ON ot_fluxos_pendentes(project_id, chave_sensor); -- 0101
+
+-- ─── n.ot: sonda com envio automático (0101) ───
+CREATE TABLE IF NOT EXISTS ot_sensores (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    nome TEXT NOT NULL,
+    faixa_origem TEXT NOT NULL,
+    situacao TEXT NOT NULL DEFAULT 'ativa' CHECK (situacao IN ('ativa', 'revogada')),
+    criado_por TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id, project_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS ot_sensor_credenciais (
+    id TEXT PRIMARY KEY,
+    sensor_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    chave_hash TEXT NOT NULL UNIQUE,
+    expira_em DATETIME NOT NULL,
+    situacao TEXT NOT NULL DEFAULT 'ativa' CHECK (situacao IN ('ativa', 'revogada')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sensor_id, project_id) REFERENCES ot_sensores(id, project_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS ot_sensor_envios (
+    id TEXT PRIMARY KEY,
+    sensor_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    impressao TEXT NOT NULL,
+    situacao TEXT NOT NULL DEFAULT 'processando' CHECK (situacao IN ('processando', 'concluido')),
+    levantamento_id TEXT,
+    periodo_inicio TEXT,
+    periodo_fim TEXT,
+    capture_loss REAL,
+    versao_script TEXT,
+    contagens TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(contagens) AND json_type(contagens) = 'object'),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (sensor_id, impressao),
+    FOREIGN KEY (sensor_id, project_id) REFERENCES ot_sensores(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_sensor_envios ON ot_sensor_envios(sensor_id, created_at);
+
+-- ─── n.ot: desvios (0108) ───
+CREATE TABLE IF NOT EXISTS ot_desvios (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('fluxo', 'ativo')),
+    chave_sensor TEXT NOT NULL,
+    dados TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(dados) AND json_type(dados) = 'object'
+        AND json_type(dados, '$.ip') IS NULL AND json_type(dados, '$.mac') IS NULL
+        AND (json_extract(dados, '$.ip_cifrado') IS NULL OR json_extract(dados, '$.ip_cifrado') LIKE 'ot1:%')
+        AND (json_extract(dados, '$.mac_cifrado') IS NULL OR json_extract(dados, '$.mac_cifrado') LIKE 'ot1:%')),
+    situacao TEXT NOT NULL DEFAULT 'aberto' CHECK (situacao IN ('aberto', 'regularizado', 'tratado', 'aceito')),
+    aceito_ate DATETIME,
+    nota TEXT,
+    primeira_vez DATETIME NOT NULL,
+    ultima_vez DATETIME NOT NULL,
+    ocorrencias INTEGER NOT NULL DEFAULT 1,
+    sensor_id TEXT,
+    atualizado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, tipo, chave_sensor),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_desvios_situacao ON ot_desvios(project_id, situacao);
+CREATE INDEX IF NOT EXISTS idx_ot_desvios_site ON ot_desvios(project_id, site_id);
 
 -- ─── Órgãos públicos destinatários da atividade (0097) ───
 CREATE TABLE IF NOT EXISTS tratamento_orgaos_publicos (
@@ -2585,4 +2753,54 @@ CREATE TRIGGER IF NOT EXISTS incidente_anexos_aberto BEFORE INSERT ON incidente_
 WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
 BEGIN
     SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+
+-- Análises do incidente (0101): várias por incidente, só o autor altera a sua (regra no serviço).
+CREATE TABLE IF NOT EXISTS incidente_analises (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    incidente_id TEXT NOT NULL REFERENCES incidentes(id) ON DELETE CASCADE,
+    autor TEXT NOT NULL,
+    texto TEXT NOT NULL CHECK (length(texto) BETWEEN 1 AND 10000),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_incidente_analises ON incidente_analises(incidente_id, created_at);
+CREATE TRIGGER IF NOT EXISTS incidente_analises_do_projeto BEFORE INSERT ON incidente_analises
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'incidente inexistente ou de outro projeto');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_analises_aberto BEFORE INSERT ON incidente_analises
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_analises_encerrado_upd BEFORE UPDATE ON incidente_analises
+WHEN (SELECT status FROM incidentes WHERE id = OLD.incidente_id) = 'encerrado'
+  OR (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+
+-- Post mortem do incidente (0103): só de incidente encerrado.
+CREATE TABLE IF NOT EXISTS incidente_postmortem (
+    incidente_id TEXT NOT NULL REFERENCES incidentes(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    pergunta TEXT NOT NULL CHECK (length(pergunta) BETWEEN 1 AND 60),
+    resposta TEXT NOT NULL CHECK (length(resposta) BETWEEN 1 AND 5000),
+    updated_by TEXT,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (incidente_id, pergunta)
+);
+CREATE INDEX IF NOT EXISTS idx_incidente_postmortem_projeto ON incidente_postmortem(project_id);
+CREATE TRIGGER IF NOT EXISTS incidente_postmortem_ins BEFORE INSERT ON incidente_postmortem
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id AND i.status = 'encerrado')
+BEGIN
+    SELECT RAISE(ABORT, 'post mortem só de incidente encerrado do mesmo projeto');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_postmortem_upd BEFORE UPDATE ON incidente_postmortem
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id AND i.status = 'encerrado')
+BEGIN
+    SELECT RAISE(ABORT, 'post mortem só de incidente encerrado do mesmo projeto');
 END;

@@ -104,11 +104,17 @@ export const LIMITE_USUARIOS = { error: 'Limite de usuários do plano atingido' 
  * final não é "da consultoria"). Organização inexistente ou com status diferente de `Active`: bloqueia.
  */
 export async function equipeDeOrgSuspensa(db: D1Database, user: { role?: string | null; org_id?: string | null } | null | undefined): Promise<boolean> {
-  if (!PAPEIS_EQUIPE.has(user?.role ?? '')) return false;
-  const org = orgDoUsuario(user);
-  if (!org || org === ORG_NESS) return false;
+  const org = orgDaEquipeAChecar(user);
+  if (!org) return false;
   const r = await db.prepare('SELECT status FROM organizations WHERE id = ?').bind(org).first<{ status: string | null }>();
   return r?.status !== 'Active';
+}
+
+/** A organização cuja suspensão barra este usuário, ou null (não é equipe, ou é da ness.). O middleware lê o status num batch. */
+export function orgDaEquipeAChecar(user: { role?: string | null; org_id?: string | null } | null | undefined): string | null {
+  if (!PAPEIS_EQUIPE.has(user?.role ?? '')) return null;
+  const org = orgDoUsuario(user);
+  return !org || org === ORG_NESS ? null : org;
 }
 export const ORG_SUSPENSA = { error: 'Consultoria suspensa: o acesso da equipe está bloqueado. Fale com o administrador da plataforma.' } as const;
 

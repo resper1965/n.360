@@ -3,12 +3,12 @@ import { createMiddleware } from 'hono/factory';
 import { Bindings, Variables } from '../index';
 import { sha256Hex, sessionRevoked, SESSION_TTL_SEC, ehPapelCliente } from '../helpers';
 import { apiKeyRoleViolation, expirouPorInatividade, isAuditWrite, PAPEIS_IMPLEMENTACAO } from '../auth-policy';
-import { situacaoLegal, rotaLiberadaComBloqueio } from '../legal-policy';
-import { politicaDoProjeto, avaliarPolitica } from '../politica-tenant';
+import { situacaoLegal, rotaLiberadaComBloqueio, type DocumentoLegal } from '../legal-policy';
+import { politicaDoProjeto, avaliarPolitica, type PoliticaTenant } from '../politica-tenant';
 import { resolverAgente, acaoDestrutiva } from './agente';
 import { logAudit } from '../helpers';
 import { alvoDaExclusao } from '../trilha-exclusao';
-import { equipeDeOrgSuspensa, ORG_SUSPENSA } from '../services/organizacao';
+import { equipeDeOrgSuspensa, orgDaEquipeAChecar, ORG_SUSPENSA } from '../services/organizacao';
 
 /** De quanto em quanto tempo a marca de atividade da sessão é reescrita. */
 const RENOVA_ATIVIDADE_MS = 60 * 1000;
@@ -160,6 +160,56 @@ const STAKEHOLDER_PERMITIDO: RegExp[] = [
   /^\/api\/v1\/pedidos(\/.*)?$/,
 ];
 
+type Leitura = { orgSuspensa: boolean; docs: DocumentoLegal[]; aceitos: string[]; politica: PoliticaTenant | null; totp: number | null };
+type Pedido = { org: string | null; legal: boolean; userId: string; projeto: string | null };
+type LinhaDoc = { id: string; kind: string; version: string; classification: DocumentoLegal['classification']; title: string; url: string | null; published_at: string; aceito: number | null };
+type LinhaPolitica = PoliticaTenant & { totp: number | null };
+
+// O aceite vem junto do documento e o TOTP junto da política: uma consulta para cada par, como antes da #369 (nada a mais preparado).
+const SQL_DOCS = `SELECT id, kind, version, classification, title, url, published_at,
+    (SELECT 1 FROM legal_acceptances a WHERE a.document_id = legal_documents.id AND a.user_id = ?1) AS aceito
+  FROM legal_documents WHERE published_at IS NOT NULL`;
+const SQL_POLITICA = `SELECT project_id, mfa_obrigatorio, sessao_ttl_seg, ip_allowlist, (SELECT totp_enabled FROM users WHERE id = ?2) AS totp
+  FROM project_security_policy WHERE project_id = ?1`;
+const comoDoc = (d: LinhaDoc): DocumentoLegal => ({ id: d.id, kind: d.kind, version: d.version, classification: d.classification, title: d.title, url: d.url, publishedAt: d.published_at });
+
+/**
+ * As leituras que toda requisição autenticada faz (organização suspensa, documentos legais com o aceite, política do projeto com o
+ * TOTP), num `db.batch`: uma viagem ao D1 no lugar de até cinco (#369, o banco fica longe do usuário). Se o batch falhar (tabela
+ * ainda não migrada, por exemplo), refaz uma a uma, com o tratamento de erro de antes.
+ */
+async function lerChecagens(env: Bindings, q: Pedido): Promise<Leitura> {
+  const db = env.DB;
+  const stmts: D1PreparedStatement[] = [];
+  const pos: { org?: number; docs?: number; politica?: number } = {};
+  if (q.org) pos.org = stmts.push(db.prepare('SELECT status FROM organizations WHERE id = ?').bind(q.org)) - 1;
+  if (q.legal) pos.docs = stmts.push(db.prepare(SQL_DOCS).bind(q.userId)) - 1;
+  if (q.projeto) pos.politica = stmts.push(db.prepare(SQL_POLITICA).bind(q.projeto, q.userId)) - 1;
+  if (!stmts.length) return { orgSuspensa: false, docs: [], aceitos: [], politica: null, totp: null };
+  let r: D1Result[];
+  try { r = await db.batch(stmts); } catch { return lerUmaAUma(env, q); }
+  const linhas = <T>(i?: number) => (i === undefined ? [] : ((r[i].results ?? []) as T[]));
+  const docs = linhas<LinhaDoc>(pos.docs);
+  const pol = linhas<LinhaPolitica>(pos.politica)[0];
+  return {
+    orgSuspensa: q.org ? linhas<{ status: string | null }>(pos.org)[0]?.status !== 'Active' : false,
+    docs: docs.map(comoDoc),
+    aceitos: docs.filter((d) => d.aceito === 1).map((d) => d.id),
+    politica: pol ? { project_id: pol.project_id, mfa_obrigatorio: pol.mfa_obrigatorio, sessao_ttl_seg: pol.sessao_ttl_seg, ip_allowlist: pol.ip_allowlist } : null,
+    totp: pol?.totp ?? null,
+  };
+}
+
+/** O caminho de antes, consulta por consulta (só quando o batch falha). */
+async function lerUmaAUma(env: Bindings, q: Pedido): Promise<Leitura> {
+  const db = env.DB;
+  const orgSuspensa = q.org ? await equipeDeOrgSuspensa(db, { role: 'consultor', org_id: q.org }) : false;
+  const docs = q.legal ? await db.prepare(SQL_DOCS).bind(q.userId).all<LinhaDoc>().then((x) => x.results ?? []).catch(() => [] as LinhaDoc[]) : [];
+  const politica = q.projeto ? await politicaDoProjeto(env, q.projeto) : null;
+  const totp = politica ? ((await db.prepare('SELECT totp_enabled FROM users WHERE id = ?').bind(q.userId).first<{ totp_enabled: number | null }>())?.totp_enabled ?? null) : null;
+  return { orgSuspensa, docs: docs.map(comoDoc), aceitos: docs.filter((d) => d.aceito === 1).map((d) => d.id), politica, totp };
+}
+
 export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: Variables }>(async (c, next) => {
   // Decodificado, como o roteador do Hono: o cru deixava `%69` passar pelas regras e chegar à rota.
   const path = c.req.path;
@@ -169,6 +219,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
 
   let user: Variables['user'];
   let apiKeyWriteCapable = false;
+  let orgAChecar: string | null = null;
 
   const apiKey = c.req.header('X-API-Key');
   const agente = c.env.AGENTE;
@@ -291,8 +342,13 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
     // Sessão aberta antes da suspensão da organização morre na requisição seguinte (o login já
     // recusa). Uma consulta só para equipe de fora da ness.; o agente tem a mesma regra em
     // `concessaoValida`, e a chave de API é de cliente (presa a projeto).
-    if (await equipeDeOrgSuspensa(c.env.DB, user)) return c.json(ORG_SUSPENSA, 403);
+    orgAChecar = orgDaEquipeAChecar(user);
   }
+
+  // As leituras de toda requisição numa ida só ao banco (#369): o D1 fica longe do usuário e cada consulta é uma viagem.
+  const precisaLegal = !apiKey && !agente && !rotaLiberadaComBloqueio(path);
+  const leitura = await lerChecagens(c.env, { org: orgAChecar, legal: precisaLegal, userId: user.id, projeto: user.client_project_id ?? null });
+  if (leitura.orgSuspensa) return c.json(ORG_SUSPENSA, 403);
 
   // Documento legal MATERIAL pendente barra o acesso até o aceite — muda base
   // legal ou retenção, e seguir usando o produto sem aceitar seria tratar o
@@ -301,29 +357,14 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
   //
   // Só vale para sessão humana: uma API key não tem a quem apresentar o texto,
   // e barrá-la derrubaria integração por decisão que não é dela.
-  if (!apiKey && !agente && !rotaLiberadaComBloqueio(path)) {
-    const docs = await c.env.DB.prepare(
-      `SELECT id, kind, version, classification, title, url, published_at
-         FROM legal_documents WHERE published_at IS NOT NULL`
-    ).all().then(r => (r.results || []).map((d: any) => ({
-      id: d.id, kind: d.kind, version: d.version, classification: d.classification,
-      title: d.title, url: d.url, publishedAt: d.published_at,
-    }))).catch(() => []);
-
-    // Sem documento publicado não há o que aceitar, e o caminho custa uma
-    // consulta vazia. Só busca os aceites quando existe documento.
-    if (docs.length) {
-      const aceitos = await c.env.DB.prepare(
-        'SELECT document_id FROM legal_acceptances WHERE user_id = ?'
-      ).bind(user.id).all().then(r => (r.results || []).map((a: any) => a.document_id)).catch(() => []);
-      const situacao = situacaoLegal(docs, aceitos);
-      if (situacao.bloqueia) {
-        return c.json({
-          error: 'É necessário aceitar os documentos atualizados para continuar',
-          legal_acceptance_required: true,
-          pendentes: situacao.pendentes,
-        }, 403);
-      }
+  if (precisaLegal && leitura.docs.length) {
+    const situacao = situacaoLegal(leitura.docs, leitura.aceitos);
+    if (situacao.bloqueia) {
+      return c.json({
+        error: 'É necessário aceitar os documentos atualizados para continuar',
+        legal_acceptance_required: true,
+        pendentes: situacao.pendentes,
+      }, 403);
     }
   }
 
@@ -389,19 +430,16 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
    * de staff.
    */
   if (user.client_project_id) {
-    const politica = await politicaDoProjeto(c.env, user.client_project_id);
+    const politica = leitura.politica;
     if (politica) {
-      // `totp_enabled` sai do BANCO, não da sessão: a sessão foi gravada no
+      // `totp_enabled` sai do BANCO (lido no mesmo batch), não da sessão: a sessão foi gravada no
       // login e não reflete um fator cadastrado depois. Ler daqui é o que
       // permite alguém sair da exigência sem precisar deslogar.
-      const linha = await c.env.DB.prepare('SELECT totp_enabled FROM users WHERE id = ?')
-        .bind(user.id).first<{ totp_enabled: number | null }>();
-
       const recusa = avaliarPolitica({
         politica,
         caminho: path,
         ip: c.req.header('CF-Connecting-IP') || null,
-        totpAtivo: linha?.totp_enabled === 1,
+        totpAtivo: leitura.totp === 1,
         iat: (user as { iat?: number }).iat,
       });
 

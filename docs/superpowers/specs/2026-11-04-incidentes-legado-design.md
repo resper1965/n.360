@@ -1,6 +1,6 @@
 # Incidentes no molde do legado — desenho
 
-Data: 04/11/2026. Situação: **aprovado pelo dono em 04/11/2026 com as recomendações** (seção 6). A fatia 1 está em produção (#553, migration 0098, 05/11/2026); as fatias 2, 4, 3, 5 e 7 faltam, nessa ordem, e a 6 não será construída.
+Data: 04/11/2026. Situação: **aprovado pelo dono em 04/11/2026 com as recomendações** (seção 6). A fatia 1 está em produção (#553, migration 0098, 05/11/2026) a fatia 2 está em produção (#557, migration 0099), a fatia 4 também (#558, migration 0100) a fatia 3 também (#559, migrations 0101 e 0102; os anexos da análise ficaram de fora: o incidente já tem evidências) a fatia 5 também (#561, migration 0103, as 14 perguntas com o texto exato das capturas) e a fatia 7 (Word) foi construída, sem migration. A 6 não será construída: o desenho está completo.
 
 Base: as 40 telas da gestão de incidentes do sistema legado (capturas de 23/10/2026) comparadas com o n.360 de hoje
 (`incidentes` da migration 0058, `src/services/incidentes.ts`, `src/routes/titular.ts`, aba Incidentes em

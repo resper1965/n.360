@@ -20,7 +20,7 @@ const MODULOS = ['iso', 'privacy', 'ot'];
 export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-titulares', 'nav-dados-titular',
+export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
 /** O n.ot tem uma tela só (`views/ot.js`), em abas: catálogo, inventário, fluxos, coleta, saídas e acesso por site; o cadastro comum não entra no menu dele. */
 export const SO_OT = ['nav-ot'];
@@ -28,7 +28,7 @@ export const SO_OT = ['nav-ot'];
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
  */
-export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'identidade-org': 'nav-identidade', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
+export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'identidade-org': 'nav-identidade', 'modelos-fornecedor': 'nav-modelos-fornecedor', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
 export const SO_N360 = Object.values(TELAS_DA_CONTA);
 /**
  * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
@@ -75,9 +75,9 @@ export async function destinoLegado(loc = window.location) {
 
 /** A ficha do fornecedor (`?tela=terceiro&parte=&aba=`), a do RIPD (`?tela=ripd-ficha&dpia=&aba=`) e a da LIA (`?tela=lia-ficha&ropa=&aba=`) vivem no endereço; fora delas, esses parâmetros saem. */
 export function limparFichaDoEndereco() {
-    if (!['terceiro', 'ripd-ficha', 'lia-ficha'].includes(new URLSearchParams(window.location.search).get('tela'))) return;
+    if (!['terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha'].includes(new URLSearchParams(window.location.search).get('tela'))) return;
     const u = new URL(window.location.href);
-    for (const k of ['tela', 'parte', 'dpia', 'ropa', 'aba']) u.searchParams.delete(k);
+    for (const k of ['tela', 'parte', 'dpia', 'ropa', 'incidente', 'aba']) u.searchParams.delete(k);
     window.history.replaceState(null, '', u);
 }
 
@@ -125,7 +125,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'lia-ficha', 'avaliacoes-terceiros', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
+    'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha', 'avaliacoes-terceiros', 'questionarios-fornecedor', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review', 'ot'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
@@ -208,7 +208,7 @@ export function pedidoDoHub(loc = window.location) {
     const tela = q.get('tela');
     const aba = q.get('aba') === 'incidentes' && tela === 'titular' ? 'incidentes' : null;
     // A ficha do fornecedor (?tela=terceiro&parte=&aba=) e a do RIPD (?tela=ripd-ficha&dpia=&aba=) vivem no endereço: recarregar volta a ela, na mesma aba.
-    if (tela !== 'terceiro' && tela !== 'ripd-ficha' && tela !== 'lia-ficha') { q.delete('tela'); q.delete('aba'); }
+    if (!['terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha'].includes(tela)) { q.delete('tela'); q.delete('aba'); }
     const resto = q.toString();
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
     if (aviso) return { aviso };
@@ -231,7 +231,7 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 // ids nav-* e as rotas não mudam.
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Dashboard', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
-    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações',
+    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
     'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos',
 };
 
@@ -246,7 +246,7 @@ export const SECOES_PRIVACY = [
     ['Cadastros', ['nav-areas', 'nav-sistemas', 'nav-titulares', 'nav-dados-titular', 'nav-parceiros', 'nav-partes']],
     ['Mapeamento', ['nav-ropa', 'nav-dpia', 'nav-lia']],
     ['Diagnóstico', ['nav-gaps', 'nav-mapa-de-risco']],
-    ['Fornecedores', ['nav-terceiros', 'nav-avaliacoes-terceiros']],
+    ['Fornecedores', ['nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor']],
     ['', ['nav-documentos-arquivo', 'nav-titular']],
     ['Mais', ['nav-referencia-juridica', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
     ['', ['nav-ai']],

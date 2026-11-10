@@ -4,6 +4,7 @@ import { aprovacoesDoProjeto } from './documentos';
 import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO, sqlAreaDaAtividade, type FaixaPrazo } from './riscos-atividade';
 import { hojeEmSaoPaulo } from './hoje';
+import { listarPedidos } from './titular-pedidos';
 
 /**
  * Exportação CSV do n.privacy (F4): listas de atividades, riscos e ações das atividades, RIPD e LIA, num arquivo que abre no Excel em
@@ -42,7 +43,27 @@ const ROTULO_FAIXA = Object.fromEntries(FAIXAS_PRAZO.map((f) => [f.id, f.rotulo]
  * Filtros das listas, os mesmos da tela: `q` (busca), `area`, `status`, `motivo` e `nivel` (riscos). Em Gaps o `status` aceita `atraso`
  * (aberto com prazo vencido; nesse caso o gap não cai em "Aberto"), como o filtro da tela.
  */
-export type FiltroExportacao = { probabilidade?: number; impacto?: number; faixa?: FaixaPrazo; q?: string; area?: string; status?: string; motivo?: string; nivel?: string };
+export type FiltroExportacao = { probabilidade?: number; impacto?: number; faixa?: FaixaPrazo; q?: string; area?: string; status?: string; motivo?: string; nivel?: string; tipo?: string };
+
+// A mesma regra do `formatarData` da tela (`frontend/src/ui.js`): só data, ou meia-noite UTC exata (um dia gravado como instante, os prazos
+// legais de `somarPrazo`), sai em dd/mm/aaaa sem passar por fuso; outro instante (SQLite `AAAA-MM-DD HH:MM:SS` é UTC; ISO com fuso respeita
+// o fuso) sai na hora de Brasília, em dd/mm/aaaa hh:mm.
+const HORA_SP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+export function dataHoraBr(v: unknown): string {
+  const t = v == null ? '' : String(v).trim();
+  const dia = (s: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); return m ? `${m[3]}/${m[2]}/${m[1]}` : s; };
+  if (!/[T ]\d{2}:\d{2}/.test(t) || /^\d{4}-\d{2}-\d{2}T00:00(:00(\.0+)?)?Z$/.test(t)) return dia(t);
+  const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? dia(t) : HORA_SP.format(d).replace(',', '');
+}
+
+// Pedido do titular (rótulos da tela, `frontend/src/views/titular.js`).
+export const TIPO_PEDIDO: Record<string, string> = { confirmacao: 'Confirmação de tratamento', acesso: 'Acesso aos dados', correcao: 'Correção',
+  anonimizacao_bloqueio_eliminacao: 'Anonimização, bloqueio ou eliminação', portabilidade: 'Portabilidade', informacao_compartilhamento: 'Informação sobre compartilhamento',
+  revogacao_consentimento: 'Revogação do consentimento', oposicao: 'Oposição', outro: 'Outro' };
+export const STATUS_PEDIDO: Record<string, string> = { recebido: 'Recebido', em_andamento: 'Em andamento', respondido: 'Respondido', negado: 'Negado', arquivado: 'Arquivado' };
+const CANAL_PEDIDO: Record<string, string> = { email: 'E-mail', telefone: 'Telefone', formulario: 'Formulário', presencial: 'Presencial', outro: 'Outro' };
+const PRAZO_PEDIDO: Record<string, string> = { sem_prazo: 'Prazo não calculado', encerrado: 'Encerrado', no_prazo: 'No prazo', vence_hoje: 'Vence hoje', atrasado: 'Atrasado' };
 export const STATUS_DE_GAP = ['Open', 'In Progress', 'Closed', 'atraso'];
 export const STATUS_DE_RISCO = ['Open', 'Mitigated', 'Accepted', 'Closed'];
 export const NIVEIS_DE_RISCO = ['Low', 'Medium', 'High', 'Critical'];
@@ -155,6 +176,19 @@ async function lia(db: D1Database, projectId: string): Promise<Tabela> {
   };
 }
 
+/**
+ * Solicitações (pedidos do titular), com os filtros da tela (tipo e status). Minimização: o CSV sai do sistema, então leva o protocolo e o
+ * andamento, nunca nome, contato, descrição nem resposta do titular.
+ */
+async function pedidosTitular(db: D1Database, projectId: string, f: FiltroExportacao): Promise<Tabela> {
+  const pedidos = (await listarPedidos(db, projectId)).filter((p) => (!f.tipo || p.tipo === f.tipo) && (!f.status || p.status === f.status));
+  return {
+    cabecalho: ['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Situação do prazo', 'Status', 'Respondido em'],
+    linhas: pedidos.map((p) => [p.protocolo, traduz(TIPO_PEDIDO, p.tipo), traduz(CANAL_PEDIDO, p.canal), dataHoraBr(p.recebido_em),
+      p.prazo_em ? dataHoraBr(p.prazo_em) : 'Não calculado', traduz(PRAZO_PEDIDO, p.situacao_prazo), traduz(STATUS_PEDIDO, p.status), dataHoraBr(p.respondido_em)]),
+  };
+}
+
 /** Tipos exportáveis → arquivo e montagem. As rotas saem desta lista (`src/routes/exportacao.ts`). */
 export const EXPORTACOES = {
   atividades: { rotulo: 'atividades', montar: atividades },
@@ -162,6 +196,7 @@ export const EXPORTACOES = {
   'riscos-atividade': { rotulo: 'riscos das atividades', montar: riscos },
   'acoes-atividade': { rotulo: 'ações das atividades', montar: acoes },
   lia: { rotulo: 'LIA', montar: lia },
+  'pedidos-titular': { rotulo: 'solicitações do titular', montar: pedidosTitular },
 } satisfies Record<string, { rotulo: string; montar: (db: D1Database, projectId: string, f: FiltroExportacao) => Promise<Tabela> }>;
 export type TipoExportacao = keyof typeof EXPORTACOES;
 

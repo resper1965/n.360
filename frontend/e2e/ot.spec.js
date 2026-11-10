@@ -360,3 +360,102 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   expect(await page.content()).not.toContain('n360_ot_e2e_SEGREDO');
   expect(posts).toHaveLength(1);
 });
+
+// Sonda com envio automático: a área "Sondas" na aba Acessos e agente (credencial uma vez) e o cartão de saúde no Levantamento. API mockada.
+test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de saúde aparece', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  const sensores = [];
+  const posts = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/sites/s1/sensores`) return json({ sensores });
+    if (chave === `GET ${B}/sensores/pontos`) return json({ ativos: 3, fluxos: 1 });
+    if (chave === `POST ${B}/sites/s1/sensores`) {
+      posts.push(req.postDataJSON());
+      sensores.push({ id: 'z1', nome: 'Sonda do barramento', faixa_origem: '203.0.113.0/24', situacao: 'ativa', saude: 'em_dia', ultimo_envio: new Date(Date.now() - 2 * 3600000).toISOString(),
+        capture_loss: 1.2, vencendo: false, credenciais: [{ id: 'c1', expira_em: new Date(Date.now() + 365 * 86400000).toISOString(), situacao: 'ativa' }] });
+      return json({ sensor: { id: 'z1' }, credencial: 'ots_e2e_SEGREDO', expira_em: new Date(Date.now() + 365 * 86400000).toISOString(), conf: '# /etc/n-ot-sonda.conf\ncredencial = ots_e2e_SEGREDO\n' }, 201);
+    }
+    if (chave === `GET ${B}/agente`) return json({ error: 'Forbidden' }, 403);
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    if (chave === `GET ${B}/acessos`) return json({ acessos: [] });
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
+  const area = page.locator('#ot-sondas');
+  await expect(area).toContainText('Nenhuma sonda neste site.');
+  await area.getByRole('button', { name: 'Nova sonda em SE Norte' }).click();
+  await page.getByLabel('Nome').fill('Sonda do barramento');
+  await page.getByLabel('Faixa de origem').fill('203.0.113.0/24');
+  await page.locator('#modal').getByRole('button', { name: 'Criar sonda' }).click();
+  const modal = page.locator('#modal');
+  await expect(modal).toContainText('não será mostrada de novo');
+  await expect(page.getByRole('textbox', { name: 'Credencial' })).toHaveValue('ots_e2e_SEGREDO');
+  await modal.locator('.acoes-rodape').getByRole('button', { name: 'Fechar' }).click();
+  await expect(area).toContainText('Sonda do barramento');
+  await expect(area).toContainText('Em dia');
+  expect(posts).toEqual([{ nome: 'Sonda do barramento', faixa_origem: '203.0.113.0/24' }]);
+
+  // Recarregar: a credencial não volta.
+  await page.reload();
+  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
+  await expect(page.locator('#ot-sondas')).toContainText('Sonda do barramento');
+  expect(await page.content()).not.toContain('ots_e2e_SEGREDO');
+
+  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Saúde da coleta');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('1 de 1');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Último resumo há 2 h');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Pontos a esclarecer');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
+});
+
+// Desvios (spec n-ot-desvio §5): listar, tratar (nota obrigatória) e aceitar (só o Gestor ARCiber). API mockada com estado.
+test('desvios: o gestor lista, trata com nota e aceita com prazo', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const desvio = (id, ativo) => ({ id, site_id: 's1', site_nome: 'SE Norte', tipo: 'fluxo', situacao: 'aberto', protocolo: 'modbus', porta: 502, externo: false,
+    origem: { ativo, zona: 'Supervisão' }, destino: { ativo: 'Historiador', zona: 'DMZ' }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-08T10:00:00Z', ocorrencias: 3, aceito_ate: null, nota: null, achado_id: null });
+  const abertos = [desvio('d1', 'CLP-01'), desvio('d2', 'CLP-02')];
+  const posts = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (req.method() === 'GET' && path === `${B}/desvios`) return json(new URL(req.url()).searchParams.get('contagem') ? { total: abertos.length } : { desvios: abertos });
+    if (req.method() === 'GET' && path === `${B}/sites`) return json({ sites: [{ id: 's1', nome: 'SE Norte' }] });
+    const m = path.match(/\/desvios\/(d\d)\/(tratar|aceitar)$/);
+    if (req.method() === 'POST' && m) {
+      posts.push([m[2], req.postDataJSON()]);
+      abertos.splice(abertos.findIndex((d) => d.id === m[1]), 1);
+      return json({ ok: true });
+    }
+    if (req.method() === 'GET' && /\/(lotes|levantamentos|acessos)$/.test(path)) return json({ lotes: [], levantamentos: [], acessos: [] });
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await expect(page.getByRole('tab', { name: 'Desvios · 2 abertos' })).toBeVisible();
+  await page.getByRole('tab', { name: /^Desvios/ }).click();
+  const conteudo = page.locator('#content');
+  await expect(conteudo).toContainText('CLP-01');
+  await expect(conteudo).toContainText('modbus:502');
+  await page.getByRole('button', { name: 'Tratar Fluxo em SE Norte' }).first().click();
+  await page.getByRole('button', { name: 'Tratar', exact: true }).click(); // sem nota: não envia
+  expect(posts).toEqual([]);
+  await page.getByLabel('Nota').fill('Regra de firewall criada');
+  await page.getByRole('button', { name: 'Tratar', exact: true }).click();
+  await expect(conteudo).not.toContainText('CLP-01');
+  await page.getByRole('button', { name: /Aceitar temporariamente Fluxo/ }).click();
+  await expect(page.locator('#modal-content')).toContainText('Não substitui a exceção formal 5.1.1');
+  await page.getByLabel('Justificativa').fill('Janela de manutenção');
+  await page.locator('#des-ate').fill(await page.locator('#des-ate').getAttribute('max'));
+  await page.getByRole('button', { name: 'Aceitar', exact: true }).click();
+  await expect(conteudo).not.toContainText('CLP-02');
+  expect(posts.map((p) => p[0])).toEqual(['tratar', 'aceitar']);
+  expect(posts[0][1]).toEqual({ nota: 'Regra de firewall criada' });
+});

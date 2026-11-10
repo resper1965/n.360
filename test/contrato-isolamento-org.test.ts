@@ -107,7 +107,13 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
  * Rotas que param no 400 e para as quais não há corpo simples que chegue à guarda. Cada uma com o
  * motivo; o relatório da tarefa as lista como "não provadas por corpo".
  */
-const NAO_PROVADAS_POR_CORPO: Record<string, string> = { ...NAO_PROVADAS_A, ...NAO_PROVADAS_S, ...NAO_PROVADAS_A2 };
+const NAO_PROVADAS_POR_CORPO: Record<string, string> = { ...NAO_PROVADAS_A, ...NAO_PROVADAS_S, ...NAO_PROVADAS_A2,
+  // modelos de fornecedor (0106): a organização vem da sessão (`exigirOrg`), não do caminho; `:tipo` é lista fechada (o id forjado dá 400) e
+  // a pergunta de outra consultoria dá 404 (test/fornecedor-modelos-rotas.test.ts)
+  'PUT /api/v1/fornecedor-modelos/:tipo': 'organização da sessão; tipo é lista fechada',
+  'POST /api/v1/fornecedor-modelos/:tipo/perguntas': 'organização da sessão; tipo é lista fechada',
+  'PUT /api/v1/fornecedor-modelos/:tipo/perguntas/:perguntaId': 'organização da sessão; pergunta alheia dá 404 em fornecedor-modelos-rotas.test.ts',
+};
 
 /** Rota sem parâmetro, não GET, que recebe referência ALHEIA no corpo e precisa recusar. */
 const CRIA_COM_REFERENCIA: Record<string, (alvo: Org) => unknown> = {
@@ -181,6 +187,7 @@ const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/public/pedidos/codigo': 'ciência por link: o token pessoal do link é a autorização; o código vai ao e-mail do destinatário',
   'POST /api/v1/public/pedidos/ciencia': 'ciência por link: token pessoal do link + código do e-mail do destinatário',
   'POST /api/v1/public/titular-pedidos/abrir': 'portal público de solicitações: o token do link (um por projeto) é a autorização e define o projeto; o corpo não traz id de recurso de outro tenant',
+  'POST /api/v1/public/titular-pedidos/consultar': 'consulta pública do pedido: o código de acompanhamento (só o hash no banco, único) é a autorização e acha um pedido só; o corpo não traz id de recurso nem de projeto; test/titular-consulta.test.ts',
   'POST /api/v1/public/auditor/ver': 'portal do auditor: o token do link (no corpo) é a autorização, preso a um projeto; isolamento em test/portal-auditor.test.ts',
   'POST /api/v1/public/auditor/evidencia': 'portal do auditor: token no corpo; evidência alheia por id é 404 (test/portal-auditor.test.ts)',
   'POST /api/v1/public/auditor/pedidos': 'portal do auditor: token no corpo, prova só do projeto do token',
@@ -214,6 +221,7 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   pedidos: { tipo: 'dpia', papel_exigido: 'ciente' },
   parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
   avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
+  fornecedor_modelos: { tipo: 'critico', prazo_meses: 12 },
   titular_pedidos: { tipo: 'acesso' },
   // Portal do titular (0096): tipo da tratativa é enum do CHECK
   titular_pedido_tratativas: { tipo: 'nota' },
@@ -232,6 +240,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_fluxos: { origem_zona_id: null, destino_zona_id: null },
   // n.ot (0092): fonte do lote é enum do CHECK
   ot_lotes: { fonte: 'manual' },
+  // n.ot (0108): tipo do desvio é enum do CHECK
+  ot_desvios: { tipo: 'fluxo' },
   ot_levantamentos: { tipo: 'entrevista' },
   // n.ot (0095): assinatura tem 64 caracteres e mapeamento é objeto JSON (CHECKs)
   ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },

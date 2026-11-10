@@ -118,9 +118,12 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
     db.prepare(`SELECT id, COALESCE(processing_name, system_name) AS nome, status, origem_hash FROM dpia_assessments WHERE ropa_id = ? AND project_id = ? ORDER BY created_at, rowid`).bind(ropaId, projectId),
     db.prepare(`SELECT status, origem_hash FROM lia_assessments WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId),
     db.prepare(
-      `SELECT DISTINCT p.id AS parte_id, p.nome AS nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
-        WHERE v.alvo_tipo = 'tratamento' AND v.alvo_id = ? AND v.project_id = ? AND p.tipo = 'organizacao'
-          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?
+      // o terceiro da atividade vem pelo vínculo ou pela etapa Compartilhamento Externo; organização inativa não conta
+      `SELECT DISTINCT p.id AS parte_id, p.nome AS nome FROM (
+          SELECT parte_id FROM parte_vinculos WHERE alvo_tipo = 'tratamento' AND alvo_id = ?1 AND project_id = ?2
+          UNION SELECT parte_id FROM tratamento_externo_parceiros WHERE ropa_id = ?1 AND project_id = ?2) u JOIN partes p ON p.id = u.parte_id
+        WHERE p.tipo = 'organizacao' AND p.status = 'ativa'
+          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?3
         ORDER BY p.nome`
     ).bind(ropaId, projectId, hojeEmSaoPaulo()),
     db.prepare(

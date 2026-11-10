@@ -10,9 +10,10 @@ import { PERGUNTAS_LIA } from '../data/lia-perguntas';
  * Amostras fictícias em `docs/modelos-importacao/` (`node scripts/importacao-amostra.mjs`).
  *
  * Conversão por coluna: `lista` separa por `|`; `bool` aceita sim/não; `nota` vira número; `dia` aceita AAAA-MM-DD ou DD/MM/AAAA;
- * `opcao` normaliza como a chave (sem acento, minúsculas, `_`: "Em andamento" vira `em_andamento`). Célula vazia fica de fora.
+ * `opcao` normaliza como a chave (sem acento, minúsculas, `_`: "Em andamento" vira `em_andamento`); `opcoes` é a lista de opções
+ * (separada por `|`, cada uma normalizada). Célula vazia fica de fora.
  */
-type Conversao = 'texto' | 'lista' | 'bool' | 'nota' | 'dia' | 'opcao';
+type Conversao = 'texto' | 'lista' | 'bool' | 'nota' | 'dia' | 'opcao' | 'opcoes';
 type TipoArquivoModelo = 'inventario' | 'terceiros' | 'avaliacao' | 'historico';
 /** `opcionais`: colunas que o cabeçalho pode ter a mais (todas as `colunas` continuam obrigatórias); sem elas o modelo casa como sempre. */
 export type Modelo = { nome: string; entidade: Entidade; tipo: TipoArquivoModelo; colunas: Record<string, Conversao>; opcionais?: Record<string, Conversao> };
@@ -56,6 +57,16 @@ export const MODELOS: Modelo[] = [
   },
   // Pedidos do titular SEM coluna de titular: o modelo não carrega dado pessoal.
   { nome: 'pedidos', entidade: 'titular_pedido', tipo: 'historico', colunas: { tipo: 'opcao', canal: 'opcao', recebido_em: 'dia', status: 'opcao', respondido_em: 'dia', protocolo: T } },
+  // Incidentes: as colunas da 0058 obrigatórias; o registro completo (0098) e a comunicação à ANPD (0099) opcionais. Sem dado de titular.
+  {
+    nome: 'incidentes', entidade: 'incidente', tipo: 'historico', colunas: {
+      titulo: T, protocolo: T, ciencia_em: 'dia', risco_titular: 'opcao', comunicacao_anpd_em: 'dia', comunicacao_titular_em: 'dia', status: 'opcao',
+    },
+    opcionais: {
+      origem_alerta: T, severidade: 'opcao', tipo: 'opcao', comprometimento: 'opcoes', titulares_estimados: 'nota', criterios_risco: 'opcoes', fim_em: 'dia',
+      anpd_protocolo: T, anpd_canal: 'opcao', anpd_justificativa: T,
+    },
+  },
 ];
 
 /** O modelo cujo cabeçalho é a primeira linha do CSV, ou null (aí o arquivo segue pela IA). */
@@ -76,6 +87,7 @@ function converter(v: string, c: Conversao): unknown {
   if (c === 'nota') return /^\d+$/.test(t) ? Number(t) : t;
   if (c === 'dia') { const br = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return br ? `${br[3]}-${br[2]}-${br[1]}` : t; }
   if (c === 'opcao') return chave(t);
+  if (c === 'opcoes') return t.split('|').map((x) => chave(x)).filter(Boolean);
   return t;
 }
 

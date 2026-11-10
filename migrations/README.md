@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0098** (`ls migrations/*.sql | tail -1`). São 98 arquivos
+- Última migration no repositório: **0108** (`ls migrations/*.sql | tail -1`). São 109 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -753,6 +753,92 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
 
+## 0108 — desvios do n.ot (2026-11-09)
+
+Cria `ot_desvios` (fluxo ou ativo fora do esperado; situação, prazo de aceite, `UNIQUE (project_id, tipo, chave_sensor)`, mesmo CHECK de IP/MAC cifrado dos achados) e 2 índices. Aditiva e repetível. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name = 'ot_desvios'` (1 linha).
+
+## 0107 — requisito "não aplicável" por projeto (2026-11-09)
+
+Cria `requisito_exclusoes` (projeto e requisito; justificativa de 20 a 2000 caracteres no CHECK; quem e quando). Aditiva e repetível, sem dados.
+Spec `2026-11-09-requisito-nao-aplicavel-design`. Conferência depois: `SELECT name FROM sqlite_master WHERE name = 'requisito_exclusoes'` (1 linha).
+Aplicada em produção em 09/11/2026, com backup antes. Conferência (`npx wrangler d1 execute niso-db --remote`), saída de 09/11/2026:
+
+```
+SELECT name FROM sqlite_master WHERE name = 'requisito_exclusoes'   -> requisito_exclusoes
+SELECT name FROM pragma_table_info('requisito_exclusoes')           -> project_id, requisito_id, justificativa, decidido_por, decidido_em
+SELECT name FROM d1_migrations WHERE name LIKE '0107%'              -> 0107_requisito_exclusoes.sql
+```
+
+## 0106 — modelos de avaliação de fornecedor da consultoria (2026-11-09)
+
+Cria `fornecedor_modelos` (um por organização e tipo, com o prazo em meses), `fornecedor_modelo_perguntas` e `homologacao_ajustes` (o projeto
+desliga uma pergunta do modelo), mais o gatilho `homologacao_email_some`. `ALTER TABLE ADD COLUMN` (uma vez pelo runner): `homologacao_perguntas.tipo`,
+`avaliacoes_terceiro.tipo_avaliado`, `homologacoes.tipo`, `email_destino` e `lembrete_em`. Dados (uma vez): `tipo_avaliado` e `homologacoes.tipo`
+recebem o tipo atual da parte; as perguntas de projeto `origem = 'padrao'` saem (o modelo as substitui; a pergunta padrão que o projeto tinha
+desativado volta ativa pelo modelo). Spec `2026-11-09-ciclo-avaliacao-fornecedor-design`. Antes de aplicar:
+`SELECT origem, ativa, count(*) FROM homologacao_perguntas GROUP BY origem, ativa`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('fornecedor_modelos','fornecedor_modelo_perguntas','homologacao_ajustes','homologacao_email_some')` (4 linhas) e
+`SELECT name FROM pragma_table_info('homologacoes') WHERE name IN ('tipo','email_destino','lembrete_em')` (3 linhas).
+Aplicada em produção em 09/11/2026, com backup antes: as conferências deram 4 e 3 linhas; antes havia só as 12 perguntas padrão de um projeto
+(nenhuma editada nem criada), que saíram, e as 3 avaliações ficaram com `tipo_avaliado`.
+
+## 0105 — código de acompanhamento do pedido do titular (2026-11-06)
+
+Coluna `titular_pedidos.acompanhamento_hash` por `ALTER TABLE ADD COLUMN` (roda uma vez pelo runner) e o índice único parcial
+`idx_titular_pedidos_acompanhamento` (repetível). Guarda só o SHA-256 do código de acompanhamento que a abertura pelo portal gera; a
+consulta pública acha o pedido por ele. Spec `2026-11-06-titular-consulta-protocolo-design`. Conferência depois:
+`SELECT name FROM pragma_table_info('titular_pedidos') WHERE name = 'acompanhamento_hash'` (1 linha) e
+`SELECT name FROM sqlite_master WHERE name = 'idx_titular_pedidos_acompanhamento'` (1 linha).
+Aplicada em produção em 06/11/2026, com backup antes: as conferências deram 1 e 1 linha.
+
+## 0104 — identidade e encaminhamento do pedido do titular (2026-11-06)
+
+Quatro colunas em `titular_pedidos` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner): `identidade_metodo` (lista fechada),
+`identidade_obs` (até 500), `identidade_por` e `identidade_em`. Tabela nova `titular_pedido_encaminhamentos` (pessoa, prazo, mensagem,
+situação `aguardando`/`respondido`/`cancelado`, retorno), com dois índices e o gatilho `titular_encaminhamentos_do_projeto` (pedido e
+pessoa do mesmo projeto). Spec `2026-11-06-titular-identidade-encaminhamento-design`. Conferência depois:
+`SELECT name FROM pragma_table_info('titular_pedidos') WHERE name LIKE 'identidade_%'` (4 linhas) e
+`SELECT name FROM sqlite_master WHERE name IN ('titular_pedido_encaminhamentos','titular_encaminhamentos_do_projeto')` (2 linhas).
+Aplicada em produção em 06/11/2026, com backup antes: as conferências deram 4 e 2 linhas.
+
+## 0103 — post mortem do incidente (2026-11-06)
+
+Cria `incidente_postmortem` (uma resposta por pergunta das 14 do legado, `src/data/incidente-postmortem.ts`; até 5.000 caracteres) e os
+gatilhos `incidente_postmortem_ins` e `incidente_postmortem_upd`, que só aceitam resposta de incidente ENCERRADO do mesmo projeto, também
+por SQL direto. Aditiva e repetível. Fatia 5 da spec `2026-11-04-incidentes-legado-design`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('incidente_postmortem','incidente_postmortem_ins','incidente_postmortem_upd')` (3 linhas).
+Aplicada em produção em 06/11/2026, com backup antes: a conferência deu 3 linhas.
+
+## 0102 — análise de incidente encerrado não muda por UPDATE (2026-11-06)
+
+Gatilho `incidente_analises_encerrado_upd` (BEFORE UPDATE): a análise de incidente encerrado também não muda por SQL direto; a 0101 só
+barrava a inclusão. Sem gatilho de DELETE (a exclusão do projeto ou do incidente cascateia). Aditiva e repetível. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name = 'incidente_analises_encerrado_upd'` (1 linha).
+Aplicada em produção em 06/11/2026, com backup antes: a conferência deu 1 linha.
+
+## 0101 — análises do incidente (2026-11-06)
+
+Cria `incidente_analises` (autor, texto até 10.000, datas; índice por incidente) e os gatilhos `incidente_analises_do_projeto` (incidente
+do mesmo projeto) e `incidente_analises_aberto` (encerrado não muda). Aditiva e repetível (`IF NOT EXISTS`). Fatia 3 da spec
+`2026-11-04-incidentes-legado-design`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('incidente_analises','incidente_analises_do_projeto','incidente_analises_aberto')` (3 linhas).
+Aplicada em produção em 06/11/2026, com backup antes: a conferência deu 3 linhas.
+
+## 0100 — tratamento da ação corretiva do incidente (2026-11-05)
+
+`corrective_actions.tratamento` (`contencao`, `correcao`, `aperfeicoamento`) por `ALTER TABLE ADD COLUMN`. Fatia 4 da spec
+`2026-11-04-incidentes-legado-design`. Conferência depois: `SELECT name FROM pragma_table_info('corrective_actions') WHERE name = 'tratamento'`
+(1 linha). Aplicada em produção em 05/11/2026, com backup antes: a conferência deu 1 linha.
+
+## 0099 — comunicação à ANPD completa (2026-11-05)
+
+Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner; o CHECK da 0058 não muda): `anpd_protocolo`
+(até 100), `anpd_canal` (`sei`, `formulario_anpd`, `email`, `outro`) e `anpd_justificativa` (até 5000). Fatia 2 da spec
+`2026-11-04-incidentes-legado-design`. Conferência depois:
+`SELECT name FROM pragma_table_info('incidentes') WHERE name IN ('anpd_protocolo','anpd_canal','anpd_justificativa')` (3 linhas).
+Aplicada em produção em 05/11/2026, com backup antes: a conferência deu 3 linhas.
+
 ## 0098 — registro completo do incidente (2026-11-04)
 
 Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner; o CHECK da 0058 não muda): `origem_alerta`,
@@ -761,3 +847,8 @@ Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo r
 `SELECT name FROM pragma_table_info('incidentes') WHERE name IN ('origem_alerta','severidade','tipo','comprometimento','titulares_estimados','criterios_risco','fim_em')`
 (7 linhas) e `SELECT name FROM sqlite_master WHERE name IN ('incidente_departamentos','incidente_dados','incidente_anexos')` (3 linhas).
 Aplicada em produção em 05/11/2026, com backup antes: as duas conferências deram 7 e 3 linhas, mais os 6 gatilhos.
+
+## 0101 — sondas do n.ot com envio automático (2026-11-05)
+
+Colunas `chave_sensor` em `ot_achados` e `ot_fluxos_pendentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner) e tabelas novas `ot_sensores`, `ot_sensor_credenciais` e `ot_sensor_envios`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('ot_sensores','ot_sensor_credenciais','ot_sensor_envios')` (3 linhas) e `SELECT name FROM pragma_table_info('ot_achados') WHERE name = 'chave_sensor'` (1 linha).

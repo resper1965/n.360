@@ -5,10 +5,13 @@
     "inicio": "2026-11-01T00:00:00Z",
     "fim": "2026-11-01T00:02:00Z"
   },
+  "capture_loss": 3.14,
+  "versao_script": "2.0.0",
   "ativos": [
     {
       "ip": "10.1.1.20",
       "mac": "00:0e:8c:aa:bb:cc",
+      "mac_dhcp": true,
       "fabricante": "Siemens",
       "protocolos": [],
       "portas_servico": [],

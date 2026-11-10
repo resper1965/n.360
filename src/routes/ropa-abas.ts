@@ -297,7 +297,7 @@ ropaAbasApp.delete('/gaps/:id', async (c) => {
 ropaAbasApp.get('/gaps/:id/anexos', async (c) => {
   try {
     const { projectId, recordId } = ids(c);
-    const r = await listarAnexos(c.env.DB, projectId, recordId, c.req.param('id')!);
+    const r = await listarAnexos(c.env.DB, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!);
     return r ? c.json({ ok: true, anexos: r }) : c.json({ error: 'Gap não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao listar os anexos', e); }
 });
@@ -313,7 +313,7 @@ ropaAbasApp.post('/gaps/:id/anexos', async (c) => {
     const arq = corpo['file'];
     if (!(arq instanceof File)) return c.json({ error: 'Envie um arquivo PDF ou DOC (máx. 5MB) válido' }, 400);
     if (arq.size > MAX_ANEXO) return c.json({ error: 'Máximo de 5 MB por arquivo' }, 413);
-    const r = await guardarAnexo(c.env, projectId, recordId, c.req.param('id')!, quem(c), { name: arq.name, bytes: await arq.arrayBuffer() });
+    const r = await guardarAnexo(c.env, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!, quem(c), { name: arq.name, bytes: await arq.arrayBuffer() });
     if (!r.ok) return c.json({ error: r.error }, r.status);
     await registrarSecao(c.env.DB, quem(c), projectId, recordId, 'Controle de GAPS', 'Anexo');
     return c.json({ ok: true, id: r.id }, 201);
@@ -323,7 +323,7 @@ ropaAbasApp.post('/gaps/:id/anexos', async (c) => {
 ropaAbasApp.get('/gaps/:id/anexos/:anexoId', async (c) => {
   try {
     const { projectId, recordId } = ids(c);
-    const r = await baixarAnexo(c.env, projectId, recordId, c.req.param('id')!, c.req.param('anexoId')!);
+    const r = await baixarAnexo(c.env, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!, c.req.param('anexoId')!);
     return r ?? c.json({ error: 'Anexo não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao baixar o anexo', e); }
 });
@@ -333,7 +333,7 @@ ropaAbasApp.delete('/gaps/:id/anexos/:anexoId', async (c) => {
     const { projectId, recordId } = ids(c);
     const ed = await exigirEditavel(c.env.DB, projectId, recordId);
     if (!ed.ok) return c.json({ error: ed.error }, ed.status);
-    const ok = await apagarAnexo(c.env, projectId, recordId, c.req.param('id')!, c.req.param('anexoId')!);
+    const ok = await apagarAnexo(c.env, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!, c.req.param('anexoId')!);
     if (ok) await registrarSecao(c.env.DB, quem(c), projectId, recordId, 'Controle de GAPS', 'Anexo');
     return ok ? c.json({ ok: true }) : c.json({ error: 'Anexo não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
