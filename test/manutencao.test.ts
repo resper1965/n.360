@@ -107,24 +107,17 @@ describe('manutenção diária', () => {
       expect(results.map((x) => x.id)).toEqual(['av-ano']);
     });
 
-    it('apaga notificação e chat velhos, e NÃO toca nos recentes', async () => {
-      await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES (?,?,?,?,?)`)
-        .bind('proj-r', 'Cliente R', 'ISO 27001', 'controller', 'Active').run();
+    it('apaga notificação velha e NÃO toca na recente', async () => {
       await env.DB.batch([
         env.DB.prepare(`INSERT INTO notifications (id, type, title, created_at) VALUES (?,?,?, datetime('now','-200 days'))`).bind('n-velha', 'x', 'Velha'),
         env.DB.prepare(`INSERT INTO notifications (id, type, title, created_at) VALUES (?,?,?, datetime('now','-30 days'))`).bind('n-nova', 'x', 'Nova'),
-        env.DB.prepare(`INSERT INTO ai_chat_history (id, project_id, role, content, created_at) VALUES (?,?,?,?, datetime('now','-200 days'))`).bind('c-velho', 'proj-r', 'user', 'texto antigo'),
-        env.DB.prepare(`INSERT INTO ai_chat_history (id, project_id, role, content, created_at) VALUES (?,?,?,?, datetime('now','-10 days'))`).bind('c-novo', 'proj-r', 'user', 'texto recente'),
       ]);
 
       const r = await manutencaoDiaria(env as any);
       expect(r.retencao.notifications).toBe(1);
-      expect(r.retencao.ai_chat_history).toBe(1);
 
-      const { results } = await env.DB.prepare(
-        `SELECT id FROM notifications UNION ALL SELECT id FROM ai_chat_history ORDER BY id`
-      ).all();
-      expect((results as any[]).map((x) => x.id)).toEqual(['c-novo', 'n-nova']);
+      const { results } = await env.DB.prepare(`SELECT id FROM notifications ORDER BY id`).all();
+      expect((results as any[]).map((x) => x.id)).toEqual(['n-nova']);
     });
 
     it('NÃO apaga registro de GRC, por mais velho que seja', async () => {

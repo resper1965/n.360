@@ -229,17 +229,6 @@ CREATE TABLE IF NOT EXISTS project_phases (
     legado_status TEXT
 );
 
-CREATE TABLE IF NOT EXISTS project_scope_changes (
-    id TEXT PRIMARY KEY,
-    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    previous_scope TEXT,
-    new_scope TEXT NOT NULL,
-    change_reason TEXT NOT NULL,
-    security_impact TEXT NOT NULL,
-    approved_by TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS project_interviews (
     id TEXT PRIMARY KEY,
     project_id TEXT REFERENCES projects(id),
@@ -778,39 +767,7 @@ CREATE TABLE IF NOT EXISTS certification_tracking (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS ai_chat_history (
-    id TEXT PRIMARY KEY,
-    project_id TEXT REFERENCES projects(id),
-    user_id TEXT,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE INDEX IF NOT EXISTS idx_cert_project ON certification_tracking(project_id);
-CREATE INDEX IF NOT EXISTS idx_chat_project ON ai_chat_history(project_id);
-
--- ═══════════════════════════════════════════════
--- DOCUMENT INTAKE PIPELINE
--- ═══════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS project_documents (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id),
-    document_type TEXT NOT NULL,  -- organograma, policy, inventory, topology, systems, contracts, incidents, certifications, floorplan, audit_report, ropa, backup_dr
-    filename TEXT NOT NULL,
-    r2_key TEXT NOT NULL,
-    file_hash TEXT,
-    file_size INTEGER,
-    file_type TEXT,
-    status TEXT DEFAULT 'uploaded',  -- uploaded, extracting, extracted, confirmed, failed
-    extracted_data TEXT,     -- JSON estruturado extraído pela AI
-    extracted_summary TEXT,  -- Texto legível para revisão pelo consultor
-    uploaded_by TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_projdocs_project ON project_documents(project_id);
 
 -- -----------------------------------------------
 -- SPRINT F: CHECKLIST PERSISTENCE
@@ -1052,20 +1009,6 @@ CREATE TABLE IF NOT EXISTS policy_templates (
   description TEXT DEFAULT '',
   created_at TEXT DEFAULT (datetime('now'))
 );
--- -----------------------------------------------
--- KNOWLEDGE BASE (RAG) — ingestão de documentos do projeto
--- -----------------------------------------------
-
-CREATE TABLE IF NOT EXISTS project_knowledge (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    type TEXT DEFAULT 'other',
-    content TEXT,
-    metadata TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON project_knowledge(project_id);
 
 -- -----------------------------------------------
 -- SCOPE CHANGES (solicitações de alteração de escopo do projeto)

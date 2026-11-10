@@ -33,7 +33,7 @@ describe('renderAIChat', () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  // Não há histórico no servidor: nada grava ai_chat_history e GET/DELETE /chat/history nunca
+  // Não há histórico no servidor (ai_chat_history saiu na 0109) e GET/DELETE /chat/history nunca
   // existiram (404 engolido pelo catch; "Limpar" dava erro).
   it('abre sem chamar a API e sem "Limpar Histórico"', async () => {
     S.activeProject = { id: 'p1' };

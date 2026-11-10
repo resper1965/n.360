@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Limpeza: quatro tabelas sem uso
+- Saem do banco `project_documents`, `project_scope_changes`, `ai_chat_history` e `project_knowledge` (migration 0109). Nenhum código as usava: as duas primeiras nunca foram gravadas, o chat nunca guardou conversa e a base de conhecimento ficou órfã quando a busca vetorial saiu, em 06/10. As 4 linhas antigas que restavam ficam no backup feito antes da migration.
+- A retenção de 180 dias do histórico de chat sai da manutenção diária junto com a tabela.
+
+### Dependências
+- Atualizações menores na raiz (`agents` 0.31, `docx` 9.15, `hono` 4.13.14 e outras), no servidor MCP e no frontend (`vite` 8.3.5, `jsdom` 30.1.3, Playwright 1.64.1). O `jszip`, que os testes usam para abrir o Word e a planilha gerados, passa a ser declarado: chegava só pelo `docx`, que deixou de usá-lo.
+
 ### Desempenho: menos viagens ao banco (#369)
 - O banco de produção fica na costa leste dos EUA e os usuários estão no Brasil: cada consulta era uma viagem longa, e a checagem de login fazia até cinco em fila antes da tela pedir o próprio dado. Agora faz uma só (as leituras da organização, dos documentos legais, da política do projeto e do segundo fator vão juntas).
 - O Worker passa a usar o Smart Placement: a Cloudflare o executa perto do banco quando compensa. Em 7 dias até 09/11, o p95 fora das rotas de IA estava em 1.058 ms, contra o teto de 800 ms; a comparação sai depois de 24 horas no ar.

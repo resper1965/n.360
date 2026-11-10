@@ -79,17 +79,12 @@ describe('schema contract (real D1)', () => {
     expect(d.processing_name).toBe('proc');
   });
 
-  it('has the tables the code queries (project_knowledge, scope_changes)', async () => {
-    await env.DB.prepare(
-      `INSERT INTO project_knowledge (id, project_id, title, type, content, metadata) VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind('k1', 'p1', 'Doc', 'procedure', 'texto', '{}').run();
+  it('has the tables the code queries (scope_changes)', async () => {
     await env.DB.prepare(
       `INSERT INTO scope_changes (id, project_id, change_description, reason, impact_analysis, requested_by, status)
        VALUES (?, ?, ?, ?, ?, ?, 'Pending')`
     ).bind('s1', 'p1', 'mudança', 'motivo', 'impacto', 'u@x').run();
-    const k = await env.DB.prepare("SELECT count(*) AS n FROM project_knowledge").first<any>();
     const s = await env.DB.prepare("SELECT count(*) AS n FROM scope_changes").first<any>();
-    expect(k.n).toBe(1);
     expect(s.n).toBe(1);
   });
 
