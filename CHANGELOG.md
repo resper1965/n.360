@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Segurança: senha só no formato atual
+- O login deixa de aceitar senha gravada no formato antigo (SHA-256 sem sal) e a conversão automática dele no login sai. Nenhuma conta o usava em produção (conferido em 09/11); quem tivesse um entraria pelo "Esqueci a senha".
+
 ### n.ot: desvios do sensor de rede (migration 0108)
 - Todo resumo aceito da sonda é comparado com o inventário aprovado antes do filtro de novidade: ativo ou fluxo visto e não aprovado vira desvio (a importação manual não cria desvio). Nova aba "Desvios" no n.ot e a contagem "N desvios abertos" no cartão "Pontos a esclarecer".
 - Ciclo: aberto, tratado (com nota; reabre e avisa se o sensor vê de novo), aceito (só o Gestor ARCiber, justificativa e prazo de até 90 dias; vencido volta a aberto, também pelo cron diário) e regularizado (automático quando um lote aprova o item). Aceito não é a exceção formal 5.1.1.

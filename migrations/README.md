@@ -762,6 +762,13 @@ Cria `ot_desvios` (fluxo ou ativo fora do esperado; situação, prazo de aceite,
 
 Cria `requisito_exclusoes` (projeto e requisito; justificativa de 20 a 2000 caracteres no CHECK; quem e quando). Aditiva e repetível, sem dados.
 Spec `2026-11-09-requisito-nao-aplicavel-design`. Conferência depois: `SELECT name FROM sqlite_master WHERE name = 'requisito_exclusoes'` (1 linha).
+Aplicada em produção em 09/11/2026, com backup antes. Conferência (`npx wrangler d1 execute niso-db --remote`), saída de 09/11/2026:
+
+```
+SELECT name FROM sqlite_master WHERE name = 'requisito_exclusoes'   -> requisito_exclusoes
+SELECT name FROM pragma_table_info('requisito_exclusoes')           -> project_id, requisito_id, justificativa, decidido_por, decidido_em
+SELECT name FROM d1_migrations WHERE name LIKE '0107%'              -> 0107_requisito_exclusoes.sql
+```
 
 ## 0106 — modelos de avaliação de fornecedor da consultoria (2026-11-09)
 
