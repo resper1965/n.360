@@ -160,42 +160,43 @@ const STAKEHOLDER_PERMITIDO: RegExp[] = [
   /^\/api\/v1\/pedidos(\/.*)?$/,
 ];
 
-type DocLegal = DocumentoLegal;
-type Leitura = { orgSuspensa: boolean; docs: DocLegal[]; aceitos: string[]; politica: PoliticaTenant | null; totp: number | null };
+type Leitura = { orgSuspensa: boolean; docs: DocumentoLegal[]; aceitos: string[]; politica: PoliticaTenant | null; totp: number | null };
 type Pedido = { org: string | null; legal: boolean; userId: string; projeto: string | null };
+type LinhaDoc = { id: string; kind: string; version: string; classification: DocumentoLegal['classification']; title: string; url: string | null; published_at: string; aceito: number | null };
+type LinhaPolitica = PoliticaTenant & { totp: number | null };
 
-const SQL_DOCS = 'SELECT id, kind, version, classification, title, url, published_at FROM legal_documents WHERE published_at IS NOT NULL';
-const comoDoc = (d: any): DocLegal => ({ id: d.id, kind: d.kind, version: d.version, classification: d.classification, title: d.title, url: d.url, publishedAt: d.published_at });
+// O aceite vem junto do documento e o TOTP junto da política: uma consulta para cada par, como antes da #369 (nada a mais preparado).
+const SQL_DOCS = `SELECT id, kind, version, classification, title, url, published_at,
+    (SELECT 1 FROM legal_acceptances a WHERE a.document_id = legal_documents.id AND a.user_id = ?1) AS aceito
+  FROM legal_documents WHERE published_at IS NOT NULL`;
+const SQL_POLITICA = `SELECT project_id, mfa_obrigatorio, sessao_ttl_seg, ip_allowlist, (SELECT totp_enabled FROM users WHERE id = ?2) AS totp
+  FROM project_security_policy WHERE project_id = ?1`;
+const comoDoc = (d: LinhaDoc): DocumentoLegal => ({ id: d.id, kind: d.kind, version: d.version, classification: d.classification, title: d.title, url: d.url, publishedAt: d.published_at });
 
 /**
- * As leituras que toda requisição autenticada faz (organização suspensa, documentos legais e aceites, política do projeto e o
+ * As leituras que toda requisição autenticada faz (organização suspensa, documentos legais com o aceite, política do projeto com o
  * TOTP), num `db.batch`: uma viagem ao D1 no lugar de até cinco (#369, o banco fica longe do usuário). Se o batch falhar (tabela
  * ainda não migrada, por exemplo), refaz uma a uma, com o tratamento de erro de antes.
  */
 async function lerChecagens(env: Bindings, q: Pedido): Promise<Leitura> {
   const db = env.DB;
   const stmts: D1PreparedStatement[] = [];
-  const pos: Partial<Record<'org' | 'docs' | 'aceitos' | 'politica' | 'totp', number>> = {};
-  const add = (k: keyof typeof pos, s: D1PreparedStatement) => { pos[k] = stmts.push(s) - 1; };
-  if (q.org) add('org', db.prepare('SELECT status FROM organizations WHERE id = ?').bind(q.org));
-  if (q.legal) {
-    add('docs', db.prepare(SQL_DOCS));
-    add('aceitos', db.prepare('SELECT document_id FROM legal_acceptances WHERE user_id = ?').bind(q.userId));
-  }
-  if (q.projeto) {
-    add('politica', db.prepare('SELECT project_id, mfa_obrigatorio, sessao_ttl_seg, ip_allowlist FROM project_security_policy WHERE project_id = ?').bind(q.projeto));
-    add('totp', db.prepare('SELECT totp_enabled FROM users WHERE id = ?').bind(q.userId));
-  }
+  const pos: { org?: number; docs?: number; politica?: number } = {};
+  if (q.org) pos.org = stmts.push(db.prepare('SELECT status FROM organizations WHERE id = ?').bind(q.org)) - 1;
+  if (q.legal) pos.docs = stmts.push(db.prepare(SQL_DOCS).bind(q.userId)) - 1;
+  if (q.projeto) pos.politica = stmts.push(db.prepare(SQL_POLITICA).bind(q.projeto, q.userId)) - 1;
   if (!stmts.length) return { orgSuspensa: false, docs: [], aceitos: [], politica: null, totp: null };
   let r: D1Result[];
   try { r = await db.batch(stmts); } catch { return lerUmaAUma(env, q); }
-  const linhas = (k: keyof typeof pos) => (pos[k] === undefined ? [] : ((r[pos[k]!].results ?? []) as any[]));
+  const linhas = <T>(i?: number) => (i === undefined ? [] : ((r[i].results ?? []) as T[]));
+  const docs = linhas<LinhaDoc>(pos.docs);
+  const pol = linhas<LinhaPolitica>(pos.politica)[0];
   return {
-    orgSuspensa: q.org ? linhas('org')[0]?.status !== 'Active' : false,
-    docs: linhas('docs').map(comoDoc),
-    aceitos: linhas('aceitos').map((a) => a.document_id),
-    politica: (linhas('politica')[0] as PoliticaTenant | undefined) ?? null,
-    totp: linhas('totp')[0]?.totp_enabled ?? null,
+    orgSuspensa: q.org ? linhas<{ status: string | null }>(pos.org)[0]?.status !== 'Active' : false,
+    docs: docs.map(comoDoc),
+    aceitos: docs.filter((d) => d.aceito === 1).map((d) => d.id),
+    politica: pol ? { project_id: pol.project_id, mfa_obrigatorio: pol.mfa_obrigatorio, sessao_ttl_seg: pol.sessao_ttl_seg, ip_allowlist: pol.ip_allowlist } : null,
+    totp: pol?.totp ?? null,
   };
 }
 
@@ -203,13 +204,10 @@ async function lerChecagens(env: Bindings, q: Pedido): Promise<Leitura> {
 async function lerUmaAUma(env: Bindings, q: Pedido): Promise<Leitura> {
   const db = env.DB;
   const orgSuspensa = q.org ? await equipeDeOrgSuspensa(db, { role: 'consultor', org_id: q.org }) : false;
-  const docs = q.legal ? await db.prepare(SQL_DOCS).all().then((x) => (x.results || []).map(comoDoc)).catch(() => []) : [];
-  const aceitos = docs.length
-    ? await db.prepare('SELECT document_id FROM legal_acceptances WHERE user_id = ?').bind(q.userId).all().then((x) => (x.results || []).map((a: any) => a.document_id)).catch(() => [])
-    : [];
+  const docs = q.legal ? await db.prepare(SQL_DOCS).bind(q.userId).all<LinhaDoc>().then((x) => x.results ?? []).catch(() => [] as LinhaDoc[]) : [];
   const politica = q.projeto ? await politicaDoProjeto(env, q.projeto) : null;
   const totp = politica ? ((await db.prepare('SELECT totp_enabled FROM users WHERE id = ?').bind(q.userId).first<{ totp_enabled: number | null }>())?.totp_enabled ?? null) : null;
-  return { orgSuspensa, docs, aceitos, politica, totp };
+  return { orgSuspensa, docs: docs.map(comoDoc), aceitos: docs.filter((d) => d.aceito === 1).map((d) => d.id), politica, totp };
 }
 
 export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: Variables }>(async (c, next) => {

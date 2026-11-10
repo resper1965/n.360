@@ -109,9 +109,11 @@ describe('organizar políticas', () => {
     await doc('d-corr', 'Política da corrida', 'vigente', 'c-acc');
     const antes = (await env.DB.prepare(`SELECT count(*) n FROM audit_logs WHERE action = 'politica.incorporada'`).first<{ n: number }>())!.n;
     // Simula a corrida: outro já aposentou a origem entre a leitura e a gravação.
+    // o 1º batch da requisição é o das checagens do authMiddleware (#369); a corrida entra no 2º, o da gravação da rota
+    let batches = 0;
     const db = new Proxy(env.DB, {
       get(alvo, prop) {
-        if (prop === 'batch') return async (st: any[]) => { await alvo.prepare(`UPDATE documentos SET status = 'obsoleto' WHERE id = 'd-corr'`).run(); return alvo.batch(st); };
+        if (prop === 'batch') return async (st: any[]) => { if (++batches === 2) await alvo.prepare(`UPDATE documentos SET status = 'obsoleto' WHERE id = 'd-corr'`).run(); return alvo.batch(st); };
         const v = (alvo as any)[prop];
         return typeof v === 'function' ? v.bind(alvo) : v;
       },
