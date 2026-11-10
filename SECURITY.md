@@ -57,6 +57,7 @@ Invariantes de segurança que o código mantém e que **não devem regredir**:
 | Tokens de segurança com CSPRNG | `genToken` / `genNumericCode` em `src/helpers.ts` — nunca `Math.random` |
 | Trilha de auditoria imutável | Triggers `audit_logs_no_update` / `audit_logs_no_delete` |
 | Código bate com o schema | `test/schema-contract.test.ts` roda contra D1 real |
+| Webhook `ot.desvio` exige visão completa do inventário n.ot e nunca leva IP, MAC nem hash de IP (pontas por nome de ativo e zona); só vai a webhook que assina o evento literalmente, assinado, sem seguir redirect | `src/routes/integrations.ts` (cadastro), `projetarDesvios`/`corpoWebhook` em `src/services/ot-desvio.ts`, `src/services/webhook-entrega.ts` |
 | Agente de IA preso a um projeto, sem alcançar conta pessoal, acesso, credencial nem área comercial | `resolverAgente` e `FORA_DO_AGENTE` em `src/middleware/agente.ts`; os 13 invariantes (I1 a I13: `grep -oE '^\| \*\*I[0-9]+' docs/agente/seguranca.md \| sort -u \| wc -l`) e o checklist de PR em [`docs/agente/seguranca.md`](docs/agente/seguranca.md) — `test/agente-paridade.test.ts` |
 | Ação destrutiva do agente (apagar, lote, eliminar titular, revogar aprovações) exige confirmação **no servidor** e deixa trilha com o projeto | `acaoDestrutiva` + `X-Agente-Confirmado`; hook em `src/middleware/auth.ts` — `test/agente-paridade.test.ts` |
 | Concessão do agente revalidada a cada chamada; troca de senha a revoga | `concessaoValida` — `test/mcp-remoto.test.ts`, `test/agente-principal.test.ts` |

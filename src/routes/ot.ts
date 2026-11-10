@@ -6,9 +6,10 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
 } from '../schemas/ot';
-import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
+import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
+import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
@@ -498,7 +499,9 @@ otApp.post('/lotes/:id/aprovar', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
     if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não aprova lote' }, 403);
-    const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'));
+    const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'), { env: c.env,
+      // o getter `c.executionCtx` lança sem contexto (app.request, testes): aí a entrega segue solta, sem waitUntil
+      ctx: { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } } });
     if (!r.ok) return c.json({ error: r.error }, r.status);
     const { ok: _ok, ...n } = r;
     await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`
@@ -872,4 +875,86 @@ otApp.delete('/sensores/:id', async (c) => {
     await trilha(c, 'ot.sensor.revogado', projectId, `Sonda ${s.id} revogada com ${cs.meta.changes} credenciais`, { tipo: 'ot_sensor', id: s.id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao revogar a sonda', e); }
+});
+
+// ─── desvios (spec n-ot-desvio) ─────────────────────────────────────────────
+// `dados` nunca sai cru: só os campos da tela. Pontas por nome/zona (corpoWebhook resolve por id ou ip_hash, que não sai); IP só de ativo
+// desvio e só a quem vê completo (sem a chave `ip` para os demais).
+otApp.get('/desvios', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const filtros = [c.req.query('situacao'), c.req.query('site_id'), c.req.query('tipo')].flatMap((v) => [v ?? null, v ?? null]);
+    const onde = `d.project_id = ? AND d.${NO_SITE} AND (? IS NULL OR d.situacao = ?) AND (? IS NULL OR d.site_id = ?) AND (? IS NULL OR d.tipo = ?)`;
+    // contagem das abas e do cartão: só o número, sem projeção, sem decifrar e sem trilha de ver_sensivel
+    if (c.req.query('contagem') === '1') {
+      const r = await db.prepare(`SELECT count(*) AS total FROM ot_desvios d WHERE ${onde}`).bind(projectId, sites, ...filtros).first<{ total: number }>();
+      return c.json({ total: r?.total ?? 0 });
+    }
+    const completo = await podeVerCompleto(db, user, projectId);
+    const { results } = await db.prepare(`SELECT d.*, s.nome AS site_nome,
+        (SELECT a.id FROM ot_achados a WHERE a.project_id = d.project_id AND a.chave_sensor = d.chave_sensor AND a.situacao = 'rascunho' LIMIT 1) AS achado_id,
+        (SELECT a.levantamento_id FROM ot_achados a WHERE a.project_id = d.project_id AND a.chave_sensor = d.chave_sensor AND a.situacao = 'rascunho' LIMIT 1) AS achado_levantamento_id
+      FROM ot_desvios d JOIN ot_sites s ON s.id = d.site_id AND s.project_id = d.project_id
+      WHERE ${onde}
+      ORDER BY d.ultima_vez DESC LIMIT ${TETO_LEITURA_OT}`)
+      .bind(projectId, sites, ...filtros)
+      .all<LinhaDesvio & { site_nome: string; achado_id: string | null; achado_levantamento_id: string | null; aceito_ate: string | null; nota: string | null }>();
+    const porSite = new Map<string, typeof results>();
+    for (const d of results) porSite.set(d.site_id, [...porSite.get(d.site_id) ?? [], d]);
+    const vistos = new Map<string, Awaited<ReturnType<typeof projetarDesvios>>[number]>();
+    for (const [siteId, lista] of porSite) {
+      for (const x of await projetarDesvios(c.env, projectId, siteId, lista)) vistos.set(x.id, x);
+    }
+    const chaves = chavesOt(c.env);
+    let sensiveis = 0;
+    const desvios = await Promise.all(results.map(async (d) => {
+      const x = vistos.get(d.id);
+      const dados = JSON.parse(d.dados) as { ip_cifrado?: string; fabricante?: string; protocolos_portas?: unknown };
+      const cifra = dados.ip_cifrado;
+      // descritores sem endereço, só do desvio de ativo: o que o consultor precisa para agir mesmo sem ver o IP
+      const desc = d.tipo === 'ativo' ? { ...dados.fabricante !== undefined && { fabricante: dados.fabricante },
+        ...dados.protocolos_portas !== undefined && { protocolos_portas: dados.protocolos_portas } } : {};
+      const ip = completo && cifra && chaves ? { ip: await decifrarOt(cifra, chaves, aadOt(projectId, 'ot_desvios', d.id, 'ip')) } : {};
+      if ('ip' in ip) sensiveis++;
+      return { id: d.id, site_id: d.site_id, site_nome: d.site_nome, tipo: d.tipo, situacao: d.situacao, protocolo: x?.protocolo ?? null, porta: x?.porta ?? null,
+        externo: x?.externo ?? false, origem: x?.origem, destino: x?.destino, ...desc, ...ip, primeira_vez: d.primeira_vez, ultima_vez: d.ultima_vez,
+        ocorrencias: d.ocorrencias, aceito_ate: d.aceito_ate, nota: d.nota, achado_id: d.achado_id, achado_levantamento_id: d.achado_levantamento_id };
+    }));
+    if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} desvio(s) com IP sem máscara`);
+    return c.json({ desvios });
+  } catch (e) { return erro500(c, 'Falha ao listar os desvios', e); }
+});
+
+/** aberto → tratado/aceito, com trilha e webhook `fechado` (como o lote aprovado). Guarda na situação: outro clique não sobrescreve. */
+async function fecharDesvio(c: C, situacao: 'tratado' | 'aceito', nota: string, aceitoAte: string | null) {
+  const { db, user, projectId, sites } = await contexto(c);
+  const id = c.req.param('id')!;
+  const linha = await db.prepare(`UPDATE ot_desvios SET situacao = ?, nota = ?, aceito_ate = ?, atualizado_por = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND project_id = ? AND ${NO_SITE} AND situacao = 'aberto' RETURNING *`).bind(situacao, nota, aceitoAte, user.id, id, projectId, sites).first<LinhaDesvio>();
+  if (!linha) {
+    const existe = await db.prepare(`SELECT 1 FROM ot_desvios WHERE id = ? AND project_id = ? AND ${NO_SITE}`).bind(id, projectId, sites).first();
+    return existe ? c.json({ error: 'Só desvio aberto pode ser tratado ou aceito' }, 409) : NAO_ENCONTRADO(c, 'Desvio');
+  }
+  // aviso antes da trilha: o UPDATE já gravou, e uma falha da trilha não pode levar o webhook junto
+  // o getter `c.executionCtx` lança sem contexto (app.request, testes): aí o aviso é solto, sem waitUntil
+  avisar(c.env, { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } }, projectId, [linha], 'fechado');
+  await trilha(c, `ot.desvio.${situacao}`, projectId, `Desvio ${id} ${situacao}`, { tipo: 'ot_desvio', id });
+  return c.json({ ok: true });
+}
+
+otApp.post('/desvios/:id/tratar', async (c) => {
+  try {
+    const v = await validateBody(c, otDesvioTratarSchema);
+    if (!v.success) return v.response;
+    return await fecharDesvio(c, 'tratado', v.data.nota, null);
+  } catch (e) { return erro500(c, 'Falha ao tratar o desvio', e); }
+});
+
+otApp.post('/desvios/:id/aceitar', async (c) => {
+  try {
+    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber aceita um desvio' }, 403);
+    const v = await validateBody(c, otDesvioAceitarSchema);
+    if (!v.success) return v.response;
+    return await fecharDesvio(c, 'aceito', v.data.justificativa, `${v.data.ate}T23:59:59.999Z`);
+  } catch (e) { return erro500(c, 'Falha ao aceitar o desvio', e); }
 });

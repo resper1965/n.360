@@ -1,9 +1,11 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { requireResourceAccess, genToken, signWebhook, registraErro, logAudit } from '../helpers';
+import { requireResourceAccess, genToken, registraErro, logAudit } from '../helpers';
 import { validateBody, createWebhookSchema, createApiKeySchema } from '../schemas';
 import { listarAtivos } from '../services/itens';
 import { SQL_VENDORS_VISIVEIS, comIndiceAtual } from './vendors';
+import { podeVerCompleto } from '../services/ot-inventario';
+import { enviarUmaVez, montarCorpo } from '../services/webhook-entrega';
 import { montarCsv, traduz, simNao, STATUS, NIVEL, ESTRATEGIA, CLASSIFICACAO, TREINAMENTO } from '../services/exportacao';
 
 const integrations = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -202,6 +204,10 @@ integrations.post('/api/v1/projects/:projectId/webhooks', async (c) => {
   if (!isValidWebhookUrl(body.url)) {
     return c.json({ error: 'Invalid or forbidden webhook URL (SSRF Guard)' }, 400);
   }
+  // O evento ot.desvio leva nome de ativo e zona do n.ot: só quem vê o inventário completo assina.
+  if (body.events.split(',').some(e => e.trim() === 'ot.desvio') && !(await podeVerCompleto(c.env.DB, c.get('user'), projectId))) {
+    return c.json({ error: 'O evento ot.desvio exige ver o inventário completo do n.ot' }, 403);
+  }
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -238,31 +244,14 @@ integrations.post('/api/v1/webhooks/test/:id', async (c) => {
   // Webhook inativo (a transferência de projeto desativa os da origem: URL e segredo são dela) não dispara.
   if (webhook.status !== 'Active') return c.json({ error: 'Webhook inativo: cadastre um novo' }, 409);
 
-  if (!isValidWebhookUrl(webhook.url)) {
-    return c.json({ error: 'Invalid or forbidden webhook URL (SSRF Guard)' }, 400);
-  }
-  // S8: resolve o host IMEDIATAMENTE antes de disparar — se o DNS foi apontado
-  // para um IP interno depois da criação (rebinding), barra aqui.
-  if (!(await resolveHostIsPublic(webhook.url ? new URL(webhook.url).hostname : ''))) {
-    return c.json({ error: 'Webhook host resolves to a non-public address (SSRF Guard)' }, 400);
-  }
-
+  // Uma tentativa só, pela mesma guarda de SSRF e assinatura da entrega de eventos.
+  const r = await enviarUmaVez(webhook, montarCorpo(webhook.project_id, 'test'));
+  if (r.tipo === 'url_invalida') return c.json({ error: 'Invalid or forbidden webhook URL (SSRF Guard)' }, 400);
+  if (r.tipo === 'host_interno') return c.json({ error: 'Webhook host resolves to a non-public address (SSRF Guard)' }, 400);
   try {
-    const corpo = JSON.stringify({
-      event: 'test',
-      event_id: crypto.randomUUID(),
-      project_id: webhook.project_id,
-      timestamp: new Date().toISOString(),
-    });
-    const cabecalhos: Record<string, string> = { 'Content-Type': 'application/json' };
-    // Webhook antigo pode não ter segredo (a coluna aceitava ''); nesse caso
-    // segue sem assinatura em vez de quebrar a integração existente.
-    if (webhook.secret) {
-      cabecalhos['X-nISO-Signature'] = await signWebhook(webhook.secret, corpo);
-    }
-    const resp = await fetch(webhook.url, { method: 'POST', headers: cabecalhos, body: corpo });
+    if (r.tipo === 'erro') throw r.erro;
     await c.env.DB.prepare('UPDATE webhooks SET last_triggered_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
-    return c.json({ ok: true, status: resp.status });
+    return c.json({ ok: true, status: r.resp.status });
   } catch (e) {
     await c.env.DB.prepare('UPDATE webhooks SET failure_count = failure_count + 1 WHERE id = ?').bind(id).run();
     // A exceção pode ser do destino ou do D1 (o UPDATE está no mesmo try): vai ao log.

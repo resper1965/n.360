@@ -138,6 +138,7 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
+  otDesvioTratarSchema, otDesvioAceitarSchema,
 } from './schemas/ot';
 import { otIaZonaSchema, otIaCompletudeSchema } from './schemas/ot-saidas';
 import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, orgaoPublicoCriarSchema, orgaoPublicoAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema, liaQuestionarioSchema } from './schemas/ropa-abas';
@@ -315,6 +316,8 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ativos/:id/revelar', schema: otRevelarSchema, nome: 'otRevelarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/ativos/:id', schema: otAtivoAtualizarSchema, nome: 'otAtivoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ativos', schema: otAtivoCriarSchema, nome: 'otAtivoCriarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/desvios/:id/aceitar', schema: otDesvioAceitarSchema, nome: 'otDesvioAceitarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/desvios/:id/tratar', schema: otDesvioTratarSchema, nome: 'otDesvioTratarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/exportacao', schema: otExportarSchema, nome: 'otExportarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/fluxos/:id', schema: otFluxoAtualizarSchema, nome: 'otFluxoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/fluxos', schema: otFluxoCriarSchema, nome: 'otFluxoCriarSchema' },

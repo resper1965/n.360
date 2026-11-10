@@ -8,6 +8,7 @@ import { montarColeta } from './ot-coleta.js';
 import { montarSaidas } from './ot-saidas.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
 import { cartaoAgente } from './ot-agente.js';
+import { montarDesvios } from './ot-desvios.js';
 import { areaSondas } from './ot-sensores.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
@@ -24,7 +25,7 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const ABAS = [['catalogo', 'Catálogo RO-CB.BR.01'], ['inventario', 'Inventário'], ['fluxos', 'Fluxos'], ['coleta', 'Coleta'], ['levantamento', 'Levantamento'], ['saidas', 'Saídas'],
+const ABAS = [['catalogo', 'Catálogo RO-CB.BR.01'], ['inventario', 'Inventário'], ['fluxos', 'Fluxos'], ['coleta', 'Coleta'], ['levantamento', 'Levantamento'], ['desvios', 'Desvios'], ['saidas', 'Saídas'],
     ['acessos', 'Acessos e agente']];
 const abasDoPapel = () => ABAS.filter(([v]) => v !== 'acessos' || podeEditarOt());
 
@@ -35,19 +36,21 @@ async function renderOt(c, h, a) {
     // Filtros e lote são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
     if (S.otProjeto !== proj().id) {
         await esvaziarNotas(); // notas digitadas no projeto anterior vão para ele, antes de a tela mudar
-        S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; nomesDeAtivos.clear();
+        S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null; nomesDeAtivos.clear();
     }
     // Contagens das abas e aba de entrada: o que espera a pessoa. Falha aqui só tira a contagem (cada aba carrega e mostra o próprio erro).
     // Correm junto com o painel; só a primeira entrada (sem aba escolhida) espera por elas, porque decidem a aba.
     const contagens = Promise.all([api('GET', `/api/v1/projects/${proj().id}/ot/lotes`).then((r) => lista(r, 'lotes')),
-        api('GET', `/api/v1/projects/${proj().id}/ot/levantamentos`).then((r) => lista(r, 'levantamentos'))].map((x) => x.catch(() => [])))
-        .then(([lotes, levs]) => {
+        api('GET', `/api/v1/projects/${proj().id}/ot/levantamentos`).then((r) => lista(r, 'levantamentos')),
+        api('GET', `/api/v1/projects/${proj().id}/ot/desvios?situacao=aberto&contagem=1`).then((r) => r?.total ?? 0)].map((x) => x.catch(() => [])))
+        .then(([lotes, levs, nDesv]) => {
             const emRevisao = lotes.filter((l) => l.status === 'em_revisao');
             const abertos = levs.filter((l) => l.situacao !== 'encerrado').length;
             // O consultoria_admin só aprova no projeto em que está designado, e a tela não sabe disso: ele entra pelo Inventário.
             const aprova = podeAprovarOt() && S.user?.role !== 'consultoria_admin';
             return { entrada: aprova && emRevisao.some((l) => l.criado_por !== S.user?.id) ? 'coleta' : 'inventario',
-                conta: { coleta: emRevisao.length && ` · ${emRevisao.length} em revisão`, levantamento: abertos && ` · ${abertos} ${abertos === 1 ? 'aberto' : 'abertos'}` } };
+                conta: { coleta: emRevisao.length && ` · ${emRevisao.length} em revisão`, levantamento: abertos && ` · ${abertos} ${abertos === 1 ? 'aberto' : 'abertos'}`,
+                    desvios: +nDesv && ` · ${nDesv} ${nDesv === 1 ? 'aberto' : 'abertos'}` } };
         });
     const abas = abasDoPapel();
     const aba = abas.some(([v]) => v === S.otAba) ? S.otAba : (await contagens).entrada;
@@ -62,7 +65,7 @@ async function renderOt(c, h, a) {
         }
     });
     const painel = el('ot-painel');
-    const montar = { catalogo: montarCatalogo, inventario: montarInventario, fluxos: montarFluxos, coleta: montarColeta, levantamento: montarLevantamento, saidas: montarSaidas, acessos: montarAcessos }[aba];
+    const montar = { catalogo: montarCatalogo, inventario: montarInventario, fluxos: montarFluxos, coleta: montarColeta, levantamento: montarLevantamento, desvios: montarDesvios, saidas: montarSaidas, acessos: montarAcessos }[aba];
     await Promise.all([montar(painel, a, proj()), rotulos]);
 }
 

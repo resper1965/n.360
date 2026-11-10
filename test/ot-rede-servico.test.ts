@@ -71,6 +71,42 @@ describe('planejarResumo', () => {
     expect(p.contagem.ativos_novos).toBe(3);
   });
 
+  it('MAC em 3+ ativos do resumo é do roteador: não completa MAC, não vai no ativo novo nem dá fabricante; MAC único segue', async () => {
+    const gw = { mac: '00:09:0F:00:00:01', fabricante: 'Fortinet' };
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([
+      at('10.1.1.10', gw), at('10.1.1.80', { ...gw, protocolos: ['modbus'] }), at('8.8.8.8', { mac: '00-09-0f-00-00-01' }), // externo também conta
+      at('10.1.1.81', { mac: '00:30:a7:00:00:81', fabricante: 'SEL' }),
+    ], [cx('10.1.1.80', '10.1.1.20', 502, 'modbus')]));
+    expect(p.macs).toEqual([]);
+    expect(p.ativos.map((a) => a.dados)).toEqual([
+      { ip: '10.1.1.80', nome: 'Dispositivo (modbus) #1', protocolos_portas: [{ protocolo: 'modbus' }] },
+      { ip: '10.1.1.81', nome: 'SEL (rede) #2', mac: '00:30:a7:00:00:81', fabricante: 'SEL' },
+    ]);
+    expect(p.contagem.macs_gateway_ignorados).toBe(2);
+  });
+
+  it('limiar do MAC de gateway: em 2 ativos fica (completa o MAC do inventariado), em 3 sai', async () => {
+    const mac = '00:09:0f:00:00:02';
+    const dois = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.10', { mac }), at('10.1.1.82', { mac })], []));
+    expect(dois.macs.map((m) => m.dados.mac)).toEqual([mac]); // 10.1.1.10 está no inventário sem MAC
+    expect(dois.ativos.map((a) => a.dados.mac)).toEqual([mac]);
+    expect(dois.contagem.macs_gateway_ignorados).toBe(0);
+    const tres = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.10', { mac }), at('10.1.1.82', { mac }), at('10.1.1.83', { mac })], []));
+    expect([tres.macs, tres.ativos]).toEqual([[], []]);
+    expect(tres.contagem.macs_gateway_ignorados).toBe(3);
+  });
+
+  it('MAC do dhcp.log (mac_dhcp) em 3 ativos fica; sem a marca sai', async () => {
+    const mac = '00:0e:8c:00:00:06';
+    const tres = (marca: object) => [at('10.1.1.10', { mac, ...marca }), at('10.1.1.84', { mac, ...marca }), at('10.1.1.85', { mac, ...marca })];
+    const dhcp = await planejarResumo(env.DB, chaves, PJ, site, resumo(tres({ mac_dhcp: true }), []));
+    expect(dhcp.macs.map((m) => m.dados)).toEqual([{ ip: '10.1.1.10', mac, nome: 'RTU 1' }]);
+    expect(dhcp.contagem.macs_gateway_ignorados).toBe(0);
+    const sem = await planejarResumo(env.DB, chaves, PJ, site, resumo(tres({}), []));
+    expect(sem.macs).toEqual([]);
+    expect(sem.contagem.macs_gateway_ignorados).toBe(3);
+  });
+
   it('ativo com mais de 100 portas: só as 100 primeiras, na ordem do resumo', async () => {
     const portas = Array.from({ length: 150 }, (_, i) => 1000 + i);
     const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.40', { protocolos: ['modbus'], portas_servico: portas, mac: '00:30:a7:00:00:40' })], []));
@@ -162,7 +198,7 @@ describe('chave de novidade', () => {
     await achado('f5', await k(5), 'enviado', 0);
     await achado('f6', await k(6, 's2'), 'rascunho', 0);
     const plano: Plano = { ativos: await Promise.all([1, 2, 3, 4, 5, 6].map(async (i) => ({ chave: await k(i), dados: { ip: ip(i) } }))), macs: [], fluxos: [], pendentes: [],
-      contagem: { ativos_novos: 6, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, fluxos_conhecidos: 0 } };
+      contagem: { ativos_novos: 6, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, fluxos_conhecidos: 0, macs_gateway_ignorados: 0 } };
     const r = await filtrarNovidade(env.DB, PJ, plano);
     expect(r.repetidos).toBe(3);
     expect(r.plano.ativos.map((a) => a.dados.ip)).toEqual([ip(4), ip(5), ip(6)]);
