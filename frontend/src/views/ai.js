@@ -28,8 +28,8 @@ import { produtoAtual, modulosVisiveis } from '../produto.js';
         h.textContent = 'Assistente';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
-        // ponytail: a conversa vive só nesta tela. O servidor não guarda histórico (nada grava
-        // ai_chat_history; GET/DELETE /chat/history nunca existiram). Guardar conversa é decisão
+        // ponytail: a conversa vive só nesta tela. O servidor não guarda histórico (a tabela
+        // ai_chat_history saiu na 0109; GET/DELETE /chat/history nunca existiram). Guardar conversa é decisão
         // de produto, com retenção LGPD, não correção. O aviso abaixo do campo diz isso ao usuário.
         a.innerHTML = '';
         const [convite, exemplo] = COPIA[produtoAtual()] || COPIA.n360;

@@ -74,12 +74,6 @@ const RETENCAO: { tabela: string; dias: number; coluna: string; motivo: string }
     motivo: 'aviso de interface; perde utilidade em dias, e guardar por anos é acúmulo sem uso',
   },
   {
-    tabela: 'ai_chat_history',
-    dias: 180,
-    coluna: 'created_at',
-    motivo: 'pode conter texto que o consultor colou do cliente — minimização (LGPD art. 6º, III)',
-  },
-  {
     tabela: 'avisos_prazo',
     dias: 400,
     coluna: 'criado_em',

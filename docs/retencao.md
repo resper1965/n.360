@@ -12,7 +12,6 @@ divergir porque os números estão num lugar só.
 | Tabela | Prazo | Por quê |
 | :--- | ---: | :--- |
 | `notifications` | 180 dias | Aviso de interface. Perde utilidade em dias; guardar por anos é acúmulo sem uso. |
-| `ai_chat_history` | 180 dias | Pode conter texto que o consultor colou de um documento do cliente. Minimização — LGPD art. 6º, III. |
 | `avisos_prazo` | 400 dias | Registro de idempotência dos avisos de prazo (quem já foi avisado de quê). Depois de um ciclo anual não evita mais nada: o atraso é por semana e o vencimento faz parte da chave. |
 | `rate_limits` | 7 dias após a janela fechar | Contador operacional. A margem existe para a purga **nunca** alcançar janela aberta: apagar a linha de quem está sendo limitado zeraria o contador, transformando limpeza em bypass. |
 | `auditor_tokens` vencidos | 90 dias após o vencimento | Credencial de acesso externo a dado de cliente. Token vencido já não autentica nada; some por retenção, não por segurança. A carência cobre o ciclo de uma auditoria — investigar um acesso do mês passado exige que a linha ainda exista. |
@@ -79,7 +78,7 @@ npx wrangler tail --format json | grep manutencao_diaria
 
 ```json
 {"msg":"manutencao_diaria","rate_limits_removidos":0,"tokens_auditor_removidos":0,
- "trilha_arquivada":"2026-09-05","retencao":{"notifications":3,"ai_chat_history":0},
+ "trilha_arquivada":"2026-09-05","retencao":{"notifications":3,"avisos_prazo":0},
  "falhas":[]}
 ```
 

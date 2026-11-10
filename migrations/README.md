@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0108** (`ls migrations/*.sql | tail -1`). São 109 arquivos
+- Última migration no repositório: **0109** (`ls migrations/*.sql | tail -1`). São 110 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -752,6 +752,14 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
+
+## 0109 — apaga quatro tabelas sem uso (2026-11-10)
+
+`DROP TABLE IF EXISTS` de `project_documents`, `project_scope_changes`, `ai_chat_history` e `project_knowledge` (os índices vão junto).
+Nenhum código as usava e nenhuma tabela as referencia; a retenção de `ai_chat_history` saiu de `src/manutencao.ts`. Em produção, em
+10/11/2026, tinham 0, 0, 2 e 2 linhas; as 4 linhas ficam só no backup feito antes da migration (decisão do dono). **Destrutiva:** o
+backup antes é obrigatório. Conferência depois:
+`SELECT name FROM sqlite_master WHERE tbl_name IN ('project_documents','project_scope_changes','ai_chat_history','project_knowledge')` (0 linhas).
 
 ## 0108 — desvios do n.ot (2026-11-09)
 
