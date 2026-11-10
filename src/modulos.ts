@@ -6,14 +6,15 @@ import { parseModulos } from './schemas/nucleo';
  *   - `iso`: o que só o n.iso faz (controles, SoA, riscos, auditorias, certificação…).
  *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, pedidos do titular, consentimentos, encarregado,
  *     ligações do tratamento, LIA).
+ *   - `ot`: o n.ot (inventário e requisitos do ARCiber, ONS RO-CB.BR.01), sob `ot/`.
  * Rota nova precisa estar classificada aqui: `test/modulos-produto.test.ts` reprova a que não estiver.
  */
 
-export const MODULOS_PRODUTO = ['iso', 'privacy'] as const;
+export const MODULOS_PRODUTO = ['iso', 'privacy', 'ot'] as const;
 export type Modulo = (typeof MODULOS_PRODUTO)[number];
 export type Faixa = 'nucleo' | Modulo;
 
-export const NOME_DO_PRODUTO: Record<Modulo, string> = { iso: 'n.iso', privacy: 'n.privacy' };
+export const NOME_DO_PRODUTO: Record<Modulo, string> = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
 
 /** Primeiro segmento depois de `/api/v1/projects/:projectId/` → faixa. `''` é o próprio projeto. */
 export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
@@ -36,7 +37,9 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   'seed-27001-2022': 'iso', 'seed-27701-2025': 'iso', traceability: 'iso',
   // só n.privacy
   catalogos: 'privacy', consentimentos: 'privacy', encarregado: 'privacy', importacoes: 'privacy', requisitos: 'privacy', terceiros: 'privacy', homologacoes: 'privacy',
-  'titular-pedidos': 'privacy',
+  'titular-pedidos': 'privacy', 'titular-portal': 'privacy',
+  // só n.ot: todas as rotas ficam sob `ot/` (spec 2026-10-30-n-ot-modulo-n360-design, 4.2)
+  ot: 'ot',
 };
 
 /** Sub-rotas de um segmento do n.privacy que são do núcleo. DPA é dado comum: o n.iso liga o documento sem ter o n.privacy (decisão de 20/10/2026); idem os requisitos do documento. */
@@ -58,13 +61,13 @@ const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/[^/]+\/(riscos|acoes)(\/[^/]+)?$/,
   /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|sugestao|impacto|ciclo|bases)$/,
   // Exportação (F4): riscos, ações e LIA das atividades; atividades e RIPD seguem no núcleo pelo segmento `export`.
-  /^export\/(riscos-atividade|acoes-atividade|lia)$/,
+  /^export\/(riscos-atividade|acoes-atividade|lia|pedidos-titular)$/,
   /^ropa\/[^/]+\/lia(\/(docx|questionario|logs))?$/,
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^evidence\/[^/]+\/requisitos$/,
   // Ficha em abas (spec 2026-10-16): o registro segue no núcleo; a camada nova é do n.privacy.
   /^ropa\/[^/]+\/(ficha|escopo|agentes|base-juridica|logs|conferencia|situacao|relatorio)$/,
-  /^ropa\/[^/]+\/(medidas|gaps|etapas)(\/.*)?$/,
+  /^ropa\/[^/]+\/(medidas|gaps|etapas|orgaos-publicos)(\/.*)?$/,
 ];
 
 /** Resto do caminho depois de `/api/v1/projects/:id/`, ou null se o caminho não é de projeto. */

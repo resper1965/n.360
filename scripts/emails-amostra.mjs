@@ -32,6 +32,8 @@ const amostras = {
   'convite': m.emailBoasVindas({ nome: 'Bruno Lima', email: 'bruno.lima@cliente.example', organizacao: 'ness.', equipe: false, convidante: ana, url: 'https://n360.ness.com.br', link: 'https://n360.ness.com.br/#convite=exemplo', horas: 72 }),
   'redefinicao-senha': m.emailRedefinicaoSenha({ nome: 'Bruno Lima', codigo: '482913' }),
   'codigo-politicas': m.emailCodigoPoliticas({ cliente: 'Metalúrgica Exemplo Ltda', codigo: '705218' }),
+  'protocolo-titular': m.emailProtocoloTitular({ protocolo: 'PT-2026-0001', codigo: 'K7QM-3XRP-9WTD-H2FN', link: 'https://n360.ness.com.br/solicitacao#acompanhar=PT-2026-0001.K7QM-3XRP-9WTD-H2FN' }),
+  'encaminhamento-titular': m.emailEncaminhamentoTitular({ protocolo: 'PT-2026-0001', tipo: 'Acesso aos dados', prazo: '2026-12-01', mensagem: 'Por favor, localize os registros de ponto do titular deste pedido entre janeiro e março e me responda por este e-mail.', nome: 'Ponto Focal Exemplo', quem: { nome: 'Consultora Exemplo', email: 'consultora@ness.com.br', organizacao: 'ness.' } }),
   'senha-definida': m.emailSenhaDefinidaPorOutro({ nome: 'Bruno Lima', quem: { nome: 'Ana Souza', email: 'ana.souza@ness.example' }, url: 'https://n360.ness.com.br', link: 'https://n360.ness.com.br/#convite=exemplo', horas: 72 }),
   'ciencia': m.emailCiencia({ titulo: 'Política de Segurança da Informação', nome: 'Carla Dias', link: 'https://n360.ness.com.br/politicas#exemplo', quem, reenvio: false, validoAte: daqui(30) }),
   'ciencia-reenvio': m.emailCiencia({ titulo: 'Política de Segurança da Informação', nome: 'Carla Dias', link: 'https://n360.ness.com.br/politicas#exemplo', quem, reenvio: true, validoAte: daqui(30) }),
@@ -40,6 +42,7 @@ const amostras = {
     quem: { nome: 'Diego Ramos', email: 'diego.ramos@ness.example', organizacao: 'ness.' }, mensagem: 'Conforme conversamos na reunião de terça.\nFico à disposição para ajustar o escopo.' }),
   'homologacao': m.emailHomologacao({ cliente: 'Metalúrgica Exemplo Ltda', fornecedor: 'Transportes Exemplo S.A.', expiraEm: '2026-10-30 14:00:00', link: 'https://n360.ness.com.br/homologacao#exemplo', quem: ana }),
   'pedido-aprovacao': m.emailPedidoAprovacao({ tipo: 'politica', titulo: 'Política: Política de Segurança da Informação', papel: 'ciso', nome: 'Carla Dias', link: 'https://n360.ness.com.br/?tela=meus-pedidos', quem }),
+  'homologacao-lembrete': m.emailLembreteHomologacao({ cliente: 'Metalúrgica Exemplo Ltda', fornecedor: 'Transportes Exemplo S.A.', enviadoEm: '2026-10-15 14:00:00', expiraEm: '2026-10-30 14:00:00', quem: ana }),
   'homologacao-respondida': m.emailHomologacaoRespondida({ nome: 'Ana Souza', fornecedor: 'Transportes Exemplo S.A.', cliente: 'Metalúrgica Exemplo Ltda', respondidas: 9, total: 12, percentual: 75, link: 'https://n360.ness.com.br/privacy?tela=terceiros' }),
   'resumo-prazos': m.emailResumo([
     { id: '1', user_id: 'u', email: 'ana.souza@ness.example', nome: 'Ana Souza', projeto: 'Metalúrgica Exemplo', fonte: 'capa', marco: 'D-7', vence_em: '2026-10-22', titulo: 'Revisar acessos de terceiros' },

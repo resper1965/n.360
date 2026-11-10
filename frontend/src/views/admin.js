@@ -125,7 +125,8 @@ window.__adminCopiarApiKey = () => {
         } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
-    const MODULOS_CONTA = [['iso', 'n.iso'], ['privacy', 'n.privacy']];
+    // n.ot: só por concessão explícita (spec n.ot, P0-1); a caixa nunca nasce marcada e o servidor não o dá por padrão.
+    const MODULOS_CONTA = [['iso', 'n.iso'], ['privacy', 'n.privacy'], ['ot', 'n.ot']];
     // Resposta antiga (sem o campo) mostra traço, não "sem módulo".
     const rotuloModulos = (m) => (!Array.isArray(m) ? '—' : m.length ? MODULOS_CONTA.filter(([v]) => m.includes(v)).map(([, r]) => r).join(' · ') : 'Nenhum');
 
@@ -469,7 +470,7 @@ window.__adminCopiarApiKey = () => {
                         const pode = tetoModulos.includes(v);
                         return `<label style="display:block"><input type="checkbox" class="user-m-modulo" value="${v}" ${tem ? 'checked' : ''} ${pode ? '' : 'disabled'}> ${r}${pode ? '' : ' (fora do que a consultoria ou o projeto contratou)'}</label>`;
                     }).join('')}
-                    <p class="org-dica">${user ? 'Define a que a pessoa acessa nos projetos que têm o módulo.' : 'Sem marcar nenhum, a conta recebe os módulos padrão do projeto ou da consultoria.'}</p>
+                    <p class="org-dica">${user ? 'Define a que a pessoa acessa nos projetos que têm o módulo.' : 'Sem marcar nenhum, a conta recebe os módulos padrão do projeto ou da consultoria (nunca o n.ot, que só vale marcado aqui).'}</p>
                 </fieldset>
 
                 <div style="display:flex; gap:1rem; margin-top:1.5rem">

@@ -19,13 +19,14 @@ const T = (id, situacao, dias, extra = {}) => ({ id, nome: `Fornecedor ${id}`, t
 const LISTA = [
     T('ok', 'vigente', 200), T('breve', 'vigente', 10), T('v1', 'vencida', -5), T('v2', 'vencida', -40, { nivel: 'alto', terceiro_tipo: 'critico', metodo: 'auditoria' }),
     T('novo', 'pendente', null, { nivel: null, terceiro_tipo: null, metodo: null }), T('rep', 'reprovada', 100, { nome: 'Fornecedor <b>rep</b>' }),
+    T('mudou', 'reavaliar', 300, { nivel: 'alto', terceiro_tipo: 'critico', metodo: 'auditoria' }),
 ];
 const el = (id) => document.getElementById(id);
 const nomes = (grupo) => [...el(grupo).querySelectorAll('tbody tr')].map((tr) => tr.cells[0].textContent);
 
-async function abrir(corpo = LISTA) {
+async function abrir(corpo = LISTA, homologacoes = null) {
     document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>';
-    servir({ 'GET /api/v1/projects/p9/terceiros': corpo });
+    servir({ 'GET /api/v1/projects/p9/terceiros': corpo, ...(homologacoes ? { 'GET /api/v1/projects/p9/homologacoes': homologacoes } : {}) });
     await window.renderAvaliacoesTerceiros(el('c'), el('h'), el('a'));
 }
 
@@ -33,9 +34,20 @@ beforeEach(() => { S.token = 'tok'; S.user = { role: 'consultor' }; S.activeProj
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('fila de avaliações', () => {
+    it('questionário respondido e link vencido sem resposta têm grupo próprio e passam à frente da situação (fatia 4)', async () => {
+        await abrir([T('resp', 'pendente', null), T('venc', 'vencida', -5), T('ok', 'vigente', 200)], [
+            { id: 'h1', parte_id: 'resp', status: 'respondida', expirada: false },
+            { id: 'h2', parte_id: 'venc', status: 'aberta', expirada: true },
+            { id: 'h3', parte_id: 'ok', status: 'aberta', expirada: false },
+        ]);
+        expect([...el('c').querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Questionário respondido, aguardando conclusão (1)', 'Link vencido sem resposta (1)', 'Em dia (1)']);
+        expect(nomes('av-respondido')).toEqual(['Fornecedor resp']);
+        expect(nomes('av-link_vencido')).toEqual(['Fornecedor venc']);
+    });
+
     it('grupos com contagem, na ordem da urgência, e só os que têm fornecedor', async () => {
         await abrir();
-        expect([...el('c').querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Vencidas (2)', 'Vencem em 30 dias (1)', 'Sem avaliação (1)', 'Reprovadas (1)', 'Em dia (1)']);
+        expect([...el('c').querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Vencidas (2)', 'Reprovadas (1)', 'Reavaliar: o tipo mudou (1)', 'Vencem em 30 dias (1)', 'Sem avaliação (1)', 'Em dia (1)']);
         await abrir([T('ok', 'vigente', 200)]);
         expect([...el('c').querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Em dia (1)']);
     });

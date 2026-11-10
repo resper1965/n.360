@@ -91,7 +91,8 @@ describe('aba Teste de Impacto', () => {
         expect(puts[0]).toEqual({ respostas: { afeta_direitos: 'sim' } });
         await esperar(() => radio('afeta_direitos', 'sim').checked && document.activeElement === radio('afeta_direitos', 'sim'));
         expect(document.activeElement).toBe(radio('afeta_direitos', 'sim'));
-        expect(recarregarFicha).toHaveBeenCalled();
+        // A resposta não redesenha a página (remontava a aba e travava a pergunta seguinte): a ficha se atualiza ao finalizar.
+        expect(recarregarFicha).not.toHaveBeenCalled();
         marcar('sensiveis', 'sim');
         await esperar(() => puts.length === 2);
         await esperar(() => el('at-recomendacao').textContent.includes('RIPD recomendado'));

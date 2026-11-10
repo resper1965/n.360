@@ -289,11 +289,11 @@ describe('contrato de módulos', () => {
   it('platform_admin vê as caixas (marcadas pelo contrato) e o aviso', async () => {
     await monta();
     await clica('__orgEditar', ['org_ness']);
-    expect(caixas().map((x) => [x.value, x.checked])).toEqual([['iso', true], ['privacy', true]]);
+    expect(caixas().map((x) => [x.value, x.checked])).toEqual([['iso', true], ['privacy', true], ['ot', false]]);
     expect($('org-e-contrato-aviso').textContent).toContain('não o remove das pessoas nem dos projetos');
     await clica('forceCloseModal');
     await clica('__orgEditar', ['org_alfa']);
-    expect(caixas().map((x) => [x.value, x.checked])).toEqual([['iso', true], ['privacy', false]]);
+    expect(caixas().map((x) => [x.value, x.checked])).toEqual([['iso', true], ['privacy', false], ['ot', false]]);
   });
 
   it('outro papel não vê o contrato', async () => {

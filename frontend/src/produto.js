@@ -3,34 +3,39 @@ import { api } from './api.js';
 import { showToast, openModal, escapeHTML, renderEmptyState } from './ui.js';
 import { filtroValido } from './filtro-painel.js';
 
-// O n.360 é a plataforma-mãe; n.iso e n.privacy são módulos dele sobre o mesmo cadastro (decisão de 11/10/2026). Tudo responde
-// em n360.ness.com.br e o CAMINHO decide a casca: /iso… → n.iso, /privacy… → n.privacy, o resto → o início do n.360. A trava
+// O n.360 é a plataforma-mãe; n.iso, n.privacy e n.ot são módulos dele sobre o mesmo cadastro (decisão de 11/10/2026; n.ot em
+// 30/10/2026). Tudo responde em n360.ness.com.br e o CAMINHO decide a casca: /iso… → n.iso, /privacy… → n.privacy, /ot… → n.ot,
+// o resto → o início do n.360. A trava
 // de verdade é do servidor (403 sem o módulo do projeto); aqui só se mostra o produto certo e os projetos que o têm.
 
 export const PRODUTOS = {
     n360: { nome: '360', titulo: 'n.360 | ness.', inicio: 'inicio' },
     iso: { nome: 'iso', titulo: 'n.iso | ness. Agentic GRC', inicio: 'dashboard' },
     privacy: { nome: 'privacy', titulo: 'n.privacy | ness. Privacidade', inicio: 'encarregado' },
+    ot: { nome: 'ot', titulo: 'n.ot | ness. ARCiber', inicio: 'ot' },
 };
-const MODULOS = ['iso', 'privacy'];
+const MODULOS = ['iso', 'privacy', 'ot'];
 
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
 export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-titulares', 'nav-dados-titular',
+export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
+/** O n.ot tem uma tela só (`views/ot.js`), em abas: catálogo, inventário, fluxos, coleta, saídas e acesso por site; o cadastro comum não entra no menu dele. */
+export const SO_OT = ['nav-ot'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
  */
-export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'identidade-org': 'nav-identidade', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
+export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'identidade-org': 'nav-identidade', 'modelos-fornecedor': 'nav-modelos-fornecedor', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
 export const SO_N360 = Object.values(TELAS_DA_CONTA);
 /**
  * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
  * trilha). Segurança do projeto mora em Conta e acessos, então também é só do n.360. Tela fora daqui leva ao módulo (router).
  */
-export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
+// nav-ot: no hub, a entrada do n.ot (o painel do n.360 ainda não tem bloco dele); só com projeto e pessoa com o módulo (atualizarItemOt).
+export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', 'nav-ot', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
 export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
 // Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
 const DO_ISO_SEM_ITEM = ['project-detail', 'controls', 'metrics', 'audit-execution', 'assessment-detail', 'management-review'];
@@ -39,7 +44,7 @@ const DO_PRIVACY_SEM_ITEM = ['terceiro', 'lia-ficha'];
 
 /** O produto do caminho (vale igual em localhost). */
 export function produtoAtual(loc = window.location) {
-    const m = /^\/(iso|privacy)(\/|$)/.exec(loc.pathname || '/');
+    const m = /^\/(iso|privacy|ot)(\/|$)/.exec(loc.pathname || '/');
     return m ? m[1] : 'n360';
 }
 
@@ -70,9 +75,9 @@ export async function destinoLegado(loc = window.location) {
 
 /** A ficha do fornecedor (`?tela=terceiro&parte=&aba=`), a do RIPD (`?tela=ripd-ficha&dpia=&aba=`) e a da LIA (`?tela=lia-ficha&ropa=&aba=`) vivem no endereço; fora delas, esses parâmetros saem. */
 export function limparFichaDoEndereco() {
-    if (!['terceiro', 'ripd-ficha', 'lia-ficha'].includes(new URLSearchParams(window.location.search).get('tela'))) return;
+    if (!['terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha'].includes(new URLSearchParams(window.location.search).get('tela'))) return;
     const u = new URL(window.location.href);
-    for (const k of ['tela', 'parte', 'dpia', 'ropa', 'aba']) u.searchParams.delete(k);
+    for (const k of ['tela', 'parte', 'dpia', 'ropa', 'incidente', 'aba']) u.searchParams.delete(k);
     window.history.replaceState(null, '', u);
 }
 
@@ -98,13 +103,14 @@ export const projetoDoId = (projectId) => (S.projects || []).find((p) => p.id ==
 export function produtoDaTela(tela) {
     if (SO_ISO.includes(`nav-${tela}`)) return 'iso';
     if (SO_PRIVACY.includes(`nav-${tela}`)) return 'privacy';
+    if (SO_OT.includes(`nav-${tela}`)) return 'ot';
     return null;
 }
 
 /** O módulo de uma tela, para o hub: o do item do menu, ou o n.iso nas telas dele sem item; null nas do cadastro (dos dois). */
 export const moduloDaTela = (tela) => (DO_ISO_SEM_ITEM.includes(tela) ? 'iso' : DO_PRIVACY_SEM_ITEM.includes(tela) ? 'privacy' : produtoDaTela(tela));
 
-/** Caminho do produto na mesma origem: '/', '/iso' ou '/privacy'. */
+/** Caminho do produto na mesma origem: '/', '/iso', '/privacy' ou '/ot'. */
 export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${produto}` : '/');
 
 /** Para onde um aviso leva: a tela, ou o caminho do módulo quando a tela é só de outro. No n.360 navega: o router leva ao módulo. */
@@ -119,9 +125,9 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'lia-ficha', 'avaliacoes-terceiros', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
+    'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha', 'avaliacoes-terceiros', 'questionarios-fornecedor', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
-    'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
+    'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review', 'ot'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
 const CHAVE_AVISO = 'n360_aviso';
 // O filtro do painel (filtro-painel.js) que acompanha a tela: só a chave da lista fechada, no storage e não no endereço.
@@ -141,7 +147,8 @@ export function moduloPara(tela, proj) {
     if (dono) return dono;
     if (!TELAS_DOS_MODULOS.includes(tela) || !proj) return null;
     const tem = modulosVisiveis(proj);
-    return (ehIncidentes(tela) ? ['privacy', 'iso'] : MODULOS).find((m) => tem.includes(m)) || null;
+    // O n.ot não tem tela do cadastro comum: só os dois primeiros abrem as telas compartilhadas.
+    return (ehIncidentes(tela) ? ['privacy', 'iso'] : ['iso', 'privacy']).find((m) => tem.includes(m)) || null;
 }
 
 /** O endereço da tela no módulo, para sair do n.360; guarda o projeto (o state o hidrata de lá) e o aviso em curso, se houver. */
@@ -201,7 +208,7 @@ export function pedidoDoHub(loc = window.location) {
     const tela = q.get('tela');
     const aba = q.get('aba') === 'incidentes' && tela === 'titular' ? 'incidentes' : null;
     // A ficha do fornecedor (?tela=terceiro&parte=&aba=) e a do RIPD (?tela=ripd-ficha&dpia=&aba=) vivem no endereço: recarregar volta a ela, na mesma aba.
-    if (tela !== 'terceiro' && tela !== 'ripd-ficha' && tela !== 'lia-ficha') { q.delete('tela'); q.delete('aba'); }
+    if (!['terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha'].includes(tela)) { q.delete('tela'); q.delete('aba'); }
     const resto = q.toString();
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
     if (aviso) return { aviso };
@@ -224,7 +231,7 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 // ids nav-* e as rotas não mudam.
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Dashboard', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
-    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações',
+    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
     'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos',
 };
 
@@ -239,7 +246,7 @@ export const SECOES_PRIVACY = [
     ['Cadastros', ['nav-areas', 'nav-sistemas', 'nav-titulares', 'nav-dados-titular', 'nav-parceiros', 'nav-partes']],
     ['Mapeamento', ['nav-ropa', 'nav-dpia', 'nav-lia']],
     ['Diagnóstico', ['nav-gaps', 'nav-mapa-de-risco']],
-    ['Fornecedores', ['nav-terceiros', 'nav-avaliacoes-terceiros']],
+    ['Fornecedores', ['nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor']],
     ['', ['nav-documentos-arquivo', 'nav-titular']],
     ['Mais', ['nav-referencia-juridica', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
     ['', ['nav-ai']],
@@ -292,7 +299,10 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
     if (produto !== 'iso') {
         const t = doc.querySelector('.entry-title');
         const l = doc.querySelector('.entry-lede');
-        if (produto === 'privacy') {
+        if (produto === 'ot') {
+            if (t) t.textContent = 'Segurança cibernética do ARCiber, pela rotina operacional RO-CB.BR.01 do ONS.';
+            if (l) l.innerHTML = 'O ambiente onde sua empresa e a ness<span class="entry-dot">.</span> conduzem o levantamento e a conformidade de OT.';
+        } else if (produto === 'privacy') {
             if (t) t.textContent = 'Privacidade e LGPD conduzidas, do inventário à resposta ao titular.';
             if (l) l.innerHTML = 'O ambiente onde sua empresa e a ness<span class="entry-dot">.</span> trabalham juntas: tratamentos, terceiros, pedidos do titular e incidentes em um só lugar.';
         } else {
@@ -310,7 +320,8 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
     // No n.360 (hub) fica só NAV_DO_HUB. Segurança do projeto está em Conta e acessos: nos módulos sai com o grupo.
     const doHub = new Set(NAV_DO_HUB);
     const esconder = produto === 'n360' ? (id) => !doHub.has(id)
-        : (id) => (produto === 'privacy' ? [...SO_ISO, ...FORA_DO_MENU_PRIVACY] : SO_PRIVACY).includes(id) || SO_N360.includes(id) || id === 'nav-inicio' || id === 'nav-seguranca-projeto';
+        : produto === 'ot' ? (id) => !SO_OT.includes(id)
+        : (id) => (produto === 'privacy' ? [...SO_ISO, ...FORA_DO_MENU_PRIVACY] : SO_PRIVACY).includes(id) || SO_OT.includes(id) || SO_N360.includes(id) || id === 'nav-inicio' || id === 'nav-seguranca-projeto';
     if (produto === 'privacy') organizarMenuPrivacy(doc);
     doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
     // Grupo sem nenhum item do produto some inteiro (rótulo e grupo).
@@ -365,7 +376,9 @@ export function semAcesso(c, produto = produtoAtual()) {
         ? renderEmptyState({ id: 'sem-acesso-produto', titulo: 'Você ainda não tem acesso a nenhum módulo do n.360',
             texto: 'Nenhum projeto seu tem o n.iso ou o n.privacy habilitado. Fale com a ness. para contratar.' })
         : renderEmptyState({ id: 'sem-acesso-produto', titulo: `Você não tem acesso ao n.${nome}`,
-            texto: 'Nenhum projeto seu tem este módulo habilitado. Fale com a ness. para contratar, ou volte ao n.360.',
+            // O n.ot nunca é concedido automaticamente (P0-1): sem ele, o comum é faltar a concessão à pessoa, não o contrato.
+            texto: produto === 'ot' ? 'O n.ot é concedido pessoa a pessoa, mesmo quando o projeto já tem o módulo. Peça a concessão a quem administra os usuários do seu projeto, ou volte ao n.360.'
+                : 'Nenhum projeto seu tem este módulo habilitado. Fale com a ness. para contratar, ou volte ao n.360.',
             acao: `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('n360'))}">Abrir o n.360</a>` });
 }
 
@@ -415,7 +428,7 @@ export function atualizarLinkCruzado(doc = document) {
         const conta = linkDaBarra(doc, 'link-conta');
         if (conta) { conta.href = `${enderecoDoProduto('n360')}?tela=${tela}`; conta.textContent = 'Conta e acessos (n.360)'; }
     }
-    const outro = produto === 'privacy' ? 'iso' : 'privacy';
+    const outro = produto === 'iso' ? 'privacy' : 'iso';
     const mostrar = S.activeProject && temProduto(S.activeProject, outro) && temProduto(S.activeProject, produto);
     if (!mostrar) { tirar('link-outro-produto'); return; }
     const el = linkDaBarra(doc, 'link-outro-produto');
@@ -425,7 +438,13 @@ export function atualizarLinkCruzado(doc = document) {
 }
 
 /** O que cada módulo é, numa linha: no início do n.360, a escolha não depende de conhecer o nome. */
-export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e terceiros' };
+export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e terceiros', ot: 'ARCiber: requisitos da RO-CB.BR.01 do ONS' };
+
+/** O item n.ot do menu: só com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
+export function atualizarItemOt(doc = document) {
+    const el = doc.getElementById('nav-ot');
+    if (el) el.hidden = !(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
+}
 
 /**
  * No Painel de um módulo, ao lado do título do cabeçalho: um link por módulo que a pessoa vê no projeto ativo, o atual marcado.
@@ -489,9 +508,10 @@ window.abrirProdutosDoProjeto = async function (projectId) {
             <td style="text-align:right">${pode ? `<button class="btn btn-sm ${ligado ? 'btn-ghost' : 'btn-primary'}" data-action="alternarProdutoDoProjeto" data-args='${escapeHTML(JSON.stringify([projectId, m, !ligado]))}'>${ligado ? 'Desligar' : 'Habilitar'}</button>` : ''}</td></tr>`;
     };
     openModal(`<h3>Produtos do projeto</h3>
-        <p style="color:var(--text-dim)">Os dois produtos usam o mesmo cadastro (partes, itens, documentos, RoPA, DPIA, evidências). Desligar um produto não apaga dado: ele volta ao religar.</p>
+        <p style="color:var(--text-dim)">Os produtos usam o mesmo cadastro (partes, itens, documentos, RoPA, DPIA, evidências). Desligar um produto não apaga dado: ele volta ao religar.</p>
         <p id="produtos-aviso-pessoas" style="color:var(--text-dim)">Os usuários do cliente deste projeto recebem o módulo; a equipe da consultoria precisa recebê-lo na tela Usuários.</p>
-        <table class="data-table" id="produtos-do-projeto"><tbody>${linha('iso')}${linha('privacy')}</tbody></table>`);
+        <p id="produtos-aviso-ot" class="org-dica">O n.ot é a exceção: não é concedido automaticamente a ninguém, nem ao cliente; dê o módulo a cada pessoa na tela Usuários.</p>
+        <table class="data-table" id="produtos-do-projeto"><tbody>${MODULOS.map(linha).join('')}</tbody></table>`);
 };
 
 window.alternarProdutoDoProjeto = async function (projectId, modulo, habilitar) {

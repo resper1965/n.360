@@ -15,14 +15,14 @@ import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo } fro
  * e só a pessoa grava (Aceitar copia para o campo e o autosave grava). Nada é gravado aqui além da trilha `agente.rascunho`, sem o texto.
  *
  * Regras que não se quebram (as mesmas do copiloto da entrevista, `copiloto-ropa.ts`):
- *  - O contexto (finalidade, ativos, áreas, titulares e dados da Coleta) sai do BANCO do projeto da rota. Partes não são lidas.
+ *  - O contexto (finalidade, descrição da atividade, ativos, áreas, titulares e dados da Coleta) sai do BANCO do projeto da rota. Partes não são lidas.
  *  - Dado marcado sensível nunca vai ao modelo, nem o nome. Texto livre passa por `mascararPii` antes.
  *  - A nota e a descrição são DADO, não instrução. O prompt é fixo.
  *  - A IA nunca decide dado sensível, crianças, transferência nem salvaguarda: esses campos não existem no contrato de saída.
  *    Indício no texto da pessoa vira só `avisos` (regex do servidor).
  *  - Saída validada campo a campo; texto cortado no teto da etapa (4.000). Origem só na Coleta, só ids de ORIGENS_DOS_DADOS.
  *  - Modelo ausente, falhando ou fora do formato: `{ indisponivel: true }`, sem trilha e sem erro.
- *  - Sem base (nenhum titular na Coleta, ativo, área, descrição atual nem nota), o modelo NÃO é chamado: só a finalidade
+ *  - Sem base (nenhum titular na Coleta, ativo, área, descrição da atividade, descrição atual nem nota), o modelo NÃO é chamado: só a finalidade
  *    não sustenta texto e ele inventava. Parceiro não conta como base: o nome dele não vai ao modelo. Volta `sem_base: true` com o que falta, sem trilha (nada foi gerado).
  *  - Com base, a resposta diz de onde veio (`fontes`, só o que foi enviado e não está vazio).
  */
@@ -51,7 +51,7 @@ const SCHEMA_SAIDA = {
 };
 
 export const PROMPT_ETAPA = `Você é especialista em LGPD e ajuda a preencher uma etapa do Tratamento de Dados (RoPA, art. 37 da LGPD).
-A etapa tem nome em "etapa". Leia o contexto (finalidade da atividade, o que a etapa já cita, os ativos, as áreas, os titulares e os dados da Coleta, e a nota da pessoa)
+A etapa tem nome em "etapa". Leia o contexto (finalidade e descrição da atividade, o que a etapa já cita, os ativos, as áreas, os titulares e os dados da Coleta, e a nota da pessoa)
 e PROPONHA:
 - descricao: de 1 a 4 frases, em português do Brasil, sobre como a etapa acontece NA PRÁTICA, só com o que o contexto sustenta. Não invente.
 - origem (só na Coleta): os ids, da lista "origens_possiveis", que o contexto sustenta.
@@ -89,8 +89,8 @@ export async function rascunharEtapa(env: Env, projectId: string, ropaId: string
   if (!detalhes) return { ok: false, status: 404, error: 'Registro do RoPA não encontrado' };
   const det = detalhes.find((e) => e.etapa === etapa);
   const coleta = detalhes.find((e) => e.etapa === 'coleta');
-  const reg = await env.DB.prepare('SELECT processing_purpose FROM ropa_records WHERE id = ? AND project_id = ?')
-    .bind(ropaId, projectId).first<{ processing_purpose: string }>();
+  const reg = await env.DB.prepare('SELECT processing_purpose, descricao_atividade FROM ropa_records WHERE id = ? AND project_id = ?')
+    .bind(ropaId, projectId).first<{ processing_purpose: string; descricao_atividade: string | null }>();
   if (!det || !coleta || !reg) return { ok: false, status: 404, error: 'Registro do RoPA não encontrado' };
 
   // Ao modelo vai só o que o banco do projeto tem sobre a etapa; dado sensível fica de fora, sem nome.
@@ -98,6 +98,7 @@ export async function rascunharEtapa(env: Env, projectId: string, ropaId: string
   const contexto = {
     etapa: ROTULOS[etapa],
     finalidade: mascararPii(reg.processing_purpose),
+    descricao_atividade: mascararPii(reg.descricao_atividade),
     descricao_atual: mascararPii(det.descricao),
     nota: mascararPii(corpo.nota ?? null),
     ativos: det.ativos.map((a) => mascararPii(a.nome)),
@@ -108,12 +109,14 @@ export async function rascunharEtapa(env: Env, projectId: string, ropaId: string
   const perguntas = perguntasDoQueFalta(etapa, { titulares: titulares.length, ativos: det.ativos.length, areas: det.areas.length, parceiros: det.parceiros.length });
   const nota = corpo.nota?.trim() ? corpo.nota : '';
   const descricaoAtual = det.descricao?.trim() ? det.descricao : '';
-  if (!titulares.length && !det.ativos.length && !det.areas.length && !descricaoAtual && !nota) {
+  const descritivo = reg.descricao_atividade?.trim() ? reg.descricao_atividade : '';
+  if (!titulares.length && !det.ativos.length && !det.areas.length && !descricaoAtual && !descritivo && !nota) {
     return { ok: true, resposta: { avisos: [], perguntas_a_confirmar: perguntas, sem_base: true } };
   }
   const n = (q: number, um: string, varios: string) => (q ? [`${q} ${q === 1 ? um : varios}`] : []);
   const fontes = [
     ...(reg.processing_purpose?.trim() ? ['finalidade'] : []),
+    ...(descritivo ? ['descrição da atividade'] : []),
     ...n(titulares.length, 'titular', 'titulares'),
     ...n(det.ativos.length, 'ativo', 'ativos'),
     ...n(det.areas.length, 'área', 'áreas'),

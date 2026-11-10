@@ -15,6 +15,7 @@ import basesCsv from '../docs/modelos-importacao/bases.csv?raw';
 import ripdCsv from '../docs/modelos-importacao/ripd.csv?raw';
 import liaCsv from '../docs/modelos-importacao/lia.csv?raw';
 import pedidosCsv from '../docs/modelos-importacao/pedidos.csv?raw';
+import incidentesCsv from '../docs/modelos-importacao/incidentes.csv?raw';
 
 /**
  * Importação do legado (F6): entidades da atividade (risco, gap, impacto, ciclo, bases), RIPD e LIA com estrutura, modelos de CSV sem
@@ -101,7 +102,7 @@ describe('modelos de CSV', () => {
   it('cada amostra de docs/modelos-importacao casa com o seu modelo, e só o cabeçalho exato casa', () => {
     const amostras: Record<string, string> = {
       tratamentos: tratamentosCsv, terceiros: terceirosCsv, riscos: riscosCsv, gaps: gapsCsv, impacto: impactoCsv, ciclo: cicloCsv, bases: basesCsv,
-      ripd: ripdCsv, lia: liaCsv, pedidos: pedidosCsv,
+      ripd: ripdCsv, lia: liaCsv, pedidos: pedidosCsv, incidentes: incidentesCsv,
     };
     expect(Object.keys(amostras).sort()).toEqual(MODELOS.map((m) => m.nome).sort());
     for (const [nome, csv] of Object.entries(amostras)) expect(modeloDoCsv(csv)?.nome, nome).toBe(nome);
@@ -112,6 +113,8 @@ describe('modelos de CSV', () => {
     expect(modeloDoCsv(`${lia7};coleta_direta\nX;;;;;;;sim`)?.nome).toBe('lia');
     expect(modeloDoCsv(`${lia7};coluna_inventada\nX;;;;;;;x`)).toBeNull();
     expect(modeloDoCsv('tratamento;coleta_direta\nX;sim')).toBeNull(); // faltam as obrigatórias
+    // Incidentes: o cabeçalho só com as colunas da 0058 (arquivo antigo) continua valendo; os campos de 0098 e 0099 são opcionais.
+    expect(modeloDoCsv('titulo;protocolo;ciencia_em;risco_titular;comunicacao_anpd_em;comunicacao_titular_em;status\nX;P;01/01/2026;baixo;;;avaliado')?.nome).toBe('incidentes');
     expect(modeloDoCsv('﻿"Atividade","Ameaça","Etapa","Situação","Item","Descrição"\n')).toBeNull();
     expect(modeloDoCsv('﻿"Atividade","Etapa","Situação","Item","Descrição"\nx,coleta,registrada,,\n')?.nome).toBe('ciclo'); // BOM, aspas, vírgula, acento
   });
@@ -142,7 +145,7 @@ describe('migração do legado pelos modelos, sem IA', () => {
 
     // Todos os modelos da atividade no mesmo lote: a ordem da confirmação grava os tratamentos antes.
     for (const [nome, csv] of [['riscos.csv', riscosCsv], ['gaps.csv', gapsCsv], ['impacto.csv', impactoCsv], ['ciclo.csv', cicloCsv], ['bases.csv', basesCsv],
-      ['ripd.csv', ripdCsv], ['lia.csv', liaCsv], ['terceiros.csv', terceirosCsv], ['pedidos.csv', pedidosCsv]]) await enviarEProcessar(loteBase, nome, csv);
+      ['ripd.csv', ripdCsv], ['lia.csv', liaCsv], ['terceiros.csv', terceirosCsv], ['pedidos.csv', pedidosCsv], ['incidentes.csv', incidentesCsv]]) await enviarEProcessar(loteBase, nome, csv);
     expect(ia.chamadas).toHaveLength(0);
     const resultados = await aceitarEConfirmar(loteBase);
     expect(resultados.filter((r) => r.decisao === 'recusado'), JSON.stringify(resultados)).toEqual([]);
@@ -192,6 +195,15 @@ describe('migração do legado pelos modelos, sem IA', () => {
     expect(Object.keys(resp)).toHaveLength(23);
     expect(resp).toMatchObject({ finalidades: 'Atender e responder aos clientes', tratamento_necessario: 'Sim, sem o histórico não há como atender', finalidade_sem_dados: 'Não', finalidade_menos_dados: 'Só nome e contato', coleta_direta: 'Sim, informados pelo próprio cliente' });
     expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM titular_pedidos WHERE project_id = ?`).bind(P).first<{ n: number }>())!.n).toBe(2);
+    // Incidentes do legado com o registro completo e a comunicação à ANPD (colunas opcionais do modelo).
+    const inc = (await env.DB.prepare(`SELECT status, severidade, tipo, comprometimento, titulares_estimados, criterios_risco, fim_em, anpd_protocolo, anpd_canal, anpd_justificativa
+      FROM incidentes WHERE project_id = ? ORDER BY ciencia_em`).bind(P).all()).results;
+    expect(inc).toEqual([
+      { status: 'encerrado', severidade: 'alta', tipo: 'acesso_indevido', comprometimento: '["confidencialidade","integridade"]', titulares_estimados: 120,
+        criterios_risco: '["sensiveis","financeiros"]', fim_em: '2026-03-11', anpd_protocolo: '00000.000000/2026-01', anpd_canal: 'sei', anpd_justificativa: null },
+      { status: 'avaliado', severidade: 'media', tipo: 'perda', comprometimento: '["confidencialidade"]', titulares_estimados: null,
+        criterios_risco: '["nenhum"]', fim_em: null, anpd_protocolo: null, anpd_canal: null, anpd_justificativa: 'Disco cifrado: sem comunicação devida (exemplo).' },
+    ]);
   }, 30_000); // dez arquivos num lote: sob carga passa dos 5 s, e a segunda tentativa acharia os tratamentos da primeira
 
   it('reimportar os mesmos arquivos não duplica nem sobrescreve: tudo nasce descartado como duplicata', async () => {

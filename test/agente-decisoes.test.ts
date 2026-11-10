@@ -55,6 +55,18 @@ describe('porta de decisão do agente', () => {
     expect(t.project_id).toBe('p-dec');
   });
 
+  it('concluir ação corretiva do incidente: só pela ferramenta niso_concluir_acao; editar sem concluir é livre', async () => {
+    await env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, incidente_id, title, status) VALUES ('ca-in','p-dec','in-2','Trocar senhas','Open')`).run();
+    const url = '/api/v1/projects/p-dec/incidentes/in-2/acoes/ca-in';
+    expect((await comoAgente('PUT', url, {}, { status: 'Closed' })).status).toBe(403);
+    expect((await comoAgente('PUT', url, {}, { status: 'In Progress' })).status).toBe(200);
+    const r = await comoAgente('PUT', url, DECISAO('niso_concluir_acao', 'cliente confirmou a troca'), { status: 'Closed' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await env.DB.prepare(`SELECT status, completed_at FROM corrective_actions WHERE id='ca-in'`).first<any>())).toMatchObject({ status: 'Closed' });
+    // Anexo da ação é arquivo de pessoa: fora do agente.
+    expect((await comoAgente('GET', `${url}/anexos`)).status).toBe(403);
+  });
+
   it('ato do cliente segue recusado mesmo com ferramenta, confirmação e motivo', async () => {
     const r = await comoAgente('PUT', '/api/v1/risks/rk-1', DECISAO('niso_concluir_acao'), { status: 'Accepted' });
     expect(r.status).toBe(403);
@@ -77,6 +89,17 @@ describe('porta de decisão do agente', () => {
     expect((await comoAgente('PUT', '/api/v1/capa/ca-1', {}, { title: 'Revisar backup', status: 'In Progress' })).status).toBe(200);
     const r = await comoAgente('PUT', '/api/v1/capa/ca-1', DECISAO('niso_concluir_acao', 'evidência do backup recebida'), { title: 'Backup', status: 'Closed' });
     expect(r.status, await r.clone().text()).toBe(200);
+  });
+
+  it('editar o catálogo: só pela decisão, como o consultor faria pela tela', async () => {
+    await env.DB.prepare(`INSERT INTO catalogo_itens (id, project_id, tipo, nome) VALUES ('ci-bio', 'p-dec', 'dado', 'Biometria facial')`).run();
+    const caminho = '/api/v1/projects/p-dec/catalogos/dados/ci-bio';
+    expect((await comoAgente('PUT', caminho, {}, { sensivel: true })).status).toBe(403);
+    const r = await comoAgente('PUT', caminho, DECISAO('niso_editar_catalogo', 'biometria é dado sensível (LGPD, art. 5º, II)'), { sensivel: true });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await env.DB.prepare(`SELECT sensivel FROM catalogo_itens WHERE id = 'ci-bio'`).first<{ sensivel: number }>())?.sensivel).toBe(1);
+    const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'agente.decisao' ORDER BY created_at DESC LIMIT 1`).first<{ details: string }>();
+    expect(t?.details).toContain('niso_editar_catalogo');
   });
 
   it('apagar risco da atividade: com confirmação, como apagar hoje', async () => {

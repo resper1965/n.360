@@ -108,7 +108,7 @@ describe('aba Riscos', () => {
         expect(modal.querySelector('h2').textContent).toBe('Análise de Riscos');
         expect(el('at-rk-nivel').textContent).toBe('a calcular...');
         expect(el('at-rk-nivel').getAttribute('role')).toBe('status');
-        expect(modal.textContent).toContain('Este projeto ainda não tem motivos de risco');
+        expect(modal.textContent).toContain('riscos comuns de privacidade');
         expect(el('at-rk-gravar').textContent).toBe('Adicionar');
         expect(el('at-rk-gravar').disabled).toBe(true);
         expect(el('at-rk-restaurar').disabled).toBe(true);
@@ -211,13 +211,23 @@ describe('aba Riscos', () => {
         // só pessoas no Responsável
         expect([...el('at-rk-resp').options].map((o) => o.textContent)).toEqual(['Selecione uma pessoa', 'Pessoa Exemplo']);
         expect([...el('at-rk-status').options].map((o) => o.textContent)).toEqual(['Pendente', 'Concluído']);
-        expect(el('at-rk-gravar').disabled).toBe(true);
+        // Gravar nunca fica mudo: sem os obrigatórios, diz o que falta, abre a aba Tratamento e foca o primeiro campo.
+        expect(el('at-rk-gravar').disabled).toBe(false);
+        el('at-rk-sub-residual').click();
+        el('at-rk-gravar').click();
+        await tudo();
+        expect(el('at-rk-erro').textContent).toBe('Para gravar, preencha na aba Tratamento: Estratégia, Descrição, Responsável, Data prevista para conclusão.');
+        expect(el('at-rk-p-tratamento').hidden).toBe(false);
+        expect(document.activeElement).toBe(el('at-rk-estr'));
+        expect(escritas(reqs)).toHaveLength(0);
         escolher('at-rk-estr', 'Mitigate');
         digitar('at-rk-plano', 'Revisar os acessos (exemplo)');
         escolher('at-rk-resp', 'pa1');
-        expect(el('at-rk-gravar').disabled).toBe(true); // falta a data
+        el('at-rk-gravar').click();
+        await tudo();
+        expect(el('at-rk-erro').textContent).toBe('Para gravar, preencha na aba Tratamento: Data prevista para conclusão.');
         digitar('at-rk-prazo', '2026-12-01');
-        expect(el('at-rk-gravar').disabled).toBe(false);
+        expect(el('at-rk-erro').textContent).toBe('');
         expect(el('at-rk-residual').textContent).toBe('a calcular...');
         escolher('at-rk-rprob', '2');
         expect(el('at-rk-residual').textContent).toBe('a calcular...');

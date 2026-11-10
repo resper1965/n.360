@@ -78,7 +78,8 @@ describe('Parceiros', () => {
         el('pc-busca').value = 'agenc';
         el('pc-busca').dispatchEvent(new Event('input', { bubbles: true }));
         expect(nomes()).toEqual(['Agência Exemplo']);
-        expect(f).toHaveBeenCalledTimes(1);
+        // duas ao abrir (partes e candidatos a fornecedor); buscar e ordenar não vão ao servidor
+        expect(f).toHaveBeenCalledTimes(2);
     });
 
     it('"Novo parceiro" cria a organização', async () => {
@@ -107,6 +108,15 @@ describe('Parceiros', () => {
         window.abrirTerceiro = vi.fn();
         const b = el('content').querySelector('[data-action="abrirTerceiro"]');
         expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['p9', 'o1', 'criticidade']);
+    });
+
+    it('organização que é só parte interessada não tem "Avaliar como fornecedor" (a ficha não existiria)', async () => {
+        await abrir({ [`GET ${P}/terceiros/candidatos`]: [{ id: 'o2', nome: 'Fornecedor <b>Exemplo</b>' }] });
+        const linhas = [...el('content').querySelectorAll('tbody tr')];
+        const so = linhas.find((tr) => tr.textContent.includes('Fornecedor <b>Exemplo</b>'));
+        expect(so.textContent).toContain('Só parte interessada');
+        expect(so.querySelector('[data-action="abrirTerceiro"]')).toBeNull();
+        expect(linhas.find((tr) => tr.textContent.includes('Agência Exemplo')).querySelector('[data-action="abrirTerceiro"]')).not.toBeNull();
     });
 
     it('quem só lê não vê criar nem editar', async () => {

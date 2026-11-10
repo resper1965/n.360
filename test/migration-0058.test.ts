@@ -88,7 +88,10 @@ describe('migration 0058 — titular, incidente e consentimento', () => {
       .replace(/\b(idx_titular_pedidos_projeto|idx_incidentes_projeto|idx_consentimentos_ropa|idx_consentimentos_projeto)\b/g, '$1_t');
     await execSql(sufixar(migration0058));
     await execSql(sufixar(migration0058));
-    expect(await colunas('incidentes_t')).toEqual(await colunas('incidentes'));
+    // O schema atual tem também as colunas que a 0098 acrescentou depois (registro completo do incidente).
+    const da0098 = ['origem_alerta', 'severidade', 'tipo', 'comprometimento', 'titulares_estimados', 'criterios_risco', 'fim_em'];
+    const da0099 = ['anpd_protocolo', 'anpd_canal', 'anpd_justificativa'];
+    expect([...(await colunas('incidentes_t')), ...da0098, ...da0099]).toEqual(await colunas('incidentes'));
     await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('p58b', 'C', 'ISO', 'controller', 'Active')`).run();
     const i = (status: string, risco: string | null) => env.DB.prepare(`INSERT INTO incidentes_t (id, project_id, protocolo, titulo, ciencia_em, status, risco_titular) VALUES (lower(hex(randomblob(4))), 'p58b', lower(hex(randomblob(4))), 'x', '2026-10-01', ?, ?)`).bind(status, risco);
     await i('encerrado', 'sem_risco').run();

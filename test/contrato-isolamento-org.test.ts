@@ -38,6 +38,11 @@ const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 type Org = { org: string; m: string; proj: string; rec: string };
 const NESS: Org = { org: 'org_ness', m: 'zzn', proj: 'zzn-proj', rec: 'zzn-rec' };
 const B: Org = { org: 'org_b', m: 'zzb', proj: 'zzb-proj', rec: 'zzb-rec' };
+/**
+ * O marcador como palavra: o semeado o traz sempre separado (`zzb-rec`, `@zzb.lat`, `Cliente zzb`), e um id aleatório
+ * em base 36 (`genId`) pode conter as mesmas três letras no meio, cercadas de letra ou dígito (`…1dzzb32…`, visto em 05/11/2026).
+ */
+const temMarcador = (texto: string, m: string) => new RegExp(`(?<![a-z0-9])${m}(?![a-z0-9])`).test(texto.toLowerCase());
 
 type Rota = { metodo: string; caminho: string; chave: string };
 
@@ -102,7 +107,13 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
  * Rotas que param no 400 e para as quais não há corpo simples que chegue à guarda. Cada uma com o
  * motivo; o relatório da tarefa as lista como "não provadas por corpo".
  */
-const NAO_PROVADAS_POR_CORPO: Record<string, string> = { ...NAO_PROVADAS_A, ...NAO_PROVADAS_S, ...NAO_PROVADAS_A2 };
+const NAO_PROVADAS_POR_CORPO: Record<string, string> = { ...NAO_PROVADAS_A, ...NAO_PROVADAS_S, ...NAO_PROVADAS_A2,
+  // modelos de fornecedor (0106): a organização vem da sessão (`exigirOrg`), não do caminho; `:tipo` é lista fechada (o id forjado dá 400) e
+  // a pergunta de outra consultoria dá 404 (test/fornecedor-modelos-rotas.test.ts)
+  'PUT /api/v1/fornecedor-modelos/:tipo': 'organização da sessão; tipo é lista fechada',
+  'POST /api/v1/fornecedor-modelos/:tipo/perguntas': 'organização da sessão; tipo é lista fechada',
+  'PUT /api/v1/fornecedor-modelos/:tipo/perguntas/:perguntaId': 'organização da sessão; pergunta alheia dá 404 em fornecedor-modelos-rotas.test.ts',
+};
 
 /** Rota sem parâmetro, não GET, que recebe referência ALHEIA no corpo e precisa recusar. */
 const CRIA_COM_REFERENCIA: Record<string, (alvo: Org) => unknown> = {
@@ -175,6 +186,8 @@ const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/public/pedidos/ver': 'ciência por link: o token pessoal do link é a autorização',
   'POST /api/v1/public/pedidos/codigo': 'ciência por link: o token pessoal do link é a autorização; o código vai ao e-mail do destinatário',
   'POST /api/v1/public/pedidos/ciencia': 'ciência por link: token pessoal do link + código do e-mail do destinatário',
+  'POST /api/v1/public/titular-pedidos/abrir': 'portal público de solicitações: o token do link (um por projeto) é a autorização e define o projeto; o corpo não traz id de recurso de outro tenant',
+  'POST /api/v1/public/titular-pedidos/consultar': 'consulta pública do pedido: o código de acompanhamento (só o hash no banco, único) é a autorização e acha um pedido só; o corpo não traz id de recurso nem de projeto; test/titular-consulta.test.ts',
   'POST /api/v1/public/auditor/ver': 'portal do auditor: o token do link (no corpo) é a autorização, preso a um projeto; isolamento em test/portal-auditor.test.ts',
   'POST /api/v1/public/auditor/evidencia': 'portal do auditor: token no corpo; evidência alheia por id é 404 (test/portal-auditor.test.ts)',
   'POST /api/v1/public/auditor/pedidos': 'portal do auditor: token no corpo, prova só do projeto do token',
@@ -208,17 +221,32 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   pedidos: { tipo: 'dpia', papel_exigido: 'ciente' },
   parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
   avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
+  fornecedor_modelos: { tipo: 'critico', prazo_meses: 12 },
   titular_pedidos: { tipo: 'acesso' },
+  // Portal do titular (0096): tipo da tratativa é enum do CHECK
+  titular_pedido_tratativas: { tipo: 'nota' },
   // Ficha em abas (0079)
   catalogo_itens: { tipo: 'titular' },
   tratamento_medidas: { status: 'ativa' },
   acao_anexos: { file_type: 'pdf', file_size: 1 },
+  incidente_anexos: { file_type: 'pdf', file_size: 1 },
 
   // Criticidade do fornecedor (0080): enums do CHECK
 
   criticidades_terceiro: { impacto: 'alto', exclusividade: 'sem_alternativas', risco_financeiro: 'alto', conformidade: 'regulamentado', risco_reputacional: 'alto', nivel: 'alto' },
   // Documentos do legado (0081): enums do CHECK; sem vencimento = 0 para o CHECK do vencimento valer com data
   documentos_arquivo: { tipo: 'outro', status: 'rascunho', sem_vencimento: 0, arquivo_tipo: 'pdf' },
+  // n.ot (0091): cada ponta do fluxo é ativo OU zona (CHECK); a zona fica de fora, vale sobre a FK
+  ot_fluxos: { origem_zona_id: null, destino_zona_id: null },
+  // n.ot (0092): fonte do lote é enum do CHECK
+  ot_lotes: { fonte: 'manual' },
+  // n.ot (0108): tipo do desvio é enum do CHECK
+  ot_desvios: { tipo: 'fluxo' },
+  ot_levantamentos: { tipo: 'entrevista' },
+  // n.ot (0095): assinatura tem 64 caracteres e mapeamento é objeto JSON (CHECKs)
+  ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },
+  // n.ot (0097): dados é objeto JSON (CHECK)
+  ot_fluxos_pendentes: { dados: '{}', origem_ip_hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
 };
 
 /**
@@ -255,8 +283,9 @@ async function semearOrganizacao(o: Org, neutro: string): Promise<string[]> {
       if (c.name === 'id') valores.push(id);
       else if (c.name === 'project_id') valores.push(o.proj);
       else if (c.name === 'org_id') valores.push(o.org);
+      else if (fixo === null) continue;
       else if (alvoFk.has(c.name) && idDe.has(alvoFk.get(c.name)!)) valores.push(idDe.get(alvoFk.get(c.name)!));
-      else if (c.notnull && c.dflt_value === null) {
+      else if ((c.notnull && c.dflt_value === null) || fixo !== undefined) {
         valores.push(fixo !== undefined ? fixo : /INT|REAL|NUM/i.test(c.type ?? '') ? 0 : `${id}-${c.name}`);
       } else continue;
       usadas.push(c.name);
@@ -424,7 +453,7 @@ describe('contrato de isolamento entre organizações', () => {
         const res = await chamar(p, 'POST', `/api/v1/public/auditor/${acao}`, { token: p.token });
         const texto = await res.text();
         expect(res.status, `${p.nome} ${acao}: ${texto}`).toBe(200);
-        expect(texto.toLowerCase(), `${p.nome} ${acao}`).not.toContain(p.alheio.m);
+        expect(temMarcador(texto, p.alheio.m), `${p.nome} ${acao}: ${texto.slice(0, 300)}`).toBe(false);
       }
     }
   });
@@ -516,8 +545,8 @@ describe('contrato de isolamento entre organizações', () => {
         const res = await chamar(p, 'GET', forjar(r.caminho, p.de, p.token));
         if (res.ok) respostas2xx++;
         const texto = (await res.text()).toLowerCase();
-        if (texto.includes(p.alheio.m)) {
-          const i = texto.indexOf(p.alheio.m);
+        if (temMarcador(texto, p.alheio.m)) {
+          const i = texto.search(new RegExp(`(?<![a-z0-9])${p.alheio.m}(?![a-z0-9])`));
           vazou.push(`${res.status} ${r.chave}  [${p.nome}]  …${texto.slice(Math.max(0, i - 60), i + 40)}…`);
         }
       }

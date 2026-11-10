@@ -4,7 +4,7 @@ import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { hashPassword } from '../src/helpers';
 import { COR, dataBr, montarEmail, remetente } from '../src/services/email-layout';
-import { emailAlertaSonda, emailProposta } from '../src/services/emails';
+import { emailAlertaSonda, emailLembreteHomologacao, emailProposta, emailProtocoloTitular } from '../src/services/emails';
 import { emailResumo } from '../src/services/avisos-prazo';
 
 /**
@@ -248,6 +248,32 @@ describe('e-mails montados direto (a rota já tem teste próprio)', () => {
     confere({ ...m, to: [], from: remetente(), subject: 'n.360: 2 prazos para acompanhar' }, { produto: 'n.360', acao: 'Abrir o n.360 e tratar cada item', prazo: '10/10/2026', link: 'https://n360.ness.com.br' });
     expect(m.html).toContain('Projeto &lt;X&gt;');
     expect(m.html).toContain('Trocar &lt;b&gt;senhas&lt;/b&gt;');
+  });
+
+  it('protocolo do titular: protocolo, código e o link de acompanhamento', () => {
+    const link = 'https://n360.ness.com.br/solicitacao#acompanhar=PT-2026-0042.K7QM-3XRP-9WTD-H2FN';
+    const m = emailProtocoloTitular({ protocolo: 'PT-2026-0042', codigo: 'K7QM-3XRP-9WTD-H2FN', link });
+    expect(m.assunto).toContain('PT-2026-0042');
+    for (const s of [m.html, m.text]) {
+      expect(s).toContain('PT-2026-0042');
+      expect(s).toContain('K7QM-3XRP-9WTD-H2FN');
+      expect(s).toContain(link);
+    }
+  });
+
+  it('lembrete do questionário ao fornecedor: n.privacy, vencimento dd/mm/aaaa, quem enviou, sem link nem botão', () => {
+    const m = emailLembreteHomologacao({ cliente: 'Cliente <b>X</b>', fornecedor: 'Fornecedor Y', enviadoEm: '2026-11-01 13:00:00', expiraEm: '2026-11-12 13:00:00',
+      quem: { nome: 'Ana', email: 'ana@ness.example', organizacao: 'ness.' } });
+    expect(m.assunto).toContain('12/11/2026');
+    expect(m.text).toContain('n.privacy'); // no HTML a marca vem partida (o ponto colorido)
+    expect(m.html).toContain('Cliente &lt;b&gt;X&lt;/b&gt;');
+    expect(m.html).not.toContain('<b>X</b>');
+    for (const s of [m.html, m.text]) {
+      expect(s).toContain('01/11/2026');
+      expect(s).toContain('ana@ness.example');
+      expect(s).not.toContain('/homologacao');
+    }
+    expect(m.html).not.toContain('<a class="btn"');
   });
 
   it('alerta da sonda: invólucro, sem botão', () => {

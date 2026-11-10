@@ -28,7 +28,7 @@ function pergunta(q, pode) {
     const idq = `at-imp-${escapeHTML(q.id)}`;
     const proposta = !q.resposta && q.da_atividade;
     const diverge = q.resposta && q.da_atividade && q.resposta !== q.da_atividade;
-    return `<fieldset class="at-pergunta" role="radiogroup" aria-labelledby="${idq}-t">
+    return `<fieldset class="at-pergunta" id="${idq}-f" role="radiogroup" aria-labelledby="${idq}-t">
         <p class="at-pergunta-texto" id="${idq}-t">${escapeHTML(q.texto)}</p>
         ${proposta ? `<p class="at-nota">A atividade já indica: ${escapeHTML(ROTULO[q.da_atividade] || q.da_atividade)}. Confirme.
             ${pode ? `<button type="button" class="btn btn-sm" data-action="atImpResponder" data-args='${args(q.id, q.da_atividade)}' aria-label="${escapeHTML(`Confirmar ${ROTULO[q.da_atividade]} na pergunta: ${q.curto || q.id}`)}">Confirmar: ${escapeHTML(ROTULO[q.da_atividade])}</button>` : ''}</p>` : ''}
@@ -37,6 +37,12 @@ function pergunta(q, pode) {
             <input type="radio" id="${idq}-${v}" name="${idq}" value="${v}" ${q.resposta === v ? 'checked' : ''} ${pode ? `data-action-change="atImpResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>
             <span class="re-opcao-texto">${rot}</span></label>`).join('')}</div></fieldset>`;
 }
+
+const contagem = (imp) => {
+    const perguntas = lista(imp, 'perguntas');
+    return imp.finalizado_em ? `Finalizado em ${formatarData(imp.finalizado_em)}. Para mudar uma resposta, reabra o teste.`
+        : `${perguntas.filter((q) => q.resposta).length} de ${perguntas.length} respondidas. Com todas respondidas, finalize o teste para registrar a validação.`;
+};
 
 function desenhar(foco) {
     const { imp, ctx, dpias } = I;
@@ -49,7 +55,6 @@ function desenhar(foco) {
     };
     const alto = perguntas.find((q) => q.id === 'alto_risco');
     const aberto = dpias[0];
-    const respondidas = perguntas.filter((q) => q.resposta).length;
     I.painel.innerHTML = `<div class="at-impacto">
         <p class="re-erro" id="at-imp-erro" role="alert"></p>
         ${alto ? `<fieldset class="at-grupo"><legend class="at-grupo-titulo">A atividade pode gerar alto risco ao titular de dados?</legend>
@@ -64,7 +69,7 @@ function desenhar(foco) {
                 ? `<button type="button" class="btn btn-sm" data-action="atAbrirRipd" data-args='${args(ctx.projectId, aberto.id)}'>Abrir o RIPD</button>`
                 : (ctx.editavel ? '<button type="button" class="btn btn-sm" data-action="atImpCriarRipd">Criar o RIPD a partir da atividade</button>' : '')}</div></section>
         <section class="d-flex flex-col gap-2" aria-labelledby="at-imp-fim-t"><h3 class="at-sub" id="at-imp-fim-t">Validar o teste de impacto</h3>
-            <p class="at-nota">${finalizado ? `Finalizado em ${formatarData(imp.finalizado_em)}. Para mudar uma resposta, reabra o teste.` : `${respondidas} de ${perguntas.length} respondidas. Com todas respondidas, finalize o teste para registrar a validação.`}</p>
+            <p class="at-nota" id="at-imp-contagem">${contagem(imp)}</p>
             <p class="re-erro" id="at-imp-erro-final" role="alert"></p>
             <div class="at-acoes"><button type="button" role="switch" id="at-imp-final" class="btn btn-sm" aria-checked="${finalizado}" aria-label="Teste de impacto finalizado" ${ctx.editavel ? 'data-action="atImpFinalizar"' : 'disabled'}>${finalizado ? 'Reabrir o teste' : 'Finalizar o teste de impacto'}</button></div></section>
     </div>`;
@@ -88,9 +93,42 @@ async function gravar(corpo, foco, erroId = 'at-imp-erro') {
     return true;
 }
 
+/**
+ * Uma resposta: grava e troca só o que ela muda (a pergunta, a contagem e a recomendação do servidor), sem redesenhar a aba nem a
+ * página. Redesenhar a cada clique remontava a aba inteira e travava a pergunta seguinte. A ficha (selos das abas) se atualiza ao
+ * finalizar e ao trocar de aba. Respostas rápidas seguidas: só a leitura mais recente é aplicada.
+ */
+let leitura = 0;
+async function responder(id, valor) {
+    if (!I) return;
+    const erro = el('at-imp-erro');
+    if (erro) erro.textContent = '';
+    try { await api('PUT', url(I.ctx, '/impacto'), { respostas: { [id]: valor } }); }
+    catch (e) { if (el('at-imp-erro')) el('at-imp-erro').textContent = (e && e.message) || 'Não foi possível gravar o teste de impacto.'; return; }
+    const minha = ++leitura;
+    let imp;
+    try { imp = await api('GET', url(I.ctx, '/impacto')); }
+    catch (e) { showToast((e && e.message) || 'Não foi possível atualizar o teste', 'error'); return; }
+    if (minha !== leitura || !I) return;
+    I.imp = imp;
+    const pode = I.ctx.editavel && !imp.finalizado_em;
+    const q = lista(imp, 'perguntas').find((x) => x.id === id);
+    const bloco = el(`at-imp-${id}-f`);
+    if (q && bloco) {
+        const focado = document.activeElement && bloco.contains(document.activeElement) ? document.activeElement.id : null;
+        bloco.outerHTML = pergunta(q, pode);
+        // Sem roubar o foco de quem já está em outra pergunta: só o devolve se ele caiu no corpo da página com a troca.
+        // O botão "Confirmar" some com a proposta, então o foco vai para a opção que ele marcou.
+        const ativo = document.activeElement;
+        if (!ativo || ativo === document.body) (el(focado) || el(`at-imp-${id}-${valor}`))?.focus();
+    }
+    el('at-imp-contagem').textContent = contagem(imp);
+    el('at-recomendacao').textContent = textoRecomendacao(imp);
+}
+
 // Rádio: a delegação manda (id, valor); o botão "Confirmar" da proposta manda (id, valor) de dois args.
-window.atImpResponder = (id, valor) => (I ? gravar({ respostas: { [id]: valor } }, `at-imp-${id}-${valor}`) : undefined);
-window.atImpAlto = (caixa) => gravar({ respostas: { alto_risco: caixa.checked ? 'sim' : 'nao' } }, 'at-imp-alto');
+window.atImpResponder = (id, valor) => responder(id, valor);
+window.atImpAlto = (caixa) => responder('alto_risco', caixa.checked ? 'sim' : 'nao');
 window.atImpFinalizar = () => gravar({ respostas: {}, finalizar: !I.imp.finalizado_em }, 'at-imp-final', 'at-imp-erro-final');
 
 // O RIPD nasce da atividade (herda o que já foi informado); 409 = já existia, e a aba passa a mostrar "Abrir o RIPD".

@@ -1,6 +1,7 @@
 import { logAudit } from '../helpers';
 import { nivelDaCriticidade, tipoDaCriticidade, type NivelCriticidade, type RespostasCriticidade } from './criticidade';
 import { hojeEmSaoPaulo } from './hoje';
+import { prazoDoTipo, somarMeses } from './fornecedor-modelos';
 
 /**
  * Núcleo do n.privacy, fatia 6: terceiros (TPRM) tipificados. O terceiro é uma parte do tipo `organizacao`; o tipo define o
@@ -10,10 +11,18 @@ import { hojeEmSaoPaulo } from './hoje';
 export const TIPOS_TERCEIRO = ['grande_provedor', 'medio', 'pequeno', 'critico'] as const;
 export type TipoTerceiro = (typeof TIPOS_TERCEIRO)[number];
 export type Metodo = 'trust_center' | 'questionario' | 'auditoria';
-export type Situacao = 'pendente' | 'vigente' | 'vencida' | 'reprovada';
+export type Situacao = 'pendente' | 'vigente' | 'vencida' | 'reprovada' | 'reavaliar';
 
-/** O tipo define o método (spec seção 5). Trust center é link mais validade, preenchido à mão. */
+/** O tipo define o método formal da avaliação (spec seção 5). Trust center é link mais validade, preenchido à mão. */
 export const METODO_DO_TIPO: Record<TipoTerceiro, Metodo> = { grande_provedor: 'trust_center', medio: 'questionario', pequeno: 'questionario', critico: 'auditoria' };
+
+/**
+ * Quem pode receber um questionário de homologação. Desacoplado do método: o crítico tem método formal `auditoria`, mas também
+ * recebe questionário (é o de maior criticidade — precisa do questionário conforme pedido do dono). O grande provedor fica de
+ * fora (trust center de hiperescala; questionário próprio não é acionável). A avaliação gerada pelo questionário registra o
+ * método `questionario`, decidido no servidor, sem mudar o método formal do tipo.
+ */
+export const PODE_QUESTIONARIO: ReadonlySet<TipoTerceiro> = new Set<TipoTerceiro>(['medio', 'pequeno', 'critico']);
 
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
@@ -23,17 +32,25 @@ const dataValida = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN
 export type Avaliacao = {
   id: string; metodo: Metodo; resultado: 'aprovado' | 'com_ressalvas' | 'reprovado'; valido_ate: string;
   evidencia_url: string | null; observacao: string | null; avaliado_por: string | null; created_at: string;
+  /** o tipo do fornecedor quando a avaliação foi feita (0106); null nas anteriores à fatia 2 que a migration não alcançou */
+  tipo_avaliado?: string | null;
 };
 
-/** Situação derivada da avaliação MAIS RECENTE: reprovada, vencida (passou de `valido_ate`), vigente ou pendente (nunca avaliado). */
-export function situacaoDe(ultima: Pick<Avaliacao, 'resultado' | 'valido_ate'> | null | undefined, em = hoje()): Situacao {
+/**
+ * Situação derivada da avaliação MAIS RECENTE: reprovada, vencida (passou de `valido_ate`), reavaliar (no prazo, mas feita noutro tipo:
+ * o modelo e o prazo mudaram), vigente ou pendente (nunca avaliado).
+ */
+export function situacaoDe(ultima: Pick<Avaliacao, 'resultado' | 'valido_ate' | 'tipo_avaliado'> | null | undefined, em = hoje(), tipoAtual: TipoTerceiro | null = null): Situacao {
   if (!ultima) return 'pendente';
   if (ultima.resultado === 'reprovado') return 'reprovada';
-  return ultima.valido_ate >= em ? 'vigente' : 'vencida';
+  if (ultima.valido_ate < em) return 'vencida';
+  return tipoAtual && ultima.tipo_avaliado && ultima.tipo_avaliado !== tipoAtual ? 'reavaliar' : 'vigente';
 }
 
 export type Terceiro = {
   id: string; nome: string; cnpj: string | null; terceiro_tipo: TipoTerceiro | null; metodo: Metodo | null; situacao: Situacao;
+  /** o terceiro pode receber questionário de homologação (médio, pequeno ou crítico), independente do método formal */
+  pode_questionario: boolean;
   ultima_avaliacao: Avaliacao | null; tratamentos: number; documentos: number;
   /** nível da criticidade mais recente; null = nunca avaliada */
   nivel: NivelCriticidade | null; dpa: boolean; atividades: number;
@@ -50,7 +67,7 @@ export function pendenciasDe(t: Pick<Terceiro, 'terceiro_tipo' | 'nivel' | 'situ
 const SQL_ATIVIDADES = `SELECT parte_id, alvo_id AS ropa_id, 'vinculo' AS origem FROM parte_vinculos WHERE project_id = ?1 AND alvo_tipo = 'tratamento'
   UNION ALL SELECT parte_id, ropa_id, 'compartilhamento_externo' FROM tratamento_externo_parceiros WHERE project_id = ?1`;
 
-const COLS_AVALIACAO = 'id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por, created_at';
+const COLS_AVALIACAO = 'id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por, created_at, tipo_avaliado';
 
 /**
  * Organização que o n.iso importou só como parte interessada (a ANPD, um cliente) e que nada no n.privacy usa: sem tipo, avaliação,
@@ -73,7 +90,9 @@ export const SQL_EH_FORNECEDOR = `p.tipo = 'organizacao' AND p.status = 'ativa' 
  * mas só publicado e com arquivo anexado (`SQL_ARQUIVO_VALE`, alias `a`): rascunho, obsoleto e documento sem arquivo não provam nada.
  */
 export const SQL_ARQUIVO_VALE = `a.status = 'publicado' AND a.r2_key IS NOT NULL`;
-export const SQL_TEM_DPA = `(EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id AND d.project_id = p.project_id AND d.papel = 'dpa')
+/** O documento versionado só prova o DPA VIGENTE (rascunho e obsoleto não valem), como o em arquivo só publicado (`SQL_ARQUIVO_VALE`). Alias `dv`. */
+export const SQL_VERSIONADO_VALE = `dv.status = 'vigente'`;
+export const SQL_TEM_DPA = `(EXISTS (SELECT 1 FROM documento_partes d JOIN documentos dv ON dv.id = d.documento_id WHERE d.parte_id = p.id AND d.project_id = p.project_id AND d.papel = 'dpa' AND ${SQL_VERSIONADO_VALE})
   OR EXISTS (SELECT 1 FROM documentos_arquivo_partes ap JOIN documentos_arquivo a ON a.id = ap.documento_arquivo_id
               WHERE ap.parte_id = p.id AND ap.project_id = p.project_id AND ap.papel = 'dpa' AND ${SQL_ARQUIVO_VALE}))`;
 
@@ -133,7 +152,8 @@ export async function listarTerceiros(db: D1Database, projectId: string): Promis
   return (partes.results as { id: string; nome: string; cnpj: string | null; terceiro_tipo: TipoTerceiro | null }[]).map((p) => {
     const u = ultima.get(p.id) ?? null;
     const atividades = nt.get(p.id) ?? 0;
-    const t = { id: p.id, nome: p.nome, cnpj: p.cnpj, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u,
+    const t = { id: p.id, nome: p.nome, cnpj: p.cnpj, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null,
+      pode_questionario: !!p.terceiro_tipo && PODE_QUESTIONARIO.has(p.terceiro_tipo), situacao: situacaoDe(u, hoje(), p.terceiro_tipo), ultima_avaliacao: u,
       tratamentos: atividades, documentos: nd.get(p.id) ?? 0, nivel: nivel.get(p.id) ?? null, dpa: comDpa.has(p.id), atividades };
     return { ...t, pendencias: pendenciasDe(t) };
   });
@@ -166,12 +186,17 @@ export async function lerTerceiro(db: D1Database, projectId: string, parteId: st
     // responsável do fornecedor: a pessoa com o vínculo `responsavel` sobre esta organização (o vínculo que o núcleo já tem)
     db.prepare(`SELECT v.id AS vinculo_id, p.id, p.nome, p.email FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.papel = 'responsavel' AND v.alvo_tipo = 'parte' AND v.alvo_id = ? AND v.project_id = ? ORDER BY p.nome`).bind(parteId, projectId),
   ]);
-  return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca: seg.results[0] ?? null, responsaveis: resp.results,
+  // o índice sai calculado agora, como na lista do n.iso (`comIndiceAtual`): o gravado envelhece quando o DPA muda de situação
+  const perfil = seg.results[0] as (PerfilDoIndice & Record<string, unknown>) | undefined;
+  const seguranca = perfil ? { ...perfil, trust_score: indiceDeConfianca(perfil, t.dpa), diligence_level: nivelDeDiligencia(indiceDeConfianca(perfil, t.dpa)) } : null;
+  // a data máxima da nova avaliação, pelo prazo do modelo do tipo atual (a tela preenche e trava o campo)
+  const validade_maxima = t.terceiro_tipo ? somarMeses(hoje(), await prazoDoTipo(db, projectId, t.terceiro_tipo)) : null;
+  return { ...t, validade_maxima, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca, responsaveis: resp.results,
     historico: hist.results as Avaliacao[], documentos_ligados: docs.results, suboperadores: subs.results, tratamentos_afetados: trat.results };
 }
 
 const parteDoProjeto = (db: D1Database, projectId: string, parteId: string) =>
-  db.prepare(`SELECT id, tipo, terceiro_tipo FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId).first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null }>();
+  db.prepare(`SELECT id, tipo, terceiro_tipo, status FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId).first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null; status: string }>();
 
 export async function definirTipo(db: D1Database, projectId: string, parteId: string, ator: string, tipo: TipoTerceiro | null): Promise<Falha | { ok: true }> {
   const p = await parteDoProjeto(db, projectId, parteId);
@@ -187,18 +212,32 @@ export async function definirTipo(db: D1Database, projectId: string, parteId: st
 
 export type NovaAvaliacao = { resultado: Avaliacao['resultado']; valido_ate: string; evidencia_url?: string | null; observacao?: string | null };
 
-/** Registra a avaliação (o método vem do tipo, nunca do corpo). A validade é obrigatória e não pode estar no passado. */
-export async function registrarAvaliacao(db: D1Database, projectId: string, parteId: string, ator: string, d: NovaAvaliacao): Promise<Falha | { ok: true; id: string; metodo: Metodo }> {
+/**
+ * Registra a avaliação. A validade é obrigatória e não pode estar no passado. `metodoForcado` é decidido pelo SERVIDOR (só a
+ * conclusão do questionário o usa, para gravar `questionario` mesmo no crítico, cujo método formal é `auditoria`); nunca vem do corpo.
+ * `tipoAvaliado` também é do servidor: a conclusão do questionário passa o tipo do envio (o modelo que o fornecedor respondeu), para
+ * que um tipo trocado depois do envio dê "reavaliar" e não "vigente"; sem ele, vale o tipo atual.
+ */
+export async function registrarAvaliacao(db: D1Database, projectId: string, parteId: string, ator: string, d: NovaAvaliacao, metodoForcado?: Metodo,
+  tipoAvaliado?: TipoTerceiro | null): Promise<Falha | { ok: true; id: string; metodo: Metodo }> {
   const p = await parteDoProjeto(db, projectId, parteId);
   if (!p) return falha(404, 'Parte não encontrada');
   if (p.tipo !== 'organizacao') return falha(400, 'Só organização é terceiro');
+  if (p.status !== 'ativa') return falha(409, 'Fornecedor inativo não recebe avaliação: reative a organização antes');
   if (!p.terceiro_tipo) return falha(400, 'Defina o tipo do terceiro antes de registrar a avaliação');
   if (!dataValida(d.valido_ate)) return falha(400, 'valido_ate precisa ser uma data AAAA-MM-DD');
   if (d.valido_ate < hoje()) return falha(400, 'valido_ate não pode estar no passado');
-  const metodo = METODO_DO_TIPO[p.terceiro_tipo];
+  // crítico (fatia 3): aprovar, mesmo com ressalvas, pede a evidência; reprovar não
+  if (p.terceiro_tipo === 'critico' && d.resultado !== 'reprovado' && !d.evidencia_url)
+    return falha(400, 'Fornecedor crítico: a avaliação aprovada ou com ressalvas exige o link da evidência');
+  // teto: o prazo do modelo do tipo ATUAL (fatia 2); o tipo da avaliação fica gravado para a reavaliação quando ele mudar
+  const meses = await prazoDoTipo(db, projectId, p.terceiro_tipo);
+  const maxima = somarMeses(hoje(), meses);
+  if (d.valido_ate > maxima) return falha(400, `A validade passa do prazo máximo do tipo (${meses} meses): até ${maxima.split('-').reverse().join('/')}`);
+  const metodo = metodoForcado ?? METODO_DO_TIPO[p.terceiro_tipo];
   const id = crypto.randomUUID();
-  await db.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, projectId, parteId, metodo, d.resultado, d.valido_ate, d.evidencia_url ?? null, d.observacao ?? null, ator).run();
+  await db.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por, tipo_avaliado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, projectId, parteId, metodo, d.resultado, d.valido_ate, d.evidencia_url ?? null, d.observacao ?? null, ator, tipoAvaliado ?? p.terceiro_tipo).run();
   await logAudit(db, 'terceiro.avaliacao', ator, `Parte ${parteId}: avaliação ${metodo} (${d.resultado}) válida até ${d.valido_ate}`, '', '', projectId);
   return { ok: true, id, metodo };
 }

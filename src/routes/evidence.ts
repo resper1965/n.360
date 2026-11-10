@@ -303,7 +303,7 @@ export async function assinarEvidencia(
   approvedBy = autoridade.nome || approvedBy;
 
   const now = new Date().toISOString();
-  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '127.0.0.1';
+  const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
   const ua = c.req.header('User-Agent') || 'Unknown';
 
   if (targetRole === 'ciso') {

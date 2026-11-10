@@ -155,6 +155,59 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     }
   }
 
+  // n.ot (modelo de ameaças P0-3): lote de coleta não concluído expira em 7 dias; os itens (IP/MAC cifrados) vão junto pela FK.
+  try {
+    const r = await env.DB.prepare(`DELETE FROM ot_lotes WHERE status <> 'concluido' AND created_at < datetime('now', '-7 days')`).run();
+    resultado.retencao.ot_lotes = r.meta?.changes ?? 0;
+  } catch (e: unknown) {
+    resultado.falhas.push(`retencao ot_lotes: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    // Enviado sem lote (envio interrompido), de lote rejeitado ou de lote já apagado pela retenção de 7 dias volta a rascunho
+    // e segue a regra de 30 dias abaixo; sem isto ficaria órfão para sempre, sem expirar nem poder ser reenviado.
+    const r = await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, lote_item_id = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE situacao = 'enviado' AND (lote_id IS NULL OR lote_id NOT IN (SELECT id FROM ot_lotes WHERE status <> 'rejeitado'))
+        AND updated_at < datetime('now', '-1 day')`).run();
+    resultado.retencao.ot_achados_revertidos = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_achados_revertidos: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    // Achado cujo item foi recusado na aprovação volta a rascunho para ser corrigido e reenviado.
+    const r = await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, lote_item_id = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE situacao = 'enviado' AND lote_item_id IN (SELECT id FROM ot_lote_itens WHERE decisao = 'recusado')`).run();
+    resultado.retencao.ot_achados_recusados = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_achados_recusados: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    // Descoberta operacional (spec 2026-11-01 §10): achado descartado (90 dias se tem `chave_sensor`: o filtro de novidade da sonda depende dele), ou rascunho de sessão encerrada, sai em 30 dias.
+    // Rascunho de sessão aberta não expira: é trabalho em andamento.
+    const r = await env.DB.prepare(`DELETE FROM ot_achados WHERE (situacao = 'descartado' AND updated_at < datetime('now', CASE WHEN chave_sensor IS NOT NULL THEN '-90 days' ELSE '-30 days' END))
+      OR (situacao = 'rascunho' AND levantamento_id IN (SELECT id FROM ot_levantamentos WHERE situacao = 'encerrado' AND encerrado_em < datetime('now', '-30 days')))`).run();
+    resultado.retencao.ot_achados = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_achados: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    const r = await env.DB.prepare(`DELETE FROM ot_sensor_envios WHERE created_at < datetime('now', '-400 days')`).run();
+    resultado.retencao.ot_sensor_envios = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_sensor_envios: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    // n.ot L3: fluxo do sensor cuja ponta interna não apareceu no inventário em 90 dias é descartado (só hash, mas não fica para sempre).
+    const r = await env.DB.prepare(`DELETE FROM ot_fluxos_pendentes WHERE created_at < datetime('now', '-90 days')`).run();
+    resultado.retencao.ot_fluxos_pendentes = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_fluxos_pendentes: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   /*
    * Arquiva a trilha de ONTEM, não a de hoje: o dia corrente ainda recebe
    * registro, e arquivá-lo produziria um objeto incompleto que a idempotência

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#0b1326">
+  <title>Solicitação do titular | n.360 · ness.</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/publico.css">
+  <link rel="stylesheet" href="/solicitacao.css">
+  <!-- Formulário de solicitação do titular. Sem script inline (CSP script-src 'self'): tudo está em /solicitacao.js. O token
+       vem no fragmento (#...), que o navegador não envia ao servidor. -->
+  <script src="/solicitacao.js" defer></script>
+</head>
+<body>
+  <header class="pub-topo">
+    <div class="pub-topo-int">
+      <span class="pub-marca"><span class="pub-marca-produto">n<span class="dot">.</span>360</span><span class="pub-marca-ness">ness<span class="dot">.</span></span></span>
+      <span class="pub-contexto">Solicitação do titular</span>
+    </div>
+  </header>
+
+  <main class="pub-main" id="sl-main">
+    <section class="pub-estado" id="sl-estado" role="status" aria-live="polite">
+      <h1 class="pub-estado-titulo" id="sl-estado-titulo" tabindex="-1">Carregando...</h1>
+      <p class="pub-estado-texto" id="sl-estado-texto"></p>
+      <p><button class="pub-btn pub-btn-contorno pub-btn-pequeno" id="sl-ir-consulta-estado" type="button">Acompanhar uma solicitação</button></p>
+    </section>
+
+    <form id="sl-form" novalidate hidden>
+      <h1 class="pub-titulo">Abrir uma solicitação sobre seus dados pessoais</h1>
+      <p class="pub-texto">Use este formulário para exercer seus direitos sobre os dados pessoais tratados por esta organização
+        (LGPD, art. 18). Ao enviar, você recebe um número de protocolo para acompanhar o atendimento.</p>
+
+      <div class="pub-campo">
+        <label class="pub-rotulo" for="sl-tipo">Tipo de solicitação</label>
+        <select class="pub-input" id="sl-tipo" required></select>
+      </div>
+      <div class="pub-campo">
+        <label class="pub-rotulo" for="sl-nome">Seu nome</label>
+        <input class="pub-input" id="sl-nome" type="text" maxlength="200" autocomplete="name" required>
+      </div>
+      <div class="pub-campo">
+        <label class="pub-rotulo" for="sl-contato">Seu e-mail para resposta</label>
+        <input class="pub-input" id="sl-contato" type="email" maxlength="300" autocomplete="email" required>
+      </div>
+      <div class="pub-campo">
+        <label class="pub-rotulo" for="sl-descricao">Descreva seu pedido</label>
+        <textarea class="pub-input" id="sl-descricao" rows="5" maxlength="5000" required></textarea>
+      </div>
+      <p class="pub-erro" id="sl-erro" role="alert"></p>
+      <button class="pub-btn pub-btn-primario" id="sl-enviar" type="submit">Enviar solicitação</button>
+      <p class="pub-texto-dim sl-nota">Não informe CPF nem outros documentos aqui. A identidade é confirmada depois, com
+        segurança, pela equipe responsável.</p>
+      <p class="sl-nota"><button class="pub-btn pub-btn-contorno pub-btn-pequeno" id="sl-ir-consulta" type="button">Acompanhar uma solicitação</button></p>
+    </form>
+
+    <section class="pub-estado" id="sl-ok" role="status" aria-live="polite" hidden>
+      <h1 class="pub-estado-titulo" tabindex="-1">Solicitação recebida</h1>
+      <p class="pub-estado-texto">Guarde o número de protocolo abaixo para acompanhar o atendimento:</p>
+      <p class="sl-protocolo" id="sl-protocolo"></p>
+      <p class="pub-estado-texto">Código de acompanhamento:</p>
+      <p class="sl-protocolo" id="sl-codigo"></p>
+      <p class="pub-texto-dim" id="sl-email-aviso"></p>
+    </section>
+
+    <form id="sl-consulta" novalidate hidden>
+      <h1 class="pub-titulo" tabindex="-1" id="sl-c-titulo">Acompanhar uma solicitação</h1>
+      <p class="pub-texto">Informe o protocolo e o código de acompanhamento que você recebeu ao abrir a solicitação.</p>
+      <div class="pub-campo">
+        <label class="pub-rotulo" for="sl-c-protocolo">Protocolo</label>
+        <input class="pub-input" id="sl-c-protocolo" type="text" maxlength="20" autocomplete="off" placeholder="PT-2026-0001" required>
+      </div>
+      <div class="pub-campo">
+        <label class="pub-rotulo" for="sl-c-codigo">Código de acompanhamento</label>
+        <input class="pub-input" id="sl-c-codigo" type="text" maxlength="40" autocomplete="off" spellcheck="false" required>
+      </div>
+      <p class="pub-erro" id="sl-c-erro" role="alert"></p>
+      <button class="pub-btn pub-btn-primario" id="sl-c-enviar" type="submit">Consultar</button>
+      <dl class="sl-resultado" id="sl-c-resultado" role="status" aria-live="polite" hidden></dl>
+    </form>
+  </main>
+</body>
+</html>

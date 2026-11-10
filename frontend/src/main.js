@@ -26,6 +26,8 @@ import './views/terceiros.js';
 import './views/ripd-ficha.js';
 import './views/lia-ficha.js';
 import './views/avaliacoes-terceiros.js';
+import './views/questionarios-fornecedor.js';
+import './views/modelos-fornecedor.js';
 import './views/catalogos.js';
 import './views/parceiros.js';
 import './views/mapa-de-risco.js';
@@ -55,6 +57,7 @@ import './views/meus-pedidos.js';
 import './views/aprovacao-lote.js';
 import './views/ai.js';
 import './views/privacy.js';
+import './views/ot.js';
 import './views/security.js';
 
 // The rest of the app code will be migrated in subsequent phases
@@ -66,5 +69,5 @@ import './globals.js';
 // no document cobre todo conteúdo renderizado.
 initDelegation();
 
-// n.360, n.iso ou n.privacy, pelo caminho: marca, título e menu antes do primeiro desenho.
+// n.360, n.iso, n.privacy ou n.ot, pelo caminho: marca, título e menu antes do primeiro desenho.
 aplicarCasca();

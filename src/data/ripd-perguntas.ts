@@ -17,7 +17,7 @@ export const ESCOLHAS_RIPD = ['sim', 'nao', 'nao_sei'] as const;
 export type EscolhaRipd = (typeof ESCOLHAS_RIPD)[number];
 
 /** `sugestao` diz de onde a tela pode propor "A atividade já indica": nunca é gravada. */
-export type PerguntaRipd = { id: string; aba: AbaRipd; texto: string; tipo: 'texto' | 'escolha'; sugestao?: 'operadores' | 'armazenamento' | 'volume' | 'sensiveis'; bloco?: 'base_legal' };
+export type PerguntaRipd = { id: string; aba: AbaRipd; texto: string; tipo: 'texto' | 'escolha'; sugestao?: 'operadores' | 'armazenamento' | 'volume' | 'sensiveis'; bloco?: 'base_legal' | 'finalidade' | 'compartilhamento_externo' };
 
 export const PERGUNTAS_RIPD: readonly PerguntaRipd[] = [
   // Teste de Impacto (4)
@@ -28,7 +28,7 @@ export const PERGUNTAS_RIPD: readonly PerguntaRipd[] = [
   // Conformidade (29; no legado, 3 páginas: 1 a 6, 7 a 16 e 17 a 29)
   { id: 'problema_anterior', aba: 'conformidade', texto: 'Já foi identificado algum problema anterior com o cumprimento das normas de proteção de dados pessoais? Por exemplo, houve algum incidente de segurança devidamente registrado, inclusive com a elaboração de documento descrevendo o que ocorreu, quais medidas foram tomadas e como evitar que o incidente volte a acontecer?', tipo: 'texto' },
   { id: 'o_que_muda', aba: 'conformidade', texto: 'Se aplicável, em que medida os dados pessoais serão tratados de forma distinta após a implementação do projeto / processo / sistema, comparado com a realidade atualmente?', tipo: 'texto' },
-  { id: 'por_que_coletados', aba: 'conformidade', texto: 'Por que os dados pessoais estão sendo coletados?', tipo: 'texto' },
+  { id: 'por_que_coletados', aba: 'conformidade', texto: 'Por que os dados pessoais estão sendo coletados?', tipo: 'texto', bloco: 'finalidade' },
   { id: 'quantos_titulares', aba: 'conformidade', texto: 'Quantos titulares, aproximadamente, este projeto / processo / sistema irá afetar? Favor responder com porcentagem, por exemplo: "todos os clientes da empresa, 20% dos clientes, 2% dos indivíduos há mais de seis meses", etc.', tipo: 'texto', sugestao: 'volume' },
   { id: 'quem_aprova_mudancas', aba: 'conformidade', texto: 'Quem aprova alterações no projeto / processo / sistema no futuro?', tipo: 'texto' },
   { id: 'partes_envolvidas', aba: 'conformidade', texto: 'Todas as partes interessadas, isto é, os titulares dos dados, estiveram envolvidas nas discussões sobre como seus dados pessoais serão utilizados? Para responder essa questão não é necessário indicar as partes interessadas no início do documento, apenas destacar aqui caso relevante – por exemplo, "os correntistas foram informados na política do app", etc.', tipo: 'texto' },
@@ -40,7 +40,7 @@ export const PERGUNTAS_RIPD: readonly PerguntaRipd[] = [
   { id: 'dados_de_terceiros', aba: 'conformidade', texto: 'Algum dado pessoal foi obtido por meio de terceiro(s)? Em caso afirmativo, nomeie-o(s) e indique qual a relação do terceiro com a Cia. (Indique qual o dado pessoal e para qual finalidade está sendo usado.)', tipo: 'texto' },
   { id: 'quem_acessa', aba: 'conformidade', texto: 'Quem terá acesso aos dados pessoais envolvidos no processo? Por exemplo, quais departamentos/áreas da Cia terão acesso a quais dados pessoais especificamente?', tipo: 'texto' },
   { id: 'acesso_do_titular', aba: 'conformidade', texto: 'Os dados pessoais serão acessados por seus titulares?', tipo: 'texto' },
-  { id: 'contratos_compartilhamento', aba: 'conformidade', texto: 'Caso os dados pessoais estejam sendo compartilhados externamente, quais contratos/acordos garantem a segurança dos dados pessoais?', tipo: 'texto' },
+  { id: 'contratos_compartilhamento', aba: 'conformidade', texto: 'Caso os dados pessoais estejam sendo compartilhados externamente, quais contratos/acordos garantem a segurança dos dados pessoais?', tipo: 'texto', bloco: 'compartilhamento_externo' },
   { id: 'transferencia_internacional', aba: 'conformidade', texto: 'Há transferência internacional dos dados pessoais? Se sim, fundamentada em qual dos mecanismos de transferência presentes na LGPD ou determinados pela ANPD?', tipo: 'texto' },
   { id: 'auditorias_acesso', aba: 'conformidade', texto: 'Há auditorias em curso ou planejadas para registrar quem acessa os dados pessoais, quando etc.?', tipo: 'texto' },
   { id: 'disponibilidade', aba: 'conformidade', texto: 'Quais medidas estão sendo adotadas para garantir a disponibilidade de acesso aos dados pessoais apenas àqueles com legitimidade para acessá-los?', tipo: 'texto' },

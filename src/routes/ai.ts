@@ -3,7 +3,7 @@ import { Bindings, Variables } from '../index';
 import { logAudit, erro500 } from '../helpers';
 import { validateBody, chatSchema } from '../schemas';
 import { chatModel } from '../config/models';
-import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from '../modulos';
+import { MODULOS_PRODUTO, modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from '../modulos';
 
 export const aiApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -20,16 +20,22 @@ aiApp.post('/projects/:id/chat', async (c) => {
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
   // O chat é do núcleo (a faixa não barra), então o módulo pedido é conferido aqui: o projeto E a pessoa precisam tê-lo.
-  // Sem `modulo` (casca n.360), vale o primeiro, na ordem iso -> privacy, que o projeto E a pessoa têm; `modulo` explícito é checado à risca.
+  // Sem `modulo` (casca n.360), vale o primeiro, na ordem iso -> privacy -> ot, que o projeto E a pessoa têm; `modulo` explícito é checado à risca.
   const doProjeto = await modulosDoProjeto(c.env.DB, projectId);
   const daPessoa = await modulosDaPessoa(c.env.DB, user);
   const recusaDe = (m: Modulo) => recusaDeModulo(m, doProjeto) ?? recusaDaPessoa(m, daPessoa);
-  const modulo: Modulo = body.modulo ?? (['iso', 'privacy'] as const).find((m) => !recusaDe(m)) ?? 'iso';
+  const modulo: Modulo = body.modulo ?? MODULOS_PRODUTO.find((m) => !recusaDe(m)) ?? 'iso';
   const recusa = recusaDe(modulo);
   if (recusa) return c.json({ error: recusa }, 403);
 
   const contexto = `da empresa "${project.client_name}" (Setor: ${project.sector || 'Geral'}, Escopo: ${project.scope || 'SGSI Completo'})`;
-  const systemPrompt = modulo === 'privacy'
+  const systemPrompt = modulo === 'ot'
+    ? `Você é o Assistente Virtual de Segurança de Tecnologia Operacional (OT) do n.ot, da ness.
+Seu objetivo é auxiliar a equipe do projeto ${contexto} na governança de segurança cibernética do ARCiber (o ambiente regulado de OT) e no atendimento à rotina operacional do ONS RO-CB.BR.01.
+Responda sempre em português do Brasil, de forma clara, objetiva e profissional.
+Não invente requisito, prazo nem norma: cite o código do requisito do catálogo do projeto quando ele se aplicar, ou diga que não sabe.
+Você orienta; quem decide e aprova é a equipe do projeto.`
+    : modulo === 'privacy'
     ? `Você é o Assistente Virtual de Privacidade e Proteção de Dados do n.privacy, da ness.
 Seu objetivo é auxiliar a equipe do projeto ${contexto} em LGPD, ANPD, RoPA (registro das operações de tratamento), direitos do titular e incidentes de segurança com dados pessoais.
 Responda sempre em português do Brasil, de forma clara, objetiva e profissional.

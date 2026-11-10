@@ -13,7 +13,7 @@ um campo calculado novo (`area`) em três listas e a conta do Painel. Nenhuma mi
 **Tecnologia:** Cloudflare Workers + Hono + D1 (testes com `@cloudflare/vitest-pool-workers` e D1 real), frontend vanilla JS
 com testes jsdom (`frontend/test`, `api()` dublado por `vi.mock` ou o fetch por `servir-api.js`).
 
-**Spec:** `docs/paridade-legado-2026-10-20.md` (seções "Defeito encontrado" e "Lacunas de tela", itens 5, 7 e o rótulo GDPR).
+**Spec:** `docs/arquivo/paridade-legado-2026-10-20.md` (seções "Defeito encontrado" e "Lacunas de tela", itens 5, 7 e o rótulo GDPR).
 
 ## Restrições globais
 
@@ -24,7 +24,7 @@ com testes jsdom (`frontend/test`, `api()` dublado por `vi.mock` ou o fetch por 
 - Nenhuma mudança em `src/services/pedidos.ts`, em migrations nem em `schema.sql`.
 - Toda consulta nova filtra por `project_id`.
 - Commits em português, autor `Ricardo Esper <44273656+resper1965@users.noreply.github.com>`, sem `Co-Authored-By` nem rodapé de IA
-  (regra de `docs/estado-2026-10-20.md`).
+  (regra de `docs/arquivo/estado-2026-10-20.md`).
 - Comandos de teste: backend `npx vitest run test/<arquivo>` na raiz; frontend `cd frontend && npx vitest run test/<arquivo>`.
 
 ## Fora deste plano (e por quê)
@@ -56,7 +56,7 @@ com testes jsdom (`frontend/test`, `api()` dublado por `vi.mock` ou o fetch por 
 | `frontend/src/views/documentos-arquivo.js` | coluna Responsável |
 | `frontend/src/atividade/aba-medidas.js` | editar medida (modal reaproveitado, `PUT`) |
 | `frontend/src/atividade/aba-base.js` | rótulo "+ Base Legal" no GDPR |
-| `docs/paridade-legado-2026-10-20.md`, `CHANGELOG.md` | registrar o que fechou |
+| `docs/arquivo/paridade-legado-2026-10-20.md`, `CHANGELOG.md` | registrar o que fechou |
 
 ---
 
@@ -499,7 +499,7 @@ sem `medida` cria (POST, botão "Adicionar"), com `medida` edita (PUT, botão "S
 
 ### Tarefa 12: documentação e verificação final
 
-**Arquivos:** `docs/paridade-legado-2026-10-20.md`, `CHANGELOG.md`.
+**Arquivos:** `docs/arquivo/paridade-legado-2026-10-20.md`, `CHANGELOG.md`.
 
 - [ ] **Passo 1:** no documento de paridade, marcar como resolvidos (com o commit) o defeito do Painel, o Word da LIA, os itens da
   tabela 5 cobertos (RoPA, RIPD, LIA, Riscos, Gaps, Solicitações sem a exportação, Áreas, Ativos, Documentos) e os da seção 7

@@ -1,12 +1,13 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, ehEquipeNess } from '../helpers';
+import { erro500, ehEquipeNess, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import { ETAPAS, type Etapa, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema } from '../schemas/ropa-abas';
 import { lerEtapas, salvarCabecalhoDaEtapa, salvarAtivos, salvarAreas, salvarParceiros, salvarTitularesDaColeta, salvarTitularDaEtapa } from '../services/ropa-abas/etapas';
 import { listarCatalogo, criarNoCatalogo, atualizarCatalogo, registrarCatalogo, TIPO_DO_CAMINHO } from '../services/ropa-abas/catalogos';
 import { chaveNome } from '../services/nomes';
 import { conferirPedidosDoDocumento } from './pedidos';
+import { conteudoDoTratamentoMudou } from './ropa';
 import { lerLogs, registrarSecao } from '../services/ropa-abas/logs';
 import { salvarEscopo } from '../services/ropa-abas/escopo';
 import { salvarAgentes } from '../services/ropa-abas/agentes';
@@ -15,6 +16,8 @@ import { salvarBaseJuridica, lerBaseJuridica } from '../services/ropa-abas/base-
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema } from '../schemas/ropa-abas';
 import type { Falha, Gravado } from '../services/ropa-abas/comum';
+import { orgaoPublicoCriarSchema, orgaoPublicoAtualizarSchema } from '../schemas/ropa-abas';
+import { lerOrgaosPublicos, criarOrgaoPublico, atualizarOrgaoPublico, apagarOrgaoPublico } from '../services/ropa-abas/orgaos-publicos';
 import { gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, situacaoSchema } from '../schemas/ropa-abas';
 import { carregarConferencia } from '../services/ropa-abas/conferencia';
 import { montarFicha } from '../services/ropa-abas/ficha';
@@ -24,10 +27,12 @@ import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo, MAX_ANEXO } from 
 import { exigirEditavel } from '../services/ropa-abas/comum';
 import { montarRelatorio } from '../services/ropa-abas/relatorio';
 import { motivosDeRisco } from '../services/riscos-atividade';
+import { RISCOS_PRIVACIDADE } from '../data/riscos-privacidade';
 // D2: copiloto da descrição por etapa (propõe; a pessoa aceita).
 import { rascunharEtapa } from '../services/copiloto-etapa';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
+
 /** /api/v1/projects/:projectId/ropa/:recordId/...: a ficha em abas (spec 2026-10-16). Parâmetros `:projectId` e `:recordId`. */
 export const ropaAbasApp: App = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 /** /api/v1/projects/:projectId/catalogos/:tipo (PR2). */
@@ -50,7 +55,7 @@ function putAba<T extends object>(caminho: string, schema: Parameters<typeof val
       const r = await salvar(c.env.DB, projectId, recordId, ator, v.data);
       if (!r.ok) return c.json({ error: r.error, ...(r.invalidos ? { invalidos: r.invalidos } : {}) }, r.status);
       if (Object.keys(v.data).length) await registrarSecao(c.env.DB, ator, projectId, recordId, secao, 'Alteração', '', r.mudancas);
-      if (r.mudouHash) await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
+      if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
       return c.json({ ok: true, mudou_hash: r.mudouHash });
     } catch (e) { return erro500(c, falhaMsg, e); }
   });
@@ -116,6 +121,52 @@ ropaAbasApp.delete('/medidas/:id', async (c) => {
     await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, 'Medidas de Segurança', 'Exclusão');
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao apagar a medida', e); }
+});
+// Órgãos públicos destinatários (0097): cada escrita regrava `recipients`, que está no conteúdo congelado da aprovação.
+const SECAO_AGENTES = 'Agentes de Tratamento';
+ropaAbasApp.get('/orgaos-publicos', async (c) => {
+  try {
+    const r = await lerOrgaosPublicos(c.env.DB, c.req.param('projectId')!, c.req.param('recordId')!);
+    return r ? c.json(r) : c.json(NAO_ENCONTRADA, 404);
+  } catch (e) { return erro500(c, 'Falha ao listar os órgãos públicos', e); }
+});
+ropaAbasApp.post('/orgaos-publicos', async (c) => {
+  try {
+    const v = await validateBody(c, orgaoPublicoCriarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await criarOrgaoPublico(c.env.DB, projectId, recordId, ator, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, ator, projectId, recordId, SECAO_AGENTES, 'Inclusão');
+    if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao cadastrar o órgão público', e); }
+});
+ropaAbasApp.put('/orgaos-publicos/:id', async (c) => {
+  try {
+    const v = await validateBody(c, orgaoPublicoAtualizarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const r = await atualizarOrgaoPublico(c.env.DB, projectId, recordId, c.req.param('id')!, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, SECAO_AGENTES, 'Alteração');
+    if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar o órgão público', e); }
+});
+ropaAbasApp.delete('/orgaos-publicos/:id', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const r = await apagarOrgaoPublico(c.env.DB, projectId, recordId, c.req.param('id')!);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, SECAO_AGENTES, 'Exclusão');
+    if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao remover o órgão público', e); }
 });
 putAba('/base-juridica', baseJuridicaSchema, 'Base Jurídica', 'Falha ao gravar a base jurídica', salvarBaseJuridica);
 ropaAbasApp.get('/base-juridica', async (c) => {
@@ -187,7 +238,10 @@ ropaAbasApp.get('/riscos/motivos', async (c) => {
     const catalogo = await listarCatalogo(c.env.DB, projectId, 'motivo_risco');
     const chaves = new Set(catalogo.map((m) => chaveNome(m.nome)));
     const usados = (await motivosDeRisco(c.env.DB, projectId)).filter((u) => !chaves.has(chaveNome(u.nome)));
-    return c.json({ motivos: [...catalogo.map((m) => ({ nome: m.nome, descricao_padrao: m.descricao_padrao })), ...usados] });
+    usados.forEach((u) => chaves.add(chaveNome(u.nome)));
+    // Lista de referência de riscos de privacidade (LGPD): só sugestão no datalist, nunca semeada no catálogo do projeto.
+    const referencia = RISCOS_PRIVACIDADE.filter((r) => !chaves.has(chaveNome(r.nome))).map((r) => ({ nome: r.nome, descricao_padrao: r.descricao_padrao, referencia: true }));
+    return c.json({ motivos: [...catalogo.map((m) => ({ nome: m.nome, descricao_padrao: m.descricao_padrao })), ...usados, ...referencia] });
   } catch (e) { return erro500(c, 'Falha ao listar os motivos', e); }
 });
 
@@ -243,7 +297,7 @@ ropaAbasApp.delete('/gaps/:id', async (c) => {
 ropaAbasApp.get('/gaps/:id/anexos', async (c) => {
   try {
     const { projectId, recordId } = ids(c);
-    const r = await listarAnexos(c.env.DB, projectId, recordId, c.req.param('id')!);
+    const r = await listarAnexos(c.env.DB, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!);
     return r ? c.json({ ok: true, anexos: r }) : c.json({ error: 'Gap não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao listar os anexos', e); }
 });
@@ -259,7 +313,7 @@ ropaAbasApp.post('/gaps/:id/anexos', async (c) => {
     const arq = corpo['file'];
     if (!(arq instanceof File)) return c.json({ error: 'Envie um arquivo PDF ou DOC (máx. 5MB) válido' }, 400);
     if (arq.size > MAX_ANEXO) return c.json({ error: 'Máximo de 5 MB por arquivo' }, 413);
-    const r = await guardarAnexo(c.env, projectId, recordId, c.req.param('id')!, quem(c), { name: arq.name, bytes: await arq.arrayBuffer() });
+    const r = await guardarAnexo(c.env, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!, quem(c), { name: arq.name, bytes: await arq.arrayBuffer() });
     if (!r.ok) return c.json({ error: r.error }, r.status);
     await registrarSecao(c.env.DB, quem(c), projectId, recordId, 'Controle de GAPS', 'Anexo');
     return c.json({ ok: true, id: r.id }, 201);
@@ -269,7 +323,7 @@ ropaAbasApp.post('/gaps/:id/anexos', async (c) => {
 ropaAbasApp.get('/gaps/:id/anexos/:anexoId', async (c) => {
   try {
     const { projectId, recordId } = ids(c);
-    const r = await baixarAnexo(c.env, projectId, recordId, c.req.param('id')!, c.req.param('anexoId')!);
+    const r = await baixarAnexo(c.env, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!, c.req.param('anexoId')!);
     return r ?? c.json({ error: 'Anexo não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao baixar o anexo', e); }
 });
@@ -279,7 +333,7 @@ ropaAbasApp.delete('/gaps/:id/anexos/:anexoId', async (c) => {
     const { projectId, recordId } = ids(c);
     const ed = await exigirEditavel(c.env.DB, projectId, recordId);
     if (!ed.ok) return c.json({ error: ed.error }, ed.status);
-    const ok = await apagarAnexo(c.env, projectId, recordId, c.req.param('id')!, c.req.param('anexoId')!);
+    const ok = await apagarAnexo(c.env, projectId, { coluna: 'ropa_id', id: recordId }, c.req.param('id')!, c.req.param('anexoId')!);
     if (ok) await registrarSecao(c.env.DB, quem(c), projectId, recordId, 'Controle de GAPS', 'Anexo');
     return ok ? c.json({ ok: true }) : c.json({ error: 'Anexo não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
@@ -292,7 +346,7 @@ async function responderEtapa(c: Context<{ Bindings: Bindings; Variables: Variab
   const { projectId, recordId } = ids(c);
   const ator = quem(c);
   await registrarSecao(c.env.DB, ator, projectId, recordId, 'Tratamento de Dados', `Alteração (${etapa})`);
-  if (r.mudouHash) await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
+  if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
   return c.json({ ok: true, mudou_hash: r.mudouHash });
 }
 

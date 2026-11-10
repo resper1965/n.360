@@ -37,8 +37,11 @@ export function estadoDasAbas(d: DadosAtividade, etapas: EstadoEtapa[]): Record<
       : { estado: 'vazio', resumo: 'Nenhuma base jurídica registrada.' },
     gaps: d.gaps_nao_aplicavel ? { estado: 'na', resumo: 'Não Aplicável.' }
       : !d.gaps ? { estado: 'vazio', resumo: 'Nenhum gap registrado.' }
-      : d.gaps_abertos ? { estado: 'pendente', resumo: `${plural(d.gaps, 'gap', 'gaps')}, ${plural(d.gaps_abertos, 'aberto', 'abertos')}.` }
-      : { estado: 'feito', resumo: `${plural(d.gaps, 'gap', 'gaps')}, todos fechados.` },
+      // Pendente só falta campo obrigatório (gap aberto sem responsável); gap em aberto com os campos preenchidos conta como feito.
+      : d.sem_responsavel ? { estado: 'pendente', resumo: `${plural(d.gaps, 'gap', 'gaps')}, ${plural(d.sem_responsavel, 'sem responsável', 'sem responsável')}.` }
+      : { estado: 'feito', resumo: d.gaps_abertos
+        ? `${plural(d.gaps, 'gap', 'gaps')}, ${plural(d.gaps_abertos, 'aberto', 'abertos')}, campos obrigatórios preenchidos.`
+        : `${plural(d.gaps, 'gap', 'gaps')}, todos fechados.` },
     impacto: d.impacto_finalizado_em ? { estado: 'feito', resumo: 'Teste finalizado.' } : { estado: 'pendente', resumo: `${respondidas} de ${perguntas} respondidas.` },
     riscos: d.riscos ? { estado: 'feito', resumo: plural(d.riscos, 'risco', 'riscos') + '.' } : { estado: 'vazio', resumo: 'Nenhum risco registrado.' },
     logs: d.logs ? { estado: 'feito', resumo: plural(d.logs, 'registro', 'registros') + '.' } : { estado: 'vazio', resumo: 'Nenhum registro.' },

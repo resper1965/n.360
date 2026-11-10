@@ -41,6 +41,16 @@ describe('fonte avaliacao_terceiro', () => {
     expect(await daFonte()).toHaveLength(0);
   });
 
+  it('avaliação feita noutro tipo (situação "reavaliar") não gera aviso de vencimento; no tipo atual, gera', async () => {
+    const comTipo = (parte: string, tipo: string) => db().prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate, tipo_avaliado)
+      VALUES (?, 'p1', ?, 'questionario', 'aprovado', ?, ?)`).bind(`av-${parte}-x`, parte, HOJE, tipo);
+    await db().batch([
+      db().prepare(`UPDATE partes SET terceiro_tipo = 'critico' WHERE id IN ('t1', 't2')`),
+      comTipo('t1', 'medio'), comTipo('t2', 'critico'),
+    ]);
+    expect((await daFonte()).map((i) => i.titulo)).toEqual(['Avaliação do terceiro Fornecedor Médio']);
+  });
+
   it('reprovada não gera aviso de vencimento; terceiro inativo também não', async () => {
     await db().batch([aval('t1', HOJE, 'reprovado'), aval('t3', HOJE)]);
     expect(await daFonte()).toEqual([]);

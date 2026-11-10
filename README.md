@@ -1,16 +1,13 @@
 # n.360 | ness.
 
-[![CI](https://github.com/resper1965/n.360/actions/workflows/ci.yml/badge.svg)](https://github.com/resper1965/n.360/actions/workflows/ci.yml)
-[![Deploy](https://github.com/resper1965/n.360/actions/workflows/deploy.yml/badge.svg)](https://github.com/resper1965/n.360/actions/workflows/deploy.yml)
-[![CodeQL](https://github.com/resper1965/n.360/actions/workflows/codeql.yml/badge.svg)](https://github.com/resper1965/n.360/actions/workflows/codeql.yml)
-
-O **n.360** é a plataforma de governança, risco e conformidade da ness. Ela tem dois módulos que
+O **n.360** é a plataforma de governança, risco e conformidade da ness. Ela tem três módulos que
 trabalham sobre **um cadastro só** (partes, itens, documentos, RoPA, DPIA, evidências):
 
 | Módulo | Caminho | Escopo |
 |---|---|---|
 | **n.iso** | `/iso` | Adequação e certificação ISO 27001 e ISO 27701 |
 | **n.privacy** | `/privacy` | Programa de privacidade sob a LGPD e as resoluções da ANPD |
+| **n.ot** | `/ot` | Rotina ARCiber do ONS (RO-CB.BR.01): inventário OT, coleta, levantamento e saídas |
 
 Endereço: **<https://n360.ness.com.br>** (`APP_URL` em `wrangler.jsonc`). Os domínios antigos
 `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`. Integrações já
@@ -57,8 +54,10 @@ Cada rota de projeto cai numa **faixa** (`src/modulos.ts`):
 - `iso`: só do n.iso (controles, SoA, riscos, auditorias, CAPA, certificação…).
 - `privacy`: só do n.privacy (requisitos, terceiros, pedidos do titular, consentimentos,
   encarregado, importação, ligações e LIA do RoPA).
+- `ot`: só do n.ot (`/projects/:id/ot/...`). O `ot` nunca é concedido automaticamente, e chave de API
+  e agente MCP não o alcançam (`AGENTS.md`, regras P0-1 e P0-2).
 
-Rota das faixas `iso` e `privacy` só abre quando **o projeto tem o módulo E a pessoa tem o
+Rota das faixas `iso`, `privacy` e `ot` só abre quando **o projeto tem o módulo E a pessoa tem o
 módulo** (`projeto_modulos` e `usuario_modulos`, migration 0066); senão, 403. Rota nova de projeto
 sem faixa reprova em `test/modulos-produto.test.ts`.
 
@@ -91,7 +90,11 @@ Requisitos LGPD/ANPD); LIA e consentimentos ficam no tratamento e no titular; **
 de titulares, incidentes e consentimentos, e uma pessoa da equipe revisa item a item antes de
 gravar).
 
-**Compartilhado pelos dois.** Partes, Documentos, Evidências, Treinamento, Governança, ROPA e
+**n.ot (`/ot`).** Uma tela em abas: catálogo da rotina, inventário (sites, zonas, ativos),
+fluxos, coleta em lotes, levantamento (entrevista, visita, documento, sensor de rede), saídas e
+acessos e agente. IP e MAC cifrados e mascarados por papel; revelar e exportar pedem o segundo fator.
+
+**Compartilhado pelo n.iso e pelo n.privacy.** Partes, Documentos, Evidências, Treinamento, Governança, ROPA e
 DPIA, Assistente e a trilha de auditoria.
 
 ## Agentes e IA
@@ -115,15 +118,15 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
   para Stage 1 e 2), `maturidade-lgpd` (achados de maturidade do programa de privacidade),
   `atendimento-titular`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`, servidas
   pelo próprio MCP (`niso_skill`); roteiro de cada uma em [`docs/agente/README.md`](docs/agente/README.md).
-- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 38 ferramentas em 2026-10-25:
+- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 38 ferramentas em 2026-11-05:
   `grep -oE 'name: "niso_[a-z_0-9]+"' mcp-server-niso/src/*.ts | sort -u | wc -l`), com filtro por
   papel. Ver [`mcp-server-niso/README.md`](mcp-server-niso/README.md).
 
 ## Arquitetura
 
 - **Runtime:** Hono no Cloudflare Workers; um Worker serve API, páginas públicas e o frontend.
-- **Banco:** D1 (SQLite), 87 tabelas
-  (`grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`).
+- **Banco:** D1 (SQLite), 138 tabelas
+  (2026-11-09: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`).
   Trilha de auditoria append-only por trigger.
 - **KV:** sessões, tokens e rate limit (`SESSIONS`); estado do OAuth do MCP (`OAUTH_KV`).
 - **R2:** evidências, documentos e arquivos de importação (`STORAGE`); trilha arquivada (`TRILHA`).
@@ -135,19 +138,19 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 | Caminho | O que vive aqui |
 |---|---|
 | `src/index.ts` | Composition root: cabeçalhos, CORS, redirecionamento dos domínios antigos, autenticação, rotas. |
-| `src/routes/` | 51 arquivos de rota (2026-10-14: `ls src/routes/*.ts \| grep -vc '\.test\.ts$'`). |
-| `src/services/` | 43 arquivos de regra de negócio (2026-10-14: `ls src/services/*.ts \| wc -l`). |
-| `src/agents/` | Agentes de IA (`ls src/agents`): política, evidência, avaliação, adequação de controle, fases, prontidão, importação, privacidade. |
+| `src/routes/` | 66 arquivos de rota (2026-11-05: `ls src/routes/*.ts \| grep -vc '\.test\.ts$'`). |
+| `src/services/` | 88 arquivos de regra de negócio (2026-11-05: `ls src/services/*.ts \| wc -l`). |
+| `src/agents/` | Agentes de IA (`ls src/agents`): política, evidência, avaliação, adequação de controle, fases, prontidão, importação, privacidade, seção de política. |
 | `src/modulos.ts`, `src/middleware/` | Faixas e módulos; autenticação, acesso por projeto, principal do agente. |
 | `src/schemas/` | Schemas Zod de todo corpo de escrita. |
-| `src/mcp/` | MCP remoto do agente consultor. |
-| `frontend/` | `login.html` (a casca), `src/produto.js` (n.360, n.iso ou n.privacy pelo caminho), `src/views/` (uma tela por arquivo). |
-| `frontend/public/` | Páginas públicas copiadas como estão: `politicas.html`, `auditor.html`, `_headers`. |
+| `src/mcp/` | MCP remoto do agente consultor e o MCP do agente externo de coleta do n.ot (`ot-coleta.ts`). |
+| `frontend/` | `login.html` (a casca), `src/produto.js` (n.360, n.iso, n.privacy ou n.ot pelo caminho), `src/views/` (uma tela por arquivo). |
+| `frontend/public/` | Páginas públicas copiadas como estão: `politicas.html`, `auditor.html`, `homologacao.html`, `solicitacao.html`, `proposta.html`, `_headers`. |
 | `mcp-server-niso/` | Servidor MCP local. |
 | `agent-skills/` | Fonte das skills do agente (`npm run skills:gerar`). |
-| `migrations/` | 69 arquivos (2026-10-14: `ls migrations/*.sql \| wc -l`), última 0071 (`ls migrations/*.sql \| tail -1`). |
-| `test/` | 254 arquivos de teste do backend (2026-10-14: `ls test/*.test.ts \| wc -l`). |
-| `frontend/test/`, `frontend/e2e/` | 96 testes em jsdom (2026-10-14: `ls frontend/test/*.test.js \| wc -l`) e 6 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
+| `migrations/` | 98 arquivos (2026-11-05: `ls migrations/*.sql \| wc -l`), última 0098 (`ls migrations/*.sql \| tail -1`). |
+| `test/` | 424 arquivos de teste do backend (2026-11-05: `ls test/*.test.ts \| wc -l`). |
+| `frontend/test/`, `frontend/e2e/` | 178 testes em jsdom (2026-11-05: `ls frontend/test/*.test.js \| wc -l`) e 15 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
 | `docs/` | Runbook, specs, diagnóstico de design e decisões ([índice](docs/README.md)). |
 | `scripts/`, `ops/`, `backups/` | Geradores, SQL de reconciliação conferido por teste, runbook de backup. |
 
@@ -199,33 +202,28 @@ particularidades (0011 neutralizada, buraco 0031–0033) e o estado em produçã
 
 ## Publicar
 
-1. PR para a `main`; o CI roda `tsc`, as suítes, o build e o E2E. O ruleset exige os checks
-   **`test`** e **`e2e`** verdes, com a branch em dia.
-2. Merge na `main` dispara o **Deploy**, que **recusa publicar com migration pendente**.
-3. Com migration nova: rodar **Apply DB migrations** (Actions, digitar `APLICAR`; faz backup e
-   aplica) e depois **Deploy**. Ou aplicar antes do merge pelo terminal:
+Desde 16/10/2026 o portão é **local** e o deploy é do **Workers Builds** da Cloudflare; os workflows do
+GitHub Actions estão desligados (`disabled_manually`), salvo a sonda externa (manual) e o Dependabot.
+Passo a passo em [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md), seção 0.
+
+1. Branch a partir da `main`, PR.
+2. `bash scripts/ci/ship.sh <PR>`: atualiza o PR com a `main`, roda `scripts/ci/gate.sh` (tipos, build e
+   testes do frontend, build do MCP, testes do backend e E2E), grava o status `gate/local`, faz o squash-merge
+   e espera o `/health` mostrar o SHA. O ruleset exige PR, branch em dia e esse status.
+3. Com migration nova, **antes do merge** e só com o "sim" do dono:
 
    ```bash
    npm run db:backup
    npx wrangler d1 migrations apply niso-db --remote
    ```
 
+   O build da `main` (`scripts/ci/publicar.sh`) **recusa publicar com migration pendente**.
 4. Conferir o que está no ar: `curl -s https://n360.ness.com.br/health` devolve o SHA do commit
    publicado (`version`) e o `app_url`.
-5. Sem Actions (minutos esgotados, GitHub fora): `scripts/publicar.sh` publica da máquina do dono,
-   com a suíte como portão. Runbook: [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md).
 
-| Workflow | Quando roda | O que garante |
-|---|---|---|
-| CI (`ci.yml`) | pull request | tsc, suítes, build, E2E, `npm audit` (informativo) |
-| CodeQL (`codeql.yml`) | push, PR e semanal; pulado em repositório privado | SAST do Worker e do frontend |
-| Deploy (`deploy.yml`) | push na `main` e manual (só o manual roda a suíte) | Recusa com migration pendente; injeta o SHA em `/health` |
-| Apply DB migrations (`db-migrate.yml`) | manual, com confirmação | Backup antes de aplicar |
-| Backup do D1 (`db-backup.yml`) | diário | Exporta e verifica o dump |
-| Sonda externa (`uptime.yml`) | manual | `/health` e o login respondem como devem em `n360` e em `niso` (vigilância contínua: monitor externo e sonda interna, `docs/runbook-incidente.md`) |
-| SLO (`slo.yml`) | a cada 6 h | Latência e taxa de erro |
-| Drift de schema (`schema-drift.yml`) | semanal | `schema.sql` contra o D1 real |
-| Conferência de dados (`conferencia-dados.yml`) | manual | Contagens de produção, só leitura |
+Vigilância de produção sem Actions: a sonda interna do Worker (a cada 15 min, `src/services/sonda.ts`) e o
+SLO medido no Worker (a cada 6 h, `src/services/slo.ts`, último resultado no KV `slo:ultimo`). Backup diário
+automático não há: o `db-backup.yml` está desligado e a recuperação de curto prazo é o Time Travel do D1.
 
 ### Configuração
 

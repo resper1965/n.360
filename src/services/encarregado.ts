@@ -1,7 +1,7 @@
 import { listarIncidentes } from './incidentes';
 import { listarPedidos } from './titular-pedidos';
 import { listarTerceiros } from './terceiros';
-import { lacunasDaFonte } from './requisitos';
+import { lacunasDaFonte, resumoDeLacunas } from './requisitos';
 import { lerParametros } from './parametros-legais';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
@@ -64,8 +64,11 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
        FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.project_id = ? AND COALESCE(r.status, '') <> 'Inactive'`
   ).bind(projectId).all<{ id: string; nome: string; legal_basis: string | null; base_legal_id: string | null; owner: string | null; owner_parte_id: string | null; dpia_required: number | null; base_titulo: string | null; base_gdpr: string | null; adicionais: string | null; tem_dpia: number; tem_lia: number }>();
   const comTerceiroVencido = await n(db,
-    `SELECT count(DISTINCT v.alvo_id) AS n FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
-      WHERE v.project_id = ?1 AND v.alvo_tipo = 'tratamento' AND p.tipo = 'organizacao'
+    `SELECT count(DISTINCT u.ropa_id) AS n FROM (
+        SELECT parte_id, alvo_id AS ropa_id FROM parte_vinculos WHERE project_id = ?1 AND alvo_tipo = 'tratamento'
+        UNION SELECT parte_id, ropa_id FROM tratamento_externo_parceiros WHERE project_id = ?1) u JOIN partes p ON p.id = u.parte_id
+        JOIN ropa_records r ON r.id = u.ropa_id AND r.project_id = ?1 AND COALESCE(r.status, '') <> 'Inactive'
+      WHERE p.tipo = 'organizacao' AND p.status = 'ativa'
         AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?2`, projectId, dia);
 
   const tratamentos = {
@@ -119,19 +122,19 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     terceiros: {
       total: terceiros.length,
       sem_tipo: terceiros.filter((t) => !t.terceiro_tipo).length,
-      pendentes: terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').length,
+      pendentes: terceiros.filter((t) => t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')).length,
       vencidos: terceiros.filter((t) => t.situacao === 'vencida').length,
       reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length,
       // Contador do menu: sem tipo (nunca avaliado), pendente, vencido ou reprovado, sem contar duas vezes.
-      com_pendencia: terceiros.filter((t) => !t.terceiro_tipo || ['pendente', 'vencida', 'reprovada'].includes(t.situacao)).length,
+      com_pendencia: terceiros.filter((t) => !t.terceiro_tipo || ['pendente', 'vencida', 'reprovada', 'reavaliar'].includes(t.situacao)).length,
     },
     documentos: { revisao_vencida: await n(db, `SELECT count(*) AS n FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2`, projectId, dia) },
     evidencias,
     riscos,
     acoes_por_prazo,
     lgpd: lgpdCarregada
-      ? { carregada: true, total: lacunas.length, cobertos: lacunas.filter((l) => l.situacao === 'coberto').length, parciais: lacunas.filter((l) => l.situacao === 'parcial').length, lacunas: lacunas.filter((l) => l.situacao === 'lacuna').length }
-      : { carregada: false },
+      ? { carregada: true as const, ...resumoDeLacunas(lacunas) } // o mesmo resumo da tela de Requisitos: o não aplicável fica fora do total
+      : { carregada: false as const },
     prazos_legais: { nao_definidos: parametros.filter((p) => !p.definido).map((p) => p.chave) },
   };
 
@@ -170,8 +173,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos', filtro: 'vencem_7_dias' });
   p('media', secao.evidencias.a_corrigir, (q) => `${q} ${q === 1 ? 'evidência vencida ou não conforme' : 'evidências vencidas ou não conformes'}`, 'evidence', planejar('Renove ou substitua o arquivo', 'Renovar as evidências', 'vencidas_ou_nao_conformes'));
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos', planejar('A data de revisão passou', 'Revisar os documentos'));
-  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado' : 'terceiros nunca avaliados'}`, 'terceiros',
-    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').map((t) => t.nome)), 'Avaliar os terceiros', 'pendentes'));
+  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado ou a reavaliar' : 'terceiros nunca avaliados ou a reavaliar'}`, 'terceiros',
+    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')).map((t) => t.nome)), 'Avaliar os terceiros', 'pendentes'));
   p('media', secao.tratamentos.sem_base_legal, (q) => `${q} ${q === 1 ? 'tratamento sem base legal' : 'tratamentos sem base legal'}`, 'ropa',
     planejar(exemplos(trat.filter(semBase).map((t) => t.nome)), 'Definir a base legal'));
   p('media', lgpdCarregada || cliente ? 0 : 1, () => 'Catálogo de requisitos LGPD não carregado', 'requisitos', planejar('Sem o catálogo, a cobertura da LGPD não é calculada', 'Abrir a cobertura'));

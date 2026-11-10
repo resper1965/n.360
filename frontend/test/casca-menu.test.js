@@ -21,7 +21,7 @@ describe('n.360: menu de hub', () => {
     it('só Início, Minhas aprovações, Conta e acessos, Segurança do projeto e Trilha de auditoria', () => {
         montarApp();
         aplicarCasca('n360');
-        expect(new Set(visiveis())).toEqual(new Set(['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail']));
+        expect(new Set(visiveis())).toEqual(new Set(['nav-inicio', 'nav-meus', 'nav-ot', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail']));
     });
     it('grupo que ficou vazio some com o rótulo', () => {
         montarApp();
@@ -71,8 +71,10 @@ const ESTRUTURA_ISO = [
 const ESTRUTURA_N360 = [
     'nav-inicio=Início',
     'nav-meus=Minhas aprovações',
+    // o n.ot entra no hub (escondido até o projeto e a pessoa terem o módulo: ot-modulo.test.js)
+    'nav-ot=n.ot',
     '[Conta e acessos] true',
-    'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Consultorias, nav-identidade=Identidade da consultoria, nav-seguranca-projeto=Segurança do projeto, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
+    'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Consultorias, nav-identidade=Identidade da consultoria, nav-seguranca-projeto=Segurança do projeto, nav-modelos-fornecedor=Modelos de avaliação de fornecedor, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
     '[Sistema] false',
     'group-system-config: nav-audit-trail=Trilha de auditoria',
 ];
@@ -100,7 +102,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             '# Cadastros', 'nav-areas nav-sistemas nav-titulares nav-dados-titular nav-parceiros nav-partes',
             '# Mapeamento', 'nav-ropa nav-dpia nav-lia',
             '# Diagnóstico', 'nav-gaps nav-mapa-de-risco',
-            '# Fornecedores', 'nav-terceiros nav-avaliacoes-terceiros',
+            '# Fornecedores', 'nav-terceiros nav-avaliacoes-terceiros nav-questionarios-fornecedor',
             'nav-documentos-arquivo nav-titular',
             '# Mais', 'nav-referencia-juridica nav-incidentes-privacy nav-consentimentos nav-requisitos nav-documentos nav-evidence nav-training nav-governance nav-importacao',
             'nav-ai',
@@ -127,11 +129,11 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('27 destinos, todos à vista; Minhas aprovações, Trilha de auditoria e Preços e margens ficam fora do menu do módulo', () => {
+    it('28 destinos, todos à vista; Minhas aprovações, Trilha de auditoria e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
-        expect(destinos.length).toBe(27);
+        expect(destinos.length).toBe(28);
         expect(new Set(visiveis())).toEqual(new Set(destinos));
         for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
         expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
@@ -160,7 +162,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         expect(Object.fromEntries([...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => [n.id, texto(n.id)]))).toEqual({
             'nav-encarregado': 'Dashboard', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
             'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'DPIA', 'nav-lia': 'LIA',
-            'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
+            'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
             'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas e normas',
             'nav-evidence': 'Evidências', 'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-importacao': 'Importar programa', 'nav-ai': 'Assistente',
         });

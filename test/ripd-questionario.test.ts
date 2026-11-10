@@ -91,6 +91,29 @@ describe('GET e PUT /dpia/:id/questionario', () => {
     expect(perguntasDe(sem).bases_legais.base_legal).toBeNull();
   });
 
+  it('traz finalidade e compartilhamento externo do ROPA (read-only); sem parceiros, não há o que responder', async () => {
+    const corpo: any = await (await chamar(consultor, 'GET', `${base()}/questionario`)).json();
+    const p = perguntasDe(corpo);
+    expect(p.por_que_coletados.finalidade).toBe('Folha ficticia');
+    expect(p.contratos_compartilhamento.compartilhamento_externo).toEqual({ tem: false, parceiros: [] });
+    expect(Object.values(p).filter((x: any) => x.finalidade !== undefined)).toHaveLength(1);
+    expect(Object.values(p).filter((x: any) => x.compartilhamento_externo !== undefined)).toHaveLength(1);
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM dpia_respostas').first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it('com parceiro externo no ROPA, o bloco traz o nome e marca que há compartilhamento', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('rq-parc', ?, 'organizacao', 'Parceiro Externo Ficticio')`).bind(P),
+      env.DB.prepare(`INSERT INTO tratamento_externo_parceiros (ropa_id, parte_id, project_id) VALUES ('rq-ropa', 'rq-parc', ?)`).bind(P),
+    ]);
+    const corpo: any = await (await chamar(consultor, 'GET', `${base()}/questionario`)).json();
+    expect(perguntasDe(corpo).contratos_compartilhamento.compartilhamento_externo).toEqual({ tem: true, parceiros: ['Parceiro Externo Ficticio'] });
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM tratamento_externo_parceiros WHERE ropa_id = 'rq-ropa'`),
+      env.DB.prepare(`DELETE FROM partes WHERE id = 'rq-parc'`),
+    ]);
+  });
+
   it('RIPD sem atividade ligada não traz sugestão', async () => {
     const corpo: any = await (await chamar(consultor, 'GET', `${base(P, 'rq-sem')}/questionario`)).json();
     expect(Object.values(perguntasDe(corpo)).every((x: any) => x.da_atividade === null)).toBe(true);

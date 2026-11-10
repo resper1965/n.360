@@ -51,11 +51,12 @@ n.iso:
 - Fila do que fazer (os dois módulos): /api/v1/projects/{p}/painel (por módulo: fazer[] em atraso, semana e plano, vencimentos, cobertura e riscos; é por onde se começa uma rodada de correção)
 
 n.privacy:
-- Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd) · catálogo (ids de base legal): /api/v1/requisitos?fonte=lgpd
+- Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd; situação coberto, parcial, lacuna ou nao_aplicavel) · catálogo (ids de base legal): /api/v1/requisitos?fonte=lgpd · marcar requisito como não aplicável (com justificativa) ou voltar a aplicar: niso_excluir_requisito
 - Terceiros: /api/v1/projects/{p}/terceiros · Pedidos do titular: /api/v1/projects/{p}/titular-pedidos (prazo em situacao_prazo)
 - Consentimentos: /api/v1/projects/{p}/consentimentos · Encarregado: /api/v1/projects/{p}/encarregado
 - Ligações e LIA de um tratamento do RoPA: /api/v1/projects/{p}/ropa/{id}/ligacoes · /api/v1/projects/{p}/ropa/{id}/lia · questionário da LIA: /ropa/{id}/lia/questionario
 - Ficha da atividade (abas): /api/v1/projects/{p}/ropa/{id}/ficha · /escopo · /etapas · /medidas · /gaps · /logs · situação: niso_situacao_atividade · questionário do RIPD: /api/v1/projects/{p}/dpia/{id}/questionario
+- Catálogos do projeto (titulares, dados, medidas, motivos-risco): /api/v1/projects/{p}/catalogos/{tipo} (ler e criar) · editar item, inclusive marcar dado sensível: niso_editar_catalogo
 
 Fora do seu alcance (use a interface): usuários, SSO, política de segurança, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificações), criar projeto, painel global, área comercial (salvo leitura e rascunho pelas niso_comercial_*, quando você as tiver) e /agentes.`;
 

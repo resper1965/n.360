@@ -211,7 +211,9 @@ CREATE TABLE IF NOT EXISTS projects (
     proposta_id TEXT,
     -- Consultoria dona do projeto (migration 0040). Sem REFERENCES, como nas
     -- tabelas comerciais: ALTER TABLE não aceita FK com default.
-    org_id TEXT NOT NULL DEFAULT 'org_ness'
+    org_id TEXT NOT NULL DEFAULT 'org_ness',
+    -- 0096: interruptor do agente externo de coleta do n.ot (desligado por padrão).
+    agente_coleta_ot INTEGER NOT NULL DEFAULT 0 CHECK (agente_coleta_ot IN (0, 1))
 );
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(org_id);
 
@@ -667,7 +669,9 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     -- Ação da atividade de tratamento do n.privacy, migration 0073
     ropa_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
     -- Ficha em abas (migration 0079)
-    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000)
+    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000),
+    -- Tratamento da ação corretiva do incidente (0100)
+    tratamento TEXT CHECK (tratamento IS NULL OR tratamento IN ('contencao', 'correcao', 'aperfeicoamento'))
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -1312,17 +1316,17 @@ CREATE INDEX IF NOT EXISTS idx_avisos_prazo_email ON avisos_prazo(email_enviado_
 -- ─── Núcleo do n.privacy, fatia 1.1 (migration 0047) ───
 CREATE TABLE IF NOT EXISTS projeto_modulos (
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy', 'ot')),
     habilitado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     habilitado_por TEXT NOT NULL DEFAULT 'sistema',
     PRIMARY KEY (project_id, modulo)
 );
--- Módulo inicial do projeto novo = o contrato da organização (0060; antes, sempre `iso`).
+-- Módulo inicial do projeto novo = o contrato da organização (0060; antes, sempre `iso`). `ot` desde a 0089.
 CREATE TRIGGER IF NOT EXISTS projeto_modulos_do_contrato AFTER INSERT ON projects
 BEGIN
     INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por)
         SELECT NEW.id, j.value, 'sistema' FROM organizations o, json_each(CASE WHEN json_valid(o.modulos_contratados) THEN o.modulos_contratados ELSE '[]' END) j
-         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy');
+         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy', 'ot');
     INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por)
         SELECT NEW.id, 'iso', 'sistema' WHERE NOT EXISTS (SELECT 1 FROM projeto_modulos WHERE project_id = NEW.id);
 END;
@@ -1499,6 +1503,16 @@ CREATE TABLE IF NOT EXISTS documento_requisitos (
 CREATE INDEX IF NOT EXISTS idx_doc_requisitos_requisito ON documento_requisitos(requisito_id);
 CREATE INDEX IF NOT EXISTS idx_doc_requisitos_projeto ON documento_requisitos(project_id);
 
+-- Requisito "não aplicável" por projeto, com justificativa (migration 0107). Desmarcar apaga a linha; a trilha guarda a decisão.
+CREATE TABLE IF NOT EXISTS requisito_exclusoes (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    requisito_id TEXT NOT NULL REFERENCES requisitos(id) ON DELETE CASCADE,
+    justificativa TEXT NOT NULL CHECK (length(trim(justificativa)) >= 20 AND length(justificativa) <= 2000),
+    decidido_por TEXT NOT NULL,
+    decidido_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, requisito_id)
+);
+
 -- Ligações do tratamento (fatia 4.1, migration 0054)
 CREATE TABLE IF NOT EXISTS tratamento_itens (
     ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
@@ -1647,7 +1661,9 @@ CREATE TABLE IF NOT EXISTS avaliacoes_terceiro (
     evidencia_url TEXT,
     observacao TEXT,
     avaliado_por TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- o tipo do fornecedor quando a avaliação foi feita (migration 0106): tipo diferente do atual pede reavaliação
+    tipo_avaliado TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_aval_terceiro_parte ON avaliacoes_terceiro(parte_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_aval_terceiro_projeto ON avaliacoes_terceiro(project_id, valido_ate);
@@ -1748,10 +1764,66 @@ CREATE TABLE IF NOT EXISTS titular_pedidos (
     criado_por TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Conferência de identidade do titular (migration 0104): só registro; quem e quando vêm da sessão.
+    identidade_metodo TEXT CHECK (identidade_metodo IN ('documento_foto', 'dados_cadastrais', 'canal_autenticado', 'presencial', 'outro')),
+    identidade_obs TEXT CHECK (length(identidade_obs) <= 500),
+    identidade_por TEXT,
+    identidade_em TEXT,
+    -- Consulta pública (migration 0105): só o SHA-256 do código de acompanhamento gerado na abertura pelo portal.
+    acompanhamento_hash TEXT,
     UNIQUE (project_id, protocolo),
     CHECK (status NOT IN ('respondido', 'negado') OR respondido_em IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_titular_pedidos_projeto ON titular_pedidos(project_id, status, prazo_em);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_titular_pedidos_acompanhamento ON titular_pedidos(acompanhamento_hash) WHERE acompanhamento_hash IS NOT NULL;
+
+-- Portal público de solicitações do titular (migration 0096): um link por projeto (só o SHA-256 do token).
+CREATE TABLE IF NOT EXISTS titular_portais (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    token_hash TEXT UNIQUE NOT NULL,
+    ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+    criado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tratativas do atendimento de cada pedido do titular (migration 0096).
+CREATE TABLE IF NOT EXISTS titular_pedido_tratativas (
+    id TEXT PRIMARY KEY,
+    pedido_id TEXT NOT NULL REFERENCES titular_pedidos(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL CHECK (tipo IN ('comunicacao_titular', 'encaminhamento', 'evidencia', 'nota')),
+    texto TEXT NOT NULL CHECK (length(texto) BETWEEN 1 AND 5000),
+    autor TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_titular_tratativas_pedido ON titular_pedido_tratativas(pedido_id, created_at);
+
+-- Encaminhamento do pedido do titular a ponto focal (migration 0104).
+CREATE TABLE IF NOT EXISTS titular_pedido_encaminhamentos (
+    id TEXT PRIMARY KEY,
+    pedido_id TEXT NOT NULL REFERENCES titular_pedidos(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parte_id TEXT NOT NULL REFERENCES partes(id),
+    prazo TEXT NOT NULL,
+    mensagem TEXT NOT NULL CHECK (length(mensagem) BETWEEN 1 AND 2000),
+    status TEXT NOT NULL DEFAULT 'aguardando' CHECK (status IN ('aguardando', 'respondido', 'cancelado')),
+    retorno TEXT CHECK (length(retorno) <= 5000),
+    enviado_por TEXT NOT NULL,
+    enviado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    retorno_por TEXT,
+    retorno_em DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status <> 'respondido' OR (retorno IS NOT NULL AND length(retorno) >= 1))
+);
+CREATE INDEX IF NOT EXISTS idx_titular_encaminhamentos_pedido ON titular_pedido_encaminhamentos(pedido_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_titular_encaminhamentos_prazo ON titular_pedido_encaminhamentos(project_id, status, prazo);
+CREATE TRIGGER IF NOT EXISTS titular_encaminhamentos_do_projeto BEFORE INSERT ON titular_pedido_encaminhamentos
+WHEN NOT EXISTS (SELECT 1 FROM titular_pedidos t WHERE t.id = NEW.pedido_id AND t.project_id IS NEW.project_id)
+  OR NOT EXISTS (SELECT 1 FROM partes p WHERE p.id = NEW.parte_id AND p.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'pedido ou pessoa de outro projeto');
+END;
 
 CREATE TABLE IF NOT EXISTS incidentes (
     id TEXT PRIMARY KEY,
@@ -1772,6 +1844,18 @@ CREATE TABLE IF NOT EXISTS incidentes (
     criado_por TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Registro completo (0098).
+    origem_alerta TEXT CHECK (origem_alerta IS NULL OR length(origem_alerta) <= 500),
+    severidade TEXT CHECK (severidade IS NULL OR severidade IN ('baixa', 'media', 'alta', 'critica')),
+    tipo TEXT CHECK (tipo IS NULL OR tipo IN ('acesso_indevido', 'vazamento', 'perda', 'indisponibilidade', 'alteracao_indevida', 'terceiro', 'malware', 'engenharia_social', 'outro')),
+    comprometimento TEXT CHECK (comprometimento IS NULL OR json_valid(comprometimento)),
+    titulares_estimados INTEGER CHECK (titulares_estimados IS NULL OR titulares_estimados >= 0),
+    criterios_risco TEXT CHECK (criterios_risco IS NULL OR json_valid(criterios_risco)),
+    fim_em TEXT,
+    -- Comunicação à ANPD (0099).
+    anpd_protocolo TEXT CHECK (anpd_protocolo IS NULL OR length(anpd_protocolo) <= 100),
+    anpd_canal TEXT CHECK (anpd_canal IS NULL OR anpd_canal IN ('sei', 'formulario_anpd', 'email', 'outro')),
+    anpd_justificativa TEXT CHECK (anpd_justificativa IS NULL OR length(anpd_justificativa) <= 5000),
     UNIQUE (project_id, protocolo),
     CHECK (status <> 'encerrado' OR risco_titular IS NOT NULL),
     CHECK (status <> 'encerrado' OR risco_titular <> 'relevante' OR comunicacao_anpd_em IS NOT NULL)
@@ -1865,17 +1949,18 @@ CREATE INDEX IF NOT EXISTS idx_importacao_itens_projeto ON importacao_itens(proj
 -- ─── n.360, fatia 3: módulos por pessoa (migration 0066) ───
 CREATE TABLE IF NOT EXISTS usuario_modulos (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy', 'ot')),
     concedido_por TEXT,
     concedido_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, modulo)
 );
 -- Conta nova recebe o padrão (cliente: os módulos do projeto; equipe: o contrato da organização, ou n.iso). Ver a 0066.
+-- `ot` nunca vem por padrão, só por concessão explícita (0089; SCIM do cliente cria conta).
 CREATE TRIGGER IF NOT EXISTS usuario_modulos_padrao AFTER INSERT ON users
 BEGIN
     INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
         SELECT NEW.id, pm.modulo, 'padrao' FROM projeto_modulos pm
-         WHERE pm.project_id = NEW.client_project_id
+         WHERE pm.project_id = NEW.client_project_id AND pm.modulo IN ('iso', 'privacy')
            AND NEW.role IN ('org_admin', 'org_user', 'client', 'client_admin', 'user', 'employee');
     INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
         SELECT NEW.id, j.value, 'padrao' FROM organizations o,
@@ -1932,7 +2017,9 @@ CREATE TABLE IF NOT EXISTS homologacao_perguntas (
     ativa INTEGER NOT NULL DEFAULT 1 CHECK (ativa IN (0, 1)),
     origem TEXT NOT NULL DEFAULT 'projeto' CHECK (origem IN ('padrao', 'projeto')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- desde a 0106 só a pergunta PRÓPRIA do projeto: NULL = todos os tipos que recebem questionário
+    tipo TEXT CHECK (tipo IS NULL OR tipo IN ('critico', 'medio', 'pequeno'))
 );
 CREATE INDEX IF NOT EXISTS idx_homologacao_perguntas_projeto ON homologacao_perguntas(project_id, ordem);
 
@@ -1952,7 +2039,11 @@ CREATE TABLE IF NOT EXISTS homologacoes (
     concluida_em DATETIME,
     criado_por TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- migration 0106: o tipo no envio (o modelo usado); o e-mail do fornecedor só enquanto aberta (lembrete); quando o lembrete saiu
+    tipo TEXT,
+    email_destino TEXT,
+    lembrete_em DATETIME
 );
 CREATE INDEX IF NOT EXISTS idx_homologacoes_projeto ON homologacoes(project_id, parte_id, created_at);
 
@@ -1964,6 +2055,43 @@ WHEN NEW.perguntas_json IS NOT OLD.perguntas_json OR NEW.token_hash IS NOT OLD.t
   OR (OLD.status != 'aberta' AND NEW.status = 'aberta')
 BEGIN
     SELECT RAISE(ABORT, 'homologacao: perguntas e respostas enviadas sao imutaveis');
+END;
+
+-- Modelos de avaliação de fornecedor da consultoria (migration 0106): um por tipo; o projeto só desliga pergunta do modelo (homologacao_ajustes).
+CREATE TABLE IF NOT EXISTS fornecedor_modelos (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL CHECK (tipo IN ('critico', 'medio', 'pequeno', 'grande_provedor')),
+    prazo_meses INTEGER NOT NULL CHECK (prazo_meses BETWEEN 1 AND 60),
+    origem TEXT NOT NULL DEFAULT 'padrao' CHECK (origem IN ('padrao', 'consultoria')),
+    atualizado_por TEXT,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (org_id, tipo)
+);
+CREATE TABLE IF NOT EXISTS fornecedor_modelo_perguntas (
+    id TEXT PRIMARY KEY,
+    modelo_id TEXT NOT NULL REFERENCES fornecedor_modelos(id) ON DELETE CASCADE,
+    tema TEXT NOT NULL CHECK (length(tema) BETWEEN 1 AND 80),
+    texto TEXT NOT NULL CHECK (length(texto) BETWEEN 1 AND 500),
+    ordem INTEGER NOT NULL DEFAULT 0,
+    ativa INTEGER NOT NULL DEFAULT 1 CHECK (ativa IN (0, 1)),
+    origem TEXT NOT NULL DEFAULT 'consultoria' CHECK (origem IN ('padrao', 'consultoria')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_fornecedor_modelo_perguntas ON fornecedor_modelo_perguntas(modelo_id, ordem);
+CREATE TABLE IF NOT EXISTS homologacao_ajustes (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    modelo_pergunta_id TEXT NOT NULL REFERENCES fornecedor_modelo_perguntas(id) ON DELETE CASCADE,
+    ativa INTEGER NOT NULL DEFAULT 0 CHECK (ativa IN (0, 1)),
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, modelo_pergunta_id)
+);
+CREATE TRIGGER IF NOT EXISTS homologacao_email_some
+AFTER UPDATE OF status ON homologacoes
+WHEN NEW.status <> 'aberta' AND NEW.email_destino IS NOT NULL
+BEGIN
+    UPDATE homologacoes SET email_destino = NULL WHERE id = NEW.id;
 END;
 
 -- Convite com link para criar a senha (migration 0077): só o SHA-256 do token, 72 h, uso único (DELETE condicional), reenviar substitui.
@@ -2162,4 +2290,517 @@ CREATE TRIGGER IF NOT EXISTS lia_respostas_do_projeto_ins BEFORE INSERT ON lia_r
 WHEN NOT EXISTS (SELECT 1 FROM ropa_records r WHERE r.id = NEW.ropa_id AND r.project_id IS NEW.project_id)
 BEGIN
     SELECT RAISE(ABORT, 'tratamento inexistente ou de outro projeto');
+END;
+
+-- ─── n.ot: catálogo global de requisitos e carga da ONS RO-CB.BR.01 Rev.00 (migration 0090) ───
+CREATE TABLE IF NOT EXISTS ot_requisitos (
+    id TEXT PRIMARY KEY,
+    framework TEXT NOT NULL,
+    codigo TEXT NOT NULL,
+    titulo TEXT NOT NULL,
+    descricao TEXT,
+    categoria TEXT,
+    versao TEXT NOT NULL,
+    prazo_meses INTEGER CHECK (prazo_meses IS NULL OR prazo_meses > 0),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (framework, codigo)
+);
+
+INSERT OR IGNORE INTO ot_requisitos (id, framework, codigo, titulo, descricao, categoria, versao, prazo_meses) VALUES
+  ('ons-ro-cb-br-01-rev00-4.1.1', 'ONS-RO-CB.BR.01', '4.1.1', 'Segregação em zonas de segurança', 'As redes devem ser segregadas em zonas de segurança, de acordo com a sua função. O agente deve definir uma arquitetura que segmente as redes minimamente em: Zona de Supervisão (nível 2 da ISA-95 e do Purdue Reference Model), Zona DMZ Operativa (nível 3) e Zona Corporativa (nível 4).', 'Arquitetura tecnológica para o ambiente', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.1.2', 'ONS-RO-CB.BR.01', '4.1.2', 'ARCiber não acessível pela internet', 'O ARCiber não deve ser diretamente acessível através da internet, mesmo que protegido por um ou mais firewalls, bem como seus ativos: não devem ser visíveis nem acessíveis a partir da internet, exceto nos casos previstos em 4.1.3, e não devem ser capazes de se conectar com a internet.', 'Arquitetura tecnológica para o ambiente', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.1.3', 'ONS-RO-CB.BR.01', '4.1.3', 'Acesso externo somente por VPN', 'O acesso ao ARCiber a partir de redes externas à organização (como a internet) somente deve ser permitido para o desempenho de atividades autorizadas, por meio de Rede Privada Virtual (VPN), ou tecnologia similar, através de um gateway ou serviço que ofereça controles de segurança.', 'Arquitetura tecnológica para o ambiente', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.1.4', 'ONS-RO-CB.BR.01', '4.1.4', 'Antimalware', 'Soluções Antimalware devem ser implementadas no ARCiber e mantidas atualizadas. Soluções de application whitelisting podem ser implementadas como alternativa ou complemento às soluções Antimalware.', 'Arquitetura tecnológica para o ambiente', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.2.1', 'ONS-RO-CB.BR.01', '4.2.1', 'Gestor e suplente de segurança cibernética', 'Deve ser nomeado pelo menos um gestor e um suplente, responsáveis pela segurança cibernética do ARCiber e que atuem como ponto de contato externo.', 'Governança de segurança da informação', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.2.2', 'ONS-RO-CB.BR.01', '4.2.2', 'Política de papéis e responsabilidades', 'Deve ser estabelecida política que defina papéis e responsabilidades em relação à segurança cibernética do ARCiber.', 'Governança de segurança da informação', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.3.1', 'ONS-RO-CB.BR.01', '4.3.1', 'Inventário de ativos a cada 24 meses', 'Todos os ativos, softwares e hardwares, conectados ao ARCiber devem ser inventariados minimamente a cada 24 meses e considerar minimamente: tipo de dispositivo; fabricante do equipamento; função; endereço IP ou MAC Address; protocolo de aplicação e/ou porta de serviço; versão do firmware e/ou sistema operacional quando aplicável.', 'Inventário de ativos', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.3.2', 'ONS-RO-CB.BR.01', '4.3.2', 'Armazenamento seguro do inventário', 'O inventário dos ativos deve ser armazenado de forma segura, com políticas de armazenamento bem definidas, com acesso restrito às pessoas que necessitem das informações para o exercício de suas funções.', 'Inventário de ativos', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.3.3', 'ONS-RO-CB.BR.01', '4.3.3', 'Padrões de configuração segura (hardening)', 'Padrões de configuração segura (hardening) devem ser criados conforme política de segurança do agente para os sistemas operacionais, firmwares, banco de dados e demais versões de softwares existentes no ARCiber. Mecanismos de monitoramento da conformidade destes padrões no ARCiber produtivo, automatizados ou manuais, devem ser implementados.', 'Inventário de ativos', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.4.1', 'ONS-RO-CB.BR.01', '4.4.1', 'Gestão de patches', 'A política de segurança da organização deverá contemplar a gestão de pacotes de correção de segurança (patches) para todas as tecnologias conectadas ao ARCiber, contemplando no mínimo: cronograma de implementação das correções e mapeamento dos ativos inventariados para as atualizações disponibilizadas pelos fabricantes.', 'Gestão de vulnerabilidades', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.4.2', 'ONS-RO-CB.BR.01', '4.4.2', 'Novos ativos somente após aplicação de patches', 'Novos ativos somente deverão ser conectados ao ARCiber após a aplicação de todos os pacotes de correção de segurança disponíveis. Caso o novo equipamento esteja substituindo um equipamento existente que tenha apresentado defeito, a aplicação dos pacotes poderá ser postergada, mas com prazo pré-definido.', 'Gestão de vulnerabilidades', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.5.1', 'ONS-RO-CB.BR.01', '4.5.1', 'Política de gestão de acessos e identidades', 'Deve existir uma política de gestão de acessos e identidades, que contemple minimamente os requisitos 4.5.1.1 a 4.5.1.6.', 'Gestão de acessos', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.5.1.1', 'ONS-RO-CB.BR.01', '4.5.1.1', 'Credenciais individuais e aprovadas', 'Credenciais de acesso devem ser individuais e aprovadas pela alçada competente. Quando não for possível implementar credenciais individuais, deve-se gerar e manter uma lista das pessoas autorizadas a usar as contas compartilhadas e implementar os controles previstos em 4.5.1.6.', 'Gestão de acessos', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.5.1.2', 'ONS-RO-CB.BR.01', '4.5.1.2', 'Política de senhas', 'Política de senhas que contemple: tamanho mínimo, complexidade, necessidade de ser diferente da senha padrão do fabricante, ações a serem tomadas caso um número máximo de tentativas de acesso malsucedidas seja atingido, e critérios para a gestão de mudanças (prazo, ocorrência de incidentes, etc). Pode ser implementada por controles tecnológicos ou por procedimento; se a restrição tecnológica impedir, deve-se implementar o nível máximo suportado pelo ativo.', 'Gestão de acessos', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.5.1.3', 'ONS-RO-CB.BR.01', '4.5.1.3', 'Princípio da minimização', 'Na construção dos perfis de acesso deve-se seguir o princípio de minimização (somente deve-se conceder o acesso mínimo necessário).', 'Gestão de acessos', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.5.1.4', 'ONS-RO-CB.BR.01', '4.5.1.4', 'Remoção de credenciais', 'Prazo máximo para cancelamento/remoção de credenciais de usuários desligados e de credenciais sem uso após um determinado tempo.', 'Gestão de acessos', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.5.1.5', 'ONS-RO-CB.BR.01', '4.5.1.5', 'Credenciais privilegiadas', 'Credenciais de acesso privilegiadas devem estar sujeitas a controles específicos, incluindo: nível de aprovação adequado, com revisão periódica pelo gestor do ARCiber; uso exclusivo durante a execução de tarefas administrativas; monitoramento através de trilhas de auditoria; utilização de múltiplos fatores de autenticação, como tokens OTP ou reconhecimento biométrico.', 'Gestão de acessos', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.5.1.6', 'ONS-RO-CB.BR.01', '4.5.1.6', 'Credenciais padrão embarcadas', 'As características especiais das credenciais de acesso padrão embarcadas (locais) nos sistemas operacionais e softwares devem ser consideradas na política: o acesso à senha de contas embarcadas deve ser restrito a um número limitado de pessoas, e cada ativo que possua credencial embarcada deve possuir uma senha distinta, que não seja atribuída a mais de um ativo.', 'Gestão de acessos', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.6.1', 'ONS-RO-CB.BR.01', '4.6.1', 'Logs de segurança', 'Os ativos do ARCiber devem estar configurados para gerar logs de segurança apropriados para suportar investigações e a reconstrução de possíveis incidentes de segurança. Esses logs devem ser armazenados por prazo definido nas políticas de segurança cibernética da organização.', 'Monitoramento e resposta a incidentes', 'Rev.00', 18),
+  ('ons-ro-cb-br-01-rev00-4.6.2', 'ONS-RO-CB.BR.01', '4.6.2', 'Alertas de atividades suspeitas', 'Os dispositivos de segurança como Firewalls, IDS/IPS, Antimalware e subsistemas de autenticação devem estar configurados para gerar alertas caso identifiquem atividades suspeitas. As regras de alerta devem ser revisadas periodicamente, todos os alertas devem ser reportados imediatamente à equipe responsável e devem ser analisados e respondidos no prazo definido pela política de segurança do agente.', 'Monitoramento e resposta a incidentes', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.6.3', 'ONS-RO-CB.BR.01', '4.6.3', 'Identificação e resposta tempestiva a incidentes', 'Devem ser estabelecidos mecanismos para identificação e resposta a incidentes cibernéticos tempestivamente.', 'Monitoramento e resposta a incidentes', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.6.4', 'ONS-RO-CB.BR.01', '4.6.4', 'Plano de resposta a incidentes', 'Deve ser implementado um plano de resposta a incidentes cibernéticos, contemplando minimamente: identificação dos cenários de risco cibernéticos aplicáveis ao ARCiber e estratégias de tratamento para cada cenário; classificação do impacto; equipes envolvidas, com papéis e responsabilidades antes, durante e depois da crise; critérios para ativação do plano.', 'Monitoramento e resposta a incidentes', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.6.5', 'ONS-RO-CB.BR.01', '4.6.5', 'Testes do plano de resposta', 'Testes de ativação dos planos de resposta a incidentes cibernéticos devem ser realizados periodicamente, em ciclos definidos na política de segurança cibernética da organização, cobrindo minimamente as listas de ativação (call tree) e a revisão dos procedimentos. Os exercícios deverão gerar documentos de lições aprendidas e as respectivas ações corretivas e de melhorias.', 'Monitoramento e resposta a incidentes', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-4.6.6', 'ONS-RO-CB.BR.01', '4.6.6', 'Comunicação de incidentes ao ONS', 'Incidentes cibernéticos que afetem ativos do ARCiber devem ser informados ao ONS.', 'Monitoramento e resposta a incidentes', 'Rev.00', 27),
+  ('ons-ro-cb-br-01-rev00-5.1.1', 'ONS-RO-CB.BR.01', '5.1.1', 'Tratamento de exceções', 'Os casos em que requisitos não possam ser implementados devem ser tratados com uma exceção. Cada exceção deve ser documentada detalhadamente, incluindo a data em que foi identificada, o motivo pelo qual precisa ser tratada como exceção, os itens da RO que deixarão de ser atendidos e os impactos esperados, e aprovada pelo gestor responsável pela segurança cibernética do ARCiber.', 'Tratamento de exceções', 'Rev.00', NULL);
+
+-- ─── n.ot: inventário — sites, zonas, ativos, fluxos e acesso por site (migration 0091) ───
+CREATE TABLE IF NOT EXISTS ot_sites (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'outro' CHECK (tipo IN ('subestacao', 'usina', 'centro_operacao', 'outro')),
+    criticidade TEXT CHECK (criticidade IS NULL OR criticidade IN ('alta', 'media', 'baixa')),
+    localizacao TEXT,
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    faixas_internas TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(faixas_internas) AND json_type(faixas_internas) = 'array'),
+    UNIQUE (id, project_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ot_sites_projeto ON ot_sites(project_id);
+
+CREATE TABLE IF NOT EXISTS ot_zonas (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    nome TEXT NOT NULL,
+    nivel_purdue INTEGER NOT NULL CHECK (nivel_purdue BETWEEN 0 AND 5),
+    tipo TEXT NOT NULL DEFAULT 'outra' CHECK (tipo IN ('supervisao', 'dmz_operativa', 'corporativa', 'outra')),
+    descricao TEXT,
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id, project_id),
+    UNIQUE (id, project_id, site_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_zonas_site ON ot_zonas(project_id, site_id);
+
+CREATE TABLE IF NOT EXISTS ot_ativos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    zona_id TEXT,
+    nome TEXT NOT NULL,
+    no_arciber INTEGER NOT NULL DEFAULT 0 CHECK (no_arciber IN (0, 1)),
+    categoria_arciber TEXT CHECK (categoria_arciber IS NULL OR categoria_arciber IN ('centro_operacao', 'infra_dados_voz', 'ambiente_ons')),
+    tipo_dispositivo TEXT,
+    fabricante TEXT,
+    modelo TEXT,
+    funcao TEXT,
+    ip_cifrado TEXT CHECK (ip_cifrado IS NULL OR ip_cifrado LIKE 'ot1:%'),
+    mac_cifrado TEXT CHECK (mac_cifrado IS NULL OR mac_cifrado LIKE 'ot1:%'),
+    ip_hash TEXT,
+    mac_hash TEXT,
+    protocolos_portas TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(protocolos_portas) AND json_type(protocolos_portas) = 'array'),
+    firmware_so_versao TEXT,
+    firmware_nao_aplicavel INTEGER NOT NULL DEFAULT 0 CHECK (firmware_nao_aplicavel IN (0, 1)),
+    ultima_verificacao_em DATETIME,
+    verificado_por TEXT,
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id, project_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE,
+    FOREIGN KEY (zona_id, project_id, site_id) REFERENCES ot_zonas(id, project_id, site_id) ON DELETE CASCADE,
+    CONSTRAINT ot_ativos_4_3_1 CHECK (no_arciber = 0 OR (
+        categoria_arciber IS NOT NULL
+        AND trim(coalesce(tipo_dispositivo, '')) <> '' AND trim(coalesce(fabricante, '')) <> '' AND trim(coalesce(funcao, '')) <> ''
+        AND (ip_cifrado IS NOT NULL OR mac_cifrado IS NOT NULL)
+        AND json_array_length(protocolos_portas) > 0
+        AND (trim(coalesce(firmware_so_versao, '')) <> '' OR firmware_nao_aplicavel = 1)
+    ))
+);
+CREATE INDEX IF NOT EXISTS idx_ot_ativos_site ON ot_ativos(project_id, site_id);
+CREATE INDEX IF NOT EXISTS idx_ot_ativos_ip_hash ON ot_ativos(project_id, ip_hash);
+CREATE INDEX IF NOT EXISTS idx_ot_ativos_mac_hash ON ot_ativos(project_id, mac_hash);
+
+-- Cada ponta é um ativo OU uma zona. Fluxo externo pode ter uma ponta só (a outra fica fora da organização).
+CREATE TABLE IF NOT EXISTS ot_fluxos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    origem_ativo_id TEXT,
+    origem_zona_id TEXT,
+    destino_ativo_id TEXT,
+    destino_zona_id TEXT,
+    protocolo TEXT,
+    porta INTEGER CHECK (porta IS NULL OR porta BETWEEN 0 AND 65535),
+    direcao TEXT NOT NULL DEFAULT 'unidirecional' CHECK (direcao IN ('unidirecional', 'bidirecional')),
+    finalidade TEXT,
+    externo INTEGER NOT NULL DEFAULT 0 CHECK (externo IN (0, 1)),
+    via_vpn INTEGER NOT NULL DEFAULT 0 CHECK (via_vpn IN (0, 1)),
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE,
+    FOREIGN KEY (origem_ativo_id, project_id) REFERENCES ot_ativos(id, project_id) ON DELETE CASCADE,
+    FOREIGN KEY (destino_ativo_id, project_id) REFERENCES ot_ativos(id, project_id) ON DELETE CASCADE,
+    FOREIGN KEY (origem_zona_id, project_id) REFERENCES ot_zonas(id, project_id) ON DELETE CASCADE,
+    FOREIGN KEY (destino_zona_id, project_id) REFERENCES ot_zonas(id, project_id) ON DELETE CASCADE,
+    CHECK ((origem_ativo_id IS NOT NULL) + (origem_zona_id IS NOT NULL) <= 1),
+    CHECK ((destino_ativo_id IS NOT NULL) + (destino_zona_id IS NOT NULL) <= 1),
+    CHECK ((origem_ativo_id IS NOT NULL) + (origem_zona_id IS NOT NULL) + (destino_ativo_id IS NOT NULL) + (destino_zona_id IS NOT NULL)
+        >= 2 - externo)
+);
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_site ON ot_fluxos(project_id, site_id);
+
+-- Sites que um técnico (org_user) enxerga. Sem linha = nenhum site (modelo de ameaças, P0-4).
+CREATE TABLE IF NOT EXISTS ot_site_acessos (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    concedido_por TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, site_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_site_acessos_projeto ON ot_site_acessos(project_id, user_id);
+
+-- Coleta do n.ot (0092): lotes em staging; IP/MAC só cifrados (ot1:); o original da planilha nunca vai ao R2 (P0-3).
+CREATE TABLE IF NOT EXISTS ot_lotes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    fonte TEXT NOT NULL CHECK (fonte IN ('manual', 'planilha', 'ferramenta_ot', 'ia')),
+    status TEXT NOT NULL DEFAULT 'processando'
+        CHECK (status IN ('recebendo', 'processando', 'em_revisao', 'gravando', 'concluido', 'rejeitado', 'erro', 'erro_ia')),
+    criado_por TEXT NOT NULL,
+    decidido_por TEXT,
+    decidido_em DATETIME,
+    motivo TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    levantamento_id TEXT REFERENCES ot_levantamentos(id) ON DELETE SET NULL,
+    UNIQUE (id, project_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_lotes_site ON ot_lotes(project_id, site_id);
+CREATE INDEX IF NOT EXISTS idx_ot_lotes_criador ON ot_lotes(criado_por, created_at);
+
+-- `dados` tem a forma da linha de `ot_ativos` (IP/MAC cifrados com AAD do item, hashes por projeto); `erros` = [{campo, motivo}],
+-- nunca o valor (P1-7). `duplicata_de` só sai para quem vê completo (P0-5).
+CREATE TABLE IF NOT EXISTS ot_lote_itens (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    lote_id TEXT NOT NULL,
+    linha INTEGER NOT NULL,
+    entidade TEXT NOT NULL DEFAULT 'ativo' CHECK (entidade IN ('ativo', 'zona', 'fluxo')),
+    dados TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(dados) AND json_type(dados) = 'object'
+        AND json_type(dados, '$.ip') IS NULL AND json_type(dados, '$.mac') IS NULL
+        AND coalesce(json_extract(dados, '$.ip_cifrado') LIKE 'ot1:%', 1) AND coalesce(json_extract(dados, '$.mac_cifrado') LIKE 'ot1:%', 1)),
+    erros TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(erros) AND json_type(erros) = 'array'),
+    duplicata_de TEXT,
+    decisao TEXT NOT NULL DEFAULT 'pendente' CHECK (decisao IN ('pendente', 'aceito', 'descartado', 'gravado', 'recusado')),
+    motivo TEXT,
+    registro_id TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lote_id, project_id) REFERENCES ot_lotes(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_lote_itens_lote ON ot_lote_itens(lote_id, linha);
+
+-- ─── n.ot: levantamento (migration 0093) ───
+CREATE TABLE IF NOT EXISTS ot_levantamentos (
+    id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('entrevista', 'visita', 'documento')),
+    realizado_em TEXT NOT NULL,
+    funcao TEXT,
+    turno TEXT,
+    documento_titulo TEXT,
+    documento_data TEXT,
+    notas TEXT NOT NULL DEFAULT '',
+    roteiro TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(roteiro) AND json_type(roteiro) = 'object'),
+    situacao TEXT NOT NULL DEFAULT 'aberto' CHECK (situacao IN ('aberto', 'encerrado')),
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    criado_por TEXT NOT NULL,
+    encerrado_em DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE (id, project_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_levantamentos_projeto ON ot_levantamentos(project_id, site_id);
+
+CREATE TABLE IF NOT EXISTS ot_achados (
+    id TEXT NOT NULL PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    levantamento_id TEXT NOT NULL,
+    entidade TEXT NOT NULL DEFAULT 'ativo' CHECK (entidade IN ('ativo', 'fluxo')),
+    dados TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(dados) AND json_type(dados) = 'object'
+        AND json_type(dados, '$.ip') IS NULL AND json_type(dados, '$.mac') IS NULL
+        AND (json_extract(dados, '$.ip_cifrado') IS NULL OR json_extract(dados, '$.ip_cifrado') LIKE 'ot1:%')
+        AND (json_extract(dados, '$.mac_cifrado') IS NULL OR json_extract(dados, '$.mac_cifrado') LIKE 'ot1:%')),
+    erros TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(erros) AND json_type(erros) = 'array'),
+    evidencia TEXT NOT NULL DEFAULT '',
+    origem TEXT NOT NULL DEFAULT 'consultor' CHECK (origem IN ('consultor', 'ia', 'agente')),
+    situacao TEXT NOT NULL DEFAULT 'rascunho' CHECK (situacao IN ('rascunho', 'enviado', 'descartado')),
+    lote_id TEXT,
+    criado_por TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    pergunta_id TEXT REFERENCES ot_roteiro_perguntas(id) ON DELETE SET NULL, -- 0094
+    lote_item_id TEXT, -- 0094
+    chave_sensor TEXT, -- 0101
+    FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_achados_sessao ON ot_achados(levantamento_id, situacao);
+CREATE INDEX IF NOT EXISTS idx_ot_achados_chave_sensor ON ot_achados(project_id, chave_sensor); -- 0101
+CREATE INDEX IF NOT EXISTS idx_ot_achados_lote_item ON ot_achados(lote_item_id); -- 0094
+
+CREATE TABLE IF NOT EXISTS ot_roteiro_perguntas (
+    id TEXT NOT NULL PRIMARY KEY,
+    ordem INTEGER NOT NULL,
+    texto TEXT NOT NULL,
+    item_norma TEXT NOT NULL,
+    entidade_esperada TEXT CHECK (entidade_esperada IS NULL OR entidade_esperada IN ('ativo', 'fluxo', 'ativo_fluxo')),
+    tipos_sessao TEXT NOT NULL DEFAULT '["entrevista","visita"]' CHECK (json_valid(tipos_sessao))
+);
+
+INSERT OR IGNORE INTO ot_roteiro_perguntas (id, ordem, texto, item_norma, entidade_esperada) VALUES
+ ('rot-01', 1, 'Algum equipamento desta sala é acessado de fora da empresa? Por qual ferramenta?', '4.1.3', 'fluxo'),
+ ('rot-02', 2, 'Fornecedores acessam remotamente? Como pedem e como entram?', '4.1.3, 4.5.1.5', 'fluxo'),
+ ('rot-03', 3, 'Há algum computador aqui com acesso à internet, mesmo que só às vezes?', '4.1.2', 'ativo_fluxo'),
+ ('rot-04', 4, 'Algum notebook pessoal ou de terceiro é ligado à rede ou à IHM?', '4.3.1', 'ativo'),
+ ('rot-05', 5, 'Como os arquivos entram e saem (pendrive, e-mail, pasta compartilhada)?', '4.1.4', 'ativo_fluxo'),
+ ('rot-06', 6, 'Como é feita a atualização de firmware e de sistema? Quem traz o arquivo?', '4.4.1, 4.4.2', 'ativo'),
+ ('rot-07', 7, 'Equipamento novo é ligado antes ou depois de atualizado?', '4.4.2', 'ativo'),
+ ('rot-08', 8, 'Há senhas compartilhadas entre turnos ou anotadas em algum lugar?', '4.5.1.1, 4.5.1.2', NULL),
+ ('rot-09', 9, 'Algum equipamento ainda usa a senha de fábrica?', '4.5.1.6', 'ativo'),
+ ('rot-10', 10, 'Quem tem acesso de administrador? Alguém que já saiu ainda tem?', '4.5.1.4, 4.5.1.5', NULL),
+ ('rot-11', 11, 'Há antivírus nas estações? Ele é atualizado?', '4.1.4', 'ativo'),
+ ('rot-12', 12, 'Existe algum equipamento que ninguém sabe bem para que serve, mas não se desliga?', '4.3.1', 'ativo'),
+ ('rot-13', 13, 'Há modem, roteador 4G ou link de dados fora do padrão?', '4.1.2, 4.1.3', 'ativo_fluxo'),
+ ('rot-14', 14, 'Quando algo estranho acontece na rede, a quem vocês avisam?', '4.6.3, 4.6.4', NULL),
+ ('rot-15', 15, 'Os equipamentos guardam registro de quem entrou e do que fez?', '4.6.1', 'ativo');
+
+-- ─── n.ot: perfis de de-para (migration 0095) ───
+CREATE TABLE IF NOT EXISTS ot_perfis_depara (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL CHECK (length(nome) BETWEEN 1 AND 100),
+    fonte TEXT NOT NULL DEFAULT '' CHECK (length(fonte) <= 200),
+    assinatura TEXT NOT NULL CHECK (length(assinatura) = 64),
+    mapeamento TEXT NOT NULL CHECK (json_valid(mapeamento) AND json_type(mapeamento) = 'object'),
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    criado_por TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, assinatura)
+);
+CREATE INDEX IF NOT EXISTS idx_ot_perfis_depara_projeto ON ot_perfis_depara(project_id);
+
+-- ─── n.ot: sensor de rede (migration 0097_ot_sensor_rede) ───
+-- Hash nulo = lado externo (nunca o HMAC de IP externo); ao menos um lado é interno.
+CREATE TABLE IF NOT EXISTS ot_fluxos_pendentes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    levantamento_id TEXT NOT NULL,
+    origem_ip_hash TEXT,
+    destino_ip_hash TEXT,
+    dados TEXT NOT NULL CHECK (json_valid(dados) AND json_type(dados) = 'object'),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    chave_sensor TEXT, -- 0101
+    CHECK (origem_ip_hash IS NOT NULL OR destino_ip_hash IS NOT NULL),
+    FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_origem ON ot_fluxos_pendentes(project_id, origem_ip_hash);
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_destino ON ot_fluxos_pendentes(project_id, destino_ip_hash);
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_chave ON ot_fluxos_pendentes(project_id, chave_sensor); -- 0101
+
+-- ─── n.ot: sonda com envio automático (0101) ───
+CREATE TABLE IF NOT EXISTS ot_sensores (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    nome TEXT NOT NULL,
+    faixa_origem TEXT NOT NULL,
+    situacao TEXT NOT NULL DEFAULT 'ativa' CHECK (situacao IN ('ativa', 'revogada')),
+    criado_por TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id, project_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS ot_sensor_credenciais (
+    id TEXT PRIMARY KEY,
+    sensor_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    chave_hash TEXT NOT NULL UNIQUE,
+    expira_em DATETIME NOT NULL,
+    situacao TEXT NOT NULL DEFAULT 'ativa' CHECK (situacao IN ('ativa', 'revogada')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sensor_id, project_id) REFERENCES ot_sensores(id, project_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS ot_sensor_envios (
+    id TEXT PRIMARY KEY,
+    sensor_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    impressao TEXT NOT NULL,
+    situacao TEXT NOT NULL DEFAULT 'processando' CHECK (situacao IN ('processando', 'concluido')),
+    levantamento_id TEXT,
+    periodo_inicio TEXT,
+    periodo_fim TEXT,
+    capture_loss REAL,
+    versao_script TEXT,
+    contagens TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(contagens) AND json_type(contagens) = 'object'),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (sensor_id, impressao),
+    FOREIGN KEY (sensor_id, project_id) REFERENCES ot_sensores(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_sensor_envios ON ot_sensor_envios(sensor_id, created_at);
+
+-- ─── n.ot: desvios (0108) ───
+CREATE TABLE IF NOT EXISTS ot_desvios (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('fluxo', 'ativo')),
+    chave_sensor TEXT NOT NULL,
+    dados TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(dados) AND json_type(dados) = 'object'
+        AND json_type(dados, '$.ip') IS NULL AND json_type(dados, '$.mac') IS NULL
+        AND (json_extract(dados, '$.ip_cifrado') IS NULL OR json_extract(dados, '$.ip_cifrado') LIKE 'ot1:%')
+        AND (json_extract(dados, '$.mac_cifrado') IS NULL OR json_extract(dados, '$.mac_cifrado') LIKE 'ot1:%')),
+    situacao TEXT NOT NULL DEFAULT 'aberto' CHECK (situacao IN ('aberto', 'regularizado', 'tratado', 'aceito')),
+    aceito_ate DATETIME,
+    nota TEXT,
+    primeira_vez DATETIME NOT NULL,
+    ultima_vez DATETIME NOT NULL,
+    ocorrencias INTEGER NOT NULL DEFAULT 1,
+    sensor_id TEXT,
+    atualizado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, tipo, chave_sensor),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_desvios_situacao ON ot_desvios(project_id, situacao);
+CREATE INDEX IF NOT EXISTS idx_ot_desvios_site ON ot_desvios(project_id, site_id);
+
+-- ─── Órgãos públicos destinatários da atividade (0097) ───
+CREATE TABLE IF NOT EXISTS tratamento_orgaos_publicos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL CHECK (length(nome) BETWEEN 1 AND 200),
+    obrigacao_legal TEXT CHECK (obrigacao_legal IS NULL OR length(obrigacao_legal) <= 500),
+    created_by TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_orgaos_publicos_ropa ON tratamento_orgaos_publicos(ropa_id);
+CREATE TRIGGER IF NOT EXISTS orgaos_publicos_do_projeto_ins BEFORE INSERT ON tratamento_orgaos_publicos
+WHEN NOT EXISTS (SELECT 1 FROM ropa_records r WHERE r.id = NEW.ropa_id AND r.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'tratamento inexistente ou de outro projeto');
+END;
+
+-- ─── Registro completo do incidente (0098) ───
+-- Áreas afetadas (cadastro de Áreas).
+CREATE TABLE IF NOT EXISTS incidente_departamentos (
+    incidente_id TEXT NOT NULL REFERENCES incidentes(id) ON DELETE CASCADE,
+    departamento_id TEXT NOT NULL REFERENCES departamentos(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    PRIMARY KEY (incidente_id, departamento_id)
+);
+CREATE TRIGGER IF NOT EXISTS incidente_departamentos_do_projeto BEFORE INSERT ON incidente_departamentos
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id)
+  OR NOT EXISTS (SELECT 1 FROM departamentos d WHERE d.id = NEW.departamento_id AND d.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'incidente ou área inexistente ou de outro projeto');
+END;
+
+-- Titulares × dados afetados (catálogo do projeto, o mesmo do RoPA).
+CREATE TABLE IF NOT EXISTS incidente_dados (
+    incidente_id TEXT NOT NULL REFERENCES incidentes(id) ON DELETE CASCADE,
+    titular_id TEXT NOT NULL REFERENCES catalogo_itens(id) ON DELETE CASCADE,
+    dado_id TEXT NOT NULL REFERENCES catalogo_itens(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    PRIMARY KEY (incidente_id, titular_id, dado_id)
+);
+CREATE TRIGGER IF NOT EXISTS incidente_dados_do_projeto BEFORE INSERT ON incidente_dados
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id)
+  OR NOT EXISTS (SELECT 1 FROM catalogo_itens t WHERE t.id = NEW.titular_id AND t.project_id IS NEW.project_id AND t.tipo = 'titular')
+  OR NOT EXISTS (SELECT 1 FROM catalogo_itens d WHERE d.id = NEW.dado_id AND d.project_id IS NEW.project_id AND d.tipo = 'dado')
+BEGIN
+    SELECT RAISE(ABORT, 'incidente, titular ou dado inexistente ou de outro projeto');
+END;
+
+-- Evidências do incidente (PDF/DOC/DOCX até 5 MB, tipo conferido pelo conteúdo, como os anexos do gap).
+CREATE TABLE IF NOT EXISTS incidente_anexos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    incidente_id TEXT NOT NULL REFERENCES incidentes(id) ON DELETE CASCADE,
+    file_name TEXT NOT NULL CHECK (length(file_name) <= 255),
+    r2_key TEXT NOT NULL,
+    file_hash TEXT NOT NULL,
+    file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'doc', 'docx')),
+    file_size INTEGER NOT NULL CHECK (file_size BETWEEN 1 AND 5242880),
+    uploaded_by TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_incidente_anexos ON incidente_anexos(incidente_id);
+-- Incidente encerrado não ganha área, dado nem evidência (a trava do serviço sozinha perde a corrida com o encerramento).
+CREATE TRIGGER IF NOT EXISTS incidente_departamentos_aberto BEFORE INSERT ON incidente_departamentos
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_dados_aberto BEFORE INSERT ON incidente_dados
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_anexos_do_projeto BEFORE INSERT ON incidente_anexos
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'incidente inexistente ou de outro projeto');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_anexos_aberto BEFORE INSERT ON incidente_anexos
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+
+-- Análises do incidente (0101): várias por incidente, só o autor altera a sua (regra no serviço).
+CREATE TABLE IF NOT EXISTS incidente_analises (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    incidente_id TEXT NOT NULL REFERENCES incidentes(id) ON DELETE CASCADE,
+    autor TEXT NOT NULL,
+    texto TEXT NOT NULL CHECK (length(texto) BETWEEN 1 AND 10000),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_incidente_analises ON incidente_analises(incidente_id, created_at);
+CREATE TRIGGER IF NOT EXISTS incidente_analises_do_projeto BEFORE INSERT ON incidente_analises
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'incidente inexistente ou de outro projeto');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_analises_aberto BEFORE INSERT ON incidente_analises
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_analises_encerrado_upd BEFORE UPDATE ON incidente_analises
+WHEN (SELECT status FROM incidentes WHERE id = OLD.incidente_id) = 'encerrado'
+  OR (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+
+-- Post mortem do incidente (0103): só de incidente encerrado.
+CREATE TABLE IF NOT EXISTS incidente_postmortem (
+    incidente_id TEXT NOT NULL REFERENCES incidentes(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    pergunta TEXT NOT NULL CHECK (length(pergunta) BETWEEN 1 AND 60),
+    resposta TEXT NOT NULL CHECK (length(resposta) BETWEEN 1 AND 5000),
+    updated_by TEXT,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (incidente_id, pergunta)
+);
+CREATE INDEX IF NOT EXISTS idx_incidente_postmortem_projeto ON incidente_postmortem(project_id);
+CREATE TRIGGER IF NOT EXISTS incidente_postmortem_ins BEFORE INSERT ON incidente_postmortem
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id AND i.status = 'encerrado')
+BEGIN
+    SELECT RAISE(ABORT, 'post mortem só de incidente encerrado do mesmo projeto');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_postmortem_upd BEFORE UPDATE ON incidente_postmortem
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id AND i.status = 'encerrado')
+BEGIN
+    SELECT RAISE(ABORT, 'post mortem só de incidente encerrado do mesmo projeto');
 END;

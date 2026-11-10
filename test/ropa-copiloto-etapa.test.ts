@@ -181,6 +181,18 @@ describe('D2.1: rascunho da descrição da etapa', () => {
     expect(b).not.toHaveProperty('sem_base');
   });
 
+  it('o descritivo da atividade vai ao modelo e já é base (fontes)', async () => {
+    const comDesc = await novaAtividade(s.consultor, { processing_purpose: 'Folha de pagamento' });
+    await env.DB.prepare('UPDATE ropa_records SET descricao_atividade = ? WHERE id = ?')
+      .bind('Fazemos a folha e enviamos o arquivo ao banco.', comDesc).run();
+    ia.resposta = { descricao: 'Texto.' };
+    const b = await json(await rascunho(s.consultor, 'uso', {}, comDesc));
+    expect(ia.chamadas).toHaveLength(1);
+    expect(enviado().descricao_atividade).toContain('Fazemos a folha');
+    expect(b.fontes).toEqual(['finalidade', 'descrição da atividade']);
+    expect(b).not.toHaveProperty('sem_base');
+  });
+
   it('fontes no plural certo', async () => {
     await put('/coleta/ativos', { ativos: [{ item_id: 'cr-i1' }, { item_id: 'cr-i2' }] });
     ia.resposta = { descricao: 'Texto.' };

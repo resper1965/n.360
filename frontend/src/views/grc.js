@@ -747,8 +747,9 @@ window.__grcCloseExecAudit = function (id) {
             trust_center_url: document.getElementById('vnd-tc-url').value,
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
-        if (!body.name) return;
-        await api('POST', `/api/v1/projects/${projectId}/vendors`, body);
+        if (!body.name) { showToast('Informe o nome do fornecedor.', 'error'); return; }
+        try { await api('POST', `/api/v1/projects/${projectId}/vendors`, body); }
+        catch (e) { showToast((e && e.message) || 'Não foi possível cadastrar o fornecedor.', 'error'); return; }
         forceCloseModal(); render();
     };
 
@@ -838,13 +839,19 @@ window.__grcCloseExecAudit = function (id) {
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
         // sem perfil, o POST cria a avaliação na parte desta linha (pelo id: dois fornecedores podem ter o mesmo nome)
-        if (v.id) await api('PUT', `/api/v1/vendors/${v.id}`, body);
-        else await api('POST', `/api/v1/projects/${v.project_id}/vendors`, { ...body, parte_id: v.parte_id });
+        try {
+            if (v.id) await api('PUT', `/api/v1/vendors/${v.id}`, body);
+            else await api('POST', `/api/v1/projects/${v.project_id}/vendors`, { ...body, parte_id: v.parte_id });
+        } catch (e) { showToast((e && e.message) || 'Não foi possível salvar a avaliação de segurança.', 'error'); return; }
         forceCloseModal(); render();
     };
 
     window.deleteVendor = async function(id) {
-        if (await window.confirmar('A avaliação de segurança sai; o fornecedor continua cadastrado neste projeto (para tirá-lo, inative a organização em Partes).', { titulo: 'Remover avaliação de segurança', perigo: true, rotulo: 'Remover' })) { await api('DELETE', `/api/v1/vendors/${id}`); render(); }
+        if (await window.confirmar('A avaliação de segurança sai; o fornecedor continua cadastrado neste projeto (para tirá-lo, inative a organização em Partes).', { titulo: 'Remover avaliação de segurança', perigo: true, rotulo: 'Remover' })) {
+            try { await api('DELETE', `/api/v1/vendors/${id}`); }
+            catch (e) { showToast((e && e.message) || 'Não foi possível remover a avaliação de segurança.', 'error'); return; }
+            render();
+        }
     };
 
     async function renderTraining(c, h, a) {

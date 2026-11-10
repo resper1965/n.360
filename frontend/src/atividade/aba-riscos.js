@@ -79,7 +79,7 @@ function modalAnalise(r) {
             <div class="form-group"><label class="form-label" for="at-rk-motivo">Motivo ${obrigatorio}</label>
                 <input class="form-input" id="at-rk-motivo" list="at-rk-motivos" maxlength="500" required aria-required="true" autocomplete="off" value="${escapeHTML(r ? r.threat : '')}" aria-describedby="at-rk-motivo-d">
                 <datalist id="at-rk-motivos">${R.motivos.map((m) => `<option value="${escapeHTML(m.nome)}"></option>`).join('')}</datalist>
-                <p class="at-nota" id="at-rk-motivo-d">${R.motivos.length ? 'Escolha um motivo já usado neste projeto ou escreva um novo.' : 'Este projeto ainda não tem motivos de risco. Escreva o primeiro; ele fica disponível para os próximos riscos.'}</p></div>
+                <p class="at-nota" id="at-rk-motivo-d">Escolha um da lista — riscos comuns de privacidade e os já usados neste projeto — ou escreva um novo.</p></div>
             <div class="form-group"><label class="form-label" for="at-rk-desc">Descrição</label>
                 <textarea class="form-input" id="at-rk-desc" rows="5" maxlength="5000">${escapeHTML(r ? r.vulnerability || '' : '')}</textarea></div>
             <div class="form-group"><label class="form-label" for="at-rk-prob">Probabilidade ${obrigatorio}</label><select class="form-input" id="at-rk-prob" required aria-required="true">${opcoesNota(PROBABILIDADE, r && r.probability, 'Selecione uma opção')}</select></div>
@@ -171,7 +171,7 @@ export function abrirTratarRisco({ projectId, risco: r, partes = [], aoGravar })
                 <p class="form-label">Risco residual: <span id="at-rk-residual" role="status"></span></p>
                 <div><button type="button" class="btn btn-sm" data-action="atRiscoRecalcular">Recalcular</button></div>`)}
             <p class="re-erro" id="at-rk-erro" role="alert"></p>
-            <div class="acoes-rodape"><button type="submit" class="btn btn-primary" id="at-rk-gravar" disabled>Gravar</button></div></form>`, 'modal-large');
+            <div class="acoes-rodape"><button type="submit" class="btn btn-primary" id="at-rk-gravar">Gravar</button></div></form>`, 'modal-large');
     window.atRiscoTratarMudou();
 }
 
@@ -204,13 +204,24 @@ window.atRiscoRecalcular = function () {
     const i = Number(el('at-rk-rimp').value);
     el('at-rk-residual').innerHTML = p && i ? selo(nivelDoEscore(p * i)) : '<span class="t-dim">a calcular...</span>';
 };
+// Os obrigatórios ficam na aba Tratamento. O botão não fica desabilitado em silêncio (quem só preenchia o Risco residual clicava em
+// Gravar e nada acontecia): ao gravar sem eles, a tela diz o que falta, abre a aba Tratamento e põe o foco no primeiro campo.
+const OBRIGATORIOS_TR = [['at-rk-estr', 'Estratégia'], ['at-rk-plano', 'Descrição'], ['at-rk-resp', 'Responsável'], ['at-rk-status', 'Status'], ['at-rk-prazo', 'Data prevista para conclusão']];
 window.atRiscoTratarMudou = function () {
     window.atRiscoRecalcular();
-    el('at-rk-gravar').disabled = !(el('at-rk-estr').value && el('at-rk-plano').value.trim() && el('at-rk-resp').value && el('at-rk-status').value && el('at-rk-prazo').value);
+    if (el('at-rk-erro').dataset.faltam && !OBRIGATORIOS_TR.some(([id]) => !el(id).value.trim())) { el('at-rk-erro').textContent = ''; delete el('at-rk-erro').dataset.faltam; }
 };
 window.atRiscoTratarGravar = async function () {
     const botao = el('at-rk-gravar');
     if (!botao || botao.disabled || !T) return;
+    const faltam = OBRIGATORIOS_TR.filter(([id]) => !el(id).value.trim());
+    if (faltam.length) {
+        el('at-rk-erro').textContent = `Para gravar, preencha na aba Tratamento: ${faltam.map(([, rot]) => rot).join(', ')}.`;
+        el('at-rk-erro').dataset.faltam = '1';
+        window.atRiscoSub('tratamento');
+        el(faltam[0][0]).focus();
+        return;
+    }
     const p = Number(el('at-rk-rprob').value);
     const i = Number(el('at-rk-rimp').value);
     if (!!p !== !!i) { el('at-rk-erro').textContent = 'Informe a probabilidade e o impacto residuais, ou deixe as duas em branco.'; return; }

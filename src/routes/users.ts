@@ -249,7 +249,8 @@ usersApp.post('/', async (c) => {
       c.env.DB.prepare(
         `INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`
       ).bind(id, email, SEM_SENHA, name, targetRole, targetProject || null, orgNovo),
-      ...(pedido ? gravarModulos(c.env.DB, id, pedido, admin.email) : []),
+      // P0-1: a concessão na criação vai para a trilha no mesmo batch que a grava.
+      ...(pedido ? trocarModulosComTrilha(c.env.DB, { id, email, client_project_id: targetProject || null }, [], pedido, admin.email, ' (conta nova)') : []),
     ]);
 
     await logAudit(c.env.DB, 'user.created', admin.email, `Usuário ${email} criado como ${targetRole}`);
@@ -466,7 +467,8 @@ async function recalcularModulos(db: D1Database, id: string, antes: ContaDeModul
   const teto = await tetoDaConta(db, depois);
   const tinha = await modulosDaPessoa(db, { id });
   const ficam = tinha.filter((m) => teto.includes(m));
-  const novo = ficam.length ? ficam : teto;
+  // P0-1: ot só entra por concessão explícita; o teto inteiro da interseção vazia não o leva.
+  const novo = ficam.length ? ficam : teto.filter((m) => m !== 'ot');
   if (listaDeModulos(novo) === listaDeModulos(tinha)) return;
   await db.batch(trocarModulosComTrilha(db, depois, tinha, novo, ator, ' (troca de projeto ou de papel)'));
 }

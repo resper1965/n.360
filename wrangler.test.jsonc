@@ -44,6 +44,8 @@
 		// test/comercial-desligado.test.ts, que sobrescreve a var.
 		"COMERCIAL_ATIVO": "true",
 		"SETUP_KEY": "test-123",
-		"TOKEN_ENC_KEY": "test-encryption-key-do-not-use-in-prod"
+		"TOKEN_ENC_KEY": "test-encryption-key-do-not-use-in-prod",
+		"OT_INVENTARIO_KEY": "test-ot-inventario-key-do-not-use-in-prod",
+		"OT_INVENTARIO_HMAC_KEY": "test-ot-inventario-hmac-do-not-use-in-prod"
 	}
 }

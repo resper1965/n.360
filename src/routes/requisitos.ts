@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, logAudit } from '../helpers';
+import { ehEquipeNess, erro500, logAudit } from '../helpers';
 import {
-  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, lacunasDaFonte, resumoDeLacunas, lerRequisito, ligarControles, listarFontes, listarRequisitos,
+  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, excluirRequisito, reincluirRequisito, lacunasDaFonte, resumoDeLacunas, lerRequisito, ligarControles, listarFontes, listarRequisitos,
   requisitosDaEvidencia, requisitosDoDocumento, resumoDeMapeamentos, semearCatalogo, validarMapeamentosPropostos, veMapeamentoProposto,
 } from '../services/requisitos';
-import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, validarMapeamentosSchema, validateBody } from '../schemas';
+import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, requisitoExclusaoSchema, validarMapeamentosSchema, validateBody } from '../schemas';
 import { BASES_GDPR } from '../data/ropa-abas/gdpr';
 import { definirValidade } from '../services/evidencia-validade';
 
@@ -229,4 +229,27 @@ projetoRequisitosApp.get('/requisitos/lacunas', async (c) => {
     const itens = await lacunasDaFonte(c.env.DB, c.req.param('projectId')!, fonte);
     return c.json({ fonte, resumo: resumoDeLacunas(itens), itens });
   } catch (e) { return erro500(c, 'Falha ao calcular as lacunas', e); }
+});
+
+/**
+ * Requisito "não aplicável" no projeto (migration 0107): decisão de escopo, só da equipe da consultoria (o agente pela decisão
+ * `niso_excluir_requisito`). O cliente vê a exclusão em GET .../requisitos/lacunas, mas não grava.
+ */
+const SO_EQUIPE = { error: 'Somente a consultoria decide se um requisito não se aplica' };
+projetoRequisitosApp.put('/requisitos/:requisitoId/exclusao', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
+    const v = await validateBody(c, requisitoExclusaoSchema);
+    if (!v.success) return v.response;
+    const r = await excluirRequisito(c.env.DB, c.req.param('projectId')!, c.req.param('requisitoId'), v.data.justificativa, c.get('user').email);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao marcar o requisito como não aplicável', e); }
+});
+
+projetoRequisitosApp.delete('/requisitos/:requisitoId/exclusao', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
+    const r = await reincluirRequisito(c.env.DB, c.req.param('projectId')!, c.req.param('requisitoId'), c.get('user').email);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao voltar a aplicar o requisito', e); }
 });

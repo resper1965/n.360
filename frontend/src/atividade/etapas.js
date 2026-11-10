@@ -85,8 +85,9 @@ export function corpoDaEtapa(id, ctx) {
                 <textarea class="form-input" id="et-descarte-eliminacao" data-campo="descarte" rows="3" maxlength="${MAX.descarte}"${off}>${txt(e.descarte)}</textarea></div></div>`;
     }
 
-    if (id !== 'coleta') {
+    if (id !== 'coleta' && !e.nao_aplicavel) {
         // Titulares só de status: a Coleta define quem são e o que cada um fornece; esta etapa só diz se ele é usado aqui.
+        // Numa etapa Não Aplicável não há o que definir por titular — o painel sairia só com selos "Pendente" sem sentido.
         const linhas = titularesColeta.map((t) => {
             const s = situacaoDoTitular(e, t.titular_id);
             return `<li class="et-linha"><button type="button" class="et-titular-botao" data-acao="abrir-titular" data-tid="${txt(t.titular_id)}"${off}>${txt(t.nome)}</button>

@@ -191,7 +191,7 @@ describe('documento e requisitos', () => {
     const usados = new Set(['lgpd:art7', 'lgpd:art8', 'lgpd:art9', 'lgpd:art37', 'lgpd:art46']);
     const sit = Object.fromEntries(r.itens.filter((i) => usados.has(i.requisito_id)).map((i) => [i.requisito_id, i.situacao]));
     expect(sit).toEqual({ 'lgpd:art7': 'lacuna', 'lgpd:art8': 'coberto', 'lgpd:art9': 'lacuna', 'lgpd:art37': 'parcial', 'lgpd:art46': 'coberto' });
-    expect(r.resumo).toEqual({ total: r.itens.length, cobertos: 2, parciais: 1, lacunas: r.itens.length - 3 }); // um teste anterior apaga lgpd:art7:i
+    expect(r.resumo).toEqual({ total: r.itens.length, cobertos: 2, parciais: 1, lacunas: r.itens.length - 3, nao_aplicaveis: 0 }); // um teste anterior apaga lgpd:art7:i
     expect(r.itens.find((i) => i.requisito_id === 'lgpd:art8')!.origens).toEqual([{ tipo: 'documento', id: doc, titulo: 'Política Vigente' }]);
   });
 

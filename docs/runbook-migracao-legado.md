@@ -1,7 +1,7 @@
 # Runbook: migração de um cliente do sistema anterior (DPO as a Service) para o n.360
 
 Checklist operacional, um cliente por vez. Transforma a seção "Migração do legado e desligamento" do plano mestre
-(`docs/superpowers/plans/2026-10-14-legado-privacidade.md`) em passos com tela, arquivo e critério numérico. A importação em si está
+(`docs/arquivo/planos/2026-10-14-legado-privacidade.md`) em passos com tela, arquivo e critério numérico. A importação em si está
 descrita no `AGENTS.md` (seção "Importacao de programa de privacidade", fatias 1 a 4 e F6).
 
 ## Regra de dados pessoais (vale para todos os passos)
@@ -33,6 +33,7 @@ por uma pessoa antes de gravar. Arquivo com outro cabeçalho segue pelo caminho 
 | ripd | `ripd.csv` | RIPD em rascunho, com necessidade, medidas e risco residual | RIPD |
 | lia | `lia.csv` | LIA em rascunho, com as quatro seções | LIA |
 | pedidos | `pedidos.csv` | pedido do titular (sem titular) | Solicitações |
+| incidentes | `incidentes.csv` | incidente com o registro completo e a comunicação à ANPD (colunas de severidade em diante opcionais; sem titular; áreas e titulares x dados se ligam pela tela) | Gestão de incidentes |
 
 Convenções: listas separadas por `|`; sim/não; notas de 1 a 5; datas AAAA-MM-DD ou DD/MM/AAAA; opções como no exemplo (acento e caixa
 não importam: "Em andamento" vale `em_andamento`). A atividade de riscos, gaps, impacto, ciclo e bases é a **finalidade** exatamente como

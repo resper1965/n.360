@@ -15,6 +15,7 @@ import { leadsApp } from './routes/leads';
 import { funilApp } from './routes/funil';
 import { proposalsApp } from './routes/proposals';
 import { organizacaoApp } from './routes/organizacao';
+import { fornecedorModelosApp } from './routes/fornecedor-modelos';
 import { organizacoesApp } from './routes/organizacoes';
 import { servicosApp } from './routes/servicos';
 import { propostasApp, CSP_DOCUMENTO } from './routes/propostas';
@@ -47,12 +48,16 @@ import { requisitosApp, projetoRequisitosApp } from './routes/requisitos';
 import { terceirosApp } from './routes/terceiros';
 import { homologacoesApp } from './routes/homologacoes';
 import { importacaoApp } from './routes/importacao';
+import { otApp } from './routes/ot';
+import { otSaidasApp } from './routes/ot-saidas';
+import { otDeparaApp } from './routes/ot-depara';
 import { encarregadoApp } from './routes/encarregado';
 import { pontoDePartidaApp } from './routes/ponto-de-partida';
 import { painelApp, carteiraApp } from './routes/painel';
 import { similaresApp } from './routes/similares';
 import { empresaApp } from './routes/empresa';
-import { parametrosLegaisApp, titularPedidosApp, incidentesApp, consentimentosApp } from './routes/titular';
+import { parametrosLegaisApp, titularPedidosApp, titularPortalApp, incidentesApp, consentimentosApp } from './routes/titular';
+import { publicTitularApp } from './routes/public-titular';
 import { agentesApp } from './routes/agentes';
 import { auditorApp } from './routes/auditor';
 import { platformApp } from './routes/platform';
@@ -73,12 +78,17 @@ import policies from './routes/policies';
 import integrations from './routes/integrations';
 import { exportacaoApp } from './routes/exportacao';
 import { manutencaoDiaria } from './manutencao';
-import { avisosDePrazo, hojeEmSaoPaulo } from './services/avisos-prazo';
+import { avisosDePrazo, hojeEmSaoPaulo, CRON_AVISOS } from './services/avisos-prazo';
+import { avisosDeHomologacao } from './services/homologacao';
 import { sondaInterna, CRON_SONDA } from './services/sonda';
+import { avisarSensores } from './services/ot-sensor';
+import { reabrirVencidos } from './services/ot-desvio';
 import { verificarSlo, CRON_SLO } from './services/slo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
+import { handlerOtColeta } from './mcp/ot-coleta';
+import { handlerOtSensor } from './routes/ot-sensor';
 import { comercialAtivo } from './helpers';
 import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP, URL_NISO } from './config/url';
 
@@ -115,6 +125,11 @@ export type Bindings = {
    *  removido. Documentação que descreve um risco que já não existe é tão ruim
    *  quanto a que esconde um que existe: manda procurar no lugar errado. */
   TOKEN_ENC_KEY?: string;
+  /** Cifra (AES-GCM, `ot1:<kid>:`) e HMAC do IP/MAC do inventário do n.ot (`services/ot-cifra.ts`, modelo de ameaças P0-8).
+   *  Secrets: `npx wrangler secret put OT_INVENTARIO_KEY` e `npx wrangler secret put OT_INVENTARIO_HMAC_KEY`.
+   *  Sem qualquer um, as rotas de ativos do n.ot respondem 503 (falha fechada). Trocar a chave de HMAC quebra o dedupe. */
+  OT_INVENTARIO_KEY?: string;
+  OT_INVENTARIO_HMAC_KEY?: string;
   ENVIRONMENT?: string;
   /** Endereço canônico deste ambiente (`src/config/url.ts`). Sem ele, o de produção. */
   APP_URL?: string;
@@ -166,6 +181,8 @@ export type Variables = {
     agente_decisao?: { ferramenta: string; motivo: string };
     /** Sessão autenticada por senha mas ainda sem o segundo fator. */
     mfa_pending?: boolean;
+    /** Último código do segundo fator confirmado nesta sessão (ms), por /auth/mfa/verify: step-up do n.ot (services/ot-stepup.ts). */
+    totp_em?: number;
     /** Instante de emissão, usado para revogação. */
     iat?: number;
     /** Última atividade vista pelo middleware; relógio da expiração por inatividade. */
@@ -366,6 +383,8 @@ app.route('/api/v1/public/pedidos', publicPedidosApp);
 app.route('/api/v1/public/auditor', publicAuditorApp);
 // Questionário de homologação para o fornecedor, sem sessão: token do link no corpo, só o hash no banco, limite por IP (F5).
 app.route('/api/v1/public/homologacao', publicHomologacaoApp);
+// Portal público de solicitações do titular, sem sessão: token do link no corpo, só o hash no banco, limite por IP e por projeto (0096).
+app.route('/api/v1/public/titular-pedidos', publicTitularApp);
 
 /*
  * SCIM 2.0 (item 4.2). Montado em `/scim/v2/*` — o caminho que a RFC 7644
@@ -406,6 +425,8 @@ app.route('/api/v1/leads', leadsApp);
 app.route('/api/v1/funil', funilApp);
 app.route('/api/v1/proposals', proposalsApp);
 app.route('/api/v1/org', organizacaoApp);
+// Modelos de avaliação de fornecedor da consultoria (migration 0106): fora de projeto, pela organização.
+app.route('/api/v1/fornecedor-modelos', fornecedorModelosApp);
 // Organizações (consultorias): só platform_admin (fatia 5).
 app.route('/api/v1/platform/orgs', organizacoesApp);
 app.route('/api/v1/servicos', servicosApp);
@@ -471,6 +492,11 @@ app.route('/api/v1/projects/:projectId', projetoRequisitosApp);
 app.route('/api/v1/projects/:projectId/terceiros', terceirosApp);
 app.route('/api/v1/projects/:projectId/homologacoes', homologacoesApp);
 app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);
+app.route('/api/v1/projects/:projectId/ot', otApp);
+// Depois do otApp de propósito: as travas dele (P0-2, escrita só de quem cadastra) valem para as saídas (N4).
+app.route('/api/v1/projects/:projectId/ot', otSaidasApp);
+// Depois do otApp de propósito: as travas dele (P0-2, escrita só de quem cadastra) valem para o de-para (L4).
+app.route('/api/v1/projects/:projectId/ot', otDeparaApp);
 app.route('/api/v1/projects/:projectId/encarregado', encarregadoApp);
 app.route('/api/v1/projects/:projectId/ponto-de-partida', pontoDePartidaApp);
 // Painel de entrada (n.360, n.iso, n.privacy) e a carteira de quem cuida de vários projetos.
@@ -480,6 +506,7 @@ app.route('/api/v1/projects/:projectId/similares', similaresApp);
 app.route('/api/v1/projects/:projectId/empresa', empresaApp);
 app.route('/api/v1/parametros-legais', parametrosLegaisApp);
 app.route('/api/v1/projects/:projectId/titular-pedidos', titularPedidosApp);
+app.route('/api/v1/projects/:projectId/titular-portal', titularPortalApp);
 app.route('/api/v1/projects/:projectId/incidentes', incidentesApp);
 app.route('/api/v1/projects/:projectId/consentimentos', consentimentosApp);
 
@@ -589,9 +616,6 @@ app.onError((err, c) => {
  * rotina terminar — sem ele o runtime pode encerrá-la no meio do DELETE.
  */
 
-/** 11:00 UTC = 08:00 em Brasília (UTC-3, sem horário de verão). O mesmo texto vai em `triggers.crons`. */
-export const CRON_AVISOS = '0 11 * * *';
-
 const fetchHono = app.fetch.bind(app);
 
 /*
@@ -663,12 +687,18 @@ export default Object.assign(app, {
       if (legado) return Response.redirect(`${ROTAS_OAUTH(p) ? URL_NISO : base}${p}${url.search}`, 308);
       // Domínio de módulo, caminho de exceção: responde no lugar.
     }
+    // MCP do agente de coleta do n.ot (L5): só a chave `ot_coleta`, fora do OAuth e do Hono. Está em `fica` (como o /mcp): o domínio de
+    // módulo responde no lugar e o host legado redireciona (308) ao APP_URL, acima.
+    if (decodificarCaminho(url.pathname) === '/ot-coleta/mcp') return handlerOtColeta(req, env, ctx);
+    // Envio da sonda de rede do n.ot: só a credencial `ots_`, fora do /api e do OAuth (em `fica`, como o de cima).
+    if (decodificarCaminho(url.pathname) === '/ot-sensor/resumo') return handlerOtSensor(req, env, ctx);
     return ROTAS_OAUTH(url.pathname) ? provider.fetch(req, env as any, ctx) : fetchHono(req, env, ctx);
   },
   scheduled: (evento: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
     // ponytail: cron que não é o dos avisos nem o da sonda cai na manutenção, o comportamento de antes destas rotinas.
     ctx.waitUntil(
-      evento.cron === CRON_AVISOS ? avisosDePrazo(env, hojeEmSaoPaulo())
+      evento.cron === CRON_AVISOS ? Promise.allSettled([avisosDePrazo(env, hojeEmSaoPaulo()), avisarSensores(env, new Date()), avisosDeHomologacao(env), reabrirVencidos(env, ctx, new Date())])
+          .then((rs) => rs.forEach((r, i) => r.status === 'rejected' && console.error(`cron avisos: falha em ${['avisosDePrazo', 'avisarSensores', 'avisosDeHomologacao', 'reabrirVencidos'][i]}`, r.reason)))
         : evento.cron === CRON_SONDA ? sondaInterna(env)
         : evento.cron === CRON_SLO ? verificarSlo(env)
         : manutencaoDiaria(env)

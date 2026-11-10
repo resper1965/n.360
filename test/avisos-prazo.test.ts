@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { applySchema, resetData, workerEnv } from './helpers/d1';
-import { hojeEmSaoPaulo, semanaIso, marcoDoDia, itensDoDia, pessoasDoProjeto, escolherDestinatarios, avisosDePrazo } from '../src/services/avisos-prazo';
-import worker, { CRON_AVISOS } from '../src/index';
+import { hojeEmSaoPaulo, semanaIso, marcoDoDia, itensDoDia, pessoasDoProjeto, escolherDestinatarios, avisosDePrazo, CRON_AVISOS } from '../src/services/avisos-prazo';
+import worker from '../src/index';
 import wrangler from '../wrangler.jsonc?raw';
 import { requireProjectAccess } from '../src/helpers';
 import { passoPorId } from '../src/data/passos/catalogo';

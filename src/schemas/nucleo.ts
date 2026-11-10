@@ -3,7 +3,7 @@ import { normalizarNome } from '../services/nomes';
 import { RESPOSTAS_CRITICIDADE } from '../services/criticidade';
 import { cnpjCampo } from './corpos';
 
-export const MODULOS = ['iso', 'privacy'] as const;
+export const MODULOS = ['iso', 'privacy', 'ot'] as const;
 export type Modulo = (typeof MODULOS)[number];
 
 /** `organizations.modulos_contratados` é JSON gravado pela rota validada; JSON ruim cai no padrão. */
@@ -171,19 +171,37 @@ export const avaliacaoTerceiroSchema = z.object({
 // ─── Homologação de fornecedor por questionário (F5) ─────────────────────────────────────────────────────────────
 const temaPergunta = z.string().trim().min(1).max(80);
 const textoPergunta = z.string().trim().min(1).max(500);
-export const homologacaoPerguntaCriarSchema = z.object({ tema: temaPergunta, texto: textoPergunta, ordem: z.number().int().min(0).max(100_000).optional() }).strict();
+export const homologacaoPerguntaCriarSchema = z.object({
+  tema: temaPergunta, texto: textoPergunta, ordem: z.number().int().min(0).max(100_000).optional(),
+  /** pergunta própria do projeto (0106): de um tipo, ou de todos (null/ausente) */
+  tipo: z.enum(['critico', 'medio', 'pequeno']).nullable().optional(),
+}).strict();
+/** O projeto liga ou desliga uma pergunta do modelo da consultoria (0106). */
+export const homologacaoAjusteSchema = z.object({ ativa: z.boolean() }).strict();
+/** Modelos de avaliação de fornecedor da consultoria (0106). */
+export const fornecedorModeloPrazoSchema = z.object({ prazo_meses: z.number().int().min(1).max(60) }).strict();
+export const fornecedorModeloPerguntaSchema = z.object({ tema: temaPergunta, texto: textoPergunta }).strict();
+export const fornecedorModeloPerguntaAtualizarSchema = z.object({
+  tema: temaPergunta.optional(), texto: textoPergunta.optional(), ordem: z.number().int().min(0).max(100_000).optional(), ativa: z.boolean().optional(),
+}).strict().refine((d) => Object.keys(d).length > 0, 'Informe ao menos um campo');
 export const homologacaoPerguntaAtualizarSchema = z.object({
   tema: temaPergunta.optional(), texto: textoPergunta.optional(), ordem: z.number().int().min(0).max(100_000).optional(), ativa: z.boolean().optional(),
 }).strict().refine((d) => Object.keys(d).length > 0, 'Informe ao menos um campo');
 export const homologacaoCriarSchema = z.object({
   parte_id: z.string().trim().min(1).max(100),
   dias: z.number().int().min(1).max(60).optional(),
-  /** Se vier, o link vai por e-mail (o endereço não é gravado). */
+  /** Se vier, o link vai por e-mail; o endereço fica gravado só enquanto a homologação está aberta, para o lembrete (fatia 4). */
+  email: z.string().trim().email().max(254).optional(),
+}).strict();
+export const homologacaoPrazoSchema = z.object({ dias: z.number().int().min(1).max(60) }).strict();
+export const homologacaoNovoLinkSchema = z.object({
+  dias: z.number().int().min(1).max(60).optional(),
   email: z.string().trim().email().max(254).optional(),
 }).strict();
 export const homologacaoConcluirSchema = z.object({
   resultado: z.enum(['aprovado', 'com_ressalvas', 'reprovado']),
   valido_ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD'),
+  evidencia_url: urlWeb.nullish(),
   observacao: z.string().trim().max(1500).nullish(),
 }).strict();
 const tokenHomologacao = z.string().min(1).max(200);
@@ -235,6 +253,44 @@ export const titularPedidoAtualizarSchema = z.object({
   descricao: textoLongo.nullable().optional(),
 }).strict();
 
+/** Recepção pública do portal de solicitações (migration 0096): token no corpo; sem CPF (verificação é passo humano do DPO). */
+export const portalAbrirSchema = z.object({
+  token: z.string().trim().min(10).max(200),
+  tipo: z.enum(['confirmacao', 'acesso', 'correcao', 'anonimizacao_bloqueio_eliminacao', 'portabilidade', 'informacao_compartilhamento', 'revogacao_consentimento', 'oposicao', 'outro']),
+  titular_nome: z.string().trim().min(1).max(200),
+  titular_contato: z.string().trim().max(300).email('Informe um e-mail válido para a resposta'),
+  descricao: z.string().trim().min(1).max(5000),
+}).strict();
+
+/** Consulta pública do pedido (migration 0105): protocolo PT-AAAA-NNNN (maiúscula ou minúscula) e o código de acompanhamento. */
+export const portalConsultarSchema = z.object({
+  protocolo: z.string().trim().max(20).regex(/^PT-\d{4}-\d+$/i, 'Protocolo no formato PT-AAAA-NNNN'),
+  codigo: z.string().trim().min(1).max(40),
+}).strict();
+
+/** Conferência de identidade do titular (migration 0104): método da lista fechada; null limpa. A observação é conferida no serviço. */
+export const titularIdentidadeSchema = z.object({
+  metodo: z.enum(['documento_foto', 'dados_cadastrais', 'canal_autenticado', 'presencial', 'outro']).nullable(),
+  observacao: z.string().max(500).nullish(),
+}).strict();
+
+/** Encaminhamento do pedido do titular a ponto focal (migration 0104). Pessoa, prazo e data conferidos no serviço. */
+export const encaminhamentoCriarSchema = z.object({
+  parte_id: z.string().min(1).max(64),
+  prazo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  mensagem: z.string().trim().min(1).max(2000),
+}).strict();
+export const encaminhamentoAtualizarSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('respondido'), retorno: z.string().trim().min(1).max(5000) }).strict(),
+  z.object({ status: z.literal('cancelado') }).strict(),
+]);
+
+/** Tratativa do atendimento de um pedido do titular (migration 0096). */
+export const tratativaSchema = z.object({
+  tipo: z.enum(['comunicacao_titular', 'encaminhamento', 'evidencia', 'nota']),
+  texto: z.string().trim().min(1).max(5000),
+}).strict();
+
 export const incidenteCriarSchema = z.object({
   titulo: textoCurto,
   descricao: textoLongo.nullish(),
@@ -242,6 +298,60 @@ export const incidenteCriarSchema = z.object({
   ciencia_em: instante,
   responsavel_parte_id: idParte.nullish(),
 }).strict();
+
+// Registro completo do incidente (0098; listas aprovadas pelo dono em 04/11/2026, spec 2026-11-04-incidentes-legado-design).
+export const SEVERIDADES_INCIDENTE = ['baixa', 'media', 'alta', 'critica'] as const;
+export const TIPOS_INCIDENTE = ['acesso_indevido', 'vazamento', 'perda', 'indisponibilidade', 'alteracao_indevida', 'terceiro', 'malware', 'engenharia_social', 'outro'] as const;
+export const COMPROMETIMENTOS = ['confidencialidade', 'integridade', 'disponibilidade'] as const;
+export const CANAIS_ANPD = ['sei', 'formulario_anpd', 'email', 'outro'] as const;
+export const CRITERIOS_RISCO = ['sensiveis', 'criancas_idosos', 'financeiros', 'autenticacao', 'sigilo', 'larga_escala', 'nenhum'] as const;
+const semRepetir = <T extends z.ZodTypeAny>(item: T, max: number) => z.array(item).max(max).refine((xs) => new Set(xs.map((x) => JSON.stringify(x))).size === xs.length, 'itens repetidos');
+
+export const incidenteAtualizarSchema = z.object({
+  titulo: textoCurto.optional(),
+  descricao: textoLongo.nullable().optional(),
+  ocorrido_em: instante.nullable().optional(),
+  responsavel_parte_id: idParte.nullable().optional(),
+  origem_alerta: z.string().trim().max(500).nullable().optional(),
+  severidade: z.enum(SEVERIDADES_INCIDENTE).nullable().optional(),
+  tipo: z.enum(TIPOS_INCIDENTE).nullable().optional(),
+  comprometimento: semRepetir(z.enum(COMPROMETIMENTOS), 3).optional(),
+  titulares_estimados: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  // "nenhum" não convive com os outros critérios (no legado é a opção exclusiva).
+  criterios_risco: semRepetir(z.enum(CRITERIOS_RISCO), 7).refine((xs) => !xs.includes('nenhum') || xs.length === 1, '"nenhum" não vai com outros critérios').optional(),
+  fim_em: instante.nullable().optional(),
+  areas: semRepetir(idParte, 50).optional(),
+  dados: semRepetir(z.object({ titular_id: idParte, dado_id: idParte }).strict(), 200).optional(),
+  // Comunicação à ANPD (0099): protocolo e canal só depois de registrada a comunicação (regra no serviço).
+  anpd_protocolo: z.string().trim().min(1).max(100).nullable().optional(),
+  anpd_canal: z.enum(CANAIS_ANPD).nullable().optional(),
+  anpd_justificativa: z.string().trim().max(5000).nullable().optional(),
+}).strict();
+
+// Ação corretiva do incidente (fatia 4, 0100): mesma corrective_actions; tratamento de lista fechada; prazo opcional.
+export const TRATAMENTOS_ACAO_INCIDENTE = ['contencao', 'correcao', 'aperfeicoamento'] as const;
+const dataAcao = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD');
+export const incidenteAcaoCriarSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  description: z.string().trim().max(5000).nullish(),
+  tratamento: z.enum(TRATAMENTOS_ACAO_INCIDENTE).nullish(),
+  assigned_to_parte_id: idParte.nullish(),
+  due_date: dataAcao.nullish(),
+}).strict();
+export const incidenteAcaoAtualizarSchema = z.object({
+  title: z.string().trim().min(1).max(500).optional(),
+  description: z.string().trim().max(5000).nullable().optional(),
+  tratamento: z.enum(TRATAMENTOS_ACAO_INCIDENTE).nullable().optional(),
+  assigned_to_parte_id: idParte.nullable().optional(),
+  due_date: dataAcao.nullable().optional(),
+  status: z.enum(['Open', 'In Progress', 'Closed']).optional(),
+}).strict();
+
+// Análise do incidente (fatia 3, 0101): texto do trabalho da equipe; só o autor altera (regra no serviço).
+export const incidenteAnaliseSchema = z.object({ texto: z.string().trim().min(1).max(10000) }).strict();
+
+// Post mortem do incidente (fatia 5, 0103): respostas por id de pergunta; null apaga. Ids e tamanho conferidos no serviço.
+export const incidentePostmortemSchema = z.object({ respostas: z.record(z.string().max(60), z.string().max(5000).nullable()) }).strict();
 
 export const incidenteRiscoSchema = z.object({
   risco_titular: z.enum(['sem_risco', 'baixo', 'relevante']),
@@ -253,6 +363,8 @@ export const incidenteRascunhoSchema = z.object({ destino: z.enum(['anpd', 'titu
 export const incidenteComunicacaoSchema = z.object({
   destino: z.enum(['anpd', 'titular']),
   em: instante.optional(),
+  anpd_canal: z.enum(CANAIS_ANPD).nullish(),
+  anpd_protocolo: z.string().trim().min(1).max(100).nullish(),
 }).strict();
 
 export const consentimentoCriarSchema = z.object({

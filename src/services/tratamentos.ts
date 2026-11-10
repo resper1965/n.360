@@ -31,12 +31,17 @@ export async function definirLigacao(db: D1Database, projectId: string, ropaId: 
   const validos = new Set(results.map((r) => r.id));
   const invalidos = unicos.filter((x) => !validos.has(x));
   if (invalidos.length) return { ok: false as const, invalidos };
+  const { ligacao, coluna } = LIGACOES[tipo];
+  const antes = (await db.prepare(`SELECT ${coluna} AS id FROM ${ligacao} WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId).all<{ id: string }>()).results.map((r) => r.id);
+  let mudou = antes.length !== unicos.length || antes.some((x) => !unicos.includes(x));
   await db.batch(stmtsLigacao(db, projectId, ropaId, tipo, unicos));
   // A2: item ligado pela rota antiga também entra na Coleta (acrescenta, nunca remove: spec 4.3).
   if (tipo === 'itens' && unicos.length) {
-    await db.batch(unicos.map((i) => db.prepare(`INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id) VALUES (?, 'coleta', ?, ?)`).bind(ropaId, i, projectId)));
+    const r = await db.batch(unicos.map((i) => db.prepare(`INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id) VALUES (?, 'coleta', ?, ?)`).bind(ropaId, i, projectId)));
+    if (r.some((x) => x.meta.changes)) mudou = true;
   }
-  return { ok: true as const, total: unicos.length };
+  // `mudou`: o conjunto (ou a Coleta) mudou; a rota só derruba aprovação quando muda de verdade.
+  return { ok: true as const, total: unicos.length, mudou };
 }
 
 /** A troca do conjunto, em statements: o chamador já conferiu os ids (a importação de programa a põe na transação do item). */
@@ -113,9 +118,12 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
     db.prepare(`SELECT id, COALESCE(processing_name, system_name) AS nome, status, origem_hash FROM dpia_assessments WHERE ropa_id = ? AND project_id = ? ORDER BY created_at, rowid`).bind(ropaId, projectId),
     db.prepare(`SELECT status, origem_hash FROM lia_assessments WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId),
     db.prepare(
-      `SELECT DISTINCT p.id AS parte_id, p.nome AS nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
-        WHERE v.alvo_tipo = 'tratamento' AND v.alvo_id = ? AND v.project_id = ? AND p.tipo = 'organizacao'
-          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?
+      // o terceiro da atividade vem pelo vínculo ou pela etapa Compartilhamento Externo; organização inativa não conta
+      `SELECT DISTINCT p.id AS parte_id, p.nome AS nome FROM (
+          SELECT parte_id FROM parte_vinculos WHERE alvo_tipo = 'tratamento' AND alvo_id = ?1 AND project_id = ?2
+          UNION SELECT parte_id FROM tratamento_externo_parceiros WHERE ropa_id = ?1 AND project_id = ?2) u JOIN partes p ON p.id = u.parte_id
+        WHERE p.tipo = 'organizacao' AND p.status = 'ativa'
+          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?3
         ORDER BY p.nome`
     ).bind(ropaId, projectId, hojeEmSaoPaulo()),
     db.prepare(

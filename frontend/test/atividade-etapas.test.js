@@ -223,6 +223,8 @@ describe('Não Aplicável', () => {
     expect(bloco('uso').querySelector('[data-na]').checked).toBe(true);
     expect(bloco('uso').querySelector('[data-campo="descricao"]').disabled).toBe(true);
     expect(bloco('uso').querySelector('[data-acao="add-ativo"]').disabled).toBe(true);
+    // Numa etapa Não Aplicável não sai o painel de status por titular (só traria selos "Pendente" sem sentido).
+    expect(bloco('uso').querySelector('.et-titulares-status')).toBeNull();
   });
 
   it('copiloto da descrição: botão de rascunho numa etapa editável e nenhum numa etapa Não Aplicável', async () => {

@@ -139,6 +139,9 @@ type Celula = { p: number; i: number; n: number };
 export { SQL_EVIDENCIA_VENCIDA, SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 import { escopoRopa } from './escopo-itens';
+/** Escopo do SGSI registrado (ISO/IEC 27001, 4.3), sobre `projects p LEFT JOIN context_analysis x`: a mesma regra no Painel e na Prontidão. */
+export const SQL_ESCOPO_DEFINIDO = `(trim(COALESCE(p.scope, '')) <> '' OR (x.notes IS NOT NULL AND CASE WHEN json_valid(x.notes) THEN trim(COALESCE(json_extract(x.notes, '$.perimeter'), '')) <> ''
+          ELSE trim(x.notes) <> '' END))`;
 // Ordem das colunas de status de evidência, igual nos dois módulos: válida e conforme, em análise, vencida ou não conforme.
 const SQL_EVIDENCIAS = `SELECT
     sum(CASE WHEN (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?2) AND evaluation_status = 'conforming' THEN 1 ELSE 0 END) AS feito,
@@ -326,8 +329,13 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
     db.prepare(`SELECT count(DISTINCT p.id) AS n FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
       WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente' AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3)))`)
       .bind(projectId, quem.id ?? '', quem.email ?? ''),
+    // Primeiros passos: o diagnóstico existe para gerar a jornada, então jornada carregada conta como feito.
+    db.prepare(`SELECT ${SQL_ESCOPO_DEFINIDO} AS escopo, EXISTS (SELECT 1 FROM project_phases WHERE project_id = ?1) AS jornada,
+        EXISTS (SELECT 1 FROM itens WHERE project_id = ?1 AND status = 'ativo') AS ativos
+      FROM projects p LEFT JOIN context_analysis x ON x.project_id = p.id WHERE p.id = ?1`).bind(projectId),
   ])]);
-  const [controles, riscos, altos, capa, capaVencidas, evid, auditoria, parados, soa, mapa, pedidosAb] = respostas.slice(consultas.length);
+  const [controles, riscos, altos, capa, capaVencidas, evid, auditoria, parados, soa, mapa, pedidosAb, inicio] = respostas.slice(consultas.length);
+  const feito = (k: 'escopo' | 'jornada' | 'ativos') => !!(inicio.results[0] as Record<string, number> | undefined)?.[k];
   const ctrl = controles.results as { tema: string; classe: string; n: number }[];
   const soma = (f: (c: { tema: string; classe: string }) => boolean) => ctrl.filter(f).reduce((t, c) => t + c.n, 0);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
@@ -377,7 +385,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
     selos: {
       capa: { abertas: capaAbertas, vencidas: vencidasCapa.length },
       evidencias: { em_analise: ev?.andamento ?? 0, ruins: ev?.falta ?? 0 },
-      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente').length, vencidos: vencidos.length, reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length },
+      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente' || t.situacao === 'reavaliar').length, vencidos: vencidos.length, reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length },
       pedidos: { abertos: pedidosAbertos },
     },
     comecando, controles_avaliados: avaliados,
@@ -388,9 +396,9 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
       [aud ? diaMes(aud.data) : 'nenhuma', 'próxima auditoria'],
     ] as [string, string][],
     passos: [
-      { texto: 'Definir o escopo do SGSI', contexto: 'Contexto da organização e partes interessadas', feito: false, acao: 'Definir o escopo', tela: 'context' },
-      { texto: 'Responder o diagnóstico inicial', contexto: 'Gera a SoA proposta e a jornada', feito: false, acao: 'Abrir a jornada', tela: 'project-detail' },
-      { texto: 'Cadastrar os ativos principais', contexto: 'Ou importar uma planilha', feito: false, acao: 'Cadastrar ativos', tela: 'assets' },
+      { texto: 'Definir o escopo do SGSI', contexto: 'Contexto da organização e partes interessadas', feito: feito('escopo'), acao: 'Definir o escopo', tela: 'context' },
+      { texto: 'Responder o diagnóstico inicial', contexto: 'Gera a SoA proposta e a jornada', feito: feito('jornada'), acao: 'Abrir a jornada', tela: 'project-detail' },
+      { texto: 'Cadastrar os ativos principais', contexto: 'Ou importar uma planilha', feito: feito('ativos'), acao: 'Cadastrar ativos', tela: 'assets' },
     ] as Passo[],
   };
 }
@@ -455,11 +463,13 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     acao: p.papel_exigido === 'ciente' ? 'Ler e dar ciência' : 'Ler e aprovar',
   }));
   // Na lista que junta os dois módulos, o n.privacy vem primeiro dentro de cada grupo: o prazo dele é legal.
-  const blocos = { ...(privacy ? { privacy } : {}), ...(iso ? { iso } : {}) } as Record<Modulo, NonNullable<typeof iso> | NonNullable<typeof privacy>>;
+  // Partial: o n.ot ainda não tem bloco no painel (fatia N1); módulo sem bloco fica fora de `modulos`.
+  const blocos = { ...(privacy ? { privacy } : {}), ...(iso ? { iso } : {}) } as Partial<Record<Modulo, NonNullable<typeof iso> | NonNullable<typeof privacy>>>;
   const proximoDe = (lista: Proximo[]) => lista.filter((p): p is NonNullable<Proximo> => !!p).sort((a, b) => a.dias - b.dias)[0] ?? null;
   const modulosResp: Record<string, unknown> = {};
   for (const m of modulos) {
     const b = blocos[m];
+    if (!b) continue;
     const saude = saudeDoProjeto({ itens: b.itens, comecando: b.comecando, decisoes: decisoes.length, cliente: quem.cliente, proximo: b.proximo });
     // O cliente vê a frase e os números da linha do módulo; a lista, a cobertura, o mapa e os vencimentos são da consultoria.
     modulosResp[m] = quem.cliente

@@ -10,6 +10,7 @@ export const MOTIVO_MAX = 500;
 export const FERRAMENTAS_DE_DECISAO = [
   'niso_publicar_documento', 'niso_revisar_documento', 'niso_decidir_passo', 'niso_avaliar_fornecedor', 'niso_situacao_atividade',
   'niso_concluir_acao', 'niso_encerrar_incidente', 'niso_registrar_revogacao', 'niso_importar_programa', 'niso_padronizar_nomes',
+  'niso_editar_catalogo', 'niso_excluir_requisito',
 ] as const;
 export type FerramentaDecisao = (typeof FERRAMENTAS_DE_DECISAO)[number];
 
@@ -34,12 +35,16 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'criar_homologacao', metodo: 'POST', caminho: `${P}/homologacoes`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'criar_pergunta_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/perguntas`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'editar_pergunta_homologacao', metodo: 'PUT', caminho: `${P}/homologacoes/perguntas/{perguntaId}`, corpo: true },
+  { ferramenta: 'niso_avaliar_fornecedor', acao: 'ajustar_questionario', metodo: 'PUT', caminho: `${P}/homologacoes/perguntas/modelo/{perguntaId}`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'concluir_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/concluir`, corpo: true },
   { ferramenta: 'niso_avaliar_fornecedor', acao: 'cancelar_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/cancelar`, corpo: true },
+  { ferramenta: 'niso_avaliar_fornecedor', acao: 'prorrogar_homologacao', metodo: 'PUT', caminho: `${P}/homologacoes/{homologacaoId}/prazo`, corpo: true },
+  { ferramenta: 'niso_avaliar_fornecedor', acao: 'novo_link_homologacao', metodo: 'POST', caminho: `${P}/homologacoes/{homologacaoId}/novo-link`, corpo: true },
   { ferramenta: 'niso_situacao_atividade', acao: 'mudar_situacao', metodo: 'POST', caminho: `${P}/ropa/{ropaId}/situacao`, corpo: true },
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_capa', metodo: 'PUT', caminho: '/api/v1/capa/{acaoId}', corpo: true },
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_acao_da_atividade', metodo: 'PUT', caminho: `${P}/ropa/{ropaId}/acoes/{acaoId}`, corpo: true },
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_gap', metodo: 'PUT', caminho: `${P}/ropa/{ropaId}/gaps/{gapId}`, corpo: true },
+  { ferramenta: 'niso_concluir_acao', acao: 'concluir_acao_do_incidente', metodo: 'PUT', caminho: `${P}/incidentes/{incidenteId}/acoes/{acaoId}`, corpo: true },
   { ferramenta: 'niso_encerrar_incidente', acao: 'encerrar', metodo: 'POST', caminho: `${P}/incidentes/{incidenteId}/encerrar` },
   { ferramenta: 'niso_registrar_revogacao', acao: 'revogar_consentimento', metodo: 'POST', caminho: `${P}/consentimentos/{consentimentoId}/revogar`, corpo: true },
   { ferramenta: 'niso_importar_programa', acao: 'listar_lotes', metodo: 'GET', caminho: `${P}/importacoes` },
@@ -53,6 +58,10 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_importar_programa', acao: 'cancelar_lote', metodo: 'DELETE', caminho: `${P}/importacoes/{loteId}` },
   { ferramenta: 'niso_padronizar_nomes', acao: 'propostas', metodo: 'GET', caminho: `${P}/padronizar-nomes` },
   { ferramenta: 'niso_padronizar_nomes', acao: 'padronizar', metodo: 'POST', caminho: `${P}/padronizar-nomes`, corpo: true },
+  // Editar o catálogo é da equipe da ness (ropa-abas.ts); criar segue livre a quem escreve, fora da decisão.
+  { ferramenta: 'niso_editar_catalogo', acao: 'editar_item', metodo: 'PUT', caminho: `${P}/catalogos/{tipo}/{itemId}`, corpo: true },
+  { ferramenta: 'niso_excluir_requisito', acao: 'excluir', metodo: 'PUT', caminho: `${P}/requisitos/{requisitoId}/exclusao`, corpo: true },
+  { ferramenta: 'niso_excluir_requisito', acao: 'reincluir', metodo: 'DELETE', caminho: `${P}/requisitos/{requisitoId}/exclusao` },
 ];
 
 export const parametrosDe = (modelo: string): string[] => [...modelo.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);

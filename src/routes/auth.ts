@@ -6,7 +6,7 @@ import { equipeDeOrgSuspensa, ORG_SUSPENSA } from '../services/organizacao';
 
 /** IP do cliente para rate limiting (Cloudflare popula CF-Connecting-IP) */
 export function clientIp(c: any): string {
-  return c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+  return c.req.header('CF-Connecting-IP') || 'unknown';
 }
 import { authMiddleware } from '../middleware/auth';
 import { modulosDaPessoa } from '../modulos';
@@ -235,12 +235,6 @@ authApp.post('/login', async (c) => {
     // Credencial correta zera a contagem: a janela existe para tentativa
     // seguida de erro, não para punir quem errou uma vez ontem.
     await c.env.SESSIONS.delete(chaves.falhas);
-    // ponytail: auto-migrate legacy SHA-256 hash to PBKDF2
-    if (!user.password_hash.includes(':')) {
-      const newHash = await hashPassword(password);
-      await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(newHash, user.id).run();
-    }
-    
     const requiresChange = user.requires_password_change === 1;
     const exigeMfa = user.totp_enabled === 1;
 

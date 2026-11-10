@@ -3,6 +3,11 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { pendenciasDe } from '../src/services/terceiros';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { somarMeses } from '../src/services/fornecedor-modelos';
+import { hojeEmSaoPaulo } from '../src/services/hoje';
+
+// a validade não passa do prazo do modelo do tipo (fatia 2): 6 meses cabe em qualquer tipo
+const DENTRO_DO_PRAZO = somarMeses(hojeEmSaoPaulo(), 6);
 
 /** Pendências do TPRM por fornecedor: tipo, criticidade, avaliação vigente e DPA (skill avaliacao-terceiros). */
 const P = 'tp-proj';
@@ -37,7 +42,7 @@ describe('GET /terceiros traz pendencias', () => {
       env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('u-tp', 'tp@ness.lat', 'x', 'TP', 'consultor', NULL, 'org_ness')`),
       env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-tp', ?, 'TP', 'tp@ness.lat', 'consultor', 'Consultor')`).bind(P),
       env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('tp-a', ?1, 'organizacao', 'Fornecedor Exemplo'), ('tp-b', ?1, 'organizacao', 'Fornecedor Sem Nada'), ('tp-x', ?2, 'organizacao', 'Fornecedor Alheio')`).bind(P, OUTRO),
-      env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('tp-d', ?, 'DPA Exemplo')`).bind(P),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo, status) VALUES ('tp-d', ?, 'DPA Exemplo', 'vigente')`).bind(P),
     ]);
     await habilitarPrivacy(P, OUTRO);
     consultor = await sessionFor({ id: 'u-tp', email: 'tp@ness.lat', role: 'consultor' });
@@ -49,7 +54,7 @@ describe('GET /terceiros traz pendencias', () => {
     expect(l.some((t) => t.id === 'tp-x')).toBe(false);
     expect((await chamar(consultor, 'PUT', `${base}/tp-a/tipo`, { terceiro_tipo: 'medio' })).status).toBe(200);
     expect((await chamar(consultor, 'POST', `${base}/tp-a/criticidades`, { impacto: 'baixo', exclusividade: 'varias_alternativas', risco_financeiro: 'baixo', conformidade: 'sem_regulamentacao', risco_reputacional: 'baixo' })).status).toBe(201);
-    expect((await chamar(consultor, 'POST', `${base}/tp-a/avaliacoes`, { resultado: 'aprovado', valido_ate: '2099-01-01' })).status).toBe(201);
+    expect((await chamar(consultor, 'POST', `${base}/tp-a/avaliacoes`, { resultado: 'aprovado', valido_ate: DENTRO_DO_PRAZO })).status).toBe(201);
     expect((await chamar(consultor, 'POST', `${base}/tp-a/documentos`, { documento_id: 'tp-d', papel: 'dpa' })).status).toBe(201);
     l = (await (await chamar(consultor, 'GET', base)).json()) as Item[];
     expect(l.find((t) => t.id === 'tp-a')!.pendencias).toEqual([]);

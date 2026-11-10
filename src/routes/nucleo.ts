@@ -5,9 +5,16 @@ import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
 import { mesclar, previaDaMescla } from '../services/mesclar';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
-import { conferirPedidosDoDocumento } from './pedidos';
 import { sincronizarDpoDaParte, membroDpoDaParte } from '../services/encarregado-pessoa';
 import { emailAindaNaMatriz, revogarContaStakeholder } from './governance';
+import { conteudoDoTratamentoMudou } from './ropa';
+import { documentoAtual, hashConteudo } from '../services/pedidos';
+
+/** Hash do conteúdo congelado do tratamento (o mesmo dos pedidos de aprovação); '' se não existe. */
+const hashDoTratamento = async (db: D1Database, id: string, projectId: string) => {
+  const d = await documentoAtual(db, 'tratamento', id, projectId);
+  return d ? hashConteudo(d.conteudo) : '';
+};
 import { NOME_DO_PRODUTO } from '../modulos';
 import { seedPhases } from '../services/project-setup';
 import {
@@ -55,15 +62,16 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
         // Módulos por pessoa (fatia 3 do n.360): ligar o módulo no projeto o concede às contas de CLIENTE dele, no mesmo
         // batch. Equipe e stakeholder não: a equipe recebe pelo contrato da organização (ou por PUT /users/:id/modulos).
         // A trilha é o terceiro statement do MESMO batch: se ela falha, nem o módulo nem a concessão ficam.
+        // O n.ot não: só por concessão explícita a cada pessoa (modelo de ameaças do n.ot, P0-1; mesma regra do gatilho, 0089).
         await db.batch([
           db.prepare('INSERT INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, ?, ?)').bind(projectId, modulo, user.email),
           db.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
-            SELECT id, ?, ? FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')`).bind(modulo, user.email, projectId),
+            SELECT id, ?, ? FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client') AND ? <> 'ot'`).bind(modulo, user.email, projectId, modulo),
           db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
             VALUES (?, 'usuario.modulos', ?, ? || ' habilitado no projeto: concedido a '
-              || (SELECT COUNT(*) FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')) || ' contas de cliente',
+              || (SELECT COUNT(*) FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client') AND ? <> 'ot') || ' contas de cliente',
               '', '', ?, datetime('now'))`)
-            .bind(crypto.randomUUID(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, projectId),
+            .bind(crypto.randomUUID(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, modulo, projectId),
         ]);
         if (modulo === 'iso') {
           // O projeto criado sem o n.iso nasce sem as fases da jornada: ligar o módulo as carrega (nunca duplica).
@@ -123,10 +131,16 @@ nucleoApp.post('/mesclar', async (c) => {
     const v = await validateBody(c, mesclarSchema);
     if (!v.success) return v.response;
     const { tabela, manter, remover, confirmar } = v.data;
+    // Atividades tocadas: o hash do conteúdo congelado antes da mescla, para derrubar a aprovação só onde ele mudou
+    // (item só do ciclo de vida, que fica fora do conteúdo congelado, não derruba).
+    const tocadas = confirmar ? await previaDaMescla(c.env.DB, tabela, projectId, manter, remover) : null;
+    const antes = new Map<string, string>();
+    if (tocadas && 'ok' in tocadas) for (const t of tocadas.tratamentos) antes.set(t, await hashDoTratamento(c.env.DB, t, projectId));
     const r = confirmar ? await mesclar(c.env.DB, tabela, projectId, c.get('user').email, manter, remover) : await previaDaMescla(c.env.DB, tabela, projectId, manter, remover);
     if (!('ok' in r)) return c.json({ error: r.error }, r.status);
-    // O conteúdo congelado da aprovação das atividades tocadas mudou: o pedido aberto é conferido e, se preciso, substituído.
-    if (confirmar && r.tratamentos.length) await conferirPedidosDoDocumento(c, 'tratamento', r.tratamentos, projectId);
+    if (confirmar) {
+      for (const t of r.tratamentos) if (antes.get(t) !== await hashDoTratamento(c.env.DB, t, projectId)) await conteudoDoTratamentoMudou(c, t, projectId);
+    }
     return c.json({ ...r, previa: !confirmar, tratamentos: r.tratamentos.length });
   } catch (e) { return erro500(c, 'Falha ao mesclar os cadastros', e); }
 });
@@ -318,7 +332,7 @@ nucleoApp.post('/partes/:id/vinculos', async (c) => {
     }
     await logAudit(db, 'parte.vinculada', c.get('user').email, `Parte ${parteId}: ${papel} em ${alvo_tipo}`, '', '', projectId);
     // As partes do tratamento entram no conteúdo congelado do pedido de aprovação (fatia 4.3).
-    if (alvo_tipo === 'tratamento') await conferirPedidosDoDocumento(c, 'tratamento', alvo_id, projectId);
+    if (alvo_tipo === 'tratamento') await conteudoDoTratamentoMudou(c, alvo_id, projectId);
     return c.json({ ok: true, id }, 201);
   } catch (e) { return erro500(c, 'Falha ao vincular a parte', e); }
 });
@@ -331,7 +345,7 @@ nucleoApp.delete('/partes/:id/vinculos/:vinculoId', async (c) => {
     const r = await c.env.DB.prepare('DELETE FROM parte_vinculos WHERE id = ? AND parte_id = ? AND project_id = ?')
       .bind(c.req.param('vinculoId'), c.req.param('id'), projectId).run();
     if (!r.meta.changes) return c.json({ error: 'Vínculo não encontrado' }, 404);
-    if (alvo?.alvo_tipo === 'tratamento') await conferirPedidosDoDocumento(c, 'tratamento', alvo.alvo_id, projectId);
+    if (alvo?.alvo_tipo === 'tratamento') await conteudoDoTratamentoMudou(c, alvo.alvo_id, projectId);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao remover o vínculo', e); }
 });

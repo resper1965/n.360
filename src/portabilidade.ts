@@ -181,7 +181,8 @@ export async function tabelasExportaveis(env: Bindings): Promise<string[]> {
 
   const comProjeto: string[] = [];
   for (const { name } of results) {
-    if (NAO_EXPORTAR.has(name)) continue;
+    // n.ot (modelo de ameaças P0-2/P0-4/P0-6): o inventário OT nunca sai pela portabilidade; o prefixo cobre tabela ot_* futura.
+    if (NAO_EXPORTAR.has(name) || name.startsWith('ot_')) continue;
     const { results: cols } = await env.DB.prepare(`PRAGMA table_info("${name}")`).all<any>();
     if ((cols as any[]).some((c) => c.name === 'project_id')) comProjeto.push(name);
   }
@@ -231,6 +232,7 @@ export async function exportarProjeto(env: Bindings, projectId: string, comRastr
     nao_incluido: [
       'Arquivos de evidência (R2): vão as chaves, os hashes e os tamanhos na tabela `evidence`; o conteúdo sai por download individual.',
       'Chaves de API e tokens de auditor: são credenciais de acesso, não dado do titular.',
+      'Inventário do n.ot (tabelas `ot_*`): sai só pela exportação do próprio módulo, com step-up, máscara e filtro de site.',
       ...(comRastro ? [] : ['IP e navegador de quem assinou, leu política ou agiu na trilha (`*_ip`, `*_ua`, `ip_address`, `user_agent`): só a equipe da consultoria os exporta.']),
       'Segredos de integração saem em branco: `webhooks.secret`, `project_sso.client_secret`, `project_scim.token_hash`, `homologacoes.token_hash` e `projects.repository_token`. Não servem fora daqui, e o do webhook permitiria forjar entregas assinadas.',
     ],

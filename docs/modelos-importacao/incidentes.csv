@@ -1,0 +1,3 @@
+titulo;protocolo;ciencia_em;risco_titular;comunicacao_anpd_em;comunicacao_titular_em;status;origem_alerta;severidade;tipo;comprometimento;titulares_estimados;criterios_risco;fim_em;anpd_protocolo;anpd_canal;anpd_justificativa
+Acesso indevido ao sistema de folha (exemplo);LEG-IN-0001;10/03/2026;relevante;12/03/2026;13/03/2026;encerrado;Alerta do antivírus (exemplo);Alta;Acesso indevido;confidencialidade|integridade;120;sensiveis|financeiros;11/03/2026;00000.000000/2026-01;SEI;
+Perda de notebook cifrado (exemplo);LEG-IN-0002;05/04/2026;baixo;;;avaliado;;Média;Perda;confidencialidade;;nenhum;;;;Disco cifrado: sem comunicação devida (exemplo).

@@ -94,7 +94,9 @@ mfaApp.post('/activate', async (c) => {
 
 /**
  * Remove `mfa_pending` da sessão em curso: até aqui ela só podia falar com
- * /auth/mfa/*. Reescreve a chave da sessão (`session_<token>`).
+ * /auth/mfa/*. Reescreve a chave da sessão (`session_<token>`). Carimba também
+ * `totp_em`, o step-up que revelar e exportar o n.ot exigem nos últimos 10 min
+ * (services/ot-stepup.ts); sessão de SSO o ganha chamando /verify.
  */
 async function promoverSessao(c: any): Promise<void> {
   const id = c.get('sessionId');
@@ -103,6 +105,7 @@ async function promoverSessao(c: any): Promise<void> {
   if (!bruto) return;
   const sessao = JSON.parse(bruto);
   delete sessao.mfa_pending;
+  sessao.totp_em = Date.now();
   const corpo = JSON.stringify(sessao);
   await c.env.SESSIONS.put(`session_${id}`, corpo, { expirationTtl: SESSION_TTL_SEC });
 }

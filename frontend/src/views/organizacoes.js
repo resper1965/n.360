@@ -305,7 +305,7 @@ window.__orgEditar = (id) => {
         </div>
         ${ehPlatformAdmin() ? `<fieldset id="org-e-contrato">
             <legend class="form-label">Módulos contratados</legend>
-            ${[['iso', 'n.iso'], ['privacy', 'n.privacy']].map(([m, r]) => `<label class="org-modulo"><input type="checkbox" class="e-modulo-contrato" value="${m}"${(o.modulosContratados || ['iso']).includes(m) ? ' checked' : ''}> ${r}</label>`).join('')}
+            ${[['iso', 'n.iso'], ['privacy', 'n.privacy'], ['ot', 'n.ot']].map(([m, r]) => `<label class="org-modulo"><input type="checkbox" class="e-modulo-contrato" value="${m}"${(o.modulosContratados || ['iso']).includes(m) ? ' checked' : ''}> ${r}</label>`).join('')}
             <p class="org-meta" id="org-e-contrato-aviso">Tirar um módulo do contrato não o remove das pessoas nem dos projetos; só limita o que se concede daqui em diante.</p>
         </fieldset>` : ''}
         <p class="org-erro" id="org-e-erro" role="alert"></p>

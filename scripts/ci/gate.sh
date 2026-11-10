@@ -78,6 +78,10 @@ passo "Frontend: build" bash -c "cd frontend && npm run build"
 passo "Frontend: testes" rodar_vitest frontend --maxWorkers=3 --testTimeout=30000 --retry=1
 instalar mcp-server-niso "MCP: instalar" ci --include=dev --no-audit --no-fund
 passo "MCP: build" bash -c "cd mcp-server-niso && npm run build"
+# O teste do script do Zeek (SECURITY.md, n.ot L3) roda com o Python da máquina; sem Python, avisa e segue.
+PY=""; for c in python3 python; do "$c" -c "import sys" >/dev/null 2>&1 && { PY=$c; break; }; done  # o atalho da loja do Windows existe e falha
+if [ -n "$PY" ]; then passo "Sensor de rede: resumo do Zeek" "$PY" scripts/test_n_ot_resumo_zeek.py
+else echo "Aviso: sem Python, o teste scripts/test_n_ot_resumo_zeek.py não rodou." | tee -a "$LOG"; fi
 # Workers fixos (o padrão do vitest é núcleos - 1, e 19 workerd ao mesmo tempo estouram tempo nesta máquina) e 30 s por teste,
 # como o frontend: sob carga, teste de login e de lote passava dos 5 s e a repetição achava o banco da primeira tentativa.
 # O teste de desempenho do painel mede tempo de relógio: no meio da suíte paralela ele mede a carga da máquina, não o painel.

@@ -1,6 +1,6 @@
 # Frente 3: o n.iso descongelado — lista compartilhada, vocabulário único e itens soltos
 
-Origem: `docs/equalizacao-modulos-2026-10-20.md` (P1 restante, P2 e "Vocabulário") e a decisão do dono de 20/10/2026 de que as telas do
+Origem: `docs/arquivo/equalizacao-modulos-2026-10-20.md` (P1 restante, P2 e "Vocabulário") e a decisão do dono de 20/10/2026 de que as telas do
 n.iso deixam de ser congeladas. Desenho aprovado em conversa no mesmo dia. Depende da Frente 2 (PRs #465 e #466), que já está no branch
 de origem desta.
 

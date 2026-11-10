@@ -31,6 +31,11 @@ describe('situacaoDe', () => {
     expect(situacaoDe({ resultado: 'reprovado', valido_ate: '2999-01-01' })).toBe('reprovada');
     expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-10-09' }, '2026-10-09')).toBe('vigente');
     expect(situacaoDe({ resultado: 'com_ressalvas', valido_ate: '2026-10-09' }, '2026-10-10')).toBe('vencida');
+    // fatia 2: no prazo, mas feita noutro tipo, pede reavaliação; vencida e reprovada continuam como estão
+    expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-12-01', tipo_avaliado: 'medio' }, '2026-10-10', 'critico')).toBe('reavaliar');
+    expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-12-01', tipo_avaliado: 'critico' }, '2026-10-10', 'critico')).toBe('vigente');
+    expect(situacaoDe({ resultado: 'aprovado', valido_ate: '2026-10-09', tipo_avaliado: 'medio' }, '2026-10-10', 'critico')).toBe('vencida');
+    expect(situacaoDe({ resultado: 'reprovado', valido_ate: '2026-12-01', tipo_avaliado: 'medio' }, '2026-10-10', 'critico')).toBe('reprovada');
   });
   it('o tipo define o método', () => {
     expect(METODO_DO_TIPO).toEqual({ grande_provedor: 'trust_center', medio: 'questionario', pequeno: 'questionario', critico: 'auditoria' });
@@ -102,7 +107,15 @@ describe('avaliações', () => {
     expect(await json<{ metodo: string }>(r)).toMatchObject({ metodo: 'trust_center' });
     expect((await avaliar('tc-a', { metodo: 'auditoria' })).status).toBe(400);
     expect(await achar('tc-a')).toMatchObject({ situacao: 'vigente', ultima_avaliacao: { metodo: 'trust_center', valido_ate: dias(90) } });
-    const crit = await avaliar('tc-c');
+    // crítico (fatia 3): aprovado ou com ressalvas sem evidência é 400; reprovado não exige
+    for (const resultado of ['aprovado', 'com_ressalvas']) {
+      const sem = await avaliar('tc-c', { resultado });
+      expect(sem.status).toBe(400);
+      expect((await json<{ error: string }>(sem)).error).toContain('exige o link da evidência');
+    }
+    expect((await avaliar('tc-c', { resultado: 'reprovado' })).status).toBe(201);
+    const crit = await avaliar('tc-c', { evidencia_url: 'https://auditoria.exemplo.com/relatorio' });
+    expect(crit.status, await crit.clone().text()).toBe(201);
     expect(await json<{ metodo: string }>(crit)).toMatchObject({ metodo: 'auditoria' });
   });
 

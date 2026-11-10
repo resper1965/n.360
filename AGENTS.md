@@ -1,9 +1,9 @@
 # n.360 — Manifesto do Agente
 
 Se voce esta lendo isto, voce e o agente responsavel por continuar o
-desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus dois
-modulos: **n.iso** (ISO 27001/27701, em `/iso`) e **n.privacy** (LGPD/ANPD, em
-`/privacy`). O repositorio, o Worker e o banco ainda se chamam `niso` por
+desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus
+modulos: **n.iso** (ISO 27001/27701, em `/iso`), **n.privacy** (LGPD/ANPD, em
+`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`: catalogo, inventario, coleta, saidas e step-up, fatias N1 a N4, P1-1 e Levantamento L1 a L5). O repositorio, o Worker e o banco ainda se chamam `niso` por
 historia; nao e o nome do produto.
 
 Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
@@ -70,13 +70,58 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
 
 - **Um Worker, um banco (D1 `niso-db`), um deploy.** O endereco canonico e `https://n360.ness.com.br`
   (`APP_URL` em `wrangler.jsonc`). `/` e o inicio do n.360 (um cartao por modulo e o grupo "Conta e acessos"),
-  `/iso*` a casca do n.iso e `/privacy*` a do n.privacy. O CAMINHO decide a casca (`frontend/src/produto.js`);
+  `/iso*` a casca do n.iso, `/privacy*` a do n.privacy e `/ot*` a do n.ot. O CAMINHO decide a casca (`frontend/src/produto.js`);
   o servidor entrega o mesmo `login.html` para todos.
 - **Um cadastro so.** Partes, itens, documentos, RoPA, DPIA, evidencias, pedidos e incidentes sao do nucleo e
   servem aos dois modulos. O que e so de um modulo fica na faixa dele.
-- **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`).
+- **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`, `ot`).
   Faixa de modulo exige o modulo no projeto (`projeto_modulos`) **e** na pessoa (`usuario_modulos`, migration
   0066); senao 403. Rota nova de projeto sem faixa reprova em `test/modulos-produto.test.ts`.
+- **n.ot (spec `2026-10-30-n-ot-modulo-n360-design`, fatias N1 a N4 e P1-1, migrations 0089 a 0092):** faixa `ot`, todas as rotas
+  sob `/api/v1/projects/:projectId/ot/…`: catalogo RO-CB.BR.01 Rev.00 (`GET …/ot/requisitos`), inventario (sites, zonas, ativos,
+  fluxos, acesso por site), coleta em lotes, revelar e conformidade em `src/routes/ot.ts`; indicadores, exportacao e IA em
+  `src/routes/ot-saidas.ts`.
+  Duas regras do modelo de ameacas que nao podem regredir: **P0-1, o `ot` nunca e concedido automaticamente** (o gatilho
+  `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
+  ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
+  nem agente MCP** (`otApp` responde 403 a `apikey:` e a `agente`; `/projects/:id/ot` esta em `FORA_DO_AGENTE`). Frontend:
+  casca `/ot` com uma tela (`views/ot.js`) em abas: catalogo, inventario (sites, zonas, ativos), fluxos, coleta (`views/ot-coleta.js`),
+  saidas (`views/ot-saidas.js`) e acesso por site (so quem edita); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
+  a API recusaria. IP/MAC aparecem como a API devolve e ficam so na memoria da tela; "Revelar" (platform_admin, ativo mascarado) pede o
+  motivo e mostra o valor num modal que some em 30 s. **P1-1 (step-up):** revelar e exportar (`POST …/ot/exportacao`, com
+  `justificativa` no corpo) exigem o carimbo `totp_em` da sessao, gravado por `/auth/mfa/verify`, dos ultimos 10 min (403
+  `codigo: totp_necessario`, mesmo com SSO), justificativa sem IP/MAC em `audit_logs.justification`, teto por hora em `rate_limits`
+  (revelar 20/pessoa e 60/projeto; exportar 5/pessoa e 15/projeto; 429 `teto_por_hora`) e aviso ao Gestor ARCiber titular e suplente
+  (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo (de novo se errado, sem
+  perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) abre o n.ot na aba Saidas
+  (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
+  Coleta (N3, migration 0092): `POST …/ot/lotes` (planilha CSV/XLSX em multipart, lida em memoria: nunca vai ao R2 nem a
+  IA) e `POST …/ot/lotes/manual` (JSON) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
+  no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
+  aprovar/rejeitar e de quem `podeVerCompleto` e nunca de quem criou o lote; a aprovacao grava `verificado_por` e
+  `ultima_verificacao_em` (a evidencia do 4.3.1) so quando o item trouxe todos os campos do 4.3.1; item que muda um deles sem
+  recoletar, ou `PUT /ativos` que toca um deles, zera a verificacao (`toca431`). Alvo da mescla alterado depois da revisao volta o
+  item a pendente e o lote a `em_revisao` (P1-4). A marca de duplicata (`possivel_duplicata`, `possiveis_duplicatas`) so sai para
+  quem `podeVerCompleto` (A1). O export de portabilidade (`GET /projects/:id/export`) nunca leva tabela `ot_*` (prefixo, em
+  `src/portabilidade.ts`). Troca de papel ou projeto nao concede `ot` (`recalcularModulos`). Export de ferramenta OT (Nozomi etc.)
+  nao existe: sem amostra.
+  Levantamento (L1 da descoberta operacional, migracao 0093, `src/services/ot-levantamento.ts`): sessoes de entrevista, visita e
+  documento, roteiro de 15 perguntas (`GET …/ot/roteiro`), achados confrontados com o inventario e enviados ao lote existente
+  (`/levantamentos*`, incl. `…/:id/achados` e `…/:id/enviar`; `POST …/ot/lotes` aceita `levantamento_id` para sessoes de documento).
+  Operador so por funcao e turno; texto livre recusa IP/MAC/CPF/e-mail/telefone; o confronto com o inventario so sai para quem
+  `podeVerCompleto`; achado so entra no inventario por lote aprovado; a leitura sem mascara da sessao vai a trilha
+  (`ot.inventario.ver_sensivel`). Retencao (`src/manutencao.ts`): descartado sai em 30 dias (90 dias se veio da sonda, com `chave_sensor`); rascunho de sessao encerrada ha
+  30 dias sai; rascunho de sessao aberta nao expira; `enviado` sem lote, de lote rejeitado ou de lote apagado volta a rascunho
+  apos 1 dia. Chaves do `roteiro` so as de `ot_roteiro_perguntas` (400 nas demais). Leituras com `LIMIT` explicito (`TETO_LEITURA_OT`) por causa do teto de 500 linhas
+  da consulta. Frontend: aba Levantamento (`views/ot-levantamento.js`) com notas em autosave, roteiro para achado, aba inicial
+  por papel, confirmacoes com o conteudo e contagem nas abas.
+  Achado de fluxo (L2, migracao 0094, `src/services/ot-fluxo-achado.ts`): validado pelo esquema do fluxo, pontas so do site da sessao; o confronto pela chave das pontas diz novo, confirma ou contradiz (externo/VPN diferente). A aprovacao do lote cria o fluxo ou atualiza so protocolo, porta, finalidade, externo e via_vpn (pontas e direcao nunca). Migracao 0094: `ot_achados.pergunta_id` e `lote_item_id`; achado de item recusado volta a rascunho na manutencao.
+  De-para (L4, migracao 0095, `src/services/ot-depara.ts`, `src/services/ot-documento.ts`, `src/routes/ot-depara.ts` montado depois do otApp): na sessao de documento, planilha CSV/XLSX vira achados por mapeamento coluna→campo (proposto pela IA a partir do cabecalho e de 5 linhas mascaradas, ou pelo nome da coluna; perfil salvo em `ot_perfis_depara` por assinatura do cabecalho, reaplicado sem IA); TXT/DOCX vira achados de ativo sugeridos pela IA (`origem = 'ia'`), com a evidencia conferida no texto mascarado. Rotas `…/levantamentos/:id/depara/planilha/proposta`, `…/planilha/aplicar`, `…/depara/texto`, `GET/DELETE …/depara/perfis`. Padroes provisorios (pontos do dono): modelo `reasoningModel`; teto 10 por pessoa e 30 por projeto por hora; trecho 3000 caracteres, 20 trechos, 60 mil caracteres, 25 itens e 6000 tokens por trecho; texto extrai so ativo.
+  Agente externo de coleta (L5, migracao 0096, `src/services/ot-agente.ts`, `src/mcp/ot-coleta.ts`, rotas `/ot/agente*` em `src/routes/ot.ts`, guia `docs/n-ot-agente.md`): chave `ot_coleta` (7 dias por padrao, maximo 30) so vale em `POST /ot-coleta/mcp` e e recusada em toda `/api/v1` e em `/mcp` (falha fechada em `src/middleware/auth.ts`); 4 ferramentas (`ler_depara`, `criar_sessao_documental`, `registrar_achados`, `encerrar_sessao`), sem leitura de inventario, so ativo, sem zona, lote JSON-RPC recusado; interruptor so do Gestor ARCiber, chaves emitidas/revogadas pelo Gestor ou consultoria designada; tetos: 120 chamadas/hora e 20 sessoes/dia por chave, 200 achados por chamada e 2000 por sessao. O arquivo passa pelo modelo do agente sem a mascara do n.ot.
+  Sensor de rede (L3, migracao 0097, `src/services/ot-rede.ts`, `POST /levantamentos/:id/depara/rede` em `src/routes/ot-depara.ts`, script `scripts/n-ot-resumo-zeek.py`, guia `docs/n-ot-sensor-rede.md`): resumo `n.ot-resumo-rede/1` (so IP, MAC, portas, protocolo e horarios; sem payload) sobe como arquivo na sessao de documento, validado por zod estrito e descartado; so quem ve o inventario completo importa (403 aos demais). Ativo novo e achado com nome gerado sem IP; IP conhecido sem MAC gera achado que completa o MAC; fluxo e `novo` ou `confirma` (nunca `contradiz`, o sensor nao ve VPN). Fluxo com ponta interna fora do inventario fica em `ot_fluxos_pendentes` (so hashes, 90 dias) e `resolverPendentes` (chamada em `src/services/ot-coleta.ts` na aprovacao) o transforma em achado; tetos 2000 pendencias e 2000 achados por sessao. Rede interna = privados + `faixas_internas` do site. Sem R2 e sem IA. E visibilidade e conformidade, nao deteccao de ataque.
+  Envio automatico (migracao 0101, `src/routes/ot-sensor.ts`, `src/services/ot-sensor.ts`, `scripts/n-ot-resumo-zeek.py --enviar`, `scripts/instalar-sonda.sh`): `POST /ot-sensor/resumo`, fora do `/api`, so com a credencial `ots_…` (por sonda, ate 2 ativas, 365 dias; `faixa_origem` obrigatoria; IP so de `CF-Connecting-IP`; 30 envios aceitos/dia). Resposta e so `{ recebido, envio_id }` (sem contagem: seria oraculo do inventario); envio idempotente pela impressao do corpo. `filtrarNovidade` pula o que ja e rascunho, pendencia ou descartado ha menos de 90 dias (chave HMAC com o site; externo vira `ext`); sem novidade nao nasce sessao. Saude por sonda: em dia ate 26 h, atrasada ate 72 h, parada acima ou sem credencial valida; o cron dos avisos manda e-mail ao Gestor ARCiber so das paradas. Tela: area "Sondas" em "Acessos e agente" e os cartoes "Saude da coleta" e "Pontos a esclarecer" no topo de "Levantamento". Instalador para Ubuntu 24.04 (Zeek LTS do OBS + ICSNPP); `zeek-lts` nao se atualiza sozinho de proposito (ABI dos plugins).
+  Desvios (migracao 0108, `src/services/ot-desvio.ts`, `src/services/webhook-entrega.ts`, rotas `GET /desvios`, `POST /desvios/:id/tratar` e `/aceitar` em `src/routes/ot.ts`, aba "Desvios" em `frontend/src/views/ot-desvios.js`, guia `docs/n-ot-sensor-rede.md`): so no caminho do sensor, em todo envio aceito, sobre o plano ANTES do `filtrarNovidade` (desvio nao e novidade); a importacao manual nao cria desvio. Ciclo: `aberto`; `tratado` (nota obrigatoria; reabre e avisa se o sensor ve de novo); `aceito` (so o Gestor ARCiber, justificativa e prazo de ate 90 dias; reaparecer vencido ou o cron diario o reabre como `aceite_vencido`); `regularizado` (automatico quando um lote aprova o item que veio de achado do sensor, via `fecharRegularizados`). Limite conhecido: desvio cujo item entra no inventario por outro caminho fica `aberto` ate alguem marcar `tratado`. Webhook `ot.desvio` (`entregarEvento`): so para webhook cujo `events` contem exatamente `ot.desvio` (sem curinga); cadastrar exige ver o inventario completo; assinado (`X-nISO-Signature`), ate 3 tentativas (agora, +2 s, +10 s), 5 s cada, sem seguir redirect (3xx = falha), falha soma `failure_count`; o corpo nao leva IP, MAC nem hash de IP (pontas por nome de ativo e zona), ate 200 itens por POST mais `nao_listados`; um POST por resumo aceito com item novo ou reaberto e um por fechamento ou reabertura na tela ou no cron. "Aceito" nao e a excecao formal 5.1.1. Cartao "Pontos a esclarecer" mostra "N desvios abertos".
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
@@ -87,8 +132,8 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **59 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
-  2026-10-17). A lista nominal envelhecia a cada PR; leia o diretorio.
+  dominio: **66 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  2026-11-05). A lista nominal envelhecia a cada PR; leia o diretorio.
 - **Painel de entrada** (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`, direcao A; decisoes adotadas na secao 10
   dele): `GET /api/v1/projects/:id/painel?modulo=iso|privacy` (sem `?modulo`, os modulos do projeto que a pessoa tem; faixa `nucleo`
   com a mesma recusa de modulo feita na rota) e `GET /api/v1/carteira` (projetos de `projetosVisiveis`, consultas agrupadas; fora do
@@ -182,12 +227,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 60 arquivos em 2026-10-18: `ls src/services/*.ts | wc -l`; mais 18 em `src/services/ropa-abas/`, `ls src/services/ropa-abas/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 88 arquivos em 2026-11-05: `ls src/services/*.ts | wc -l`; mais 20 em `src/services/ropa-abas/`, `ls src/services/ropa-abas/*.ts | wc -l`): entre eles
   `soa-logic.ts` (gate de aplicabilidade N/A da SoA; os 93 controles do Anexo A 2022 estao em `src/data/iso27001-2022.ts`), `migration-service.ts` (2013→2022),
   `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
 - **Agents** (`src/agents/`): policy, evidence, assessment, control-adequacao,
-  phase-interpretation, readiness, importacao e privacidade (`ls src/agents`). O `privacidade` so
+  phase-interpretation, readiness, importacao, privacidade e politica-secao (`ls src/agents`). O `privacidade` so
   RASCUNHA no n.privacy (sugestao do tratamento, resposta ao titular, comunicacao de incidente): a saida
   passa por zod estrito, nada e gravado no registro e a trilha `agente.rascunho` nao leva o texto
   (`src/services/rascunhos-privacy.ts`). O copiloto da entrevista do RoPA (`POST .../ropa/copiloto`,
@@ -224,9 +269,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **108 tabelas** (2026-10-27: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **138 tabelas** (2026-11-09: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0088** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0108** (`ls migrations/*.sql | tail -1`; ha duas 0096, duas 0097 e duas 0101, de PRs paralelos). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -282,6 +327,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   mapeamento validado `equivalente`; `Implemented` com mapeamento `parcial` e parcial, e `Partial`/`In Progress` dao no maximo parcial
   (`equivalente` ou `parcial`); `Planned`, `Missing`, N/A e sem status, `relacionado` e `proposto` nao cobrem (`test/requisitos-cobertura-status.test.ts`). LGPD e GDPR entram por
   material juridico revisado, nao por codigo. O agente so le (`FORA_DO_AGENTE`).
+  **Requisito nao aplicavel (migration 0107, spec `docs/superpowers/specs/2026-11-09-requisito-nao-aplicavel-design.md`):** `requisito_exclusoes` (por
+  projeto e requisito; justificativa de 20 a 2000 caracteres, CHECK no banco; `decidido_por`/`decidido_em` do servidor; sem historico proprio, a trilha
+  `requisito.excluido`/`requisito.reincluido` sem o texto). `lacunasDaFonte` da `nao_aplicavel` ao excluido e aos descendentes (`exclusao.herdada_de`), que
+  vence a cobertura e mantem as `origens`; `resumoDeLacunas` traz `nao_aplicaveis` e o `total` so dos aplicaveis (o painel do encarregado usa o mesmo
+  resumo). `PUT|DELETE /projects/:id/requisitos/:requisitoId/exclusao` (faixa `privacy`), so a equipe (`ehEquipeNess`); filho de excluido da 409; o agente
+  pela decisao `niso_excluir_requisito` (`excluir`, `reincluir`). Tela de Requisitos: cartao e filtro "Nao aplicaveis", a justificativa, o autor e a data
+  na linha, e "Marcar como nao aplicavel"/"Voltar a aplicar" no detalhe do requisito, so para a equipe.
 - **RoPA como tratamento ligado (fatia 4, migrations 0054 e 0055)**: `ropa_records` CONTINUA sendo a tabela do tratamento (sem rename:
   a spec diz `tratamentos`, mas renomear tocaria 30+ arquivos por so um nome). `src/services/tratamentos.ts` e as rotas
   `/projects/:id/ropa/:rid/{ligacoes,itens,departamentos,transferencias,diagrama}` ligam o registro a itens, departamentos e
@@ -304,7 +356,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   de Dados e as seis etapas (PR2, abaixo). **Rotas** em `src/routes/ropa-abas.ts`
   (`/projects/:id/ropa/:rid/{ficha,escopo,agentes,medidas,base-juridica,gaps,logs,conferencia,situacao,relatorio,riscos/motivos}`), faixa `privacy`;
   os esquemas ficam em `src/schemas/ropa-abas.ts`, os servicos em `src/services/ropa-abas/` e o conteudo fixo em `src/data/ropa-abas/` (as opcoes
-  marcadas `// proposta:` esperam a confirmacao do dono). **A situacao e DERIVADA, nunca gravada** (`situacaoDaAtividade`): Rascunho, Em Revisao,
+  ja confirmadas pelo dono; nao sobra marca `// proposta:`, `git grep -n "// proposta:" -- src` vazio em 2026-11-05). **A situacao e DERIVADA, nunca gravada** (`situacaoDaAtividade`): Rascunho, Em Revisao,
   Aprovada (vem dos pedidos de aprovacao com o hash vigente) e Cancelada (`status = 'Inactive'`); `POST .../situacao` so envia para revisao, reabre,
   cancela e reativa, e aprovar continua sendo o pedido (`src/services/pedidos.ts`). `GET .../conferencia` lista bloqueios e avisos e o menu "Acoes"
   devolve o motivo de cada item desabilitado, em texto. Atividade aprovada por pedido nao se apaga (`DELETE /ropa/:id` da 409; cancele pela situacao) e o `PUT /ropa/:id` com `status` diferente do gravado passa pela situacao (`Inactive` cancela, `Under Review` envia para revisao; o agente recebe 403, a ferramenta `niso_situacao_atividade` vale so em `/situacao`; chave de API, papel `client`, tambem recebe 403 ao cancelar ou enviar para revisao por ali). Atividade cancelada recusa escrita (409) pelas abas e tambem pelas sub-rotas antigas
@@ -320,7 +372,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   gravada; sem ela, a lista do RoPA), e o consentimento abre a ficha. `niso_privacy_ropa_detalhe` devolve situacao, etapas e medidas. O modo guiado e o painel
   `frontend/src/atividade/guiado.js` sobre as abas (a pergunta vem de `ficha.proxima_pergunta`); o motor da entrevista em `ropa-entrevista.js` saiu. E2E do sistema vazio em
   `frontend/e2e/ropa-abas.spec.js`; formas de resposta que a tela le em `test/ropa-abas-formas-front.test.ts`.
-- **Tratamento de Dados por etapa (PR2, sem migration; plano `docs/superpowers/plans/2026-10-16-ropa-abas.md`).** A aba tem seis etapas em ordem
+- **Tratamento de Dados por etapa (PR2, sem migration; plano `docs/arquivo/planos/2026-10-16-ropa-abas.md`).** A aba tem seis etapas em ordem
   (`ETAPAS` em `src/schemas/ropa-abas.ts`). A Coleta define titulares e dados; as outras usam so o que ela definiu, e cada titular tem situacao
   por etapa (`definido` ou `nao_usa`). As etapas 2 a 6 travam (409 no servidor) enquanto a Coleta estiver pendente. A situacao de cada etapa e
   DERIVADA (`situacaoDaEtapa`, `src/services/ropa-abas/etapas.ts`: concluida, pendente com `faltas`, ou nao aplicavel). **A Eliminacao tem ativos
@@ -332,11 +384,16 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   tela (`GET/POST/PUT /projects/:id/catalogos/:tipo`, `src/services/ropa-abas/catalogos.ts`); ativo, area e parceiro reusam `/assets`,
   `/departamentos` e `/partes`. Contagens (2026-10-18, salvo onde marcado): 6 etapas (`ETAPAS`); 8 rotas de etapa e 3 de catalogo em `src/routes/ropa-abas.ts`
   (`grep -c "ropaAbasApp\.\(get\|put\|post\)('/etapas" src/routes/ropa-abas.ts`; `grep -c "catalogosApp\.\(get\|put\|post\)(" src/routes/ropa-abas.ts`);
-  21 modulos em `frontend/src/atividade/` (2026-10-21, `ls frontend/src/atividade/*.js | wc -l`); 30 testes de backend `ropa-*` (2026-10-21, `ls test/ropa-*.test.ts | wc -l`).
+  21 modulos em `frontend/src/atividade/` (2026-10-21, `ls frontend/src/atividade/*.js | wc -l`); 33 testes de backend `ropa-*` (2026-11-05, `ls test/ropa-*.test.ts | wc -l`).
   Copiloto por etapa (`POST .../ropa/:rid/etapas/:etapa/rascunho`, `src/services/copiloto-etapa.ts`, botao em cada etapa editavel): PROPOE a
   descricao a partir da ficha e de uma nota opcional; a pessoa aceita (Aceitar copia o texto para o campo e o autosave grava), nada grava sozinho.
   Sem base (nenhum titular na Coleta, ativo, area, descricao nem nota) o modelo nao e chamado (`sem_base: true`, sem trilha); com base, a resposta traz `fontes` (o que foi enviado).
   E2E das etapas vazias em `frontend/e2e/ropa-etapas.spec.js`.
+- **Órgãos públicos destinatários (migration 0097):** na aba Agentes, um órgão por linha (`tratamento_orgaos_publicos`: nome e obrigação legal,
+  até 20 por atividade, gatilho de projeto), rotas `GET|POST /projects/:id/ropa/:rid/orgaos-publicos` e `PUT|DELETE .../:id` (faixa `privacy`),
+  serviço `src/services/ropa-abas/orgaos-publicos.ts`. `ropa_records.recipients` segue no conteúdo congelado: cada escrita o regrava a partir das
+  linhas (`textoDosOrgaos`) e, se mudou, confere os pedidos. O texto livre antigo sai como `texto_anterior` ate o primeiro cadastro, que o substitui (a tela pede confirmacao).
+  Na aba Controle de GAPs, `pendente` so quando ha gap aberto sem responsavel; gap aberto com os campos preenchidos conta como feito (`estadoDasAbas`).
 - **DPIA e LIA do tratamento (fatia 5, migration 0056)**: `dpia_assessments.ropa_id` tem integridade no BANCO por tres triggers
   (`dpia_ropa_do_projeto_ins/_upd` recusam registro inexistente OU de outro projeto; `dpia_ropa_apagada` zera a referencia ao apagar o
   tratamento), sem reconstruir a tabela (assinatura e deriva historica). `lia_assessments` e a LIA (uma por tratamento, `ropa_id`
@@ -393,12 +450,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   tambem abrem a pagina. O modal de ligacoes (`openLigacoesTratamento`, "Editar ligacoes" na etapa 1) ficou so com base legal, sugestao
   da IA, sistemas, departamentos, partes, transferencias e diagrama. A entrevista nao pergunta mais volume, decisao automatica nem impacto
   de vazamento (so alimentavam uma segunda recomendacao de RIPD na tela) nem tem o bloco do teste: a atividade nova grava, segue para o
-  ciclo de vida e termina na pagina. Teste: `frontend/test/atividade-view.test.js`.
+  ciclo de vida e termina na pagina. Testes: `frontend/test/atividade-*.test.js`.
 - **Exportacao, Word e faixas de prazo (F4, sem migration)**: CSV que abre no Excel em pt-BR (`src/services/exportacao.ts`: BOM,
   `;`, CRLF, toda celula entre aspas, celula que comeca com `= + - @`, tab ou CR ganha `'`, teto de 5.000 linhas com `X-Exportacao-Truncada`)
-  em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia}` (faixa `privacy`; riscos
+  em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia,pedidos-titular}` (faixa `privacy`; Solicitacoes com os filtros `tipo` e `status` e sem nome, contato, descricao nem resposta do titular; riscos
   aceitam `probabilidade`/`impacto`, a celula do mapa; acoes aceitam `faixa`). RIPD e LIA em Word (`src/services/documento-word.ts`, com os
-  auxiliares de `documento-docx.ts`): `GET .../dpia/:id/docx` (nucleo) e `GET .../ropa/:rid/lia/docx` (privacy), lidos AO VIVO da empresa,
+  auxiliares de `documento-docx.ts`): `GET .../dpia/:id/docx` (nucleo), `GET .../ropa/:rid/lia/docx` (privacy) e, desde a fatia 7 dos incidentes, `GET .../incidentes/:id/docx` (nucleo), lidos AO VIVO da empresa,
   do encarregado, da atividade, das bases, do ciclo, do teste de impacto e dos riscos; rascunho com "RASCUNHO" no cabecalho, que leva o logo da organizacao do projeto (`logoComoDataUri`, o mesmo da
   proposta; sem logo ou com falha, o nome); o RIPD leva a
   aprovacao derivada dos pedidos e o hash do conteudo (nao ha coluna de versao). Rotas em `src/routes/exportacao.ts`, em `FORA_DO_AGENTE`;
@@ -409,25 +466,55 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   Frente 3C (21/10/2026), saem no mesmo formato pt-BR (`montarCsv`: BOM, `;`, CRLF, cabecalho em portugues, rotulos de `exportacao.ts`).
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
-  metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`
+  metodo** formal (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. Quem RECEBE
+  questionario de homologacao e desacoplado do metodo (`PODE_QUESTIONARIO`: medio, pequeno e **critico**; grande provedor fica fora); a
+  avaliacao gerada pelo questionario grava metodo `questionario` mesmo no critico (cujo metodo formal e auditoria). `avaliacoes_terceiro`
   guarda o HISTORICO (resultado, `valido_ate` obrigatorio e futuro, link http(s) de evidencia) e a situacao e DERIVADA da mais recente
   (`situacaoDe`: pendente, vigente, vencida, reprovada). `documento_partes` liga documento a terceiro como DPA/contrato/outro (a spec pede
   `documentos.tipo = 'contrato'`; mudar esse CHECK reconstruiria `documentos` e quatro tabelas filhas). Efeitos do vencimento: fonte
   `avaliacao_terceiro` nos avisos de prazo (titulo com o numero de tratamentos que usam o terceiro) e
-  `terceiros_com_avaliacao_vencida` em `GET .../ropa/:rid/ligacoes`. Sem pedido de aprovacao da avaliacao ainda (o CHECK da 0055 ja aceita).
-  **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (o questionario do projeto; o modelo padrao generico
-  e semeado na primeira leitura, `origem = 'padrao'` = "a validar pelo consultor"; pergunta nao se apaga, desativa) e `homologacoes`
+  `terceiros_com_avaliacao_vencida` em `GET .../ropa/:rid/ligacoes` (pelo vinculo ou pelo Compartilhamento Externo, so organizacao ativa; o mesmo no `com_terceiro_vencido` do encarregado). Sem pedido de aprovacao da avaliacao ainda (o CHECK da 0055 ja aceita). **Quem grava (decisao de 09/11/2026):** tipo, criticidade e avaliacao sao da equipe da consultoria e do `org_admin` do proprio projeto (`podeAvaliar` em `src/routes/terceiros.ts`; `org_user`, `client` e chave de API recebem 403); o questionario segue so da equipe; o agente grava pela `niso_avaliar_fornecedor`. Fornecedor inativo nao recebe avaliacao nem questionario (409) e o link do questionario dele deixa de valer (o mesmo 404).
+  **Modelos da consultoria (migration 0106, spec `docs/superpowers/specs/2026-11-09-ciclo-avaliacao-fornecedor-design.md`, fatia 1):** o questionario
+  nao e mais do projeto: `fornecedor_modelos` e `fornecedor_modelo_perguntas` guardam UM modelo por tipo e organizacao (critico, medio e pequeno sao
+  o questionario; o grande provedor e o roteiro de conferencia do trust center), semeados na primeira leitura com as 12 perguntas genericas e os prazos
+  provisorios 12/24/36/12 meses, "a validar" (`src/services/fornecedor-modelos.ts`). O projeto HERDA o modelo vivo: so desliga pergunta dele
+  (`homologacao_ajustes`) e acrescenta as proprias (`homologacao_perguntas`, `origem = 'projeto'`, com `tipo` ou de todos); `perguntasDoEnvio` monta o
+  que `criarHomologacao` congela, pelo tipo do fornecedor, e grava `homologacoes.tipo`. Rotas da organizacao em `/api/v1/fornecedor-modelos` (`exigirOrg`;
+  le a equipe, grava o `consultoria_admin` da propria e o `platform_admin` por `X-Org-Id`; fora do agente) e, no projeto, `GET .../homologacoes/perguntas?tipo=`
+  e `PUT .../homologacoes/perguntas/modelo/:id` (o ajuste; agente pela `niso_avaliar_fornecedor`, acao `ajustar_questionario`). Telas: "Modelos de avaliacao
+  de fornecedor" em Conta e acessos (`views/modelos-fornecedor.js`) e Fornecedores > Questionarios no n.privacy (`views/questionarios-fornecedor.js`); o
+  botao "Perguntas do questionario" da lista saiu. A 0106 ja traz as colunas das fatias seguintes (`avaliacoes_terceiro.tipo_avaliado`,
+  `homologacoes.email_destino` e `lembrete_em`, com o gatilho `homologacao_email_some`).
+  **Validade e reavaliacao (fatia 2, sem migration):** `registrarAvaliacao` recusa (400) `valido_ate` alem de hoje + `prazo_meses` do modelo do tipo ATUAL
+  (`prazoDoTipo`/`somarMeses` em `src/services/fornecedor-modelos.ts`; vale para a manual, a conclusao do questionario e a importacao, que vira aviso) e grava
+  `tipo_avaliado`; `situacaoDe` ganhou `reavaliar` (avaliacao no prazo feita noutro tipo: nao conta como vigente, entra nas pendencias como "Avaliacao" e o
+  painel e o encarregado a contam como pendente, nao como atraso; nao gera aviso de vencimento; a conclusao do questionario grava o tipo do ENVIO, `homologacoes.tipo`). A ficha traz `validade_maxima` (a tela preenche e trava o campo) e "o tipo mudou de X
+  para Y"; a fila ganhou o grupo "Reavaliar: o tipo mudou".
+  **Critico com evidencia (fatia 3, sem migration):** no tipo ATUAL `critico`, `registrarAvaliacao` recusa (400) `aprovado` e `com_ressalvas` sem
+  `evidencia_url`; `reprovado` nao exige. Vale para a manual, a conclusao do questionario (`homologacaoConcluirSchema` aceita `evidencia_url`; a tela tem o
+  campo `tc-hm-ev`) e a importacao (vira aviso).
+  **Ciclo do link (fatia 4, sem migration):** `PUT .../homologacoes/:id/prazo` (`{ dias }` 1 a 60, contados de agora; so `aberta`, vencida sem resposta
+  inclusive; zera `lembrete_em`) e `POST .../homologacoes/:id/novo-link` (`{ dias?, email? }`: cria outra para o mesmo fornecedor com as perguntas atuais e
+  so entao cancela a aberta; se ela deixou de estar aberta no meio, a nova e cancelada e a resposta e 409), so a equipe; o agente pelas acoes
+  `prorrogar_homologacao` e `novo_link_homologacao` da `niso_avaliar_fornecedor`. `avisosDeHomologacao` (`src/services/homologacao.ts`) roda no cron das
+  08:00 ao lado de `avisosDePrazo` (`src/index.ts`) e nao usa `avisos_prazo`: sino da equipe (faixa privacy, `escolherDestinatarios`) `homologacao_vence`
+  (vence em ate 3 dias), `homologacao_vencida` (venceu sem resposta nos ultimos 7 dias) e `homologacao_parada` (respondida ha 2 dias ou mais), uma vez por
+  pessoa pelo `target_id` (homologacao e vencimento: prorrogar rearma); e UM lembrete por e-mail ao `email_destino` (`emailLembreteHomologacao`, sem o link,
+  `reply_to` de quem criou), reservado por `lembrete_em` antes do envio, so com `RESEND_API_KEY`. A fila de avaliacoes ganhou os grupos "Questionario
+  respondido, aguardando conclusao" e "Link vencido sem resposta" (de `GET .../homologacoes`, a frente da situacao); a ficha tem "Prorrogar" e "Novo link".
+  **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (desde a 0106 so as perguntas proprias do projeto; o semeio padrao
+  por projeto saiu; pergunta nao se apaga, desativa) e `homologacoes`
   (um envio por terceiro de tipo medio/pequeno: so o SHA-256 do token, `expira_em`, perguntas CONGELADAS (`perguntas_json` e o objeto `{perguntas, fornecedor, cliente}`: nome do fornecedor e do cliente tambem congelam na criacao; o array antigo e aceito e le o nome ao vivo, `lerCongelado`), respostas imutaveis depois do
   envio pelo gatilho `homologacao_imutavel`). Servico `src/services/homologacao.ts`; rotas `/projects/:id/homologacoes*` (faixa privacy;
   escrever e so da equipe, `ehEquipeNess`; o agente consultor escreve pela ferramenta `niso_avaliar_fornecedor`, com confirmacao e motivo) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
   (token no CORPO, 404 igual para inexistente/vencido/enviado/cancelado, limite por IP), pagina `frontend/public/homologacao.*`. Concluir
   (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
-  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado. O envio do fornecedor avisa no
+  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco fica em `homologacoes.email_destino` so enquanto a homologacao esta aberta (o gatilho `homologacao_email_some` o apaga), para o lembrete da fatia 4. O envio do fornecedor avisa no
   sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
   parte, e os MESMOS recebem e-mail (`emailHomologacaoRespondida`: fornecedor, % respondido, link `/privacy?tela=terceiros`; nunca token nem
   resposta; so a quem o sino acabou de avisar, entao nao repete); falha do aviso ou do e-mail vai ao log e nao derruba o envio.
-- **Criticidade do fornecedor (migration 0080, spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`)**: cinco respostas (impacto, exclusividade, risco financeiro, conformidade, risco reputacional) gravadas em `criticidades_terceiro` (histórico append-only, a última é a atual). O NÍVEL é derivado no servidor (`nivelDaCriticidade` em `src/services/criticidade.ts`: qualquer Alto → Alto, senão qualquer Médio → Médio, senão Baixo) e o tipo segue o nível (`tipoDaCriticidade`: Alto → crítico, Médio → médio, Baixo → pequeno), salvo `grande_provedor`, que é escolha manual. Rotas `GET|POST /projects/:id/terceiros/:parteId/criticidades`, faixa `privacy` pelo segmento `terceiros`; o agente registra pela ferramenta `niso_avaliar_fornecedor` (`registrar_criticidade`), com confirmacao e motivo. Bloco na ficha do terceiro (`frontend/src/views/terceiros.js`). Contagens de 2026-10-18: `npx vitest` nos arquivos `test/criticidade-terceiro*.test.ts` (16 testes) e `frontend/test/criticidade-terceiro-view.test.js` (7 testes).
-- **Documentos do legado (migration 0081, spec `docs/superpowers/specs/2026-10-19-paridade-legado-menu-design.md`, frente B)**: `documentos_arquivo` é um arquivo (PDF/DOC/DOCX até 10 MB, tipo conferido pelo conteúdo como nos anexos do gap) com nome, tipo, situação, vencimento ou "sem vencimento" e responsável; não é o documento versionado (políticas, `documentos`). Serviço `src/services/documentos-arquivo.ts`, rotas `/projects/:id/documentos-arquivo` (faixa `nucleo`; escrita fora do agente MCP), arquivo no R2 em `documentos-arquivo/<project_id>/<id>/<nome>`. O vencimento é a fonte `documento_arquivo` dos avisos de prazo. Tela `frontend/src/views/documentos-arquivo.js` (`#nav-documentos-arquivo`, só n.privacy, rótulo "Documentos"; no n.privacy os versionados aparecem como "Políticas"). `departamentos.descricao` (mesma migration) entra na tela Áreas. Contagens de 2026-10-19: `npx vitest run test/documentos-arquivo.test.ts` (8 testes) e `frontend/test/documentos-arquivo-view.test.js` (7 testes). **Como DPA e como cobertura (migration 0086, 27/10/2026):** o arquivo liga a fornecedor (`documentos_arquivo_partes`, papel `dpa`/`contrato`/`outro`, pela mesma rota `POST .../terceiros/:id/documentos` com `arquivo_id` no lugar de `documento_id`; desligar leva `?origem=arquivo`) e a requisito (`documentos_arquivo_requisitos`, `GET`/`PUT .../documentos-arquivo/:id/requisitos`). Só vale **publicado e com arquivo anexado** (`SQL_ARQUIVO_VALE`, `src/services/terceiros.ts`): `SQL_TEM_DPA`, o índice de confiança e a cobertura (`lacunasDaFonte`, origem `documento` com `arquivo: true`) usam a mesma regra; publicar, anexar, remover o arquivo ou apagar o documento refaz o índice do fornecedor. A mescla de partes move essas ligações; o agente MCP só lê (a rota recusa `arquivo_id` ao agente e `PUT .../documentos-arquivo/*` é `FORA_DO_AGENTE`). Teste: `test/documentos-arquivo-ligacoes.test.ts`.
+- **Criticidade do fornecedor (migration 0080, spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`)**: cinco respostas (impacto, exclusividade, risco financeiro, conformidade, risco reputacional) gravadas em `criticidades_terceiro` (histórico append-only, a última é a atual). O NÍVEL é derivado no servidor (`nivelDaCriticidade` em `src/services/criticidade.ts`: qualquer Alto → Alto, senão qualquer Médio → Médio, senão Baixo) e o tipo segue o nível (`tipoDaCriticidade`: Alto → crítico, Médio → médio, Baixo → pequeno), salvo `grande_provedor`, que é escolha manual. Rotas `GET|POST /projects/:id/terceiros/:parteId/criticidades`, faixa `privacy` pelo segmento `terceiros`; o agente registra pela ferramenta `niso_avaliar_fornecedor` (`registrar_criticidade`), com confirmacao e motivo. Bloco na ficha do terceiro (`frontend/src/views/terceiros.js`). Testes: `test/criticidade-terceiro*.test.ts` e `frontend/test/criticidade-terceiro-view.test.js`.
+- **Documentos do legado (migration 0081, spec `docs/superpowers/specs/2026-10-19-paridade-legado-menu-design.md`, frente B)**: `documentos_arquivo` é um arquivo (PDF/DOC/DOCX até 10 MB, tipo conferido pelo conteúdo como nos anexos do gap) com nome, tipo, situação, vencimento ou "sem vencimento" e responsável; não é o documento versionado (políticas, `documentos`). Serviço `src/services/documentos-arquivo.ts`, rotas `/projects/:id/documentos-arquivo` (faixa `nucleo`; escrita fora do agente MCP), arquivo no R2 em `documentos-arquivo/<project_id>/<id>/<nome>`. O vencimento é a fonte `documento_arquivo` dos avisos de prazo. Tela `frontend/src/views/documentos-arquivo.js` (`#nav-documentos-arquivo`, só n.privacy, rótulo "Documentos"; no n.privacy os versionados aparecem como "Políticas"). `departamentos.descricao` (mesma migration) entra na tela Áreas. Testes: `test/documentos-arquivo.test.ts` e `frontend/test/documentos-arquivo-view.test.js`. **Como DPA e como cobertura (migration 0086, 27/10/2026):** o arquivo liga a fornecedor (`documentos_arquivo_partes`, papel `dpa`/`contrato`/`outro`, pela mesma rota `POST .../terceiros/:id/documentos` com `arquivo_id` no lugar de `documento_id`; desligar leva `?origem=arquivo`) e a requisito (`documentos_arquivo_requisitos`, `GET`/`PUT .../documentos-arquivo/:id/requisitos`). Só vale **publicado e com arquivo anexado** (`SQL_ARQUIVO_VALE`, `src/services/terceiros.ts`): `SQL_TEM_DPA`, o índice de confiança e a cobertura (`lacunasDaFonte`, origem `documento` com `arquivo: true`) usam a mesma regra; publicar, anexar, remover o arquivo ou apagar o documento refaz o índice do fornecedor. A mescla de partes move essas ligações; o agente MCP só lê (a rota recusa `arquivo_id` ao agente e `PUT .../documentos-arquivo/*` é `FORA_DO_AGENTE`). Teste: `test/documentos-arquivo-ligacoes.test.ts`.
 - **RIPD com o questionário do legado (migration 0083, spec `docs/superpowers/specs/2026-10-26-ripd-questionario-design.md`)**: as respostas do questionário (abas Teste de Impacto, Conformidade e Armazenamento) ficam em `dpia_respostas` (PK `dpia_id`+`pergunta`, gatilho de projeto), **fora de `COLUNAS_DPIA` e do hash**: gravar resposta não derruba assinatura nem pedido (`test/ripd-questionario.test.ts` prova hash e situação intactos). Perguntas e abas em `src/data/ripd-perguntas.ts` (os textos do legado, `docs/superpowers/specs/2026-10-27-guia-legado-ripd-lia-perguntas.md`: 4 + 29 + 5 perguntas, todas em texto livre como no legado; nenhuma ficou marcada como parcial depois da confirmação do dono). A tela numera por aba e agrupa a Conformidade em "Perguntas 1 a 6", "7 a 16" e "17 a 29"; a pergunta das bases legais mostra, só leitura e nunca gravado, as bases LGPD da atividade, `base_legal` no GET); serviço `src/services/ripd-questionario.ts`; rotas `GET|PUT /projects/:id/dpia/:dpiaId/questionario` e `GET .../logs` em `src/routes/ripd-questionario.ts` (faixa `nucleo`). A sugestão `da_atividade` (operadores, local de armazenamento, volume mensal, dados sensíveis) é só leitura e nunca é gravada. Os eventos do RIPD gravam `audit_logs.entity_type = 'dpia'` (`logAudit`, 8º parâmetro) e a aba Logs lê só eles, sem texto livre nem motivo. O RIPD é uma página com abas (`frontend/src/views/ripd-ficha.js`, `?tela=ripd-ficha&dpia=&aba=`, `limparFichaDoEndereco`), não mais um modal; a aba Dados edita também `technical_measures`, `residual_risk_level`, `dpo_recommendations` e `data_category_risk` e avisa antes de salvar campo do hash num RIPD aprovado.
 - **LIA com as 23 perguntas do legado (migration 0084, spec `docs/superpowers/specs/2026-10-26-lia-12-perguntas-design.md`)**: as respostas (abas Finalidade, Necessidade e Proporcionalidade) ficam em `lia_respostas` (PK `ropa_id`+`pergunta`, gatilho de projeto); as colunas de `lia_assessments` continuam e são a aba Conclusão, e a regra de concluir não mudou (as 23 respostas não bloqueiam a conclusão). Perguntas em `src/data/lia-perguntas.ts` (7 de Finalidade, 5 de Necessidade e 11 de Proporcionalidade, texto exato do guia do legado, `docs/superpowers/specs/2026-10-27-guia-legado-ripd-lia-perguntas.md`; todas em texto livre), serviço `src/services/lia-questionario.ts`, rotas `GET|PUT /projects/:id/ropa/:rid/lia/questionario` e `GET .../lia/logs` (faixa `privacy`). Eventos da LIA gravam `audit_logs.entity_type = 'lia'`. Tela `frontend/src/views/lia-ficha.js` (`?tela=lia-ficha&ropa=&aba=`). O Word e o CSV de importação da LIA trazem as 23 respostas (colunas opcionais no modelo `lia`).
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
@@ -436,7 +523,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `parametros_legais` (global) guarda cada prazo com FONTE e REVISAO, editavel so pelo `platform_admin` com trilha; sem o valor o prazo e
   nulo ("nao calculado") e nada quebra. O prazo e CONGELADO no registro na criacao (`somarPrazo`: horas, dias corridos ou dias uteis, sem
   feriado). Avisos de prazo ganharam as fontes `titular_pedido` e `incidente` (um item por comunicacao pendente). Rotas:
-  `/api/v1/parametros-legais`, `/projects/:id/{titular-pedidos,incidentes,consentimentos}`; o agente registra e avalia; encerrar incidente (`niso_encerrar_incidente`) e revogar consentimento (`niso_registrar_revogacao`) sao decisoes com confirmacao e motivo; responder, negar, arquivar e prazo do pedido do titular sao do cliente. Portal publico e conector externo: fora (decisao de 09/10).
+  `/api/v1/parametros-legais`, `/projects/:id/{titular-pedidos,incidentes,consentimentos}`; o agente registra e avalia; `PUT .../incidentes/:id` corrige titulo, descricao, `ocorrido_em` e responsavel enquanto nao encerrado (a ciencia nao muda: os prazos contam dela; trilha `incidente.alterado` so com os nomes dos campos); a tela pede data e confirmacao antes de registrar a comunicacao, que nao se desfaz; **registro completo (migration 0098, fatia 1 da spec `docs/superpowers/specs/2026-11-04-incidentes-legado-design.md`):** colunas `origem_alerta`, `severidade` e `tipo` (listas fechadas em `src/schemas/nucleo.ts`), `comprometimento` e `criterios_risco` (JSON de chaves fechadas), `titulares_estimados` e `fim_em`, mais `incidente_departamentos` (areas), `incidente_dados` (titulares x dados do catalogo do RoPA) e `incidente_anexos` (evidencias PDF/DOC ate 5 MB, R2 `incidentes/<projeto>/<id>/`, fora do agente), todas com gatilho de projeto; o `PUT .../incidentes/:id` grava tudo numa transacao (listas enviadas substituem) e o rascunho de IA da comunicacao passa a contar titulares e dados afetados; **comunicacao a ANPD completa (migration 0099, fatia 2):** `anpd_canal` (`CANAIS_ANPD`), `anpd_protocolo` e `anpd_justificativa`; canal e protocolo vao no `POST .../comunicacoes` da ANPD (nunca no do titular) ou no `PUT` depois de registrada a comunicacao (antes, 409); a justificativa vale sempre; o protocolo interno `<protocolo>-COM01` e derivado (`anpd_protocolo_interno` no GET), sem coluna; o modelo de CSV `incidentes` (`src/services/importacao-modelos.ts`, amostra em `docs/modelos-importacao/incidentes.csv`) traz as colunas da 0058 obrigatorias e as da 0098 e 0099 opcionais; **acoes corretivas do incidente (migration 0100, fatia 4):** a mesma `corrective_actions` da CAPA, por `incidente_id`, nos dois modulos (`src/services/incidente-acoes.ts`; rotas `GET|POST .../incidentes/:id/acoes`, `PUT .../acoes/:acaoId` e os anexos em `.../acoes/:acaoId/anexos*`, a mesma `acao_anexos` do gap pelo `DonoDaAcao` de `src/services/ropa-abas/anexos.ts`, fora do agente); `tratamento` (contencao, correcao, aperfeicoamento), prazo opcional, protocolo `<protocolo>-PA01` derivado pela ordem de criacao, nada nasce sozinho; a acao segue depois do encerramento; concluir pelo agente so com `niso_concluir_acao`; a janela do incidente nao tem mais o "Abrir CAPA" so do n.iso; **pagina do incidente, analises e historico (migration 0101, fatia 3):** o incidente abre numa pagina com abas (`?tela=incidente-ficha&incidente=&aba=`, `renderIncidenteFicha` em `frontend/src/views/titular.js`: Registro, Analise, Acoes corretivas, Comunicacao, Post mortem e Historico), no lugar da janela; `incidente_analises` (varias por incidente, autor e data; so o autor altera a sua, 403 aos demais; encerrado nao muda, tambem pelos gatilhos de INSERT (0101) e de UPDATE (0102); `src/services/incidente-analises.ts`, rotas `GET|POST .../incidentes/:id/analises` e `PUT .../analises/:analiseId`); o historico e a trilha com `audit_logs.entity_type = 'incidente'` (todo `logAudit` de incidente, acao, anexo e analise leva o 8o parametro), lido por `GET .../incidentes/:id/historico` sem `justification` nem texto livre (do `details` so o que vem depois do protocolo, que o codigo grava sem texto livre) e exportado em `GET .../historico/csv` (pt-BR, `montarCsv`, fora do agente); **post mortem (migration 0103, fatia 5):** as 14 perguntas do legado em `src/data/incidente-postmortem.ts` (texto exato, ids estaveis), respostas em `incidente_postmortem` (`src/services/incidente-postmortem.ts`, `GET|PUT .../incidentes/:id/postmortem`, `null` ou branco apaga); abre so depois do encerramento (409 antes; os gatilhos da 0103 recusam tambem por SQL direto) e responder nao reabre; trilha `incidente.postmortem` so com quantas estao respondidas; **Word do incidente (fatia 7, sem migration):** `GET .../incidentes/:id/docx` (`incidenteEmWord` em `src/services/documento-word.ts`, rota em `src/routes/exportacao.ts`, fora do agente) com registro, risco, comunicacoes, analises, acoes, post mortem e os 100 eventos mais recentes do historico, lidos ao vivo pelos servicos das abas; antes do encerramento sai como RASCUNHO; botao "Baixar em Word" na pagina do incidente; encerrar incidente (`niso_encerrar_incidente`) e revogar consentimento (`niso_registrar_revogacao`) sao decisoes com confirmacao e motivo; responder, negar, arquivar e prazo do pedido do titular sao do cliente. **Portal publico do titular: ATIVO** (migration 0096, spec `docs/superpowers/specs/2026-11-03-portal-solicitacoes-titular-design.md`, revê a decisão de 09/10 só para o portal): link por projeto (`titular_portais`, só o SHA-256 do token; gerar/desativar em `/projects/:id/titular-portal`, equipe e `org_admin`), recepção pública `POST /api/v1/public/titular-pedidos/abrir` (token no corpo, limite por IP e por projeto, cria pedido `canal='formulario'`, devolve o protocolo; sem CPF no intake), página `/solicitacao` (`frontend/public/solicitacao.*`) e tratativas do atendimento (`titular_pedido_tratativas`, `/titular-pedidos/:id/tratativas`). **Identidade e ponto focal (migration 0104, spec `docs/superpowers/specs/2026-11-06-titular-identidade-encaminhamento-design.md`):** `PUT /titular-pedidos/:id/identidade` registra como a identidade foi conferida (`identidade_metodo` de lista fechada, observação sem número de documento, quem e quando carimbados; `src/services/titular-identidade.ts`); é só registro: responder sem ela só pede confirmação na tela. `GET|POST /titular-pedidos/:id/encaminhamentos` e `PUT .../encaminhamentos/:encId` encaminham o pedido a uma pessoa ativa do cadastro com e-mail (`titular_pedido_encaminhamentos`, `src/services/titular-encaminhamentos.ts`): e-mail `emailEncaminhamentoTitular` sem dado do titular, tratativa automática sem a mensagem, retorno ou cancelamento só de `aguardando`; fonte `encaminhamento_titular` nos avisos de prazo (só D0 e atraso). Gravar as duas coisas é da equipe e do `org_admin` (`podeAtender`); chave de API e agente recebem 403 e as rotas estão em `FORA_DO_AGENTE`. **Consulta pública pelo protocolo (migration 0105, spec `docs/superpowers/specs/2026-11-06-titular-consulta-protocolo-design.md`):** a abertura pelo portal gera um código de acompanhamento (16 símbolos sem ambíguos, `gerarCodigoAcompanhamento` em `src/services/titular-pedidos.ts`), devolvido só na resposta do `/abrir` e no e-mail do protocolo (link `/solicitacao#acompanhar=<protocolo>.<código>`); o banco guarda só o SHA-256 (`titular_pedidos.acompanhamento_hash`). `POST /api/v1/public/titular-pedidos/consultar` (protocolo e código no corpo, sem o token do portal, mesmo 404 para qualquer falha, limite por IP do portal) devolve só protocolo, tipo, status e as datas; nunca nome, contato, descrição nem resposta. Pedido sem código (registrado pelo DPO, importado ou anterior à 0105) não é consultável. O **conector externo segue fora**; o agente não opera o portal.
   **Quem grava (o cliente age, 15/10):** equipe e o `org_admin` do PROPRIO projeto registram e respondem o pedido do titular (status e
   resposta, inclusive a partir do rascunho de IA) e registram, avaliam e comunicam o incidente; `org_user` e `client` so leem (o allow-list
   de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). **Encerrar incidente e so da equipe da consultoria, no
@@ -450,11 +537,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
-  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (alternativa A do estudo `docs/design/diagnostico-2026-10-14/menu-privacy.md`;
-  `organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`): Painel no topo, cinco secoes FIXAS
-  (titulo que nao e botao e nao recolhe, itens em `ul`/`li`): Mapear (Tratamentos (RoPA), Importar programa), Cadastros (Pessoas, Areas e Sistemas, cada um a sua tela: `partes`, `areas` e `sistemas`;
-  Fornecedores, Titulares e dados pessoais), Avaliar (RIPD, LIA, Riscos, Gaps, Cobertura da LGPD), Responder (Pedidos do titular, Incidentes, Consentimentos, os tres abrem a tela titular na aba) e Provar
-  (Documentos, Evidencias, Treinamento, Papeis e comite), e o Assistente no fim. Minhas aprovacoes e Trilha de logs ficam no menu de conta
+  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy na ordem do legado
+  (`organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`; a lista de secoes e a fonte, leia la):
+  em 2026-11-05, Painel e Empresas no topo; Cadastros (Areas, Sistemas, Titulares, Dados de titular, Parceiros, Pessoas); Mapeamento (RoPA, DPIA, LIA);
+  Diagnostico (Gaps, Mapa de risco); Fornecedores (lista e avaliacoes); Documentos e Solicitacoes; "Mais" (Referencia juridica, Incidentes,
+  Consentimentos, Requisitos, Politicas, Evidencias, Treinamento, Papeis e comite, Importar programa); e o Assistente no fim. Titulos de secao nao
+  sao botao e nao recolhem; itens em `ul`/`li`. Minhas aprovacoes e Trilha de logs ficam no menu de conta
   (`#account-menu`) so no n.privacy (`FORA_DO_MENU_PRIVACY`). **Telas do legado (19/10/2026, sem migration):** Fornecedores (`views/terceiros.js`)
   e a lista dos terceiros com nivel de criticidade, DPA e atividades (vinculo ao tratamento e etapa Compartilhamento Externo, sem
   duplicar) e a ficha em pagina propria (`?tela=terceiro&parte=&aba=`) com sete abas; a aba Seguranca edita o perfil de `vendors`
@@ -468,8 +556,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   abaixo (Frontend, n.360).
 - **n.iso e n.privacy sao MODULOS do n.360 sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060; casca n.360 em 11/10).**
   Um Worker, um banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como
-  redirecionamento, ver URL canonica). O cliente pode ter um, o outro ou os dois. (Comentarios antigos no codigo ainda dizem
-  "produtos separados"; e o mesmo modelo.) **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
+  redirecionamento, ver URL canonica). O cliente pode ter um, o outro ou os dois. **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
   `SUBROTAS_PRIVACY`): `nucleo` (o cadastro compartilhado: partes, itens, documentos, evidencia, RoPA, DPIA, pedidos, governanca),
   `iso` (controles, SoA, riscos, auditorias, jornada…) ou `privacy` (requisitos por projeto, terceiros, titular, incidentes,
   consentimentos, encarregado, ligacoes/LIA/importacao do RoPA). O `projectAccessMiddleware` e o `requireResourceAccess` (pela
@@ -568,7 +655,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   O pseudonimo usa uma subchave (`HMAC(TOKEN_ENC_KEY, "n.iso/importacao/titular_ref/v1")`), nao a chave de cifra direto. Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
   sem ele, `recusado`). Duplicata: pedido pelo protocolo de origem; incidente pelo protocolo de origem ou titulo e dia da ciencia;
   consentimento pelo pseudonimo, finalidade e data.
-  **Legado (F6, migration 0076; plano `docs/superpowers/plans/2026-10-15-f6-importacao-legado.md`):** entidades `risco`, `gap`, `impacto`,
+  **Legado (F6, migration 0076; plano `docs/arquivo/planos/2026-10-15-f6-importacao-legado.md`):** entidades `risco`, `gap`, `impacto`,
   `ciclo` e `bases` (CHECK ampliado por rebuild de `importacao_itens`, mais a coluna `aviso`, que guarda o aviso da gravacao). Gravacao por
   `GRAVAR_DA_ATIVIDADE` com os servicos da F1 a F3 (`criarRisco`, `criarAcao`, `salvarImpacto`, `salvarCiclo`, `salvarBases`); atividade pela
   finalidade normalizada (sem ela, `recusado`); responsavel (pessoa), ativo e sistema por nome, sem criar nada (aviso). **A importacao nunca
@@ -655,7 +742,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
   **O agente decide como o consultor (spec `docs/superpowers/specs/2026-10-23-agente-decide-como-consultor-design.md`).** O catalogo das decisoes
-  (10 ferramentas, 35 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-10-25: 35) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
+  (12 ferramentas, 42 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-09: 42) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
   `resolverAgente` (`src/middleware/agente.ts`): a rota de decisao exige os cabecalhos `X-Agente-Ferramenta`, `X-Agente-Confirmado: 1` (so o booleano `true` em
   `confirmado_pelo_usuario`) e `X-Agente-Motivo` (1 a 500 caracteres); valendo, o principal ganha `agente_decisao` e `ehEquipeNess` o aceita naquela rota e so nela.
   A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre
@@ -668,9 +755,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Sem i18n.** O produto e PT-BR. Comentario, mensagem de erro e texto de UI em
   portugues. A camada de traducao foi removida por decisao explicita.
 - **Sem alternancia de tema.** Um tema so, o escuro da marca.
+- **Backup do D1 = Time Travel (decisao do dono, 05/11/2026), ate haver volume de dados.** Sem backup diario automatico (o `db-backup.yml`
+  segue desligado); a recuperacao e o Time Travel do D1 (`npx wrangler d1 time-travel info niso-db`, restauracao por
+  `wrangler d1 time-travel restore`), e o `npm run db:backup` manual continua obrigatorio antes de toda migration. Rever quando o volume crescer.
 - **Sem framework no frontend.** Vanilla e decisao, nao divida.
 - **Responsividade fora de escopo** ate segunda ordem.
-- **Equalizacao n.iso x n.privacy (20/10/2026, `docs/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e
+- **Equalizacao n.iso x n.privacy (20/10/2026, `docs/arquivo/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e
   aparece do mesmo jeito nos dois modulos: (1) RIPD aprovado PERDE a aprovacao quando o conteudo muda, como atividade e documento;
   (2) aceite de risco e um modelo so, `status = Accepted` carimbado no servidor (quem e quando), nos dois modulos; (3) o DPA do
   fornecedor tem fonte unica, o documento ligado em `documento_partes` (papel `dpa`), e `vendors.dpa_signed` passa a ser derivado
@@ -683,7 +773,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   impacto, probabilidade ou residual de risco aceito o devolve a `Open` sem o aceite (`aceiteCaiu`, trilha `risk.aceite_invalidado`); sair de `Accepted` por `status` tambem limpa `accepted_by`, `accepted_at` e `aceite_manual` e grava `risk.aceite_invalidado`; botao
   "Aceitar risco" nos dois modulos (`frontend/src/aceite-risco.js`); a migration 0082 levou o aceite digitado antigo a `Accepted` com
   `risks.aceite_manual = 1` ("Aceite registrado a mao"). (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
-  `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`); o indice de confianca, a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
+  `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`; o documento versionado so vale VIGENTE, `SQL_VERSIONADO_VALE`, como o em arquivo so publicado); o indice de confianca (calculado na leitura na lista do n.iso e na ficha), a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
   `dpa_url` ficam so como historico ("DPA declarado, sem documento", sem os 10 pontos); ligar e desligar documento do terceiro
   (`/terceiros/:parteId/documentos*`) e faixa `nucleo` (`SUBROTAS_NUCLEO` em `src/modulos.ts`) e recalcula o indice.
 
@@ -692,7 +782,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - O catch-all estatico (`c.env.ASSETS.fetch`) DEVE ser a ultima rota em
   `src/index.ts`.
 - `authMiddleware` roda antes das rotas `/api/v1/*`; `projectAccessMiddleware`
-  logo apos, em `/api/v1/projects/:projectId/*`. Rotas realmente publicas (auth,
+  logo apos, em `/api/v1/projects/:projectId/*`. **O D1 fica em ENAM e os usuarios no Brasil (#369):** cada consulta e uma viagem
+  longa. As leituras que o `authMiddleware` faz em toda requisicao vao num `db.batch` so (`lerChecagens` em `src/middleware/auth.ts`,
+  com volta ao caminho uma a uma se o batch falhar); leitura nova de toda requisicao entra nesse batch, nunca em `await` proprio
+  (`test/auth-idas-ao-banco.test.ts` conta as viagens). O Worker usa Smart Placement (`"placement"` no `wrangler.jsonc`). Rotas realmente publicas (auth,
   public) sao montadas antes do `authMiddleware`.
 - Chave de API autoriza escrita pelo campo `permissions` (`write`/`admin`), nao
   pelo allow-list — este existe para papeis **humanos** read-only. Ver o
@@ -717,33 +810,32 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **495 `any` em `src/`** (medido em 2026-10-25, fora `*.test.ts`:
+- **493 `any` em `src/`** (medido em 2026-11-10, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 328 arquivos de teste do backend mocka o D1 inteiro** (2026-10-18;
+- **Nenhum dos 424 arquivos de teste do backend mocka o D1 inteiro** (2026-11-05;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
   nao aceita (`api.test.ts`) e Proxy sobre o D1 real para simular erro ou corrida
   (`erro-sem-vazamento`, `pedidos-corrida`, `revisao-final-decididos`, `avisos-prazo`, `politica-escritores`,
-  `modulos-ligar-privacy`, entre outros; em 2026-10-14 o comando abaixo casa 18 linhas em 12 arquivos, todas
+  `modulos-ligar-privacy`, entre outros; em 2026-11-05 o comando abaixo casa 24 linhas em 15 arquivos, todas
   dubles pontuais ou parametro com nome `DB`). Medicao:
   `git grep -nE "prepare\s*[:(]\s*(vi\.fn|\(|async)|\bDB\s*:" -- test` e conferir
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~20,7 mil linhas de JS (2026-10-18)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 142 arquivos de teste em jsdom
-  (`ls frontend/test/*.test.js | wc -l`) e 8 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 38 telas de `frontend/src/views/` (2026-10-18) sao
-  importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
-  nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
+- **Frontend com pouco teste por linha.** ~24,3 mil linhas de JS (2026-11-05)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 178 arquivos de teste em jsdom
+  (`ls frontend/test/*.test.js | wc -l`) e 15 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
+  que rodam no portao local. `test/e2e/mfa.py` e legado, fora do CI. As 56 telas de `frontend/src/views/` (2026-11-05) sao
+  importadas por ao menos um teste (`for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
+  imprime so as quatro sub-telas do n.ot, `ot-agente`, `ot-coleta`, `ot-levantamento` e `ot-saidas`, que os testes `frontend/test/ot-*.test.js` alcancam pela `views/ot.js`), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, todas acima de 1.800 linhas)
   tem teste so de fatias.
-- **6 leituras de corpo cruas em 4 arquivos** (2026-10-12: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`
-  da 7 linhas em 5 arquivos; a de `policies.ts` passa o corpo por `safeParse` e nao conta): `control-adequacao`,
+- **7 leituras de corpo cruas em 5 arquivos** (2026-11-05: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`): `auth` (o `/criar-senha` rele o corpo so para conferir o token depois que o `validateBody` recusou), `control-adequacao`,
   `controls` (le so para recusar `maturity`, depois `validateBody`), `phase-questionnaire` e
   `scim` (3, formato SCIM). Elas validam campo a campo no handler; o `bodyGuard` global cobre
   teto de tamanho e poluicao de prototipo. O T3 (#259) fechou as demais.
@@ -754,7 +846,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   reabrem o buraco.
 - **Direitos do titular nao cobrem PII em texto livre.** A busca e por igualdade
   em colunas conhecidas (`FONTES_PII` em `src/services/data-subject.ts`).
-- **`npm audit` esta em zero nos tres pacotes** (2026-10-25: `npm audit` na raiz, em `frontend` e em `mcp-server-niso`). Presos
+- **`npm audit` esta em zero nos tres pacotes** (2026-11-05: `npm audit` na raiz, em `frontend` e em `mcp-server-niso`; o `@hono/node-server` do `mcp-server-niso` subiu para 2.1.6 pelo aviso GHSA-rmxm-3fg6-px4f). Presos
   por `overrides`: na raiz `undici`, `body-parser`, `fast-uri`, `zod`, `vite`, `ip-address`, `sharp` e os pacotes MCP (puxados pelo
   `agents` e pelo pool de testes); no `frontend`, `undici` (puxado pelo `jsdom`). O npm 10 desta maquina quebra no `npm install` com
   `overrides` (`Cannot read properties of null (reading 'edgesOut')`): regenere o lock com `npx -y npm@11 install`. O job `audit` do
@@ -808,16 +900,16 @@ errar um digito destruia a sessao.
   inline (`git grep -nE "border-radius:\s*[1-9][0-9.]*(px|rem)" -- frontend/src` nao imprime nada); so os circulos de
   50%. Inline so `0` (`frontend/test/catracas-visuais.test.js`); novo nasce quadrado.
 - Estilo inline so para valor calculado; o resto usa as classes do fim de `frontend/src/style.css` (componentes e
-  utilitarios sobre tokens). A catraca trava o teto de `style=` por arquivo: 1.002 no frontend em 2026-10-15
+  utilitarios sobre tokens). A catraca trava o teto de `style=` por arquivo: 795 no frontend em 2026-11-05
   (`git grep -o "style=" -- 'frontend/src/*.js' 'frontend/src/views/*.js' | wc -l`), eram 1.740; nas quatro telas
-  grandes, 249 (eram 973).
+  grandes, 176 (eram 973).
 - Login: tela dividida — marca à esquerda, cartão à direita; empilha abaixo
   de 900px.
 
 ## Documentos que valem a leitura
 
 - `docs/README.md` — indice da documentacao; `docs/arquivo/` guarda o que ja foi executado
-- `docs/plano-2026-10-fechamento.md` — foto de 08/10 do plano de outubro, com as pendencias do dono (H2, F2, F4, F5, T5)
+- `docs/estado-2026-11-05.md` — o estagio do projeto, os riscos abertos e os proximos passos (do dono, decisoes e o que construir); a foto anterior e o plano de outubro estao em `docs/arquivo/`
 - `docs/superpowers/specs/` — o desenho vigente de cada funcionalidade grande (n.360, modulos por pessoa, importacao,
   integracao, nucleo do n.privacy); plano executado vai para `docs/arquivo/planos/`
 - `docs/design/diagnostico-2026-10-12/` — diagnostico de design do n.360, do n.iso e do n.privacy

@@ -44,7 +44,7 @@ export     function navigate(view, data) {
         if (produto === 'privacy' && targetView === 'vendors') targetView = 'terceiros';
         
         // A ficha do fornecedor vive no endereço; qualquer outra tela a tira de lá.
-        if (targetView !== 'terceiro' && targetView !== 'ripd-ficha' && targetView !== 'lia-ficha') limparFichaDoEndereco();
+        if (!['terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha'].includes(targetView)) limparFichaDoEndereco();
         S.view = targetView;
         if (data) Object.assign(S, data);
         atualizarSeletorDeModulo(); // só aparece no Painel do módulo
@@ -65,6 +65,7 @@ export     function navigate(view, data) {
             : targetView === 'terceiro' ? 'nav-terceiros'
             : targetView === 'ripd-ficha' ? 'nav-dpia'
             : targetView === 'lia-ficha' ? 'nav-lia'
+            : targetView === 'incidente-ficha' ? (produto === 'iso' ? 'nav-incidentes' : 'nav-incidentes-privacy')
             // O id inteiro vence o prefixo: 'audit-trail' é nav-audit-trail (nav-audit não existe).
             : document.getElementById(`nav-${targetView}`) ? `nav-${targetView}` : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);
@@ -110,6 +111,8 @@ export     function navigate(view, data) {
         else if (S.view === 'terceiros') renderTerceiros(c, h, a);
         else if (S.view === 'terceiro') renderTerceiro(c, h, a);
         else if (S.view === 'avaliacoes-terceiros') renderAvaliacoesTerceiros(c, h, a);
+        else if (S.view === 'questionarios-fornecedor') window.renderQuestionariosFornecedor(c, h, a);
+        else if (S.view === 'modelos-fornecedor') window.renderModelosFornecedor(c, h, a);
         else if (S.view === 'titulares') renderTitulares(c, h, a);
         else if (S.view === 'dados-titular') renderDadosTitular(c, h, a);
         else if (S.view === 'parceiros') renderParceiros(c, h, a);
@@ -117,6 +120,7 @@ export     function navigate(view, data) {
         else if (S.view === 'mapa-de-risco') renderMapaDeRisco(c, h, a);
         else if (S.view === 'gaps') renderGaps(c, h, a);
         else if (S.view === 'lia') renderLia(c, h, a);
+        else if (S.view === 'ot') renderOt(c, h, a);
         else if (S.view === 'titular') renderTitular(c, h, a);
         else if (S.view === 'encarregado') renderEncarregado(c, h, a);
         else if (S.view === 'importacao') renderImportacao(c, h, a);
@@ -126,6 +130,7 @@ export     function navigate(view, data) {
         else if (S.view === 'dpia') renderDPIA(c, h, a);
         else if (S.view === 'ripd-ficha') renderRipdFicha(c, h, a);
         else if (S.view === 'lia-ficha') renderLiaFicha(c, h, a);
+        else if (S.view === 'incidente-ficha') window.renderIncidenteFicha(c, h, a);
         else if (S.view === 'audits') renderAudits(c, h, a);
         else if (S.view === 'capa') renderCAPA(c, h, a);
         else if (S.view === 'evidence') renderEvidence(c, h, a);
