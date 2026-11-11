@@ -767,6 +767,16 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(SUBS.operacao).toEqual(['saude', 'desvios', 'inventario']);
     });
 
+    it('Saúde da coleta do site: só o cartão de saúde, sem pontos nem contagem de desvios do projeto', async () => {
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] } });
+        await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
+        await vi.waitFor(() => expect(el('c').textContent).toContain('Saúde da coleta'));
+        await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
+        expect(el('c').textContent).not.toContain('Pontos a esclarecer');
+        expect(el('c').textContent).not.toContain('desvio');
+        expect(chamadas.some((x) => x.k === `GET ${B}/sensores/pontos` || (x.k === `GET ${B}/desvios` && x.url.search.includes('contagem')))).toBe(false);
+    });
+
     it('sub-aba de outro modo cai na primeira do modo; site desconhecido mostra o aviso', async () => {
         servirOt(ROTAS);
         await ir({ site: 's1', modo: 'operacao', sub: 'base' });

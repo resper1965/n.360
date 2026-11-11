@@ -81,7 +81,7 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     else if (sub === 'desvios') await montarDesvios(painel, a, p, { ...o, destacar: desvio });
     else {
         painel.innerHTML = `<div id="ot-cartoes-slot"></div>${await areaSondas(p, [s])}`;
-        await preencherCartoes(p, [s]);
+        await preencherCartoes(p, [s], { soSaude: true });
     }
 }
 
