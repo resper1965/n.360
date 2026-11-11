@@ -91,17 +91,18 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
   await expect(page).toHaveURL(/\/privacy$/);
   const menu = page.locator('#sidebar');
   await expect(menu.locator('#nav-titular')).toContainText('Solicitações');
-  await expect(menu.locator('#nav-encarregado')).toContainText('Dashboard');
+  await expect(menu.locator('#nav-encarregado')).toContainText('Painel');
   await expect(menu.locator('#selo-titular')).toHaveAttribute('aria-label', '4 pedidos vencidos ou a vencer em 7 dias, 1 atrasado');
   await expect(menu.locator('#selo-painel')).toHaveText('1');
   await expect(menu.locator('#selo-terceiros')).toHaveText('2');
   await expect(menu.locator('#selo-incidentes')).toBeHidden();
   expect(visao).toEqual([]);
-  for (const secao of ['Cadastros', 'Mapeamento', 'Diagnóstico', 'Mais']) await expect(menu.getByText(secao, { exact: true })).toBeVisible();
+  for (const secao of ['Cadastros', 'Mapeamento', 'Diagnóstico', 'Atendimento', 'Mais']) await expect(menu.getByText(secao, { exact: true })).toBeVisible();
   await expect(menu.locator('#secao-fornecedores')).toHaveText('Fornecedores');
-  // tudo à vista, sem abrir grupo: Documentos, Políticas e normas e Consentimentos a um clique
-  await expect(menu.locator('#nav-documentos-arquivo')).toContainText('Documentos');
-  await expect(menu.locator('#nav-documentos')).toContainText('Políticas e normas');
+  await expect(menu.locator('#secao-documentos')).toHaveText('Documentos');
+  // tudo à vista, sem abrir grupo: Arquivos, Políticas e Consentimentos a um clique
+  await expect(menu.locator('#nav-documentos-arquivo')).toContainText('Arquivos');
+  await expect(menu.locator('#nav-documentos')).toContainText('Políticas');
   await expect(menu.locator('#nav-consentimentos')).toBeVisible();
   await expect(menu.locator('#nav-meus')).toBeHidden();
   await expect(menu.locator('#nav-audit-trail')).toBeHidden();

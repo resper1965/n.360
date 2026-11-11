@@ -89,9 +89,9 @@ describe('n.iso e n.360: o menu não muda com a alternativa A do n.privacy', () 
     });
 });
 
-describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
+describe('n.privacy: menu em seções fixas (legado de 19/10/2026, revisto em 11/11/2026)', () => {
     const itensDe = (ul) => [...ul.querySelectorAll(':scope > li > .sidebar-nav')].map((n) => n.id);
-    it('na ordem do legado: Dashboard e Empresas, Cadastros, Mapeamento, Diagnóstico, Fornecedores, Documentos e Solicitações, Mais e o Assistente no fim', () => {
+    it('Painel e Empresas, Cadastros, Mapeamento, Diagnóstico (com a Cobertura da LGPD), Fornecedores, Atendimento, Documentos, Mais e o Assistente no fim', () => {
         montarApp();
         aplicarCasca('privacy');
         const caixa = el('secoes-privacy');
@@ -101,10 +101,11 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             'nav-encarregado nav-empresas',
             '# Cadastros', 'nav-areas nav-sistemas nav-titulares nav-dados-titular nav-parceiros nav-partes',
             '# Mapeamento', 'nav-ropa nav-dpia nav-lia',
-            '# Diagnóstico', 'nav-gaps nav-mapa-de-risco',
+            '# Diagnóstico', 'nav-requisitos nav-gaps nav-mapa-de-risco',
             '# Fornecedores', 'nav-terceiros nav-avaliacoes-terceiros nav-questionarios-fornecedor',
-            'nav-documentos-arquivo nav-titular',
-            '# Mais', 'nav-referencia-juridica nav-incidentes-privacy nav-consentimentos nav-requisitos nav-documentos nav-evidence nav-training nav-governance nav-importacao',
+            '# Atendimento', 'nav-titular nav-incidentes-privacy nav-consentimentos',
+            '# Documentos', 'nav-documentos-arquivo nav-documentos',
+            '# Mais', 'nav-referencia-juridica nav-evidence nav-training nav-governance nav-importacao',
             'nav-ai',
         ]);
         expect(el('secao-diagnostico').textContent).toBe('Diagnóstico');
@@ -124,7 +125,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             expect(t.hasAttribute('aria-expanded'), t.textContent).toBe(false);
             expect(t.nextElementSibling.getAttribute('aria-labelledby')).toBe(t.id);
         }
-        expect(document.querySelectorAll('.sidebar-secao').length).toBe(5);
+        expect(document.querySelectorAll('.sidebar-secao').length).toBe(7);
         // nenhum rótulo de grupo (acordeão) sobra no menu do n.privacy
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
@@ -143,7 +144,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         aplicarCasca('privacy');
         aplicarCasca('privacy');
         expect(document.querySelectorAll('#secoes-privacy').length).toBe(1);
-        expect(document.querySelectorAll('.sidebar-secao').length).toBe(5);
+        expect(document.querySelectorAll('.sidebar-secao').length).toBe(7);
     });
     it('n.iso não mostra Implantação nem Consentimentos', () => {
         montarApp();
@@ -160,10 +161,10 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         aplicarCasca('privacy');
         const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
         expect(Object.fromEntries([...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => [n.id, texto(n.id)]))).toEqual({
-            'nav-encarregado': 'Dashboard', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
-            'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'DPIA', 'nav-lia': 'LIA',
-            'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
-            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas e normas',
+            'nav-encarregado': 'Painel', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
+            'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'RIPD', 'nav-lia': 'LIA',
+            'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários', 'nav-documentos-arquivo': 'Arquivos', 'nav-titular': 'Solicitações',
+            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
             'nav-evidence': 'Evidências', 'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-importacao': 'Importar programa', 'nav-ai': 'Assistente',
         });
         for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {

@@ -48,7 +48,7 @@ describe('Documentos', () => {
     it('lista Nome, Tipo, Vencimento e Status, escapando o nome', async () => {
         const [c, h, a] = montar();
         await window.renderDocumentosArquivo(c, h, a);
-        expect(h.textContent).toBe('Documentos');
+        expect(h.textContent).toBe('Arquivos');
         expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/documentos-arquivo');
         expect([...c.querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Nome', 'Tipo', 'Responsável', 'Vencimento', 'Status', 'Ações']);
         const l = linhas(c);

@@ -38,7 +38,7 @@ const RESULTADO = { aprovado: 'Aprovado', com_ressalvas: 'Aprovado com ressalvas
 const CAMPOS_TERCEIRO = [['nome', 'Nome', 200], ['cnpj', 'CNPJ', 30], ['contato', 'Contato', 200], ['dpa', 'DPA (nome do documento)', 300]];
 // Documentos e avaliações (fatia 3): os tipos da tabela de documentos; DPIA e LIA dividem a aba.
 const TIPO_DOCUMENTO = { politica: 'Política', norma: 'Norma', procedimento: 'Procedimento' };
-const AVALIACAO = { dpia: 'DPIA', lia: 'LIA' };
+const AVALIACAO = { dpia: 'RIPD', lia: 'LIA' };
 // Histórico (fatia 4): os mesmos rótulos da tela do titular (views/titular.js); as três entidades dividem a aba.
 const HISTORICO = { titular_pedido: 'Pedido', incidente: 'Incidente', consentimento: 'Consentimento' };
 const TIPOS_PEDIDO = { confirmacao: 'Confirmação de tratamento', acesso: 'Acesso aos dados', correcao: 'Correção', anonimizacao_bloqueio_eliminacao: 'Anonimização, bloqueio ou eliminação', portabilidade: 'Portabilidade',
@@ -135,7 +135,7 @@ function htmlLista() {
         e(l.arquivos), e(l.itens), l.status === 'cancelada' ? '' : `<button class="btn btn-ghost btn-sm" data-action="importacaoAbrir" data-args='${args(l.id)}'>Abrir</button>`,
     ]);
     return `
-        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos, a lista de terceiros, as políticas e normas, as DPIAs e LIAs e os riscos, o plano de ação, o teste de impacto, o ciclo de vida, as bases legais e o histórico de pedidos de titulares, incidentes e consentimentos que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
+        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos, a lista de terceiros, as políticas e normas, os RIPDs e LIAs e os riscos, o plano de ação, o teste de impacto, o ciclo de vida, as bases legais e o histórico de pedidos de titulares, incidentes e consentimentos que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
         <p style="margin:0 0 1rem;color:var(--text-dim)">Migração do sistema anterior: um CSV com o cabeçalho de um dos modelos (tratamentos, terceiros, riscos, gaps, impacto, ciclo, bases, ripd, lia, pedidos) entra direto, sem IA, com a mesma revisão antes de gravar. Os modelos e o roteiro estão no runbook de migração do legado.</p>
         ${window.renderDataTable(['Importação', 'Situação', 'Arquivos', 'Itens propostos', 'Ações'], linhas, { emptyState: 'Nenhuma importação neste projeto.' })}`;
 }
@@ -234,11 +234,11 @@ function htmlAvaliacoes(itens, ativo) {
             ['Conclusão', d.conclusao], ['Riscos', (d.riscos || []).join('; ')], ...(SECOES_AVALIACAO[entidade(i)] || []).map(([k, r]) => [r, d[k]]),
             ['Risco residual', d.risco_residual && (RESIDUAL[d.risco_residual] || d.risco_residual)],
         ].filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ')}</div>${rodapeItem(i)}`;
-        const [destino, rotulo] = entidade(i) === 'lia' ? ['ropa', 'Ver no RoPA'] : ['dpia', 'Ver DPIAs'];
+        const [destino, rotulo] = entidade(i) === 'lia' ? ['ropa', 'Ver no RoPA'] : ['dpia', 'Ver RIPDs'];
         return [resumo, badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, destino, rotulo), acoesItem(i, ativo)];
     });
-    return `<p style="margin:0 0 0.5rem;color:var(--text-dim)">A avaliação é ligada ao tratamento do RoPA com a mesma finalidade; sem ele, é recusada. DPIA e LIA nascem em rascunho.</p>`
-        + barraAlta(itens) + window.renderDataTable(['Avaliação proposta', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhuma avaliação proposta. Envie DPIAs ou LIAs e clique em Processar.' });
+    return `<p style="margin:0 0 0.5rem;color:var(--text-dim)">A avaliação é ligada ao tratamento do RoPA com a mesma finalidade; sem ele, é recusada. RIPD e LIA nascem em rascunho.</p>`
+        + barraAlta(itens) + window.renderDataTable(['Avaliação proposta', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhuma avaliação proposta. Envie RIPDs ou LIAs e clique em Processar.' });
 }
 
 function htmlItens(itens, ativo) {

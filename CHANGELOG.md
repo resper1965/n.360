@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.privacy: menu reorganizado
+- Nova seção **Atendimento**, à vista, com Solicitações, Incidentes e Consentimentos: o que tem prazo legal saiu do "Mais".
+- A **Cobertura da LGPD** abre o Diagnóstico, junto de Gaps e Riscos.
+- Nova seção **Documentos**, com Arquivos (o antigo item "Documentos") e Políticas lado a lado.
+- O menu passa a dizer **RIPD**, como a lista, a página e o Word já diziam; a tela de importação também. "Dashboard" vira **Painel**.
+- No "Mais" ficam só Referência jurídica, Evidências, Treinamento, Papéis e comitê e Importar programa. Nada muda no servidor, nas rotas nem nos selos de pendência.
+
 ### Limpeza: quatro tabelas sem uso
 - Saem do banco `project_documents`, `project_scope_changes`, `ai_chat_history` e `project_knowledge` (migration 0109). Nenhum código as usava: as duas primeiras nunca foram gravadas, o chat nunca guardou conversa e a base de conhecimento ficou órfã quando a busca vetorial saiu, em 06/10. As 4 linhas antigas que restavam ficam no backup feito antes da migration.
 - A retenção de 180 dias do histórico de chat sai da manutenção diária junto com a tabela.

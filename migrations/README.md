@@ -760,6 +760,14 @@ Nenhum código as usava e nenhuma tabela as referencia; a retenção de `ai_chat
 10/11/2026, tinham 0, 0, 2 e 2 linhas; as 4 linhas ficam só no backup feito antes da migration (decisão do dono). **Destrutiva:** o
 backup antes é obrigatório. Conferência depois:
 `SELECT name FROM sqlite_master WHERE tbl_name IN ('project_documents','project_scope_changes','ai_chat_history','project_knowledge')` (0 linhas).
+Aplicada em produção em 10/11/2026, com backup antes (`npm run db:backup`; ponto do Time Travel anterior à migration:
+`00000f0f-00000000-0000511f-cd9be68894bcd8e080ffc4f8b2abec27`). Conferência (`npx wrangler d1 execute niso-db --remote`), saída de 10/11/2026:
+
+```
+SELECT count(*) FROM sqlite_master WHERE tbl_name IN ('project_documents','project_scope_changes','ai_chat_history','project_knowledge')  -> 0
+SELECT name FROM d1_migrations WHERE name LIKE '0109%'   -> 0109_tabelas_sem_uso.sql
+npx wrangler d1 migrations list niso-db --remote          -> No migrations to apply!
+```
 
 ## 0108 — desvios do n.ot (2026-11-09)
 

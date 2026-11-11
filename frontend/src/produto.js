@@ -227,28 +227,30 @@ export function abrirGrupo(grupo, doc = document) {
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
 
-// Rótulos do n.privacy, uma linha cada, os do legado (decisão de 19/10/2026). Só aqui: o n.iso e o n.360 ficam com os deles; os
-// ids nav-* e as rotas não mudam.
+// Rótulos do n.privacy, uma linha cada (os do legado de 19/10/2026, revistos em 11/11/2026: Painel, RIPD, Arquivos e Políticas). Só aqui:
+// o n.iso e o n.360 ficam com os deles; os ids nav-* e as rotas não mudam.
 export const ROTULOS_PRIVACY = {
-    'nav-encarregado': 'Dashboard', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
-    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
-    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos',
+    'nav-encarregado': 'Painel', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
+    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
+    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos', 'nav-documentos-arquivo': 'Arquivos', 'nav-documentos': 'Políticas',
 };
 
 /**
- * Menu do n.privacy na ordem do legado (spec 2026-10-19; só aqui, o n.iso e o n.360 não mudam): Dashboard e Empresas no topo,
- * cinco seções FIXAS, Documentos e Solicitações soltos antes do "Mais" e o Assistente no fim. O título de seção não é botão e não
- * recolhe: tudo fica à vista. Os itens são os mesmos `.sidebar-nav` de sempre, movidos para `ul`/`li`; os grupos de onde saíram
- * ficam vazios e somem.
+ * Menu do n.privacy (só aqui, o n.iso e o n.360 não mudam). Parte da ordem do legado (spec 2026-10-19), revista em 11/11/2026: o
+ * atendimento com prazo legal (Solicitações, Incidentes, Consentimentos) fica numa seção à vista, a Cobertura da LGPD abre o
+ * Diagnóstico e Arquivos e Políticas ficam juntos; no "Mais" sobra o que é consulta ou configuração. Painel e Empresas no topo, sete
+ * seções FIXAS e o Assistente no fim. O título de seção não é botão e não recolhe: tudo fica à vista. Os itens são os mesmos
+ * `.sidebar-nav` de sempre, movidos para `ul`/`li`; os grupos de onde saíram ficam vazios e somem.
  */
 export const SECOES_PRIVACY = [
     ['', ['nav-encarregado', 'nav-empresas']],
     ['Cadastros', ['nav-areas', 'nav-sistemas', 'nav-titulares', 'nav-dados-titular', 'nav-parceiros', 'nav-partes']],
     ['Mapeamento', ['nav-ropa', 'nav-dpia', 'nav-lia']],
-    ['Diagnóstico', ['nav-gaps', 'nav-mapa-de-risco']],
+    ['Diagnóstico', ['nav-requisitos', 'nav-gaps', 'nav-mapa-de-risco']],
     ['Fornecedores', ['nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor']],
-    ['', ['nav-documentos-arquivo', 'nav-titular']],
-    ['Mais', ['nav-referencia-juridica', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
+    ['Atendimento', ['nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos']],
+    ['Documentos', ['nav-documentos-arquivo', 'nav-documentos']],
+    ['Mais', ['nav-referencia-juridica', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
     ['', ['nav-ai']],
 ];
 /** Fora do menu do n.privacy: Minhas aprovações e Trilha de auditoria vão para o menu de conta; Preços e margens é do comercial do n.iso. */

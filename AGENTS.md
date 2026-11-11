@@ -537,11 +537,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
-  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy na ordem do legado
+  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy a partir da ordem do legado, revisto pelo dono em 11/11/2026
   (`organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`; a lista de secoes e a fonte, leia la):
-  em 2026-11-05, Painel e Empresas no topo; Cadastros (Areas, Sistemas, Titulares, Dados de titular, Parceiros, Pessoas); Mapeamento (RoPA, DPIA, LIA);
-  Diagnostico (Gaps, Mapa de risco); Fornecedores (lista e avaliacoes); Documentos e Solicitacoes; "Mais" (Referencia juridica, Incidentes,
-  Consentimentos, Requisitos, Politicas, Evidencias, Treinamento, Papeis e comite, Importar programa); e o Assistente no fim. Titulos de secao nao
+  em 2026-11-11, Painel e Empresas no topo; Cadastros (Areas, Ativos, Titulares, Dados de titular, Parceiros, Pessoas); Mapeamento (Atividades, RIPD, LIA);
+  Diagnostico (Cobertura da LGPD, Gaps, Riscos); Fornecedores (lista, avaliacoes e questionarios); Atendimento (Solicitacoes, Incidentes, Consentimentos);
+  Documentos (Arquivos, Politicas); "Mais" (Referencia juridica, Evidencias, Treinamento, Papeis e comite, Importar programa); e o Assistente no fim. Titulos de secao nao
   sao botao e nao recolhem; itens em `ul`/`li`. Minhas aprovacoes e Trilha de logs ficam no menu de conta
   (`#account-menu`) so no n.privacy (`FORA_DO_MENU_PRIVACY`). **Telas do legado (19/10/2026, sem migration):** Fornecedores (`views/terceiros.js`)
   e a lista dos terceiros com nivel de criticidade, DPA e atividades (vinculo ao tratamento e etapa Compartilhamento Externo, sem

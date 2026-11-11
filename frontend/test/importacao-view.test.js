@@ -520,7 +520,7 @@ describe('documentos e avaliações (fatia 3): abas próprias na revisão', () =
         expect(t).toContain('rascunho');
         await clica('importacaoAba', ['avaliacao']);
         t = el('c').textContent;
-        expect(t).toContain('DPIA');
+        expect(t).toContain('RIPD');
         expect(t).toContain('LIA');
         expect(t).toContain('Tratamento v1');
         expect(t).toContain('Conclusão v1');
