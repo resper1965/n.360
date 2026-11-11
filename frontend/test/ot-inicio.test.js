@@ -23,7 +23,7 @@ describe('pendenciasDoPapel', () => {
     it('desvios abertos agrupam por site e levam ao modo operação', () => {
         const desvios = [{ site_id: 's1' }, { site_id: 's1' }];
         const p = pendenciasDoPapel({ ...base, desvios }, { id: 'u1', podeAprovar: true, podeEditar: false });
-        expect(p).toEqual([expect.objectContaining({ tipo: 'desvio', texto: '2 desvios abertos em SE Norte', acao: { tela: 'site', site: 's1', modo: 'operacao' } })]);
+        expect(p).toEqual([expect.objectContaining({ tipo: 'desvio', texto: '2 desvios abertos em SE Norte', acao: { tela: 'site', site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } } })]);
     });
     it('consultor vê rascunhos e sonda parada; técnico só a recusa do próprio lote', () => {
         const dados = { ...base, rascunhosPorSite: { s1: 3 }, sondas: [{ nome: 'S-1', site_id: 's1', situacao: 'parada' }],
@@ -98,6 +98,27 @@ describe('montarInicio', () => {
         await montarInicio(c, null, { id: 'p9' });
         expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
         expect(c.textContent).not.toContain('Nada esperando por você agora.');
+    });
+    it('levantamentos que falham: aviso no lugar de "Nada esperando"', async () => {
+        delete rotas[`GET ${B}/levantamentos`]; rotas[`GET ${B}/lotes`] = { lotes: [] }; rotas[`GET ${B}/desvios`] = { desvios: [] };
+        rotas[`GET ${B}/sensores/pontos`] = { ativos: 0, fluxos: 0 };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
+        expect(c.textContent).not.toContain('Nada esperando por você agora.');
+    });
+    it('linha de desvio aberto passa a sub-aba desvios pelo data-args', async () => {
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        const b = [...c.querySelectorAll('[data-action="otTela"]')].map((x) => JSON.parse(x.getAttribute('data-args'))).find((x) => x[2] === 'operacao');
+        expect(b).toEqual(['site', 's1', 'operacao', { otSub: 'desvios' }]);
+    });
+    it('sonda parada vence atrasada na coluna Sonda do site', async () => {
+        rotas[`GET ${B}/sites/s1/sensores`] = { sensores: [{ id: 'a', nome: 'A', saude: 'atrasada' }, { id: 'b', nome: 'B', saude: 'parada' }] };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        const cels = [...c.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
+        expect(cels[0][2]).toBe('parada');
     });
     it('consultoria_admin não vê lote para aprovar', async () => {
         S.user = { id: 'u1', role: 'consultoria_admin' };

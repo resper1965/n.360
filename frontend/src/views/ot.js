@@ -10,7 +10,7 @@ import { cartaoAgente } from './ot-agente.js';
 import { areaSondas } from './ot-sensores.js';
 import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
-import { itemVisivel, moduloPara, enderecoDoProduto } from '../produto.js';
+import { itemVisivel, moduloPara, enderecoDoProduto, modulosVisiveis } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
@@ -49,7 +49,16 @@ async function renderOt(c, h, a) {
         const e = lerEndereco();
         Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: e.modo });
         if (e.desvio) {
-            const r = await resolverDesvio(proj(), e.desvio);
+            let r = await resolverDesvio(proj(), e.desvio);
+            // O link não traz o projeto: se não está no ativo, procura nos outros n.ot (um a um) e troca para o que o tem.
+            for (const o of r ? [] : (S.projects || []).filter((x) => x.id !== proj().id && modulosVisiveis(x).includes('ot'))) {
+                if (!(r = await resolverDesvio(o, e.desvio))) continue;
+                // os mesmos passos de changeActiveProject (project.js), sem o navigate: a casca segue neste desenho
+                S.activeProject = o; S.currentProject = o; S.otProjeto = o.id;
+                try { localStorage.setItem('niso_activeProject', JSON.stringify(o)); } catch (err) { /* sem storage */ }
+                window.updateActiveProjectWidget?.(); window.updateSidebarProjectSelector?.();
+                break;
+            }
             if (r) { Object.assign(S, { otTela: 'site', otSite: r.site_id, otModo: 'operacao', otSub: 'desvios' }); desvio = e.desvio; }
             else { showToast('Desvio não encontrado neste projeto', 'error'); Object.assign(S, { otTela: 'inicio', otSite: null }); }
         }
