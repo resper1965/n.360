@@ -1,14 +1,14 @@
 // Coleta do n.ot (spec §7; modelo de ameaças P0-3, P0-5, P1-3, P1-5, P1-7). Planilha e entrada manual caem na MESMA tubulação:
 // linhas → itens validados campo a campo → staging (`ot_lote_itens`, IP/MAC já cifrados) → aprovação de outra pessoa → `ot_ativos`.
-// Nada grava direto no inventário. Perfil de ferramenta OT (Nozomi, Claroty, Tenable OT; fonte `ferramenta_ot`) seria outro mapa de
-// cabeçalho como `COLUNAS`, sobre esta tubulação: não implementado sem amostra real de export.
+// Nada grava direto no inventário. O export de ativos do Nozomi tem perfil de fábrica no de-para (ot-depara.ts, `NOZOMI`); Claroty e
+// Tenable OT seriam outro mapa de cabeçalho como esse: não implementados sem amostra real de export.
 import type { ZodType } from 'zod';
 import { genId } from '../helpers';
 import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
-import { aadOt, cifrarEnderecos, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
+import { aadOt, cifrarEnderecos, normalizarIp, normalizarMac, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
 import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventario';
-import { resolverPendentes } from './ot-rede';
+import { MAC_GATEWAY_MIN_IPS, resolverPendentes } from './ot-rede';
 import { fecharRegularizados } from './ot-desvio';
 import type { Bindings } from '../index';
 import { COLS_FLUXO, fluxosDoSite, indiceFluxos, pontasDoSite, prepararFluxo, type FluxoExistente } from './ot-fluxo-achado';
@@ -64,7 +64,24 @@ export function linhasDaPlanilha(linhas: string[][]) {
     });
     return o;
   });
+  semMacGateway(itens);
   return { itens, reconhecidas: campos.some(Boolean), ignoradas };
+}
+
+/**
+ * MAC visto com MAC_GATEWAY_MIN_IPS+ IPs distintos na mesma planilha é do roteador/firewall (a ferramenta viu vários IPs atrás dele), não
+ * do ativo: sai das linhas que o trazem. Linha sem IP não conta; a mesma linha repetida (mesmo IP e MAC) não soma. Devolve quantas linhas perderam o MAC.
+ */
+export function semMacGateway(itens: Record<string, unknown>[]): number {
+  const mac = (o: Record<string, unknown>) => (typeof o.mac === 'string' ? normalizarMac(o.mac) : null);
+  const ips = new Map<string, Set<string>>();
+  for (const o of itens) {
+    const m = mac(o), ip = typeof o.ip === 'string' ? normalizarIp(o.ip) : null;
+    if (m && ip) ips.set(m, (ips.get(m) ?? new Set()).add(ip));
+  }
+  let n = 0;
+  for (const o of itens) { const m = mac(o); if (m && (ips.get(m)?.size ?? 0) >= MAC_GATEWAY_MIN_IPS) { delete o.mac; n++; } }
+  return n;
 }
 
 type Erro = { campo: string; motivo: string };

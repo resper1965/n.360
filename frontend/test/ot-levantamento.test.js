@@ -282,7 +282,7 @@ describe('importar arquivo na sessão de documento', () => {
         expect(m).toContain('12 linhas');
         expect(m).toContain('Hostname <b id="xss2">');
         expect(el('xss2')).toBeNull(); expect(el('xss3')).toBeNull();
-        for (const [origem, selo] of [['ia', 'Sugerido pela IA'], ['cabecalho', 'Pelo nome da coluna']]) {
+        for (const [origem, selo] of [['ia', 'Sugerido pela IA'], ['cabecalho', 'Pelo nome da coluna'], ['nozomi', 'Perfil Nozomi (export de ativos)']]) {
             await abrirDoc({ [`POST ${P}/planilha/proposta`]: { ...PROPOSTA, origem, perfil: undefined, aviso: undefined } });
             window.otImportarArquivo(); escolher('a.xlsx');
             await window.otLerArquivo();
@@ -291,7 +291,7 @@ describe('importar arquivo na sessão de documento', () => {
     });
 
     it('aplicar reenvia o mesmo arquivo e só as colunas não ignoradas, com o perfil; toast e redesenho', async () => {
-        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA, [`POST ${P}/planilha/aplicar`]: { criados: 12, com_aviso: 2, perfil_id: 'pf1' } });
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA, [`POST ${P}/planilha/aplicar`]: { criados: 12, com_aviso: 2, macs_gateway: 3, perfil_id: 'pf1' } });
         window.otImportarArquivo();
         const f = escolher('a.csv');
         await window.otLerArquivo();
@@ -305,12 +305,12 @@ describe('importar arquivo na sessão de documento', () => {
         expect(fd.get('file')).toBe(f);
         expect(JSON.parse(fd.get('mapeamento'))).toEqual({ 0: 'nome', 2: 'mac' });
         expect([fd.get('perfil_nome'), fd.get('perfil_fonte')]).toEqual(['Export SCADA', 'SCADA']);
-        expect(document.body.textContent).toContain('12 achados criados (2 com aviso)');
+        expect(document.body.textContent).toContain('12 achados criados (2 com aviso). 3 MACs de roteador ignorados.');
         expect(window.render).toHaveBeenCalled();
     });
 
     it('campo repetido bloqueia o envio; sem perfil marcado, nome e fonte não vão', async () => {
-        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA, [`POST ${P}/planilha/aplicar`]: { criados: 1, com_aviso: 0 } });
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA, [`POST ${P}/planilha/aplicar`]: { criados: 1, com_aviso: 0, macs_gateway: 0 } });
         window.otImportarArquivo(); escolher('a.csv');
         await window.otLerArquivo();
         el('lev-map-2').value = 'nome';

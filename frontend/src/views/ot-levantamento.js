@@ -365,7 +365,7 @@ window.otEnviarAchados = async () => {
 // ─── importar arquivo (L4, de-para): o arquivo fica só na memória desta tela e vai de novo, o mesmo, ao aplicar ─────
 const CAMPOS_DEPARA = ['nome', 'ip', 'mac', 'fabricante', 'modelo', 'tipo_dispositivo', 'funcao', 'protocolos_portas', 'firmware_so_versao',
     'no_arciber', 'categoria_arciber', 'firmware_nao_aplicavel', 'zona']; // src/services/ot-depara.ts
-const ORIGEM_DEPARA = { ia: 'Sugerido pela IA', cabecalho: 'Pelo nome da coluna' };
+const ORIGEM_DEPARA = { ia: 'Sugerido pela IA', cabecalho: 'Pelo nome da coluna', nozomi: 'Perfil Nozomi (export de ativos)' };
 let importacao = null; // { file, cabecalho }
 let observador = null;
 let fechamentos = 0; // conta os fechamentos do modal: a proposta que chega depois de um fechamento é descartada
@@ -481,7 +481,8 @@ async function aplicarDepara() {
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
         importacao = null;
         forceCloseModal();
-        showToast(`${conta(r.criados, 'achado criado', 'achados criados')} (${r.com_aviso} com aviso).`, 'success');
+        showToast(`${conta(r.criados, 'achado criado', 'achados criados')} (${r.com_aviso} com aviso).`
+            + (r.macs_gateway > 0 ? ` ${conta(r.macs_gateway, 'MAC de roteador ignorado', 'MACs de roteador ignorados')}.` : ''), 'success');
         await redesenhar();
     } catch (e) { falhou(e, 'Não foi possível criar os achados.'); }
 }

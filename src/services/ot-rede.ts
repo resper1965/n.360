@@ -102,8 +102,8 @@ const contar = (p: Plano) => {
   return p;
 };
 
-// mesmo limiar de MAC_GATEWAY_MIN_IPS em scripts/n-ot-resumo-zeek.py
-const MAC_GATEWAY_MIN_IPS = 3;
+// mesmo limiar de MAC_GATEWAY_MIN_IPS em scripts/n-ot-resumo-zeek.py; vale também para as planilhas (ot-coleta.ts, semMacGateway)
+export const MAC_GATEWAY_MIN_IPS = 3;
 /**
  * Resumo validado → achados de ativo, MACs a completar, fluxos com pontas do site e pendências (só hash). Comparação por `ip_hash` no
  * índice do site, sem decifrar. Na pendência o lado externo fica com hash nulo: IP externo nunca é guardado, nem como HMAC.
