@@ -409,6 +409,7 @@ describe('E1 T6: saídas diretas no lugar de texto sem link', () => {
         S.user = { id: 'u', role: 'consultor' };
         await montarDesvios(el('c'), el('a'), S.activeProject, { siteFixo: 's1' });
     };
+    beforeEach(() => { S.otDesvioFiltro = null; });
     it('Desvios vazio sem sonda: aviso e botão para Acessos', async () => {
         await desvios([]);
         expect(el('c').textContent).toContain('Sem vigilância de rede neste site');
@@ -420,5 +421,12 @@ describe('E1 T6: saídas diretas no lugar de texto sem link', () => {
         await desvios([], true);
         expect(el('c').textContent).toContain('Nenhum desvio aberto');
         expect(el('c').textContent).not.toContain('Sem vigilância');
+    });
+    it('Desvios vazio com filtro diferente de aberto: "neste recorte" e sem chamar sensores', async () => {
+        S.otDesvioFiltro = { situacao: 'tratado', site_id: '', tipo: '' };
+        await desvios([]);
+        expect(el('c').textContent).toContain('Nenhum desvio neste recorte.');
+        expect(chamadas.some((x) => x.k.endsWith('/sensores'))).toBe(false);
+        S.otDesvioFiltro = null;
     });
 });

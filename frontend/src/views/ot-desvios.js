@@ -30,9 +30,10 @@ export async function montarDesvios(c, a, p, { siteFixo, destacar } = {}) {
         sites = lista(s, 'sites'); desvios = lista(d, 'desvios');
     } catch (e) { c.innerHTML = `<p class="org-dica" role="alert">${escapeHTML(mensagemDeErro(e, 'Não foi possível carregar os desvios do n.ot.'))}</p>`; return; }
     // Sem sonda no site, o vazio vira o próximo passo; a falha da leitura (inclui 403) deixa o texto neutro.
-    const semSonda = siteFixo && !desvios.length
+    const abertoPuro = f.situacao === 'aberto' && !f.tipo; // só aí "vazio" quer dizer "nenhum aberto"
+    const semSonda = siteFixo && abertoPuro && !desvios.length
         && await api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(siteFixo)}/sensores`).then((r) => !lista(r, 'sensores').length, () => false);
-    const vazio = !siteFixo || desvios.length ? { emptyMessage: 'Nenhum desvio neste recorte.', emptyHint: 'Os desvios aparecem quando uma sonda vê tráfego fora do inventário aprovado.' }
+    const vazio = !siteFixo || !abertoPuro || desvios.length ? { emptyMessage: 'Nenhum desvio neste recorte.', emptyHint: 'Os desvios aparecem quando uma sonda vê tráfego fora do inventário aprovado.' }
         : semSonda ? { emptyMessage: 'Sem vigilância de rede neste site', emptyHint: 'Cadastre uma sonda para ver o tráfego fora do inventário aprovado.' }
             : { emptyMessage: 'Nenhum desvio aberto', emptyHint: 'Os desvios aparecem quando uma sonda vê tráfego fora do inventário aprovado.' };
     const filtro = (id, rotulo, campo, itens) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label>
