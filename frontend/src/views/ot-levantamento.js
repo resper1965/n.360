@@ -15,7 +15,7 @@ const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 
 const TIPO = { entrevista: 'Entrevista', visita: 'Visita de campo', documento: 'Documento' };
 const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_perguntado: 'Não perguntado' };
-const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado ao lote'], descartado: ['warning', 'Descartado'] };
+const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado para aprovação'], descartado: ['warning', 'Descartado'] };
 const SELO_ORIGEM = { ia: 'Sugerido pela IA', agente: 'Enviado pelo agente' };
 // O sensor de rede grava origem 'consultor'; a fonte fica na evidência (EVIDENCIA_SENSOR, src/services/ot-rede.ts).
 export const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sensor de rede' : '');
@@ -122,7 +122,7 @@ async function montarSessao(c, a, p, id) {
             const fluxo = x.entidade === 'fluxo';
             const nome = nomeDoAchado(x.id, 'achado');
             const rasc = x.situacao === 'rascunho';
-            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} ao lote`)}">` : '—'] : []),
+            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} para aprovação`)}">` : '—'] : []),
                 fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (seloDoAchado(x) ? ` <span class="badge selo-info">${seloDoAchado(x)}</span>` : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
                 ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), seloDaSituacao(x, l.site_id),
                 ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>` : '—'] : [])];
@@ -136,7 +136,7 @@ async function montarSessao(c, a, p, id) {
             ${editar ? '<div class="d-flex gap-2 items-center"><p class="at-salvo" id="lev-notas-status" role="status"></p><span id="lev-notas-tentar"></span></div>' : ''}</div>
         ${roteiro}
         <h3 class="mb-3">Achados</h3>
-        ${editar && rascunhos.length ? '<p class="org-dica mb-2" id="lev-envio-dica">Marque os achados que vão ao lote.</p>' : ''}${tabela}`;
+        ${editar && rascunhos.length ? '<p class="org-dica mb-2" id="lev-envio-dica">Marque os achados que vão para aprovação.</p>' : ''}${tabela}`;
     if (editar) mostrarStatusNotas();
 }
 
@@ -350,7 +350,7 @@ window.otMarcarAchado = () => {
     const b = document.querySelector('[data-action="otEnviarAchados"]');
     if (b) b.disabled = !n;
     const dica = el('lev-envio-dica');
-    if (dica) dica.textContent = n ? `${n} ${n === 1 ? 'achado marcado' : 'achados marcados'} para o lote.` : 'Marque os achados que vão ao lote.';
+    if (dica) dica.textContent = n ? `${n} ${n === 1 ? 'achado marcado' : 'achados marcados'} para aprovação.` : 'Marque os achados que vão para aprovação.';
 };
 window.otEnviarAchados = async () => {
     const ids = marcados();
@@ -358,14 +358,14 @@ window.otEnviarAchados = async () => {
     const fl = ids.filter((id) => achados.find((x) => x.id === id)?.entidade === 'fluxo').length;
     const at = ids.length - fl;
     const conta = [at && `${at} ${at === 1 ? 'ativo' : 'ativos'}`, fl && `${fl} ${fl === 1 ? 'fluxo' : 'fluxos'}`].filter(Boolean).join(' e ');
-    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} ao lote (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. O lote vai para o Lote de aprovação, onde outra pessoa aprova antes do inventário.`,
+    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} para aprovação (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. No Lote de aprovação, outra pessoa aprova antes do inventário.`,
         { titulo: 'Enviar para aprovação', rotulo: 'Enviar para aprovação' })) return;
     await esvaziarNotas();
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
         await window.otTela('site', atual.site_id || S.otSite, 'projeto', { otSub: 'aprovacao', otLote: r.id });
-    } catch (e) { falhou(e, 'Não foi possível enviar os achados ao lote.'); }
+    } catch (e) { falhou(e, 'Não foi possível enviar os achados para aprovação.'); }
 };
 
 // ─── importar arquivo (L4, de-para): o arquivo fica só na memória desta tela e vai de novo, o mesmo, ao aplicar ─────

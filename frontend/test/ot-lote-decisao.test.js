@@ -176,7 +176,7 @@ describe('desfecho do achado no levantamento', () => {
     const LEV = { id: 'l1', site_id: 's1', tipo: 'entrevista', realizado_em: '2026-11-01', roteiro: {}, situacao: 'aberto', achados: 3 };
     const ACH = (id, extra) => ({ id, levantamento_id: 'l1', entidade: 'ativo', origem: 'consultor', situacao: 'enviado', desfecho: null, lote_id: 'x1',
         evidencia: 'e', erros: [], dados: { nome: `Ativo ${id}`, ip: '•••', mascarado: true }, ...extra });
-    it('mostra No inventário (com link), Recusado: motivo e, sem desfecho, Enviado ao lote', async () => {
+    it('mostra No inventário (com link), Recusado: motivo e, sem desfecho, Enviado para aprovação', async () => {
         servir({ [`GET ${B}/levantamentos/l1`]: { levantamento: LEV, achados: [ACH('a1', { desfecho: 'no_inventario' }),
             ACH('a2', { desfecho: 'recusado', motivo: 'duplicado <b>' }), ACH('a3')] }, [`GET ${B}/roteiro`]: { perguntas: [] }, [`GET ${B}/zonas`]: { zonas: [] } });
         S.otLevantamento = 'l1'; S.otLote = null;
@@ -184,9 +184,9 @@ describe('desfecho do achado no levantamento', () => {
         const linha = (n) => [...document.querySelectorAll('#c tbody tr')].find((tr) => tr.textContent.includes(n));
         expect(linha('Ativo a1').textContent).toContain('No inventário');
         expect(linha('Ativo a1').querySelector('[data-action="otVerNoInventario"]')).toBeTruthy();
-        expect(linha('Ativo a1').textContent).not.toContain('Enviado ao lote');
+        expect(linha('Ativo a1').textContent).not.toContain('Enviado para aprovação');
         expect(linha('Ativo a2').textContent).toContain('Recusado: duplicado <b>');
         expect(linha('Ativo a2').querySelector('b')).toBeNull();
-        expect(linha('Ativo a3').textContent).toContain('Enviado ao lote');
+        expect(linha('Ativo a3').textContent).toContain('Enviado para aprovação');
     });
 });

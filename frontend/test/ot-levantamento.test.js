@@ -223,7 +223,7 @@ describe('aba Levantamento', () => {
         expect(el('ach-sel-a1')).toBeNull();
     });
 
-    it('trocar de projeto ou de aba volta à lista de sessões', async () => {
+    it('trocar de projeto ou de aba volta à lista de levantamentos', async () => {
         S.otLevantamento = 'l1';
         await window.otTela('site', 's1');
         expect(S.otLevantamento).toBeNull();
@@ -236,7 +236,7 @@ describe('aba Levantamento', () => {
 });
 
 // L4 (de-para): corpos de src/routes/ot-depara.ts (proposta 200, aplicar 201, texto 201/422, teto 429).
-describe('importar arquivo na sessão de documento', () => {
+describe('importar arquivo no levantamento de documento', () => {
     const DOC = { ...LEV, tipo: 'documento', documento_titulo: 'Inventário 2023' };
     const P = `${B}/levantamentos/l1/depara`;
     const abrirDoc = async (extra = {}, lev = DOC, achados = []) => {
@@ -496,8 +496,8 @@ describe('importar arquivo na sessão de documento', () => {
     });
 });
 
-describe('coleta ligada a um documento', () => {
-    it('a planilha pode ser ligada a uma sessão documento do site escolhido', async () => {
+describe('lote ligado a um documento', () => {
+    it('a planilha pode ser ligada a um levantamento documento do site escolhido', async () => {
         servirOt({ ...SITES, [`GET ${B}/lotes`]: { lotes: [] }, [`GET ${B}/levantamentos`]: { levantamentos: [LEV,
             { ...LEV, id: 'd1', tipo: 'documento', documento_titulo: 'Inventário 2023' }, { ...LEV, id: 'd2', site_id: 's2', tipo: 'documento', documento_titulo: 'Do outro site' }] },
         [`POST ${B}/lotes`]: { id: 'lote-1', itens: 1, com_erro: 0 } });
@@ -516,7 +516,7 @@ describe('coleta ligada a um documento', () => {
     });
 });
 
-describe('coleta com fluxo', () => {
+describe('lote com fluxo', () => {
     it('item de fluxo mostra "Fluxo: origem → destino" e "—" em IP/MAC/Fabricante; não trava a aprovação', async () => {
         S.user = { id: 'u-gestor', role: 'org_admin' };
         S.otLote = 'lt1';

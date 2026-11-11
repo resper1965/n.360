@@ -41,7 +41,7 @@ export async function cartaoAgente(p) {
     }
     return `<section class="card mt-6" id="ot-agente" aria-labelledby="ot-agente-titulo">
         <h3 id="ot-agente-titulo">Agente de coleta</h3>
-        <p class="org-header-intro">Um agente externo (Claude Code, Cursor) lê os arquivos na sua máquina e grava achados em rascunho aqui. Ele não lê o inventário e não envia ao lote. <strong>${AVISO}</strong></p>
+        <p class="org-header-intro">Um agente externo (Claude Code, Cursor) lê os arquivos na sua máquina e grava achados em rascunho aqui. Ele não lê o inventário e não envia para aprovação. <strong>${AVISO}</strong></p>
         <div class="d-flex gap-2 items-center mt-3">${interruptor}</div>${chaves}</section>`;
 }
 

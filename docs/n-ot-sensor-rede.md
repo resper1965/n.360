@@ -48,7 +48,7 @@ Limites: 5.000 ativos e 20.000 conexões por resumo, e o arquivo tem de ter **at
 
 ### Importar no n.ot
 
-Em **Sites** > o site > **Modo projeto** > **Levantamento**, abra uma sessão de **documento** e use **Importar arquivo** com o `resumo.json` (até 5 MB). Só quem vê o inventário completo (Gestor ARCiber ou consultoria designada) pode importar; os demais recebem 403. O arquivo é lido na hora e descartado: não vai para o armazenamento e não passa por IA.
+Em **Sites** > o site > **Modo projeto** > **Levantamento**, abra um levantamento de **documento** e use **Importar arquivo** com o `resumo.json` (até 5 MB). Só quem vê o inventário completo (Gestor ARCiber ou consultoria designada) pode importar; os demais recebem 403. O arquivo é lido na hora e descartado: não vai para o armazenamento e não passa por IA.
 
 ## Modo automático: a sonda manda sozinha
 
@@ -174,7 +174,7 @@ A situação de cada sonda é calculada pelo último envio concluído:
 Na tela:
 
 - **Acessos e sondas > Sondas** lista nome, situação, último envio, perda de captura e validade, e tem **Nova sonda**, **Gerar nova credencial**, **Revogar credencial** e **Revogar sonda**.
-- Em **Sites** > o site > **Modo operação** > **Saúde da coleta**, o cartão **Saúde da coleta** mostra quantas sondas estão em dia e há quanto tempo veio o último resumo, e, no topo de **Modo projeto** > **Levantamento**, o cartão **Pontos a esclarecer** conta os rascunhos com o selo "Sensor de rede", separados em ativos e fluxos.
+- Em **Sites** > o site > **Modo operação** > **Saúde da coleta**, o cartão **Saúde da coleta** mostra quantas sondas estão em dia e há quanto tempo veio o último resumo, e, no topo de **Modo projeto** > **Levantamento**, o cartão **Achados da sonda para revisar** conta os rascunhos com o selo "Sensor de rede", separados em ativos e fluxos.
 - Perda de captura acima de 5% aparece como aviso.
 
 Todo dia, no mesmo cron dos avisos (08:00 em São Paulo), o n.360 registra na trilha as sondas atrasadas e **envia um e-mail ao Gestor ARCiber para cada sonda parada**, com o nome da sonda e do site e nenhum dado de rede.
@@ -189,13 +189,14 @@ Sem o ICSNPP, o Zeek identifica Modbus, DNP3 e pouco mais de protocolo industria
 - **Broadcast de sub-rede** (como 192.168.1.255) não é reconhecido sem a máscara; o fluxo para ele fica pendente e nunca vira ativo. Se aparecer como ponta de algum achado, descarte.
 - **IP conhecido sem MAC** no inventário gera um achado que completa o MAC quando você aprova.
 - **Fluxos** aparecem como `novo` (as pontas não têm fluxo no inventário) ou `confirma` (têm, com outro protocolo ou porta; com os mesmos, o fluxo não vira achado). O sensor não sabe se o tráfego usa VPN, então nunca produz `contradiz`.
-- **Fluxos pendentes**: conexão cujo lado interno ainda não está no inventário espera (guardam-se só hashes, nenhum IP) e vira achado de fluxo quando esse ativo for aprovado. Pendência vence em 90 dias.
+- **Onde se revisa e se aprova**: os achados da sonda chegam como rascunho. Em **Sites** > o site > **Modo projeto** > **Revisão e aprovação** estão todos os rascunhos do site (de todos os levantamentos); marque os que valem e use **Enviar para aprovação (N)**. No **Lote de aprovação**, quem não criou o lote decide item a item: **Recusar** (com motivo) ou aprovar. **Aprovar os restantes** grava o que sobrou no inventário; o prazo para decidir aparece no topo do lote. No levantamento, cada achado mostra "No inventário", "Recusado: motivo" ou "Enviado para aprovação".
+- **Fluxos pendentes**: conexão cujo lado interno ainda não está no inventário espera (guardam-se só hashes, nenhum IP) e vira achado de fluxo quando esse ativo for aprovado. A espera vence em 90 dias.
 - Tetos por sessão: 2.000 pendências e 2.000 achados.
 - **Subir o mesmo resumo de novo não duplica**: no modo manual e no automático, o filtro de novidade pula o que já está em rascunho, foi descartado há menos de 90 dias ou está pendente (a resposta conta esses itens em `repetidos`). Fluxo que já está no inventário (mesmas pontas, protocolo e porta) também não vira achado (`fluxos_conhecidos`).
 
 ## Export de ativos do Nozomi (planilha)
 
-Quem já tem um Nozomi Networks (Guardian ou Vantage) pode importar o export de ativos em vez de instalar a sonda: na sessão documental (**Sites** > o site > **Modo projeto** > **Levantamento**), **Importar planilha** com o CSV ou XLSX do export. O n.ot reconhece o export pelas colunas `appliance_hosts` e `capture_device` e propõe o mapeamento de fábrica ("Perfil Nozomi"), sem IA e sem gastar o limite por hora: `name`, `ip`, `mac_address`, `vendor`, `product_name`, `type`, `os_or_firmware`, `protocols` e `zones`, pelo nome da coluna (ordem e colunas a mais não importam). `mac_vendor` fica de fora de propósito: no export é o fabricante do roteador. Em `protocols`, `tcp/445` vira protocolo e porta e `other` sai; em `zones`, `Undefined`, `Layer2` e `Link-local` saem e vale a primeira zona que sobra. Perfil salvo no projeto para o mesmo cabeçalho vence o de fábrica. Como no sensor, em toda importação de planilha (de-para e lote de coleta) um MAC visto com 3 ou mais IPs distintos é o do gateway e sai das linhas (a mesma linha repetida, com o mesmo IP, não soma); a mensagem depois de criar os achados diz quantos MACs de roteador foram ignorados.
+Quem já tem um Nozomi Networks (Guardian ou Vantage) pode importar o export de ativos em vez de instalar a sonda: no levantamento de documento (**Sites** > o site > **Modo projeto** > **Levantamento**), **Importar planilha** com o CSV ou XLSX do export. O n.ot reconhece o export pelas colunas `appliance_hosts` e `capture_device` e propõe o mapeamento de fábrica ("Perfil Nozomi"), sem IA e sem gastar o limite por hora: `name`, `ip`, `mac_address`, `vendor`, `product_name`, `type`, `os_or_firmware`, `protocols` e `zones`, pelo nome da coluna (ordem e colunas a mais não importam). `mac_vendor` fica de fora de propósito: no export é o fabricante do roteador. Em `protocols`, `tcp/445` vira protocolo e porta e `other` sai; em `zones`, `Undefined`, `Layer2` e `Link-local` saem e vale a primeira zona que sobra. Perfil salvo no projeto para o mesmo cabeçalho vence o de fábrica. Como no sensor, em toda importação de planilha (de-para e lote de coleta) um MAC visto com 3 ou mais IPs distintos é o do gateway e sai das linhas (a mesma linha repetida, com o mesmo IP, não soma); a mensagem depois de criar os achados diz quantos MACs de roteador foram ignorados.
 
 ## Desvios
 
@@ -220,7 +221,7 @@ Desvio é o que a sonda viu e o inventário aprovado não prevê. Serve para o c
 
 **"Aceito" não é a exceção formal 5.1.1.** É um adiamento com prazo e justificativa dentro do n.ot; a exceção do requisito segue o seu processo próprio.
 
-Em **Sites** > o site > **Modo operação** > **Desvios** (n.ot) há filtros por situação, site e tipo, e as ações Tratar e Aceitar temporariamente. O cartão **Pontos a esclarecer**, no topo de **Modo projeto** > **Levantamento**, mostra "N desvios abertos". O IP de um desvio de ativo só aparece a quem vê o inventário completo, e cada visualização é registrada na trilha.
+Em **Sites** > o site > **Modo operação** > **Desvios** (n.ot) há filtros por situação, site e tipo, e as ações Tratar e Aceitar temporariamente. O cartão **Achados da sonda para revisar**, no topo de **Modo projeto** > **Levantamento**, mostra "N desvios abertos". O IP de um desvio de ativo só aparece a quem vê o inventário completo, e cada visualização é registrada na trilha.
 
 ### Webhook `ot.desvio`
 

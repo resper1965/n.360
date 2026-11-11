@@ -52,3 +52,7 @@ No mesmo cartão, revogue a chave (Gestor ou consultoria designada). Vale na pr�
 ## Aviso de privacidade
 
 Os arquivos passam pelo modelo do agente antes de chegar ao n.ot, **sem a máscara do n.ot**. Use só documentos que podem sair para esse modelo e prefira chaves curtas.
+
+## Onde se revisa e se aprova
+
+O agente só grava achados em rascunho. Em **Sites** > o site > **Modo projeto** > **Revisão e aprovação** a pessoa vê a fila de rascunhos do site (com a origem "Agente"), marca os que valem e usa **Enviar para aprovação (N)**. O Lote de aprovação é decidido item a item por quem não o criou: **Recusar** com motivo, ou **Aprovar lote** / **Aprovar os restantes**. Só então o item entra no inventário. O agente não envia para aprovação nem aprova.
