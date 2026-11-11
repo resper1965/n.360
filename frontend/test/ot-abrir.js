@@ -10,5 +10,5 @@ const TELAS = { catalogo: montarCatalogo, inventario: montarInventario, fluxos: 
 let atual = 'inventario';
 const el = (id) => document.getElementById(id);
 
-/** Desenha a tela `aba` em #c/#a, no projeto ativo; lembra qual para o `window.render` redesenhar a mesma. */
+/** Desenha a tela `aba` em #c/#a, no projeto ativo; lembra qual para chamadas sem argumento. */
 export const desenhar = (aba = atual) => { atual = aba; el('a').innerHTML = ''; return TELAS[aba](el('c'), el('a'), S.activeProject); };

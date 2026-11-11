@@ -174,6 +174,42 @@ describe('casca por subtela', () => {
         expect([S.otSite, S.otModo, S.otSub]).toEqual([null, 'projeto', null]);
         expect(S.otTela).toBe('inicio');
     });
+    it('trocar de projeto não lê o endereço velho: abre o Início e limpa ?ot=', async () => {
+        servir({});
+        S.otTela = 'site'; S.otSite = 's1'; S.otModo = 'operacao';
+        ir('/ot?ot=site&site=s1&modo=operacao');
+        S.activeProject = { id: 'p8', modulos: ['ot'] };
+        await abrir();
+        expect([S.otTela, S.otSite]).toEqual(['inicio', null]);
+        expect(location.search).not.toContain('ot=');
+    });
+    it('pedido do sino de outro projeto leva a Relatórios, mesmo com endereço velho; no mesmo projeto também', async () => {
+        servir({});
+        ir('/ot?ot=site&site=s1');
+        S.activeProject = { id: 'p8', modulos: ['ot'] };
+        S.otPedido = { tela: 'relatorios' };
+        await abrir();
+        expect(el('h').textContent).toBe('Relatórios');
+        expect(S.otPedido).toBeNull();
+        S.otPedido = { tela: 'sites' };
+        await abrir();
+        expect(el('h').textContent).toBe('Sites');
+    });
+    it('otTela("acessos") para client cai no Início', async () => {
+        S.user = { id: 'u', role: 'client' };
+        servir({});
+        await window.otTela('acessos'); await abrir();
+        expect(S.otTela).toBe('inicio');
+    });
+    it('?ot=assessment e ?ot=acessos (quem edita) desenham a própria tela', async () => {
+        servir({ [`GET ${B}/requisitos`]: { requisitos: [] } });
+        ir('/ot?ot=assessment');
+        await abrir();
+        expect(el('h').textContent).toBe('Assessment RO-CB.BR.01');
+        S.otTela = null; ir('/ot?ot=acessos');
+        await abrir();
+        expect(el('h').textContent).toBe('Acessos e sondas');
+    });
     it('trocar de site pela otTela limpa lote e levantamento do site anterior', async () => {
         S.otTela = 'site'; S.otSite = 's1'; S.otLote = 'x'; S.otLevantamento = 'l1';
         await window.otTela('site', 's2');

@@ -33,11 +33,16 @@ async function renderOt(c, h, a) {
     a.innerHTML = '';
     if (!proj()) { h.textContent = 'n.ot'; c.innerHTML = renderSemProjeto(); return; }
     // Filtros, lote e subtela são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
+    let trocou = false;
     if (S.otProjeto !== proj().id) {
+        trocou = !!S.otProjeto; // sem projeto anterior é o primeiro desenho da página: o endereço vale
         await esvaziarNotas(); // notas digitadas no projeto anterior vão para ele, antes de a tela mudar
         S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null; nomesDeAtivos.clear();
         S.otTela = null; S.otModo = null; S.otSub = null;
     }
+    // Pedido de uma só vez (sino): vence o endereço velho e sobrevive à troca de projeto.
+    if (S.otPedido) { Object.assign(S, { otTela: S.otPedido.tela, otSite: null, otModo: 'projeto' }); S.otPedido = null; }
+    else if (trocou) { S.otTela = 'inicio'; S.otModo = 'projeto'; } // o endereço ainda é o do projeto anterior
     let desvio = null;
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
         const e = lerEndereco();
