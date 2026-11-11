@@ -761,12 +761,21 @@ Nenhum código as usava e nenhuma tabela as referencia; a retenção de `ai_chat
 backup antes é obrigatório. Conferência depois:
 `SELECT name FROM sqlite_master WHERE tbl_name IN ('project_documents','project_scope_changes','ai_chat_history','project_knowledge')` (0 linhas).
 Aplicada em produção em 10/11/2026, com backup antes (`npm run db:backup`; ponto do Time Travel anterior à migration:
-`00000f0f-00000000-0000511f-cd9be68894bcd8e080ffc4f8b2abec27`). Conferência (`npx wrangler d1 execute niso-db --remote`), saída de 10/11/2026:
+`00000f0f-00000000-0000511f-cd9be68894bcd8e080ffc4f8b2abec27`). Saída do Wrangler em 10/11/2026 (as linhas relevantes de cada comando):
 
 ```
-SELECT count(*) FROM sqlite_master WHERE tbl_name IN ('project_documents','project_scope_changes','ai_chat_history','project_knowledge')  -> 0
-SELECT name FROM d1_migrations WHERE name LIKE '0109%'   -> 0109_tabelas_sem_uso.sql
-npx wrangler d1 migrations list niso-db --remote          -> No migrations to apply!
+$ npx wrangler d1 migrations apply niso-db --remote
+🚣 Executed 5 commands in 1.82ms
+│ 0109_tabelas_sem_uso.sql │ ✅     │
+
+$ npx wrangler d1 execute niso-db --remote --json --command "SELECT count(*) AS n FROM sqlite_master WHERE tbl_name IN ('project_documents','project_scope_changes','ai_chat_history','project_knowledge')"
+        "n": 0
+
+$ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1_migrations WHERE name LIKE '0109%'"
+        "name": "0109_tabelas_sem_uso.sql"
+
+$ npx wrangler d1 migrations list niso-db --remote
+✅ No migrations to apply!
 ```
 
 ## 0108 — desvios do n.ot (2026-11-09)

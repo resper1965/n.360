@@ -476,7 +476,7 @@ window.importacaoEditar = function (iid) {
     const tri = (k, r) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><select class="form-input" id="imp-${k}">${[['', 'Não informado'], ['true', 'Sim'], ['false', 'Não']].map(([v, t]) => `<option value="${v}"${String(d[k] ?? '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`;
     openModal(`
         <div class="modal-header"><span class="modal-title">Editar tratamento</span></div>
-        ${CAMPOS.map(campo).join('')}${tri('transferencia_internacional', 'Transferência internacional')}${tri('dpia_requerido', 'DPIA requerido')}${LISTAS.map(lista).join('')}
+        ${CAMPOS.map(campo).join('')}${tri('transferencia_internacional', 'Transferência internacional')}${tri('dpia_requerido', 'RIPD requerido')}${LISTAS.map(lista).join('')}
         <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(iid)}'>Salvar</button>`);
 };
