@@ -5,7 +5,7 @@ import { lista, podeAprovarOt, podeEditarOt } from '../ot-comum.js';
 import { emDiasSP } from '../hoje.js';
 
 // n.ot, tela Início (spec 2026-11-11 fluidez §2): "Espera por você", Sites e Postura RO-CB.BR.01. Clique pela delegação:
-// data-action="otTela" / "otAbrirLote" (definidas na casca, Task 5). Tudo que vem da API passa por escapeHTML.
+// data-action="otTela" / "otIrParaLote" (definidas na casca, Task 5). Tudo que vem da API passa por escapeHTML.
 
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const PRAZO_DIAS = 7;
@@ -38,33 +38,40 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
 }
 
 const botao = (rotulo, aria, acao, ...a) => `<button class="btn btn-sm" data-action="${acao}" data-args='${args(...a)}' aria-label="${escapeHTML(aria)}">${rotulo}</button>`;
-const abrir = (a) => (a.lote ? botao('Abrir', 'Abrir lote', 'otAbrirLote', a.site, a.lote) : botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.modo));
+const abrir = (a) => (a.lote ? botao('Abrir', 'Abrir lote', 'otIrParaLote', a.site, a.lote)
+    : a.site ? botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.modo) : botao('Abrir', 'Abrir sites', 'otTela', 'sites'));
 
 export async function montarInicio(c, a, p) {
-    const B = `/api/v1/projects/${p.id}/ot`;
-    const [rL, rV, rD, rS, rC] = await Promise.allSettled(['lotes', 'levantamentos', 'desvios?situacao=aberto', 'sites', 'conformidade'].map((r) => api('GET', `${B}/${r}`)));
+    const [rL, rV, rD, rS, rC, rP] = await Promise.allSettled([
+        api('GET', `/api/v1/projects/${p.id}/ot/lotes`), api('GET', `/api/v1/projects/${p.id}/ot/levantamentos`),
+        api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto`), api('GET', `/api/v1/projects/${p.id}/ot/sites`),
+        api('GET', `/api/v1/projects/${p.id}/ot/conformidade`), api('GET', `/api/v1/projects/${p.id}/ot/sensores/pontos`)]);
     const v = (r, k) => (r.status === 'fulfilled' ? lista(r.value, k) : []);
     const sitesL = v(rS, 'sites');
     const sites = Object.fromEntries(sitesL.map((s) => [s.id, s.nome]));
     // sondas: uma chamada por site; quem não vê o inventário (403) ou falha só fica sem sondas
-    const rSo = await Promise.allSettled(sitesL.map((s) => api('GET', `${B}/sites/${encodeURIComponent(s.id)}/sensores`)));
+    const rSo = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(s.id)}/sensores`)));
     const sondas = sitesL.flatMap((s, i) => (rSo[i].status === 'fulfilled' ? lista(rSo[i].value, 'sensores').map((x) => ({ ...x, site_id: s.id })) : []));
     // shortcut: contagem aproximada até a E2 trazer a fila de revisão por site com a contagem exata.
-    // (já inclui os pontos da sonda, que entram como achados de levantamento; /ot/sensores/pontos não traz site)
+    // Levantamentos abertos: `achados` conta os não descartados (src/routes/ot.ts:553), inclusive aceitos. Os da sonda ficam em levantamentos
+    // já encerrados (src/routes/ot-sensor.ts:106) e vêm de /ot/sensores/pontos (só rascunhos, sem site), numa linha à parte abaixo.
     const rascunhosPorSite = {};
     for (const l of v(rV, 'levantamentos').filter((x) => x.situacao !== 'encerrado')) rascunhosPorSite[l.site_id] = (rascunhosPorSite[l.site_id] || 0) + (l.achados || 0);
     const desvios = v(rD, 'desvios');
     const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, rascunhosPorSite, sondas, sites },
         { id: S.user?.id, podeAprovar: podeAprovarOt(), podeEditar: podeEditarOt() });
+    const nSonda = rP.status === 'fulfilled' ? (rP.value.ativos || 0) + (rP.value.fluxos || 0) : 0;
+    if (podeEditarOt() && nSonda) pend.push({ tipo: 'rascunho', texto: `${plural(nSonda, 'achado da sonda para revisar', 'achados da sonda para revisar')}`, acao: { tela: 'sites' } });
 
+    const falhou = [rL, rD].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';
     const espera = pend.length
-        ? `<ul class="empty-list">${pend.map((x) => `<li><span>${escapeHTML(x.texto)}</span>${abrir(x.acao)}</li>`).join('')}</ul>`
-        : '<p class="org-dica">Nada esperando por você agora.</p>';
+        ? `<ul class="empty-list">${pend.map((x) => `<li><span>${escapeHTML(x.texto)}</span>${abrir(x.acao)}</li>`).join('')}</ul>${falhou}`
+        : falhou || '<p class="org-dica">Nada esperando por você agora.</p>';
     const abertos = {};
     for (const d of desvios) abertos[d.site_id] = (abertos[d.site_id] || 0) + 1;
     const pior = (s) => sondas.filter((x) => x.site_id === s).map((x) => x.saude || x.situacao).find((x) => x === 'parada' || x === 'atrasada');
-    const blocoSites = sitesL.length
-        ? renderDataTable(['Site', 'Ativos', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome), escapeHTML(String(s.ativos ?? '—')),
+    const blocoSites = rS.status === 'rejected' ? '<p class="org-dica" role="alert">Não foi possível carregar os sites.</p>' : sitesL.length
+        ? renderDataTable(['Site', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome),
             escapeHTML(String(abertos[s.id] || 0)), escapeHTML(pior(s.id) || (sondas.some((x) => x.site_id === s.id) ? 'em dia' : '—')), botao('Abrir', `Abrir ${s.nome}`, 'otTela', 'site', s.id, 'projeto')]))
         : renderEmptyState({ titulo: 'Cadastre o primeiro site', texto: 'O site é onde o inventário e os levantamentos acontecem.', acao: `<button class="btn btn-primary" data-action="otTela" data-args='${args('sites')}'>Cadastrar site</button>` });
     const r = rC.status === 'fulfilled' ? rC.value.resumo || {} : null;

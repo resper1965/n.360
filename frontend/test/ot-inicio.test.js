@@ -38,7 +38,7 @@ describe('pendenciasDoPapel', () => {
 
 describe('montarInicio', () => {
     const B = '/api/v1/projects/p9/ot';
-    const rotas = {
+    const ORIGEM = {
         [`GET ${B}/lotes`]: { lotes: [{ id: 'l1', status: 'em_revisao', criado_por: 'u2', site_id: 's1', created_at: '2026-11-10T12:00:00Z' }] },
         [`GET ${B}/levantamentos`]: { levantamentos: [{ id: 'v1', site_id: 's1', situacao: 'aberto', achados: 2 }, { id: 'v2', site_id: 's1', situacao: 'encerrado', achados: 9 }] },
         [`GET ${B}/desvios`]: { desvios: [{ site_id: 's1' }] },
@@ -48,10 +48,12 @@ describe('montarInicio', () => {
         [`GET ${B}/conformidade`]: { resumo: { nao_atende: 1, evidencia_no_inventario: 2, sem_evidencia: 3 } },
     };
     let urls;
+    let rotas;
     beforeEach(() => {
         S.user = { id: 'u1', role: 'org_admin' };
         document.body.innerHTML = '<div id="c"></div>';
         urls = [];
+        rotas = { ...ORIGEM };
         vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
             const u = new URL(url, 'http://localhost');
             urls.push(u.pathname + u.search);
@@ -70,6 +72,28 @@ describe('montarInicio', () => {
         expect(c.textContent).toContain('2 achados em rascunho em SE <b>Norte</b>'); // só o levantamento não encerrado
         expect(c.querySelector('.btn-primary')).toBeNull();
         expect(c.querySelector('[data-action="otTela"][data-args*="assessment"]')).not.toBeNull();
+    });
+    it('linha da sonda vem de /sensores/pontos e o botão do lote usa otIrParaLote', async () => {
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('3 achados da sonda para revisar');
+        expect(c.querySelector('[data-action="otIrParaLote"]')).not.toBeNull();
+        expect(c.querySelector('[data-action="otAbrirLote"]')).toBeNull();
+    });
+    it('sites que falham: aviso, sem primário e sem "Cadastre o primeiro site"', async () => {
+        delete rotas[`GET ${B}/sites`];
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Não foi possível carregar os sites.');
+        expect(c.querySelector('.btn-primary')).toBeNull();
+        expect(c.textContent).not.toContain('Cadastre o primeiro site');
+    });
+    it('lotes que falham: aviso no lugar de "Nada esperando"', async () => {
+        delete rotas[`GET ${B}/lotes`]; rotas[`GET ${B}/desvios`] = { desvios: [] };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
+        expect(c.textContent).not.toContain('Nada esperando por você agora.');
     });
     it('sem site: empty state com o único primário', async () => {
         rotas[`GET ${B}/sites`] = { sites: [] };
