@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: menu, tela Início e tela do site (modo projeto e operação)
+- As 8 abas saem. O menu lateral passa a ter **Início**, **Sites** e a seção **Organização** (Assessment RO-CB.BR.01, Relatórios, Acessos e sondas).
+- **Início** mostra "Espera por você" (lotes de aprovação, desvios abertos, achados em rascunho, sondas paradas), os sites e a postura da RO-CB.BR.01.
+- **Sites** lista os sites; o site abre com **Modo projeto** (Levantamento, Lote de aprovação, Base) e **Modo operação** (Saúde da coleta, Desvios, Inventário). O endereço guarda `?ot=&site=&modo=`.
+- `/ot/desvios/<id>` abre o site do desvio em Modo operação > Desvios, com a linha marcada.
+- Só o front muda: rotas, permissões e mascaramento ficam como estavam.
+
 ### n.ot: perfil de fábrica para o export de ativos do Nozomi
 - "Importar planilha" reconhece o export de ativos do Nozomi Networks (colunas `appliance_hosts` e `capture_device`) e propõe o mapeamento pelo nome da coluna, com o selo "Perfil Nozomi", sem chamar a IA nem gastar o limite por hora. Perfil salvo no projeto com o mesmo cabeçalho continua vencendo.
 - No export, `tcp/445` vira protocolo e porta e `other` sai; das zonas, `Undefined`, `Layer2` e `Link-local` saem e vale a primeira restante. `mac_vendor` fica de fora (é o fabricante do roteador).

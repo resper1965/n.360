@@ -48,7 +48,7 @@ Limites: 5.000 ativos e 20.000 conexões por resumo, e o arquivo tem de ter **at
 
 ### Importar no n.ot
 
-Em **Levantamento**, abra uma sessão de **documento** e use **Importar arquivo** com o `resumo.json` (até 5 MB). Só quem vê o inventário completo (Gestor ARCiber ou consultoria designada) pode importar; os demais recebem 403. O arquivo é lido na hora e descartado: não vai para o armazenamento e não passa por IA.
+Em **Sites** > o site > **Modo projeto** > **Levantamento**, abra uma sessão de **documento** e use **Importar arquivo** com o `resumo.json` (até 5 MB). Só quem vê o inventário completo (Gestor ARCiber ou consultoria designada) pode importar; os demais recebem 403. O arquivo é lido na hora e descartado: não vai para o armazenamento e não passa por IA.
 
 ## Modo automático: a sonda manda sozinha
 
@@ -62,7 +62,7 @@ PC industrial sem ventoinha, 4 núcleos, 8 GB de memória, SSD de 256 GB e **dua
 
 ### Cadastrar a sonda e gerar a credencial
 
-1. No n.ot, abra **Acessos e agente** e, na área **Sondas** do site, clique em **Nova sonda**.
+1. No n.ot, abra **Acessos e sondas** e, na área **Sondas** do site, clique em **Nova sonda**.
 2. Informe o **nome** e a **faixa de origem** (obrigatória): o CIDR do IP de saída da rede de gestão do cliente, como ele aparece na internet. Exemplo: `203.0.113.10/32`. Só o Gestor ARCiber ou a consultoria designada cadastram.
 3. A credencial (`ots_…`) aparece **uma única vez**, junto com um bloco pronto para o `/etc/n-ot-sonda.conf`. Copie o bloco para um arquivo `n-ot-sonda.conf` e guarde-o até a instalação. Depois disso, só o hash fica no n.360.
 
@@ -173,8 +173,8 @@ A situação de cada sonda é calculada pelo último envio concluído:
 
 Na tela:
 
-- **Acessos e agente > Sondas** lista nome, situação, último envio, perda de captura e validade, e tem **Nova sonda**, **Gerar nova credencial**, **Revogar credencial** e **Revogar sonda**.
-- No topo da aba **Levantamento**, o cartão **Saúde da coleta** mostra quantas sondas estão em dia e há quanto tempo veio o último resumo, e o cartão **Pontos a esclarecer** conta os rascunhos com o selo "Sensor de rede", separados em ativos e fluxos.
+- **Acessos e sondas > Sondas** lista nome, situação, último envio, perda de captura e validade, e tem **Nova sonda**, **Gerar nova credencial**, **Revogar credencial** e **Revogar sonda**.
+- Em **Sites** > o site > **Modo operação** > **Saúde da coleta**, o cartão **Saúde da coleta** mostra quantas sondas estão em dia e há quanto tempo veio o último resumo, e, no topo de **Modo projeto** > **Levantamento**, o cartão **Pontos a esclarecer** conta os rascunhos com o selo "Sensor de rede", separados em ativos e fluxos.
 - Perda de captura acima de 5% aparece como aviso.
 
 Todo dia, no mesmo cron dos avisos (08:00 em São Paulo), o n.360 registra na trilha as sondas atrasadas e **envia um e-mail ao Gestor ARCiber para cada sonda parada**, com o nome da sonda e do site e nenhum dado de rede.
@@ -195,7 +195,7 @@ Sem o ICSNPP, o Zeek identifica Modbus, DNP3 e pouco mais de protocolo industria
 
 ## Export de ativos do Nozomi (planilha)
 
-Quem já tem um Nozomi Networks (Guardian ou Vantage) pode importar o export de ativos em vez de instalar a sonda: na sessão documental, **Importar planilha** com o CSV ou XLSX do export. O n.ot reconhece o export pelas colunas `appliance_hosts` e `capture_device` e propõe o mapeamento de fábrica ("Perfil Nozomi"), sem IA e sem gastar o limite por hora: `name`, `ip`, `mac_address`, `vendor`, `product_name`, `type`, `os_or_firmware`, `protocols` e `zones`, pelo nome da coluna (ordem e colunas a mais não importam). `mac_vendor` fica de fora de propósito: no export é o fabricante do roteador. Em `protocols`, `tcp/445` vira protocolo e porta e `other` sai; em `zones`, `Undefined`, `Layer2` e `Link-local` saem e vale a primeira zona que sobra. Perfil salvo no projeto para o mesmo cabeçalho vence o de fábrica. Como no sensor, em toda importação de planilha (de-para e lote de coleta) um MAC visto com 3 ou mais IPs distintos é o do gateway e sai das linhas (a mesma linha repetida, com o mesmo IP, não soma); a mensagem depois de criar os achados diz quantos MACs de roteador foram ignorados.
+Quem já tem um Nozomi Networks (Guardian ou Vantage) pode importar o export de ativos em vez de instalar a sonda: na sessão documental (**Sites** > o site > **Modo projeto** > **Levantamento**), **Importar planilha** com o CSV ou XLSX do export. O n.ot reconhece o export pelas colunas `appliance_hosts` e `capture_device` e propõe o mapeamento de fábrica ("Perfil Nozomi"), sem IA e sem gastar o limite por hora: `name`, `ip`, `mac_address`, `vendor`, `product_name`, `type`, `os_or_firmware`, `protocols` e `zones`, pelo nome da coluna (ordem e colunas a mais não importam). `mac_vendor` fica de fora de propósito: no export é o fabricante do roteador. Em `protocols`, `tcp/445` vira protocolo e porta e `other` sai; em `zones`, `Undefined`, `Layer2` e `Link-local` saem e vale a primeira zona que sobra. Perfil salvo no projeto para o mesmo cabeçalho vence o de fábrica. Como no sensor, em toda importação de planilha (de-para e lote de coleta) um MAC visto com 3 ou mais IPs distintos é o do gateway e sai das linhas (a mesma linha repetida, com o mesmo IP, não soma); a mensagem depois de criar os achados diz quantos MACs de roteador foram ignorados.
 
 ## Desvios
 
@@ -220,7 +220,7 @@ Desvio é o que a sonda viu e o inventário aprovado não prevê. Serve para o c
 
 **"Aceito" não é a exceção formal 5.1.1.** É um adiamento com prazo e justificativa dentro do n.ot; a exceção do requisito segue o seu processo próprio.
 
-Na aba **Desvios** (n.ot) há filtros por situação, site e tipo, e as ações Tratar e Aceitar temporariamente. O cartão **Pontos a esclarecer**, no topo do Levantamento, mostra "N desvios abertos". O IP de um desvio de ativo só aparece a quem vê o inventário completo, e cada visualização é registrada na trilha.
+Em **Sites** > o site > **Modo operação** > **Desvios** (n.ot) há filtros por situação, site e tipo, e as ações Tratar e Aceitar temporariamente. O cartão **Pontos a esclarecer**, no topo de **Modo projeto** > **Levantamento**, mostra "N desvios abertos". O IP de um desvio de ativo só aparece a quem vê o inventário completo, e cada visualização é registrada na trilha.
 
 ### Webhook `ot.desvio`
 
@@ -254,7 +254,7 @@ Para avisar o SOC, cadastre um webhook do projeto com o evento `ot.desvio` na li
 
 `acao` é `aberto`, `reaberto`, `aceite_vencido` ou `fechado` (tratado, aceito ou regularizado).
 
-O `link` abre o n.ot, não o desvio: não há página por desvio. O SOC acha o item na aba **Desvios**, filtrando pelo site do corpo (`site.nome`) e pela situação, e confere pelo tipo, protocolo, porta e pontas; o `id` é o mesmo da linha.
+O `link` (`/ot/desvios/<id>`) abre o site do desvio em **Modo operação** > **Desvios**, com a linha do desvio marcada. Se a pessoa não vê o desvio, o n.ot avisa e abre o Início; o `id` é o mesmo da linha.
 
 **Recomendação:** ligue o webhook **só depois de aprovar o inventário inicial**. No primeiro dia a sonda vê tudo como novo e o aviso seria só ruído.
 
