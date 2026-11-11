@@ -6,7 +6,7 @@ import type { ZodType } from 'zod';
 import { genId } from '../helpers';
 import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
-import { aadOt, cifrarEnderecos, normalizarMac, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
+import { aadOt, cifrarEnderecos, normalizarIp, normalizarMac, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
 import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventario';
 import { MAC_GATEWAY_MIN_IPS, resolverPendentes } from './ot-rede';
 import { fecharRegularizados } from './ot-desvio';
@@ -54,7 +54,7 @@ export function linhasDaPlanilha(linhas: string[][]) {
   const [cab = [], ...resto] = linhas;
   const campos = cab.map((c) => COLUNAS[chave(c)]);
   const ignoradas = cab.filter((_, i) => !campos[i]);
-  const itens = semMacGateway(resto.map((l) => {
+  const itens = resto.map((l) => {
     const o: Record<string, unknown> = {};
     l.forEach((bruto, i) => {
       const campo = campos[i];
@@ -63,20 +63,25 @@ export function linhasDaPlanilha(linhas: string[][]) {
       o[campo] = valorDaCelula(campo, v);
     });
     return o;
-  }));
+  });
+  semMacGateway(itens);
   return { itens, reconhecidas: campos.some(Boolean), ignoradas };
 }
 
 /**
- * MAC em MAC_GATEWAY_MIN_IPS+ linhas da mesma planilha é do roteador/firewall (a ferramenta viu vários IPs atrás dele), não do ativo:
- * sai dessas linhas. Altera e devolve os próprios objetos.
+ * MAC visto com MAC_GATEWAY_MIN_IPS+ IPs distintos na mesma planilha é do roteador/firewall (a ferramenta viu vários IPs atrás dele), não
+ * do ativo: sai das linhas que o trazem. Linha sem IP não conta; a mesma linha repetida (mesmo IP e MAC) não soma. Devolve quantas linhas perderam o MAC.
  */
-export function semMacGateway<T extends Record<string, unknown>>(itens: T[]): T[] {
-  const mac = (o: T) => (typeof o.mac === 'string' ? normalizarMac(o.mac) : null);
-  const conta = new Map<string, number>();
-  for (const o of itens) { const m = mac(o); if (m) conta.set(m, (conta.get(m) ?? 0) + 1); }
-  for (const o of itens) { const m = mac(o); if (m && conta.get(m)! >= MAC_GATEWAY_MIN_IPS) delete o.mac; }
-  return itens;
+export function semMacGateway(itens: Record<string, unknown>[]): number {
+  const mac = (o: Record<string, unknown>) => (typeof o.mac === 'string' ? normalizarMac(o.mac) : null);
+  const ips = new Map<string, Set<string>>();
+  for (const o of itens) {
+    const m = mac(o), ip = typeof o.ip === 'string' ? normalizarIp(o.ip) : null;
+    if (m && ip) ips.set(m, (ips.get(m) ?? new Set()).add(ip));
+  }
+  let n = 0;
+  for (const o of itens) { const m = mac(o); if (m && (ips.get(m)?.size ?? 0) >= MAC_GATEWAY_MIN_IPS) { delete o.mac; n++; } }
+  return n;
 }
 
 type Erro = { campo: string; motivo: string };

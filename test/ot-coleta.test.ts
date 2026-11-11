@@ -416,10 +416,10 @@ describe('retenção: lote não concluído expira em 7 dias', () => {
 });
 
 describe('planilha: MAC de gateway', () => {
-  it('MAC em 3+ linhas da mesma planilha sai delas (roteador visto por vários IPs); em 2 linhas fica', () => {
+  it('MAC com 3+ IPs distintos sai das linhas (roteador visto por vários IPs); o mesmo IP repetido 3 vezes fica', () => {
     const { itens } = linhasDaPlanilha([['Nome', 'IP', 'MAC'], ['A', '10.0.0.1', '02:00:00:00:00:01'], ['B', '10.0.0.2', '02-00-00-00-00-01'],
-      ['C', '10.0.0.3', '020000000001'], ['D', '10.0.0.4', '02:00:00:00:00:02'], ['E', '10.0.0.5', '02:00:00:00:00:02']]);
-    expect(itens.map((i) => i.mac)).toEqual([undefined, undefined, undefined, '02:00:00:00:00:02', '02:00:00:00:00:02']);
+      ['C', '10.0.0.3', '020000000001'], ['D', '10.0.0.4', '02:00:00:00:00:02'], ['D', '10.0.0.4', '02:00:00:00:00:02'], ['D', '10.0.0.4', '02:00:00:00:00:02']]);
+    expect(itens.map((i) => i.mac)).toEqual([undefined, undefined, undefined, '02:00:00:00:00:02', '02:00:00:00:00:02', '02:00:00:00:00:02']);
     expect(itens[0]).toEqual({ nome: 'A', ip: '10.0.0.1' });
   });
 });

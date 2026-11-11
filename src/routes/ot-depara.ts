@@ -103,7 +103,7 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
     if (!p.success) return c.json({ error: p.error.issues[0].message }, 400);
 
     // Número da linha na planilha (cabeçalho = 1) para a evidência; linha sem campo mapeado é pulada.
-    const itens = aplicarMapeamento(linhas, m.data, ehNozomi(cabecalho));
+    const { itens, macs_gateway } = aplicarMapeamento(linhas, m.data, ehNozomi(cabecalho));
     const n = await db.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>();
     if ((n?.n ?? 0) >= TETO_ACHADOS_SESSAO) return c.json({ error: `Limite de ${TETO_ACHADOS_SESSAO} achados por levantamento` }, 400);
 
@@ -132,7 +132,7 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
     }
     await trilha(c, 'ot.depara.aplicado', projectId, `${criados} achados do levantamento ${lev.id} por de-para; perfil salvo: ${perfilId ? 'sim' : 'não'}`,
       { tipo: 'ot_levantamento', id: lev.id });
-    return c.json({ criados, com_aviso: comAviso, ...(perfilId && { perfil_id: perfilId }) }, 201);
+    return c.json({ criados, com_aviso: comAviso, macs_gateway, ...(perfilId && { perfil_id: perfilId }) }, 201);
   } catch (e) { return erro500(c, 'Falha ao aplicar o de-para', e); }
 });
 

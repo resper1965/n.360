@@ -279,7 +279,7 @@ describe('de-para: perfil de fábrica Nozomi', () => {
     const mapa = (await (await proposta(cons, NOZOMI, ids.noz)).json<{ mapeamento: Record<string, string> }>()).mapeamento;
     const r = await aplicar(cons, { mapeamento: JSON.stringify(mapa) }, NOZOMI, ids.noz);
     expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toMatchObject({ criados: 4 });
+    expect(await r.json()).toMatchObject({ criados: 4, macs_gateway: 3 });
     const { achados } = await (await chamar(cons, 'GET', `${P}/levantamentos/${ids.noz}`)).json<{ achados: Ach[] }>();
     const por = (nome: string) => achados.find((a) => a.dados.nome === nome)!.dados;
     expect(por('RTU-N1')).toMatchObject({ fabricante: 'FabX', modelo: 'ModY', tipo_dispositivo: 'rtu', firmware_so_versao: 'v1.0', ip: '10.30.0.1',
@@ -289,6 +289,15 @@ describe('de-para: perfil de fábrica Nozomi', () => {
     expect(por('RTU-N2')).not.toHaveProperty('zona_id');
     expect(por('RTU-N3').protocolos_portas).toEqual([{ protocolo: 'udp', porta: 161 }]);
     for (const n of ['RTU-N2', 'RTU-N3', 'RTU-N4']) expect(por(n).mac).toBeNull();
+  });
+
+  it('mesmo ativo repetido (mesmo IP e MAC, visto por vários appliances) mantém o MAC', async () => {
+    const lin = nozomiLinha('RTU-R', '10.30.0.20', '02:00:00:00:bb:01', 'tcp/502', 'Controle Nozomi');
+    const mapa = (await (await proposta(cons, NOZOMI, ids.noz)).json<{ mapeamento: Record<string, string> }>()).mapeamento;
+    const r = await aplicar(cons, { mapeamento: JSON.stringify(mapa) }, [NOZOMI_CAB, lin, lin, lin].join('\n') + '\n', ids.noz);
+    expect(await r.json()).toMatchObject({ criados: 3, macs_gateway: 0 });
+    const { achados } = await (await chamar(cons, 'GET', `${P}/levantamentos/${ids.noz}`)).json<{ achados: Ach[] }>();
+    expect(achados.filter((a) => a.dados.nome === 'RTU-R').map((a) => a.dados.mac)).toEqual(Array(3).fill('02:00:00:00:bb:01'));
   });
 
   it('perfil salvo no projeto com a mesma assinatura vence o de fábrica', async () => {

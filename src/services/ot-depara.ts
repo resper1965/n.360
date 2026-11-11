@@ -91,10 +91,11 @@ export async function proporMapeamento(env: EnvIa, cab: string[], amostra: strin
 
 /**
  * Linhas SEM o cabeçalho → objetos brutos (como o corpo da entrada manual) com o número da linha na planilha (cabeçalho = 1).
- * Linha sem nenhum campo mapeado é pulada; MAC de gateway sai (`semMacGateway`); `nozomi` liga a leitura das células do export Nozomi.
+ * Linha sem nenhum campo mapeado é pulada; MAC de gateway sai (`semMacGateway`, contado em `macs_gateway`); `nozomi` liga a leitura das
+ * células do export Nozomi.
  */
-export function aplicarMapeamento(linhas: string[][], m: Mapeamento, nozomi = false): { dados: Record<string, unknown>; linha: number }[] {
-  const dados = semMacGateway(linhas.map((l) => {
+export function aplicarMapeamento(linhas: string[][], m: Mapeamento, nozomi = false) {
+  const dados = linhas.map((l) => {
     const o: Record<string, unknown> = {};
     for (const [i, campo] of Object.entries(m)) {
       const v = (l[Number(i)] ?? '').trim();
@@ -102,8 +103,9 @@ export function aplicarMapeamento(linhas: string[][], m: Mapeamento, nozomi = fa
       if (x !== undefined && x !== '' && !(Array.isArray(x) && !x.length)) o[campo] = x;
     }
     return o;
-  }));
-  return dados.flatMap((o, i) => (Object.keys(o).length ? [{ dados: o, linha: i + 2 }] : []));
+  });
+  const macs_gateway = semMacGateway(dados);
+  return { itens: dados.flatMap((o, i) => (Object.keys(o).length ? [{ dados: o, linha: i + 2 }] : [])), macs_gateway };
 }
 
 /** true = dentro do teto. Conta a tentativa na pessoa e, só se ela passar, no projeto; janela de 1 h. */

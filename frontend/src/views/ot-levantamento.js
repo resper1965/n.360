@@ -481,7 +481,8 @@ async function aplicarDepara() {
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
         importacao = null;
         forceCloseModal();
-        showToast(`${conta(r.criados, 'achado criado', 'achados criados')} (${r.com_aviso} com aviso).`, 'success');
+        showToast(`${conta(r.criados, 'achado criado', 'achados criados')} (${r.com_aviso} com aviso).`
+            + (r.macs_gateway > 0 ? ` ${conta(r.macs_gateway, 'MAC de roteador ignorado', 'MACs de roteador ignorados')}.` : ''), 'success');
         await redesenhar();
     } catch (e) { falhou(e, 'Não foi possível criar os achados.'); }
 }

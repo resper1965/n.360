@@ -23,14 +23,15 @@ describe('de-para: serviço', () => {
 
   it('aplicar converte como a coleta e pula linha vazia', () => {
     expect(aplicarMapeamento([['RTU', '10.0.0.1', 'sim'], ['', ' ', '']], { '0': 'nome', '1': 'ip', '2': 'no_arciber' }))
-      .toEqual([{ dados: { nome: 'RTU', ip: '10.0.0.1', no_arciber: true }, linha: 2 }]);
+      .toEqual({ itens: [{ dados: { nome: 'RTU', ip: '10.0.0.1', no_arciber: true }, linha: 2 }], macs_gateway: 0 });
   });
 
-  it('MAC em 3+ linhas da planilha é do gateway e sai delas; em 2 linhas fica', () => {
-    const m = { '0': 'nome', '1': 'mac' } as const;
-    const r = aplicarMapeamento([['A', '02:00:00:00:00:01'], ['B', '02-00-00-00-00-01'], ['C', '0200.0000.0001'], ['D', '02:00:00:00:00:02'],
-      ['E', '02:00:00:00:00:02'], ['', '02:00:00:00:00:01']], m);
-    expect(r.map((x) => x.dados)).toEqual([{ nome: 'A' }, { nome: 'B' }, { nome: 'C' }, { nome: 'D', mac: '02:00:00:00:00:02' }, { nome: 'E', mac: '02:00:00:00:00:02' }]);
+  it('MAC com 3+ IPs distintos é do gateway e sai das linhas; mesmo IP repetido ou linha sem IP não somam', () => {
+    const m = { '0': 'nome', '1': 'ip', '2': 'mac' } as const;
+    const r = aplicarMapeamento([['A', '10.0.0.1', '02:00:00:00:00:01'], ['B', '10.0.0.2', '02-00-00-00-00-01'], ['C', '10.0.0.3', '0200.0000.0001'],
+      ['D', '10.0.0.4', '02:00:00:00:00:02'], ['D', '10.0.0.4', '02:00:00:00:00:02'], ['D', '10.0.0.4', '02:00:00:00:00:02'], ['E', '', '02:00:00:00:00:02']], m);
+    expect(r.macs_gateway).toBe(3);
+    expect(r.itens.map((x) => x.dados.mac)).toEqual([undefined, undefined, undefined, '02:00:00:00:00:02', '02:00:00:00:00:02', '02:00:00:00:00:02', '02:00:00:00:00:02']);
   });
 
   it('export Nozomi: reconhecido por appliance_hosts + capture_device, mapeado pelo nome da coluna em qualquer ordem', () => {
@@ -48,7 +49,7 @@ describe('de-para: serviço', () => {
     const m = mapeamentoNozomi(NOZOMI_CAB);
     const l = (protocols: string, zones: string, mac = '02:00:00:00:00:10') => ['Site X', 'guardian-x', 'port1', 'RTU-01', 'rtu', 'v2.1', '10.20.0.5', 'Fab', 'Mod', 'SN1', '10',
       mac, 'RouterVendor', 'slave', '1', protocols, zones, '2026-01-01', '2026-01-02'];
-    const [a, b, c] = aplicarMapeamento([l('tcp/445, other,iec104 ,udp/161,opc-ua', 'Undefined, Controle,Supervisao'), l('other', 'layer2, link-local ,undefined', '02:00:00:00:00:11'),
+    const { itens: [a, b, c] } = aplicarMapeamento([l('tcp/445, other,iec104 ,udp/161,opc-ua', 'Undefined, Controle,Supervisao'), l('other', 'layer2, link-local ,undefined', '02:00:00:00:00:11'),
       l('', 'Controle', '02:00:00:00:00:12')], m, true);
     expect(a.dados).toEqual({ nome: 'RTU-01', tipo_dispositivo: 'rtu', firmware_so_versao: 'v2.1', ip: '10.20.0.5', fabricante: 'Fab', modelo: 'Mod',
       mac: '02:00:00:00:00:10', protocolos_portas: [{ protocolo: 'tcp', porta: 445 }, { protocolo: 'iec104' }, { protocolo: 'udp', porta: 161 }, { protocolo: 'opc-ua' }],
@@ -58,7 +59,7 @@ describe('de-para: serviço', () => {
     expect(c.dados).toMatchObject({ zona: 'Controle', mac: '02:00:00:00:00:12' });
     expect(c.dados).not.toHaveProperty('protocolos_portas');
     // planilha comum: o "tcp/445" segue como texto livre
-    expect(aplicarMapeamento([['tcp/445']], { '0': 'protocolos_portas' })[0].dados).toEqual({ protocolos_portas: [{ protocolo: 'tcp/445' }] });
+    expect(aplicarMapeamento([['tcp/445']], { '0': 'protocolos_portas' }).itens[0].dados).toEqual({ protocolos_portas: [{ protocolo: 'tcp/445' }] });
   });
 
   it('proposta da IA: entrada mascarada, saída validada', async () => {
