@@ -7,7 +7,7 @@ import { chavesOt } from '../services/ot-cifra';
 import { podeVerCompleto, sitesPermitidos, TETO_LEITURA_OT } from '../services/ot-inventario';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { prepararAchado, zonasDoSite } from '../services/ot-levantamento';
-import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, CAMPOS_DEPARA, gravarAchados, INSERIR_ACHADO, proporMapeamento, tetoDepara, TETO_DEPARA, type Mapeamento } from '../services/ot-depara';
+import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, CAMPOS_DEPARA, ehNozomi, gravarAchados, mapeamentoNozomi, INSERIR_ACHADO, proporMapeamento, tetoDepara, TETO_DEPARA, type Mapeamento } from '../services/ot-depara';
 import { lerLevantamento } from './ot';
 import { dividirEmTrechos, lerDocumento, LIMITES_TEXTO } from '../services/ot-documento';
 import { RecusaIa } from '../services/ot-ia';
@@ -66,10 +66,12 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/proposta', async (c) => {
     const { db, user, projectId, lev, cabecalho, linhas } = s;
     const perfil = await db.prepare(`SELECT id, nome, fonte, mapeamento FROM ot_perfis_depara WHERE project_id = ? AND assinatura = ? AND status = 'ativo' LIMIT 1`)
       .bind(projectId, await assinaturaDoCabecalho(cabecalho)).first<{ id: string; nome: string; fonte: string; mapeamento: string }>();
-    let r: { mapeamento: Mapeamento; origem: 'perfil' | 'ia' | 'cabecalho'; perfil?: { id: string; nome: string; fonte: string }; aviso?: string };
+    let r: { mapeamento: Mapeamento; origem: 'perfil' | 'nozomi' | 'ia' | 'cabecalho'; perfil?: { id: string; nome: string; fonte: string }; aviso?: string };
     if (perfil) {
       const { mapeamento, ...p } = perfil;
       r = { mapeamento: JSON.parse(mapeamento) as Mapeamento, origem: 'perfil', perfil: p };
+    } else if (ehNozomi(cabecalho)) {
+      r = { mapeamento: mapeamentoNozomi(cabecalho), origem: 'nozomi' }; // perfil de fábrica: sem IA, não gasta o teto da hora
     } else {
       if (!await tetoDepara(db, user.id, projectId)) {
         return c.json(TETO_HORA(), 429);
@@ -101,7 +103,7 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
     if (!p.success) return c.json({ error: p.error.issues[0].message }, 400);
 
     // Número da linha na planilha (cabeçalho = 1) para a evidência; linha sem campo mapeado é pulada.
-    const itens = linhas.flatMap((l, i) => aplicarMapeamento([l], m.data).map((dados) => ({ dados, linha: i + 2 })));
+    const { itens, macs_gateway } = aplicarMapeamento(linhas, m.data, ehNozomi(cabecalho));
     const n = await db.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>();
     if ((n?.n ?? 0) >= TETO_ACHADOS_SESSAO) return c.json({ error: `Limite de ${TETO_ACHADOS_SESSAO} achados por levantamento` }, 400);
 
@@ -130,7 +132,7 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
     }
     await trilha(c, 'ot.depara.aplicado', projectId, `${criados} achados do levantamento ${lev.id} por de-para; perfil salvo: ${perfilId ? 'sim' : 'não'}`,
       { tipo: 'ot_levantamento', id: lev.id });
-    return c.json({ criados, com_aviso: comAviso, ...(perfilId && { perfil_id: perfilId }) }, 201);
+    return c.json({ criados, com_aviso: comAviso, macs_gateway, ...(perfilId && { perfil_id: perfilId }) }, 201);
   } catch (e) { return erro500(c, 'Falha ao aplicar o de-para', e); }
 });
 
