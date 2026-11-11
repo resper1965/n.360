@@ -46,7 +46,7 @@ describe('montarInicio', () => {
         [`GET ${B}/lotes`]: { lotes: [{ id: 'l1', status: 'em_revisao', criado_por: 'u2', site_id: 's1', created_at: '2026-11-10T12:00:00Z' }] },
         [`GET ${B}/desvios`]: { desvios: [{ site_id: 's1' }] },
         [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE <b>Norte</b>', ativos: 4 }] },
-        [`GET ${B}/achados`]: { achados: [{ id: 'a1', situacao: 'rascunho' }, { id: 'a2', situacao: 'rascunho', origem: 'consultor' }, { id: 'a3', situacao: 'rascunho' }] },
+        [`GET ${B}/achados`]: { total: 3 },
         [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z', nome: 'S-1', saude: 'parada' }] },
         [`GET ${B}/conformidade`]: { resumo: { nao_atende: 1, evidencia_no_inventario: 2, sem_evidencia: 3 } },
     };
@@ -80,7 +80,7 @@ describe('montarInicio', () => {
     it('a contagem vem da fila do site (uma chamada por site), sem linha à parte da sonda; o botão do lote usa otIrParaLote', async () => {
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
-        expect(urls.filter((u) => u.startsWith(`${B}/achados`))).toEqual([`${B}/achados?site_id=s1&situacao=rascunho`]);
+        expect(urls.filter((u) => u.startsWith(`${B}/achados`))).toEqual([`${B}/achados?site_id=s1&situacao=rascunho&contagem=1`]);
         expect(urls.some((u) => u.includes('/sensores/pontos') || u.endsWith('/levantamentos'))).toBe(false);
         expect(c.textContent).not.toContain('da sonda para revisar');
         expect(c.querySelector('[data-action="otIrParaLote"]')).not.toBeNull();
@@ -111,7 +111,7 @@ describe('montarInicio', () => {
     });
     it('dois sites, a fila de um falha: a contagem do outro aparece e o aviso de carga parcial também', async () => {
         rotas[`GET ${B}/sites`] = { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] };
-        rotas[`GET ${B}/achados`] = (u) => (u.searchParams.get('site_id') === 's2' ? null : { achados: [{ id: 'a1' }, { id: 'a2' }] });
+        rotas[`GET ${B}/achados`] = (u) => (u.searchParams.get('site_id') === 's2' ? null : { total: 2 });
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
         expect(c.textContent).toContain('2 achados em rascunho em SE Norte');

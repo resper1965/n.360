@@ -47,7 +47,7 @@ otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
 });
 
 // P0-8, falha fechada: sem as duas chaves, nada de ativo nem de lote entra ou sai.
-for (const rota of ['/ativos/*', '/lotes/*', '/levantamentos/*']) {
+for (const rota of ['/ativos/*', '/lotes/*', '/levantamentos/*', '/achados']) {
   otApp.use(rota, async (c, next) => {
     if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
     await next();
@@ -531,7 +531,7 @@ otApp.post('/lotes/:id/itens/:itemId/recusar', async (c) => {
     if (!v.success) return v.response;
     const r = await recusarItem(db, user, projectId, sites, c.req.param('id'), c.req.param('itemId'), v.data.motivo);
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    await trilha(c, 'ot.lote.item_recusado', projectId, `Item ${c.req.param('itemId')} do lote ${c.req.param('id')} recusado`, { tipo: 'ot_lote', id: c.req.param('id') });
+    await trilha(c, 'ot.lote.item_recusado', projectId, `Item ${c.req.param('itemId')} do lote ${c.req.param('id')} recusado`, { tipo: 'ot_lote', id: c.req.param('id') }, v.data.motivo);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao recusar o item', e); }
 });
@@ -632,6 +632,12 @@ otApp.get('/achados', async (c) => {
     if (!site) return c.json({ error: 'site_id é obrigatório' }, 400);
     if (situacao !== 'rascunho' && situacao !== 'enviado') return c.json({ error: 'situacao deve ser rascunho ou enviado' }, 400);
     if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
+    if (c.req.query('contagem') === '1') {
+      // só a contagem: não decifra nada, logo sem trilha de IP/MAC
+      const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+        WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ?`).bind(projectId, site, situacao).first<{ n: number }>();
+      return c.json({ total: n?.n ?? 0 });
+    }
     const completo = await podeVerCompleto(db, user, projectId);
     const { results } = await db.prepare(`SELECT a.*, ${DESFECHO_SQL}, l.tipo AS levantamento_tipo, l.realizado_em AS levantamento_realizado_em
       FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
@@ -656,7 +662,7 @@ otApp.post('/sites/:siteId/enviar', async (c) => {
     const v = await validateBody(c, otEnviarAchadosSchema);
     if (!v.success) return v.response;
     return responderLote(c, await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { site_id: site }, v.data.achados), projectId, site);
-  } catch (e) { return erro500(c, 'Falha ao enviar os achados ao lote', e); }
+  } catch (e) { return erro500(c, 'Falha ao enviar os achados para aprovação', e); }
 });
 
 otApp.put('/levantamentos/:id', async (c) => {
@@ -722,7 +728,7 @@ otApp.put('/levantamentos/:id/achados/:aid', async (c) => {
     const a = await db.prepare(`SELECT id, situacao, entidade FROM ot_achados WHERE id = ? AND levantamento_id = ? AND project_id = ?`)
       .bind(c.req.param('aid'), lev.id, projectId).first<{ id: string; situacao: string; entidade: string }>();
     if (!a) return NAO_ENCONTRADO(c, 'Achado');
-    if (a.situacao === 'enviado') return c.json({ error: 'Achado já enviado ao lote' }, 409);
+    if (a.situacao === 'enviado') return c.json({ error: 'Achado já enviado para aprovação' }, 409);
     const v = await validateBody(c, otAchadoAtualizarSchema);
     if (!v.success) return v.response;
     if (await perguntaRuim(db, v.data.pergunta_id)) return refRuim(c, 'pergunta_id');
@@ -738,7 +744,7 @@ otApp.put('/levantamentos/:id/achados/:aid', async (c) => {
     if (!sets.length) return c.json({ ok: true });
     // `situacao <> 'enviado'` de novo no UPDATE: um envio entre a leitura e a escrita não perde a trava.
     const r = await db.prepare(`UPDATE ot_achados SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND situacao <> 'enviado'`).bind(...vals, a.id).run();
-    if (!r.meta.changes) return c.json({ error: 'Achado já enviado ao lote' }, 409);
+    if (!r.meta.changes) return c.json({ error: 'Achado já enviado para aprovação' }, 409);
     await trilha(c, 'ot.achado.editado', projectId, `Achado ${a.id} editado`, { tipo: 'ot_achado', id: a.id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao editar o achado', e); }
@@ -753,7 +759,7 @@ otApp.post('/levantamentos/:id/enviar', async (c) => {
     if (!v.success) return v.response;
     const r = await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { site_id: lev.site_id, levantamento_id: lev.id }, v.data.achados);
     return responderLote(c, r, projectId, lev.site_id, { levantamento_id: lev.id });
-  } catch (e) { return erro500(c, 'Falha ao enviar os achados ao lote', e); }
+  } catch (e) { return erro500(c, 'Falha ao enviar os achados para aprovação', e); }
 });
 
 // ─── conformidade RO-CB.BR.01 calculada do inventário ───────────────────────

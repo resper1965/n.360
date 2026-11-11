@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { manutencaoDiaria } from '../src/manutencao';
+import { devolverRecusados } from '../src/services/ot-coleta';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // n.ot E2: decisão item a item no lote, devolução do achado na hora e `desfecho` do achado (com A1 para papel mascarado). D1 real.
@@ -153,5 +154,36 @@ describe('decisão item a item', () => {
     expect(ma).not.toHaveProperty('registro_id');
     expect(mb.desfecho).toBe('recusado');
     expect(mb.motivo ?? null).toBeNull();
+  });
+
+  it('devolverRecusados(A) não puxa de volta o achado já reenviado no lote B (lote_item_id ainda no item recusado de A)', async () => {
+    const a = await novo('I20', '10.8.0.20');
+    const loteA = await enviar([a]);
+    await recusar(gestor, loteA, (await itens(loteA))[0].id);
+    const loteB = await enviar([a]);
+    const [{ lote_item_id }] = (await env.DB.prepare('SELECT i.id AS lote_item_id FROM ot_lote_itens i WHERE i.lote_id = ?').bind(loteA).all<{ lote_item_id: string }>()).results;
+    // janela do reenvio: situação e lote_id já são do lote B, o vínculo ainda é o item recusado de A
+    await env.DB.prepare('UPDATE ot_achados SET lote_item_id = ? WHERE id = ?').bind(lote_item_id, a).run();
+    expect(await devolverRecusados(env.DB, loteA)).toBe(0);
+    expect(await env.DB.prepare('SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?').bind(a).first()).toEqual({ situacao: 'enviado', lote_id: loteB, lote_item_id });
+  });
+
+  it('motivo da recusa com IP é 400 (papel mascarado lê o motivo)', async () => {
+    const a = await novo('I21', '10.8.0.21');
+    const lote = await enviar([a]);
+    expect((await recusar(gestor, lote, (await itens(lote))[0].id, 'o certo é 10.9.9.9')).status).toBe(400);
+  });
+
+  it('contagem=1 devolve só o total, sem trilha de IP/MAC; sem site_id 400; site fora da lista 404', async () => {
+    const conta = async () => (await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel'`).first<{ n: number }>())!.n;
+    const n0 = await conta();
+    const r = await chamar(cons, 'GET', `${P}/achados?site_id=${ids.site}&contagem=1`);
+    const { total } = await r.json<{ total: number }>();
+    const { achados: fila } = await (await chamar(cons, 'GET', `${P}/achados?site_id=${ids.site}`)).json<{ achados: Ach[] }>();
+    expect(total).toBe(fila.length);
+    expect(total).toBeGreaterThan(0);
+    expect(await conta()).toBe(n0 + 1); // só a leitura completa gravou
+    expect((await chamar(cons, 'GET', `${P}/achados?contagem=1`)).status).toBe(400);
+    expect((await chamar(cons, 'GET', `${P}/achados?site_id=outro&contagem=1`)).status).toBe(404);
   });
 });

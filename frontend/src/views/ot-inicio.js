@@ -54,9 +54,9 @@ export async function montarInicio(c, a, p) {
     const rSo = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(s.id)}/sensores`)));
     const sondas = sitesL.flatMap((s, i) => (rSo[i].status === 'fulfilled' ? lista(rSo[i].value, 'sensores').map((x) => ({ ...x, site_id: s.id })) : []));
     // fila de revisão: uma chamada por site; a que falha deixa o site sem contagem e acende o aviso de carga parcial
-    const rQ = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${encodeURIComponent(s.id)}&situacao=rascunho`)));
+    const rQ = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${encodeURIComponent(s.id)}&situacao=rascunho&contagem=1`)));
     const rascunhosPorSite = {};
-    sitesL.forEach((s, i) => { if (rQ[i].status === 'fulfilled') rascunhosPorSite[s.id] = lista(rQ[i].value, 'achados').length; });
+    sitesL.forEach((s, i) => { if (rQ[i].status === 'fulfilled') rascunhosPorSite[s.id] = rQ[i].value?.total ?? 0; });
     const desvios = v(rD, 'desvios');
     const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, rascunhosPorSite, sondas, sites },
         { id: S.user?.id, podeAprovar: podeAprovarOt() && S.user?.role !== 'consultoria_admin', podeEditar: podeEditarOt() });

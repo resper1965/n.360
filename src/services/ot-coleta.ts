@@ -388,10 +388,11 @@ export async function rejeitarLote(db: D1Database, ator: { id: string; email: st
 }
 
 /** Achado cujo item do lote foi recusado ou descartado volta a rascunho na hora. `lote_item_id` fica: é por ele que o motivo continua legível. */
+const DEVOLVER = (db: D1Database, loteId: string) => db.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE situacao = 'enviado' AND lote_id = ? AND lote_item_id IN (SELECT id FROM ot_lote_itens WHERE lote_id = ? AND decisao IN ('recusado', 'descartado'))`).bind(loteId, loteId);
+/** `lote_id = ?`: o reenvio muda `lote_id` antes de religar `lote_item_id`; sem isso a devolução do lote antigo puxaria o achado reenviado. */
 export async function devolverRecusados(db: D1Database, loteId: string): Promise<number> {
-  const r = await db.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
-    WHERE situacao = 'enviado' AND lote_item_id IN (SELECT id FROM ot_lote_itens WHERE lote_id = ? AND decisao IN ('recusado', 'descartado'))`).bind(loteId).run();
-  return r.meta.changes ?? 0;
+  return (await DEVOLVER(db, loteId).run()).meta.changes ?? 0;
 }
 
 /** Recusa um item pendente (decisão item a item): o achado ligado volta a rascunho na mesma chamada. */
@@ -401,11 +402,11 @@ export async function recusarItem(db: D1Database, ator: { id: string }, projectI
   const item = await db.prepare(`SELECT decisao FROM ot_lote_itens WHERE id = ? AND lote_id = ? AND project_id = ?`).bind(itemId, loteId, projectId).first<{ decisao: string }>();
   if (!item) return { ok: false, status: 404, error: 'Item não encontrado' };
   // Atômico com o estado do lote: durante `gravando` (aprovação em curso) ou depois de decidido o item não muda.
-  const r = await db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP
+  // batch: as duas instruções comitam juntas; `changes` da primeira segue valendo para o 409.
+  const [r] = await db.batch([db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND lote_id = ? AND decisao = 'pendente' AND EXISTS (SELECT 1 FROM ot_lotes WHERE id = ? AND project_id = ? AND status = 'em_revisao')`)
-    .bind(motivo, itemId, loteId, loteId, projectId).run();
+    .bind(motivo, itemId, loteId, loteId, projectId), DEVOLVER(db, loteId)]);
   if (!r.meta.changes) return { ok: false, status: 409, error: 'O item já foi decidido ou o lote não está em revisão' };
-  await devolverRecusados(db, loteId);
   return { ok: true };
 }
 

@@ -38,7 +38,7 @@ function desenharFila() {
         const nome = nomeDe(x);
         const recusado = x.desfecho === 'recusado';
         return [...(editar ? [`<input type="checkbox" id="rev-sel-${escapeHTML(x.id)}" data-action-change="otRevMarcar" data-args='${args(x.id)}' data-arg-el${sel.has(x.id) ? ' checked' : ''} aria-label="${escapeHTML(`Enviar ${nome} para aprovação`)}">`] : []),
-            escapeHTML(nome) + (recusado ? ` ${renderStatusBadge('warning', 'Recusado')}<div class="org-dica">${escapeHTML(x.motivo || '')}</div>` : ''),
+            escapeHTML(nome) + (recusado ? ` ${renderStatusBadge('danger', 'Recusado')}<div class="org-dica">${escapeHTML(x.motivo || '')}</div>` : ''),
             x.entidade === 'fluxo' ? 'Fluxo' : 'Ativo', escapeHTML(ORIGEM[origemDe(x)] || x.origem || '—'),
             `<button class="btn btn-sm" data-action="otRevAbrirLevantamento" data-args='${args(ctx.site, x.levantamento_id)}'>${escapeHTML(`${TIPO_LEV[x.levantamento_tipo] || x.levantamento_tipo || 'Levantamento'} · ${formatarData(x.levantamento_realizado_em)}`)}</button>`,
             ...(editar ? [`<button class="btn btn-sm" data-action="otRevDescartar" data-args='${args(x.levantamento_id, x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>`] : [])];
