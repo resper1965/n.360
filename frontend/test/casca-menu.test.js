@@ -85,7 +85,7 @@ describe('n.iso e n.360: o menu não muda com a alternativa A do n.privacy', () 
         aplicarCasca(produto);
         expect(estrutura()).toEqual(esperado);
         expect(el('secoes-privacy')).toBeNull();
-        expect(document.querySelector('#secoes-privacy .sidebar-secao')).toBeNull();
+        expect(document.querySelector('.sidebar-secao:not(#secao-ot-organizacao)')).toBeNull();
     });
 });
 

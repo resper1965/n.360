@@ -18,7 +18,7 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
     const out = [];
     if (podeAprovar) {
         for (const l of lotes.filter((x) => x.status === 'em_revisao' && x.criado_por !== id)) {
-            const [, m, d] = emDiasSP(PRAZO_DIAS, new Date(l.created_at)).split('-');
+            const [, m, d] = emDiasSP(PRAZO_DIAS, new Date(/^\d{4}-\d{2}-\d{2} /.test(l.created_at) ? `${l.created_at.replace(' ', 'T')}Z` : l.created_at)).split('-');
             out.push({ tipo: 'lote', texto: `Lote de aprovação em ${nome(l.site_id)}: decidir até ${d}/${m}`, acao: alvo(l.site_id, 'projeto', l.id) });
         }
         const porSite = {};
@@ -59,7 +59,7 @@ export async function montarInicio(c, a, p) {
     for (const l of v(rV, 'levantamentos').filter((x) => x.situacao !== 'encerrado')) rascunhosPorSite[l.site_id] = (rascunhosPorSite[l.site_id] || 0) + (l.achados || 0);
     const desvios = v(rD, 'desvios');
     const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, rascunhosPorSite, sondas, sites },
-        { id: S.user?.id, podeAprovar: podeAprovarOt(), podeEditar: podeEditarOt() });
+        { id: S.user?.id, podeAprovar: podeAprovarOt() && S.user?.role !== 'consultoria_admin', podeEditar: podeEditarOt() });
     const nSonda = rP.status === 'fulfilled' ? (rP.value.ativos || 0) + (rP.value.fluxos || 0) : 0;
     if (podeEditarOt() && nSonda) pend.push({ tipo: 'rascunho', texto: `${plural(nSonda, 'achado da sonda para revisar', 'achados da sonda para revisar')}`, acao: { tela: 'sites' } });
 
@@ -73,7 +73,7 @@ export async function montarInicio(c, a, p) {
     const blocoSites = rS.status === 'rejected' ? '<p class="org-dica" role="alert">Não foi possível carregar os sites.</p>' : sitesL.length
         ? renderDataTable(['Site', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome),
             escapeHTML(String(abertos[s.id] || 0)), escapeHTML(pior(s.id) || (sondas.some((x) => x.site_id === s.id) ? 'em dia' : '—')), botao('Abrir', `Abrir ${s.nome}`, 'otTela', 'site', s.id, 'projeto')]))
-        : renderEmptyState({ titulo: 'Cadastre o primeiro site', texto: 'O site é onde o inventário e os levantamentos acontecem.', acao: `<button class="btn btn-primary" data-action="otTela" data-args='${args('sites')}'>Cadastrar site</button>` });
+        : renderEmptyState({ titulo: 'Cadastre o primeiro site', texto: 'O site é onde o inventário e os levantamentos acontecem.', acao: podeEditarOt() ? `<button class="btn btn-primary" data-action="otTela" data-args='${args('sites')}'>Cadastrar site</button>` : '' });
     const r = rC.status === 'fulfilled' ? rC.value.resumo || {} : null;
     const postura = r
         ? `<p>Não atende: ${escapeHTML(String(r.nao_atende ?? 0))} · Evidência no inventário: ${escapeHTML(String(r.evidencia_no_inventario ?? 0))} · Sem evidência: ${escapeHTML(String(r.sem_evidencia ?? 0))}</p>

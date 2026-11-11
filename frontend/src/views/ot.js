@@ -70,7 +70,7 @@ async function renderOt(c, h, a) {
 /** Despacho do menu e dos botões. `extra` (salto de dentro de uma tela: lote, levantamento) vale DEPOIS do zerar, para não ser apagado. */
 window.otTela = async (tela, site = null, modo = 'projeto', extra = {}) => {
     await esvaziarNotas();
-    Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modo, otSub: null, otLote: null, otLevantamento: null }, extra);
+    Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modo, otSub: null, otZona: null, otLote: null, otLevantamento: null }, extra);
     window.render();
 };
 // Abre o lote de um site vindo de fora (Início): sub-aba Lote de aprovação.
@@ -159,7 +159,7 @@ export async function montarInventario(c, a, p, { siteFixo } = {}) {
         x.mac == null ? renderStatusBadge('warning', 'Falta MAC') : `<span class="f-mono">${escapeHTML(x.mac)}</span>`,
         x.no_arciber ? renderStatusBadge('info', `Sim${x.categoria_arciber ? ` · ${CATEGORIAS[x.categoria_arciber] || x.categoria_arciber}` : ''}`) : 'Não',
         ...acoesAtivo(x),
-    ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Cadastre o ativo aqui ou traga uma planilha pela aba Coleta.' : 'Os ativos entram pela aba Coleta, com a revisão de quem administra o n.ot.' });
+    ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Cadastre o ativo aqui ou traga uma planilha pelo Levantamento.' : 'Os ativos entram pelo Lote de aprovação do site, com a revisão de quem administra o n.ot.' });
     const mascarado = D.ativos.some((x) => x.mascarado);
 
     c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${siteFixo ? '' : filtroSite()}
@@ -419,7 +419,7 @@ export async function montarAcessos(c, a, p) {
         ${renderDataTable(['Site', 'Técnico', 'Concedido por', 'Desde', 'Ações'], acessos.map((x) => [
         escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(email(x.user_id)), escapeHTML(x.concedido_por || '—'), escapeHTML(formatarData(x.created_at)),
         linhaMais([{ rotulo: 'Revogar acesso', action: 'otRevogarAcesso', args: [x.site_id, x.user_id], perigo: true }], email(x.user_id)),
-    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site na aba Inventário antes de conceder acesso.' })}${agente}${sondas}`;
+    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site em Sites antes de conceder acesso.' })}${agente}${sondas}`;
 }
 window.otNovoAcesso = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Conceder acesso a um site</span></div>

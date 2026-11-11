@@ -43,7 +43,7 @@ export async function montarSaidas(c, a, p) {
         <p class="mb-4">Fluxos externos: ${situacao(fx.situacao)}</p>
         <h3 class="mt-6 mb-3">Ativos por zona e nível Purdue</h3>
         ${renderDataTable(['Nível Purdue', 'Zona', 'Site', 'Ativos'], porZona.map((z) => [escapeHTML(String(z.nivel_purdue)), escapeHTML(z.nome), escapeHTML(nomeDe(sites, z.site_id)), escapeHTML(String(z.ativos))]),
-        { emptyMessage: 'Nenhuma zona registrada.', emptyHint: 'Cadastre as zonas de cada site na aba Inventário.' })}
+        { emptyMessage: 'Nenhuma zona registrada.', emptyHint: 'Cadastre as zonas de cada site em Sites.' })}
         <h3 class="mt-6 mb-3">RO-CB.BR.01 por item, pelo inventário</h3>
         <p class="org-header-intro">Não atende: ${escapeHTML(String(resumo.nao_atende ?? 0))} · Evidência no inventário: ${escapeHTML(String(resumo.evidencia_no_inventario ?? 0))} · Sem evidência: ${escapeHTML(String(resumo.sem_evidencia ?? 0))}.
             O inventário mostra a falta do que ele registra e a evidência que ele guarda; ausência de falta não prova o item.</p>

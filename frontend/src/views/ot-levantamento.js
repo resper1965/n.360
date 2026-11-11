@@ -355,7 +355,7 @@ window.otEnviarAchados = async () => {
     const fl = ids.filter((id) => achados.find((x) => x.id === id)?.entidade === 'fluxo').length;
     const at = ids.length - fl;
     const conta = [at && `${at} ${at === 1 ? 'ativo' : 'ativos'}`, fl && `${fl} ${fl === 1 ? 'fluxo' : 'fluxos'}`].filter(Boolean).join(' e ');
-    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} ao lote (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. O lote vai para a Coleta, onde outra pessoa aprova antes do inventário.`,
+    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} ao lote (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. O lote vai para o Lote de aprovação, onde outra pessoa aprova antes do inventário.`,
         { titulo: 'Enviar ao lote', rotulo: 'Enviar ao lote' })) return;
     await esvaziarNotas();
     try {

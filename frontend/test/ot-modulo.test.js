@@ -215,6 +215,11 @@ describe('casca por subtela', () => {
         await window.otTela('site', 's2');
         expect([S.otSite, S.otLote, S.otLevantamento]).toEqual(['s2', null, null]);
     });
+    it('trocar de site pela otTela limpa o filtro de zona do site anterior', async () => {
+        S.otTela = 'site'; S.otSite = 's1'; S.otZona = 'z1';
+        await window.otTela('site', 's2');
+        expect(S.otZona).toBeNull();
+    });
     it('otIrParaLote abre o site na sub-aba Lote de aprovação com o lote, depois do zerar', async () => {
         S.otLote = 'velho';
         await window.otIrParaLote('s2', 'x9');

@@ -8,6 +8,10 @@ const sites = { s1: 'SE Norte' };
 const base = { lotes: [], desvios: [], rascunhosPorSite: {}, sondas: [], sites };
 
 describe('pendenciasDoPapel', () => {
+    it('created_at do SQLite (UTC sem Z) não adianta o prazo em um dia', () => {
+        const lotes = [{ id: 'l1', status: 'em_revisao', criado_por: 'u2', site_id: 's1', created_at: '2026-11-11 01:00:00' }];
+        expect(pendenciasDoPapel({ ...base, lotes }, { id: 'u1', podeAprovar: true, podeEditar: false })[0].texto).toContain('decidir até 17/11');
+    });
     it('quem aprova vê o lote dos outros, não o próprio', () => {
         const lotes = [{ id: 'l1', status: 'em_revisao', criado_por: 'u2', site_id: 's1', created_at: '2026-11-10T12:00:00Z' },
             { id: 'l2', status: 'em_revisao', criado_por: 'u1', site_id: 's1', created_at: '2026-11-10T12:00:00Z' }];
@@ -94,6 +98,20 @@ describe('montarInicio', () => {
         await montarInicio(c, null, { id: 'p9' });
         expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
         expect(c.textContent).not.toContain('Nada esperando por você agora.');
+    });
+    it('consultoria_admin não vê lote para aprovar', async () => {
+        S.user = { id: 'u1', role: 'consultoria_admin' };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).not.toContain('Lote de aprovação em');
+    });
+    it('sem site e sem permissão de edição: só o texto, sem botão', async () => {
+        S.user = { id: 'u1', role: 'org_user' };
+        rotas[`GET ${B}/sites`] = { sites: [] };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Cadastre o primeiro site');
+        expect(c.querySelector('.btn-primary')).toBeNull();
     });
     it('sem site: empty state com o único primário', async () => {
         rotas[`GET ${B}/sites`] = { sites: [] };
