@@ -23,7 +23,7 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
         }
         const porSite = {};
         for (const d of desvios) porSite[d.site_id] = (porSite[d.site_id] || 0) + 1;
-        for (const [s, n] of Object.entries(porSite)) out.push({ tipo: 'desvio', texto: `${plural(n, 'desvio aberto', 'desvios abertos')} em ${nome(s)}`, acao: alvo(s, 'operacao') });
+        for (const [s, n] of Object.entries(porSite)) out.push({ tipo: 'desvio', texto: `${plural(n, 'desvio aberto', 'desvios abertos')} em ${nome(s)}`, acao: { ...alvo(s, 'operacao'), extra: { otSub: 'desvios' } } });
     }
     if (podeEditar) {
         for (const [s, n] of Object.entries(rascunhosPorSite).filter(([, n]) => n > 0)) out.push({ tipo: 'rascunho', texto: `${plural(n, 'achado em rascunho', 'achados em rascunho')} em ${nome(s)}`, acao: alvo(s, 'projeto') });
@@ -39,7 +39,7 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
 
 const botao = (rotulo, aria, acao, ...a) => `<button class="btn btn-sm" data-action="${acao}" data-args='${args(...a)}' aria-label="${escapeHTML(aria)}">${rotulo}</button>`;
 const abrir = (a) => (a.lote ? botao('Abrir', 'Abrir lote', 'otIrParaLote', a.site, a.lote)
-    : a.site ? botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.modo) : botao('Abrir', 'Abrir sites', 'otTela', 'sites'));
+    : a.site ? botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.modo, ...(a.extra ? [a.extra] : [])) : botao('Abrir', 'Abrir sites', 'otTela', 'sites'));
 
 export async function montarInicio(c, a, p) {
     const [rL, rV, rD, rS, rC, rP] = await Promise.allSettled([
@@ -63,13 +63,14 @@ export async function montarInicio(c, a, p) {
     const nSonda = rP.status === 'fulfilled' ? (rP.value.ativos || 0) + (rP.value.fluxos || 0) : 0;
     if (podeEditarOt() && nSonda) pend.push({ tipo: 'rascunho', texto: `${plural(nSonda, 'achado da sonda para revisar', 'achados da sonda para revisar')}`, acao: { tela: 'sites' } });
 
-    const falhou = [rL, rD].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';
+    const falhou = [rL, rV, rD].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';
     const espera = pend.length
         ? `<ul class="empty-list">${pend.map((x) => `<li><span>${escapeHTML(x.texto)}</span>${abrir(x.acao)}</li>`).join('')}</ul>${falhou}`
         : falhou || '<p class="org-dica">Nada esperando por você agora.</p>';
     const abertos = {};
     for (const d of desvios) abertos[d.site_id] = (abertos[d.site_id] || 0) + 1;
-    const pior = (s) => sondas.filter((x) => x.site_id === s).map((x) => x.saude || x.situacao).find((x) => x === 'parada' || x === 'atrasada');
+    const sit = (s) => sondas.filter((x) => x.site_id === s).map((x) => x.saude || x.situacao);
+    const pior = (s) => { const t = sit(s); return ['parada', 'atrasada'].find((x) => t.includes(x)); };
     const blocoSites = rS.status === 'rejected' ? '<p class="org-dica" role="alert">Não foi possível carregar os sites.</p>' : sitesL.length
         ? renderDataTable(['Site', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome),
             escapeHTML(String(abertos[s.id] || 0)), escapeHTML(pior(s.id) || (sondas.some((x) => x.site_id === s.id) ? 'em dia' : '—')), botao('Abrir', `Abrir ${s.nome}`, 'otTela', 'site', s.id, 'projeto')]))

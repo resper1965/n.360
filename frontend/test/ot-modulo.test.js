@@ -241,4 +241,30 @@ describe('casca por subtela', () => {
         expect(toast).toHaveBeenCalledWith('Desvio não encontrado neste projeto', 'error');
         expect(S.otTela).toBe('inicio');
     });
+    describe('deep link de desvio de outro projeto', () => {
+        const B2 = '/api/v1/projects/p2/ot';
+        beforeEach(() => {
+            S.projects = [{ id: 'p9', modulos: ['ot'] }, { id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['ot'] }];
+            S.user = { id: 'u', role: 'platform_admin' };
+        });
+        it('o desvio está em p2: troca o projeto ativo e abre Desvios', async () => {
+            servir({ [`GET ${B}/desvios`]: { desvios: [] }, [`GET ${B2}/desvios`]: { desvios: [{ id: 'd1', site_id: 's2', situacao: 'aberto' }] },
+                [`GET ${B2}/sites`]: SITES });
+            ir('/ot/desvios/d1');
+            await abrir();
+            expect(S.activeProject.id).toBe('p2');
+            expect(S.currentProject.id).toBe('p2');
+            expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
+            expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
+        });
+        it('nenhum projeto tem o desvio: aviso e Início, projeto ativo intacto', async () => {
+            const toast = vi.spyOn(ui, 'showToast').mockImplementation(() => {});
+            servir({ [`GET ${B}/desvios`]: { desvios: [] }, [`GET ${B2}/desvios`]: { desvios: [] }, [`GET ${B}/sites`]: SITES });
+            ir('/ot/desvios/d1');
+            await abrir();
+            expect(toast).toHaveBeenCalledWith('Desvio não encontrado neste projeto', 'error');
+            expect(S.otTela).toBe('inicio');
+            expect(S.activeProject.id).toBe('p9');
+        });
+    });
 });
