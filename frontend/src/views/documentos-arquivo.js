@@ -28,7 +28,7 @@ let lista = null; // { projeto, docs }
 const arr = (r) => (Array.isArray(r) ? r : []);
 
 async function renderDocumentosArquivo(c, h, a) {
-    h.textContent = tituloDaTela('nav-documentos-arquivo', 'Documentos');
+    h.textContent = tituloDaTela('nav-documentos-arquivo', 'Arquivos');
     lista = null;
     const proj = projetoAtivo();
     if (!proj) { a.innerHTML = ''; c.innerHTML = window.renderSemProjeto(); return; }

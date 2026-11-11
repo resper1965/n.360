@@ -49,7 +49,7 @@ test('lista de RIPD → página → aba Conformidade → responder → recarrega
   await expect(page).toHaveURL(/\/privacy$/);
 
   await page.locator('#sidebar #nav-dpia').click();
-  await expect(page.locator('#header-title')).toHaveText('DPIA');
+  await expect(page.locator('#header-title')).toHaveText('RIPD');
   await page.locator('#content tbody tr', { hasText: 'Folha de pagamento ficticia' }).getByRole('button', { name: 'Abrir' }).click();
 
   // A página usa a finalidade da atividade como título quando não há sistema, e a aba vai no endereço.
@@ -74,5 +74,5 @@ test('lista de RIPD → página → aba Conformidade → responder → recarrega
 
   await page.getByRole('button', { name: 'Voltar aos RIPDs' }).click();
   await expect(page).not.toHaveURL(/dpia=/);
-  await expect(page.locator('#header-title')).toHaveText('DPIA');
+  await expect(page.locator('#header-title')).toHaveText('RIPD');
 });
