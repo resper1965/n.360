@@ -4,14 +4,14 @@ import { erro500, genId, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
   otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
+import { aprovarLote, criarLote, linhasDaPlanilha, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
@@ -19,7 +19,7 @@ import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '
 import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
-import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
+import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, DESFECHO_SQL, type LinhaAchado } from '../services/ot-levantamento';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
 export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -523,6 +523,19 @@ otApp.post('/lotes/:id/rejeitar', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao rejeitar o lote', e); }
 });
 
+otApp.post('/lotes/:id/itens/:itemId/recusar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não decide sobre lote' }, 403);
+    const v = await validateBody(c, otItemRecusarSchema);
+    if (!v.success) return v.response;
+    const r = await recusarItem(db, user, projectId, sites, c.req.param('id'), c.req.param('itemId'), v.data.motivo);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await trilha(c, 'ot.lote.item_recusado', projectId, `Item ${c.req.param('itemId')} do lote ${c.req.param('id')} recusado`, { tipo: 'ot_lote', id: c.req.param('id') });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao recusar o item', e); }
+});
+
 // ─── levantamento (spec descoberta operacional, L1) ──────────────────────────────────────────
 otApp.get('/roteiro', async (c) => {
   try {
@@ -583,7 +596,8 @@ otApp.get('/levantamentos/:id', async (c) => {
     const completo = await podeVerCompleto(db, user, projectId);
     const chaves = chavesOt(c.env)!;
     // LIMIT explícito: sem ele o teto global de SELECT (query-cap, 500) cortaria a sessão em silêncio.
-    const { results } = await db.prepare(`SELECT * FROM ot_achados WHERE levantamento_id = ? AND project_id = ? ORDER BY created_at LIMIT ${TETO_ACHADOS_SESSAO}`)
+    const { results } = await db.prepare(`SELECT a.*, ${DESFECHO_SQL} FROM ot_achados a LEFT JOIN ot_lote_itens i ON i.id = a.lote_item_id
+      WHERE a.levantamento_id = ? AND a.project_id = ? ORDER BY a.created_at LIMIT ${TETO_ACHADOS_SESSAO}`)
       .bind(lev.id, projectId).all<LinhaAchado>();
     const achados = await serializarAchados(db, projectId, lev.site_id, results, completo, chaves);
     const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
@@ -619,8 +633,9 @@ otApp.get('/achados', async (c) => {
     if (situacao !== 'rascunho' && situacao !== 'enviado') return c.json({ error: 'situacao deve ser rascunho ou enviado' }, 400);
     if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
     const completo = await podeVerCompleto(db, user, projectId);
-    const { results } = await db.prepare(`SELECT a.*, l.tipo AS levantamento_tipo, l.realizado_em AS levantamento_realizado_em
+    const { results } = await db.prepare(`SELECT a.*, ${DESFECHO_SQL}, l.tipo AS levantamento_tipo, l.realizado_em AS levantamento_realizado_em
       FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      LEFT JOIN ot_lote_itens i ON i.id = a.lote_item_id
       WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ? ORDER BY l.realizado_em, a.created_at LIMIT ${TETO_LEITURA_OT}`)
       .bind(projectId, site, situacao).all<LinhaAchado & { levantamento_tipo: string; levantamento_realizado_em: string }>();
     const ser = await serializarAchados(db, projectId, site, results, completo, chavesOt(c.env)!);

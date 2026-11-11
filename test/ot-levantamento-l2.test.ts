@@ -136,14 +136,20 @@ describe('lote com fluxos', () => {
     expect(fs.find((x) => x.id === l.fluxo)).toMatchObject({ via_vpn: true, violacoes: [] });
   });
 
-  it('item de fluxo com erro é recusado e a manutenção devolve o achado a rascunho', async () => {
+  it('item de fluxo com erro é recusado, o achado volta na hora e a manutenção não zera o lote_item_id', async () => {
     const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { externo: true }, evidencia: 'x' });
     l.lote3 = await enviar([fl]);
     await aprovar(l.lote3);
-    expect((await itensDo(gestor, l.lote3))[0].decisao).toBe('recusado');
+    const item = (await itensDo(gestor, l.lote3))[0];
+    expect(item.decisao).toBe('recusado');
+    const volta = { situacao: 'rascunho', lote_id: null, lote_item_id: item.id };
+    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first()).toEqual(volta);
     await manutencaoDiaria(env as any);
-    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first())
-      .toEqual({ situacao: 'rascunho', lote_id: null, lote_item_id: null });
+    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first()).toEqual(volta);
+    // rede de segurança: achado ainda enviado cujo item já está recusado (lote vencido) é devolvido pelo cron, com o item preservado
+    await env.DB.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = ? WHERE id = ?`).bind(l.lote3, fl).run();
+    await manutencaoDiaria(env as any);
+    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first()).toEqual(volta);
   });
 
   it('bidirecional casado ao contrário: atualiza só externo/VPN, pontas intactas, lote concluído', async () => {

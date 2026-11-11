@@ -366,6 +366,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       await fecharRegularizados(desvio.env, desvio.ctx, projectId, results.map((r) => r.c));
     } catch (e) { console.error('ot.desvio: falha ao regularizar', e); }
   }
+  await devolverRecusados(db, loteId);
   return { ok: true, ...n, pendentes, fluxos_pendentes_resolvidos };
 }
 
@@ -379,6 +380,27 @@ export async function rejeitarLote(db: D1Database, ator: { id: string; email: st
     WHERE id = ? AND project_id = ? AND status = 'em_revisao'`).bind(motivo, ator.email, loteId, projectId).run();
   if (!r.meta.changes) return { ok: false, status: 409, error: 'O lote não está em revisão' };
   await db.prepare(`UPDATE ot_lote_itens SET decisao = 'descartado', updated_at = CURRENT_TIMESTAMP WHERE lote_id = ? AND decisao = 'pendente'`).bind(loteId).run();
+  await devolverRecusados(db, loteId);
+  return { ok: true };
+}
+
+/** Achado cujo item do lote foi recusado ou descartado volta a rascunho na hora. `lote_item_id` fica: é por ele que o motivo continua legível. */
+export async function devolverRecusados(db: D1Database, loteId: string): Promise<number> {
+  const r = await db.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE situacao = 'enviado' AND lote_item_id IN (SELECT id FROM ot_lote_itens WHERE lote_id = ? AND decisao IN ('recusado', 'descartado'))`).bind(loteId).run();
+  return r.meta.changes ?? 0;
+}
+
+/** Recusa um item pendente (decisão item a item): o achado ligado volta a rascunho na mesma chamada. */
+export async function recusarItem(db: D1Database, ator: { id: string }, projectId: string, sites: string, loteId: string, itemId: string, motivo: string): Promise<Falha | { ok: true }> {
+  const lote = await decidivel(db, ator, projectId, sites, loteId);
+  if (!lote.ok) return lote;
+  const item = await db.prepare(`SELECT decisao FROM ot_lote_itens WHERE id = ? AND lote_id = ? AND project_id = ?`).bind(itemId, loteId, projectId).first<{ decisao: string }>();
+  if (!item) return { ok: false, status: 404, error: 'Item não encontrado' };
+  const r = await db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND lote_id = ? AND decisao = 'pendente'`).bind(motivo, itemId, loteId).run();
+  if (!r.meta.changes) return { ok: false, status: 409, error: 'O item já foi decidido' };
+  await devolverRecusados(db, loteId);
   return { ok: true };
 }
 

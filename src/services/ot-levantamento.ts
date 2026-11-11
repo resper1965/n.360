@@ -12,6 +12,18 @@ import { temPii } from './rascunhos-privacy';
 export interface LinhaAchado {
   id: string; project_id: string; levantamento_id: string; entidade: string; dados: string; erros: string; evidencia: string;
   origem: string; situacao: string; lote_id: string | null; created_at: string; pergunta_id: string | null; lote_item_id: string | null;
+  // vêm do LEFT JOIN com ot_lote_itens (DESFECHO_SQL); ausentes quando a leitura não faz o join
+  item_decisao?: string | null; item_registro_id?: string | null; item_motivo?: string | null;
+}
+
+export const DESFECHO_SQL = 'i.decisao AS item_decisao, i.registro_id AS item_registro_id, i.motivo AS item_motivo';
+
+/** O que aconteceu com o achado depois do envio: gravado no inventário, ou recusado com o motivo (null nos demais casos). */
+export function desfechoDe(a: LinhaAchado) {
+  if (a.situacao === 'enviado' && a.item_decisao === 'gravado') return { desfecho: 'no_inventario' as const, registro_id: a.item_registro_id ?? null };
+  if (a.situacao === 'rascunho' && (a.item_decisao === 'recusado' || a.item_decisao === 'descartado'))
+    return { desfecho: 'recusado' as const, motivo: a.item_motivo ?? 'Lote rejeitado' };
+  return { desfecho: null };
 }
 
 /** Valida e cifra. O "nome obrigatório" e a falta do 4.3.1 ficam em `erros` como aviso: achado é rascunho e pode estar incompleto. */
@@ -44,7 +56,7 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
   const d = JSON.parse(a.dados) as Record<string, unknown>;
   if (a.entidade === 'fluxo') {
     return { id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao,
-      lote_id: a.lote_id, evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at,
+      lote_id: a.lote_id, evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a),
       dados: { ...d, ...(d.externo !== undefined && { externo: d.externo === 1 }), ...(d.via_vpn !== undefined && { via_vpn: d.via_vpn === 1 }) },
       ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }) };
   }
@@ -53,7 +65,7 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
   const { id: _i, project_id: _p, ...dados } = await serializarAtivo(linha, completo, chaves, 'ot_achados');
   return {
     id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao, lote_id: a.lote_id,
-    evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, dados,
+    evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a), dados,
     ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }),
   };
 }
@@ -70,7 +82,7 @@ export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id:
   const ids = JSON.stringify([...new Set(achadoIds)]);
   const { results } = await db.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
     WHERE project_id = ? AND ${alvo.levantamento_id ? 'levantamento_id = ?'
-      : 'levantamento_id IN (SELECT id FROM ot_levantamentos WHERE project_id = ?1 AND site_id = ?)'} AND situacao = 'rascunho'
+      : `levantamento_id IN (SELECT id FROM ot_levantamentos WHERE project_id = ?1 AND site_id = ? AND status = 'ativo')`} AND situacao = 'rascunho'
     AND id IN (SELECT value FROM json_each(?)) RETURNING *`)
     .bind(projectId, alvo.levantamento_id ?? alvo.site_id, ids).all<LinhaAchado>();
   const tomados = JSON.stringify(results.map((a) => a.id));
