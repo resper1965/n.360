@@ -642,7 +642,8 @@ otApp.get('/achados', async (c) => {
     const achados = ser.map((a, i) => ({ ...a, levantamento_tipo: results[i].levantamento_tipo, levantamento_realizado_em: results[i].levantamento_realizado_em }));
     const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) da fila do site ${site} com IP/MAC sem máscara`, { tipo: 'ot_site', id: site });
-    return c.json({ achados });
+    const nomes_pontas = await nomesDasPontas(db, projectId, site, results.filter((a) => a.entidade === 'fluxo').map((a) => JSON.parse(a.dados)));
+    return c.json({ achados, nomes_pontas });
   } catch (e) { return erro500(c, 'Falha ao ler a fila de revisão', e); }
 });
 

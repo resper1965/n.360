@@ -60,7 +60,8 @@ describe('montarInicio', () => {
         vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
             const u = new URL(url, 'http://localhost');
             urls.push(u.pathname + u.search);
-            const r = rotas[`${opts.method || 'GET'} ${u.pathname}`];
+            let r = rotas[`${opts.method || 'GET'} ${u.pathname}`];
+            if (typeof r === 'function') r = r(u);
             return r ? resposta(r) : resposta({ error: 'x' }, 404);
         }));
     });
@@ -107,6 +108,15 @@ describe('montarInicio', () => {
         expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
         expect(c.textContent).not.toContain('Nada esperando por você agora.');
         expect(c.textContent).not.toContain('achados em rascunho');
+    });
+    it('dois sites, a fila de um falha: a contagem do outro aparece e o aviso de carga parcial também', async () => {
+        rotas[`GET ${B}/sites`] = { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] };
+        rotas[`GET ${B}/achados`] = (u) => (u.searchParams.get('site_id') === 's2' ? null : { achados: [{ id: 'a1' }, { id: 'a2' }] });
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('2 achados em rascunho em SE Norte');
+        expect(c.textContent).not.toContain('em rascunho em SE Sul');
+        expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
     });
     it('"achados em rascunho" leva à sub-aba aprovacao do modo projeto', async () => {
         const c = document.getElementById('c');

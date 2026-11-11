@@ -27,7 +27,7 @@ const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo orig
 
 let fixo = null; // site fixo da tela do site: recorta os lotes e tira o seletor de site
 
-export async function montarColeta(c, a, p, { siteFixo } = {}) {
+export async function montarColeta(c, a, p, { siteFixo, semPrimario } = {}) {
     fixo = siteFixo || null;
     let lotes;
     try {
@@ -48,7 +48,7 @@ export async function montarColeta(c, a, p, { siteFixo } = {}) {
             ${campoSite('ot-lote-site', ' data-action-change="otLoteSite" data-arg-val')}
             <div class="form-group"><label class="form-label" for="ot-lote-doc">Ligar a um documento (opcional)</label><select class="form-input" id="ot-lote-doc">${opcoesDoc(siteLote)}</select></div>
             <div class="form-group"><label class="form-label" for="ot-lote-arquivo">Planilha (CSV ou XLSX, até 5 MB)</label><input class="form-input" type="file" id="ot-lote-arquivo" accept=".csv,.xlsx"></div>
-            <button class="btn btn-primary" data-action="otEnviarPlanilha">Enviar planilha</button></div>
+            <button class="btn${semPrimario ? '' : ' btn-primary'}" data-action="otEnviarPlanilha">Enviar planilha</button></div>
         <p class="org-dica">Colunas reconhecidas pelo cabeçalho: nome, ip, mac, fabricante, modelo, tipo, funcao, protocolos, firmware, arciber, categoria, zona. As demais são ignoradas.</p></div>` : '';
     c.innerHTML = `<p class="org-header-intro" id="ot-coleta-privacidade">${escapeHTML(PRIVACIDADE)}</p>
         ${!sites.length ? renderEmptyState({ titulo: 'Nenhum site disponível para coleta', texto: 'A coleta é por site. Cadastre o site no Inventário ou peça a quem administra o n.ot o acesso ao seu site.' }) : envio}

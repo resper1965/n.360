@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 const montar = () => montarRevisao(el('c'), el('a'), S.activeProject, { siteFixo: 's1' });
-const marcar = (id) => { el(`rev-sel-${id}`).checked = true; window.otRevMarcar(); };
+const marcar = (id) => { const x = el(`rev-sel-${id}`); x.checked = true; window.otRevMarcar(id, x); };
 
 describe('montarRevisao', () => {
     it('lista os achados de dois levantamentos, escapados, e pede a fila do site em rascunho', async () => {
@@ -91,11 +91,25 @@ describe('montarRevisao', () => {
         const put = chamadas.find((x) => x.k === `PUT ${B}/levantamentos/v1/achados/a1`);
         expect(JSON.parse(put.opts.body)).toEqual({ situacao: 'descartado' });
     });
-    it('editar altera a evidência pelo PUT', async () => {
+    it('não há botão Editar na fila', async () => {
         await montar();
-        window.otRevEditar('v1', 'a1');
-        el('rev-evidencia').value = 'nova evidência';
-        await window.otRevSalvarEdicao('v1', 'a1');
-        expect(JSON.parse(chamadas.find((x) => x.k === `PUT ${B}/levantamentos/v1/achados/a1`).opts.body)).toEqual({ evidencia: 'nova evidência' });
+        expect(el('c').querySelector('[data-action="otRevEditar"]')).toBeNull();
+        expect([...el('c').querySelectorAll('button')].some((x) => x.textContent === 'Editar')).toBe(false);
+    });
+    it('a seleção sobrevive ao filtro: marca, filtra para fora, marca outro; envia os dois', async () => {
+        await montar();
+        marcar('a1');
+        window.otRevFiltro('origem', 'ia');
+        expect(el('rev-sel-a1')).toBeNull();
+        marcar('a2');
+        expect(el('c').querySelector('.btn-primary').textContent).toBe('Enviar para aprovação (2)');
+        await window.otRevEnviar();
+        expect(JSON.parse(chamadas.find((x) => x.k === `POST ${B}/sites/s1/enviar`).opts.body).achados.sort()).toEqual(['a1', 'a2']);
+    });
+    it('fluxo mostra o nome das pontas vindo de nomes_pontas', async () => {
+        rotas[`GET ${B}/achados`] = { achados: [ach('a1', { entidade: 'fluxo', dados: { origem_ativo_id: 'x1', destino_zona_id: 'z1' } })], nomes_pontas: { x1: 'RTU-01', z1: 'Supervisão' } };
+        await montar();
+        expect(el('ot-rev-fila').textContent).toContain('RTU-01');
+        expect(el('ot-rev-fila').textContent).toContain('Supervisão');
     });
 });

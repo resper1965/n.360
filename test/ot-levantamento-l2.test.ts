@@ -197,6 +197,14 @@ describe('revisão final (L2)', () => {
     expect((await chamar(cons, 'PUT', `${P}/levantamentos/${ids.lev1}/achados/${id}`, { pergunta_id: '' })).status).toBe(400);
   });
 
+  it('fila do site: nomes_pontas só nomes (sem IP/MAC)', async () => {
+    const lev = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-02' });
+    await criar(cons, `levantamentos/${lev}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_zona_id: ids.z1 }, evidencia: 'x' });
+    const r = await (await chamar(cons, 'GET', `${P}/achados?site_id=${ids.s1}&situacao=rascunho`)).json<{ nomes_pontas: Record<string, string> }>();
+    expect(r.nomes_pontas).toMatchObject({ [ids.a1]: 'RTU 1', [ids.z1]: 'Supervisão' });
+    expect(JSON.stringify(r.nomes_pontas)).not.toContain('10.1.1.');
+  });
+
   it('nomes_pontas: só nomes das pontas citadas, do site; ler a sessão com fluxos não grava ver_sensivel', async () => {
     const lev = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-02' });
     const vazio = await (await chamar(cons, 'GET', `${P}/levantamentos/${lev}`)).json<{ nomes_pontas: Record<string, string> }>();
