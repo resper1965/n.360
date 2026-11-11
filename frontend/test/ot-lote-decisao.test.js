@@ -68,6 +68,36 @@ describe('lote item a item', () => {
         expect(window.render).toHaveBeenCalled();
     });
 
+    it('409 em aprovar e em rejeitar mostra o erro e redesenha', async () => {
+        vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => (opts.method === 'POST' ? resposta({ error: 'O lote não está em revisão' }, 409)
+            : resposta(String(url).endsWith('/lotes/x1') ? lote : String(url).endsWith('/sites') ? { sites: [] } : { lotes: [] }))));
+        await desenhar('coleta');
+        for (const [acao, botao] of [['otAprovarLote', 'sim'], ['otRejeitarLote', 'sim']]) {
+            document.querySelectorAll('.toast').forEach((t) => t.remove());
+            window.render.mockClear();
+            const p = window[acao]('x1');
+            await pausa();
+            const campo = document.querySelector('.confirmar input');
+            if (campo) campo.value = 'motivo ok';
+            document.querySelector(`[data-confirmar="${botao}"]`).click();
+            await p;
+            expect(document.querySelector('.toast')?.textContent, acao).toContain('O lote não está em revisão');
+            expect(window.render, acao).toHaveBeenCalled();
+        }
+    });
+
+    it('um recusado e um pendente: rótulo e confirmação normais', async () => {
+        lote = { lote: LOTE, itens: [ITEM('i1', 2, { decisao: 'recusado', motivo: 'xx ok' }), ITEM('i2', 3)] };
+        servir();
+        await desenhar('coleta');
+        expect(botoes().map((b) => b.textContent)).toEqual(['Aprovar os restantes (1)']);
+        const p = window.otAprovarLote('x1');
+        await pausa();
+        expect(document.querySelector('.confirmar-texto').textContent).not.toContain('Todos os itens foram recusados');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await p;
+    });
+
     it('todos recusados: o principal vira "Concluir lote" e a confirmação diz que tudo foi recusado', async () => {
         lote = { lote: LOTE, itens: [ITEM('i1', 2, { decisao: 'recusado', motivo: 'xx ok' }), ITEM('i2', 3, { decisao: 'recusado', motivo: 'yy ok' })] };
         servir();

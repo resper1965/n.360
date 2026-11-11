@@ -133,6 +133,8 @@ window.otManualEnviar = async () => {
     } catch (e) { falhou(e, 'Não foi possível criar o lote.'); }
 };
 
+/** Todo item decidido foi recusado e nada resta pendente: aprovar não grava nada, só conclui o lote. */
+const todosRecusados = (itens) => itens.some((i) => i.decisao === 'recusado') && !itens.some((i) => i.decisao === 'pendente');
 const qtd = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const PRAZO_DIAS = 7;
 // ─── revisão do lote ────────────────────────────────────────────────────────
@@ -150,7 +152,7 @@ async function montarLote(c, a, id) {
     const recusados = itens.filter((i) => i.decisao === 'recusado').length;
     const restantes = itens.filter((i) => i.decisao === 'pendente').length;
     a.innerHTML = '<button class="btn" data-action="otVoltarLotes">Voltar aos lotes</button>'
-        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>${!recusados ? 'Aprovar lote' : restantes ? `Aprovar os restantes (${restantes})` : 'Concluir lote'}</button>` : '');
+        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>${todosRecusados(itens) ? 'Concluir lote' : recusados ? `Aprovar os restantes (${restantes})` : 'Aprovar lote'}</button>` : '');
     let prazo = '';
     const criado = emRevisao ? dataDoSqlite(lote.created_at) : null;
     if (criado) {
@@ -194,7 +196,7 @@ function resumoDaAprovacao(itens) {
         + `${qtd(comErro, 'recusado por erro', 'recusados por erro')}.`;
 }
 window.otAprovarLote = async (id) => {
-    const nenhum = !itensDoLote.some((i) => i.decisao === 'pendente');
+    const nenhum = todosRecusados(itensDoLote);
     if (!await confirmar(nenhum ? 'Todos os itens foram recusados: nada vai para o inventário e o lote fica concluído.' : `${resumoDaAprovacao(itensDoLote)} Você fica registrado como quem verificou.`,
         nenhum ? { titulo: 'Concluir lote', rotulo: 'Concluir' } : { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
     try {
