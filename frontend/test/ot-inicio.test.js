@@ -44,10 +44,9 @@ describe('montarInicio', () => {
     const B = '/api/v1/projects/p9/ot';
     const ORIGEM = {
         [`GET ${B}/lotes`]: { lotes: [{ id: 'l1', status: 'em_revisao', criado_por: 'u2', site_id: 's1', created_at: '2026-11-10T12:00:00Z' }] },
-        [`GET ${B}/levantamentos`]: { levantamentos: [{ id: 'v1', site_id: 's1', situacao: 'aberto', achados: 2 }, { id: 'v2', site_id: 's1', situacao: 'encerrado', achados: 9 }] },
         [`GET ${B}/desvios`]: { desvios: [{ site_id: 's1' }] },
         [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE <b>Norte</b>', ativos: 4 }] },
-        [`GET ${B}/sensores/pontos`]: { ativos: 1, fluxos: 2 },
+        [`GET ${B}/achados`]: { achados: [{ id: 'a1', situacao: 'rascunho' }, { id: 'a2', situacao: 'rascunho', origem: 'consultor' }, { id: 'a3', situacao: 'rascunho' }] },
         [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z', nome: 'S-1', saude: 'parada' }] },
         [`GET ${B}/conformidade`]: { resumo: { nao_atende: 1, evidencia_no_inventario: 2, sem_evidencia: 3 } },
     };
@@ -73,14 +72,16 @@ describe('montarInicio', () => {
         expect(c.textContent).toContain('Espera por você');
         expect(c.textContent).toContain('Lote de aprovação em SE <b>Norte</b>');
         expect(c.querySelector('b')).toBeNull();
-        expect(c.textContent).toContain('2 achados em rascunho em SE <b>Norte</b>'); // só o levantamento não encerrado
+        expect(c.textContent).toContain('3 achados em rascunho em SE <b>Norte</b>'); // contagem da fila de revisão do site
         expect(c.querySelector('.btn-primary')).toBeNull();
         expect(c.querySelector('[data-action="otTela"][data-args*="assessment"]')).not.toBeNull();
     });
-    it('linha da sonda vem de /sensores/pontos e o botão do lote usa otIrParaLote', async () => {
+    it('a contagem vem da fila do site (uma chamada por site), sem linha à parte da sonda; o botão do lote usa otIrParaLote', async () => {
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
-        expect(c.textContent).toContain('3 achados da sonda para revisar');
+        expect(urls.filter((u) => u.startsWith(`${B}/achados`))).toEqual([`${B}/achados?site_id=s1&situacao=rascunho`]);
+        expect(urls.some((u) => u.includes('/sensores/pontos') || u.endsWith('/levantamentos'))).toBe(false);
+        expect(c.textContent).not.toContain('da sonda para revisar');
         expect(c.querySelector('[data-action="otIrParaLote"]')).not.toBeNull();
         expect(c.querySelector('[data-action="otAbrirLote"]')).toBeNull();
     });
@@ -99,13 +100,19 @@ describe('montarInicio', () => {
         expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
         expect(c.textContent).not.toContain('Nada esperando por você agora.');
     });
-    it('levantamentos que falham: aviso no lugar de "Nada esperando"', async () => {
-        delete rotas[`GET ${B}/levantamentos`]; rotas[`GET ${B}/lotes`] = { lotes: [] }; rotas[`GET ${B}/desvios`] = { desvios: [] };
-        rotas[`GET ${B}/sensores/pontos`] = { ativos: 0, fluxos: 0 };
+    it('fila do site que falha: site sem contagem e aviso no lugar de "Nada esperando"', async () => {
+        delete rotas[`GET ${B}/achados`]; rotas[`GET ${B}/lotes`] = { lotes: [] }; rotas[`GET ${B}/desvios`] = { desvios: [] };
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
         expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
         expect(c.textContent).not.toContain('Nada esperando por você agora.');
+        expect(c.textContent).not.toContain('achados em rascunho');
+    });
+    it('"achados em rascunho" leva à sub-aba aprovacao do modo projeto', async () => {
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        const li = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('achados em rascunho'));
+        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['site', 's1', 'projeto', { otSub: 'aprovacao' }]);
     });
     it('linha de desvio aberto passa a sub-aba desvios pelo data-args', async () => {
         const c = document.getElementById('c');

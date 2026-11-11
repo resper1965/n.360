@@ -693,6 +693,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     const ROTAS = { [`GET ${B}/sites`]: { sites: [SITE, SITE2] },
         [`GET ${B}/levantamentos`]: { levantamentos: [lev('l1', 's1', 'l1-texto-unico'), lev('l2', 's2', 'l2-texto-unico')] },
         [`GET ${B}/lotes`]: { lotes: [{ id: 'k1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', created_at: '2026-11-01T10:00:00Z' }, { id: 'k2', site_id: 's2', fonte: 'manual', status: 'concluido', created_at: '2026-11-02T10:00:00Z' }] },
+        [`GET ${B}/achados`]: { achados: [{ id: 'x1', entidade: 'ativo', situacao: 'rascunho', origem: 'consultor', dados: { nome: 'rev-texto-unico' }, evidencia: 'e', levantamento_id: 'l1', levantamento_tipo: 'entrevista', levantamento_realizado_em: '2026-11-01', desfecho: null }] },
         [`GET ${B}/desvios`]: { desvios: [des('d1', 's2'), des('d2', 's2')] }, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/fluxos`]: { fluxos: [] } };
     const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
     const primarios = () => el('c').querySelectorAll('.btn-primary').length + el('a').querySelectorAll('.btn-primary').length;
@@ -715,7 +716,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     it('modo projeto: Levantamento, Lote de aprovação e Base; a lista só tem as linhas do site', async () => {
         servirOt(ROTAS);
         await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
-        expect(abas()).toEqual(expect.arrayContaining(['Modo projeto', 'Modo operação', 'Levantamento', 'Lote de aprovação', 'Base']));
+        expect(abas()).toEqual(expect.arrayContaining(['Modo projeto', 'Modo operação', 'Levantamento', 'Revisão e aprovação', 'Base']));
         expect(el('c').textContent).toContain('l1-texto-unico');
         expect(el('c').textContent).not.toContain('l2-texto-unico');
         window.otNovoLevantamento();
@@ -728,7 +729,9 @@ describe('lista de sites e tela do site (Task 4)', () => {
         servirOt(ROTAS);
         await ir({ site: 's1', modo: 'projeto', sub: 'aprovacao' });
         expect(el('c').textContent).toContain('SE Norte');
-        expect(el('c').querySelectorAll('tbody tr')).toHaveLength(1);
+        expect(el('c').textContent).toContain('rev-texto-unico');
+        expect(el('c').querySelectorAll('#ot-rev-lotes tbody tr')).toHaveLength(1);
+        expect(primarios()).toBe(1);
         expect(el('ot-lote-site').type).toBe('hidden');
         await ir({ site: 's1', modo: 'projeto', sub: 'base' });
         expect(el('ot-filtro-site')).toBeNull();
