@@ -8,6 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
+import { desenhar } from './ot-abrir.js';
 
 const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);
@@ -34,8 +35,7 @@ function servirOt(rotas) {
 const BASE = { [`GET ${B}/sites`]: { sites: [] }, [`GET ${B}/acessos`]: { acessos: [] }, 'GET /api/v1/users': [] };
 async function abrir(rotas) {
     servirOt({ ...BASE, ...rotas });
-    S.otAba = 'acessos';
-    await window.renderOt(el('c'), el('h'), el('a'));
+    await desenhar('acessos');
 }
 const cartao = () => el('ot-agente');
 

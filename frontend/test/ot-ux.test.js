@@ -9,6 +9,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
+import { desenhar } from './ot-abrir.js';
 
 const B = '/api/v1/projects/p1/ot';
 const el = (id) => document.getElementById(id);
@@ -35,8 +36,8 @@ function servirOt(rotas, falhas = {}) {
         return k in rotas ? resposta(typeof rotas[k] === 'function' ? rotas[k](u, opts) : rotas[k]) : resposta({ error: `API route not found: ${k}` }, 404);
     }));
 }
-const redesenhar = () => window.renderOt(el('c'), el('h'), el('a'));
-async function abrir(aba) { S.otAba = aba; await redesenhar(); }
+const redesenhar = () => desenhar();
+async function abrir(aba) { await desenhar(aba); }
 const puts = () => chamadas.filter((x) => x.k === `PUT ${B}/levantamentos/l1`).map((x) => JSON.parse(x.opts.body));
 const sessao = async (achados = [ACH()], extra = {}, falhas = {}) => {
     servirOt({ [`GET ${B}/levantamentos/l1`]: { levantamento: LEV, achados }, [`GET ${B}/roteiro`]: ROTEIRO, [`PUT ${B}/levantamentos/l1`]: { ok: true },
@@ -52,7 +53,7 @@ beforeEach(async () => {
     S.token = 'tok';
     S.user = { id: 'u-consultor', role: 'consultor' };
     S.activeProject = { id: 'p1', modulos: ['ot'] };
-    S.otProjeto = 'p1'; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otAba = null;
+    S.otProjeto = 'p1'; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null;
     // O render de verdade redesenha a tela a partir da API: é ele que apagava as notas.
     window.render = vi.fn(() => redesenhar());
     const { initDelegation } = await import('../src/delegation.js');
@@ -171,36 +172,7 @@ describe('P1a: a sessão conduz a entrevista', () => {
 describe('P1b: entrada com próximo passo', () => {
     const LOTES = (xs) => ({ [`GET ${B}/lotes`]: { lotes: xs } });
     const lote = (id, status, criado_por = 'u-tec') => ({ id, site_id: 's1', fonte: 'planilha', status, criado_por, created_at: '2026-10-30 10:00:00', itens: 1, com_erro: 0, gravados: 0 });
-    const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
-    const ativa = () => el('c').querySelector('[role="tab"][aria-selected="true"]').textContent.trim();
     const BASE = { ...SITES, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] } };
-
-    it('as abas mostram quantos lotes esperam revisão e quantos levantamentos estão abertos', async () => {
-        servirOt({ ...BASE, ...LOTES([lote('x1', 'em_revisao'), lote('x2', 'em_revisao'), lote('x3', 'concluido')]),
-            [`GET ${B}/levantamentos`]: { levantamentos: [LEV, { ...LEV, id: 'l2', situacao: 'encerrado' }] } });
-        await abrir('inventario');
-        expect(abas()).toContain('Coleta · 2 em revisão');
-        expect(abas()).toContain('Levantamento · 1 aberto');
-    });
-
-    it('sem aba escolhida: quem aprova e tem lote de outra pessoa em revisão cai na Coleta; senão no Inventário', async () => {
-        servirOt({ ...BASE, ...LOTES([lote('x1', 'em_revisao')]), [`GET ${B}/levantamentos`]: { levantamentos: [] } });
-        S.otAba = null;
-        await redesenhar();
-        expect(ativa()).toMatch(/^Coleta/);
-        S.otAba = null;
-        S.user = { id: 'u-tec', role: 'org_user' };
-        await redesenhar();
-        expect(ativa()).toBe('Inventário');
-        S.otAba = null;
-        S.user = { id: 'u-tec', role: 'org_admin' };
-        await redesenhar();
-        expect(ativa()).toBe('Inventário');
-        S.user = { id: 'u-consultor', role: 'consultor' };
-        window.otAba('saidas');
-        await pausa();
-        expect(ativa()).toBe('Saídas');
-    });
 
     it('inventário vazio: o vazio traz a ação "Cadastrar o primeiro site", única principal da tela', async () => {
         servirOt({ ...BASE, [`GET ${B}/sites`]: { sites: [] } });
@@ -331,7 +303,7 @@ describe('rodada de correção 1: notas em fila, por sessão e por projeto', () 
         digitar('nota do projeto p1');
         S.activeProject = { id: 'p2', modulos: ['ot'] };
         servirOt({ [`PUT ${B}/levantamentos/l1`]: { ok: true } });
-        await redesenhar();
+        await window.renderOt(el('c'), el('h'), el('a')); // a casca vê o projeto novo
         expect(chamadas.filter((x) => x.k.startsWith('PUT')).map((x) => x.k)).toEqual([`PUT ${B}/levantamentos/l1`]);
         expect(puts()).toEqual([{ notas: 'nota do projeto p1' }]);
     });
@@ -391,35 +363,5 @@ describe('rodada de correção 1: notas em fila, por sessão e por projeto', () 
         expect(vivos.reduce((n, x) => n + new TextEncoder().encode(x.opts.body).length, 0)).toBeLessThanOrEqual(64 * 1024);
         servirOt({ [PUT1]: { ok: true }, [PUT2]: { ok: true }, [`GET ${B}/levantamentos/l2`]: { levantamento: L2, achados: [] }, [`GET ${B}/roteiro`]: ROTEIRO });
         await window.otSalvarNotas(); // esvazia para o próximo teste
-    });
-});
-
-describe('rodada de correção 1: abas', () => {
-    it('com aba escolhida, o painel carrega sem esperar as contagens, que chegam depois ao rótulo', async () => {
-        let soltarLotes;
-        chamadas = [];
-        vi.stubGlobal('fetch', vi.fn((url, opts = {}) => {
-            const u = new URL(url, 'http://localhost');
-            const k = `${opts.method || 'GET'} ${u.pathname}`;
-            chamadas.push({ k, url: u, opts });
-            if (k === `GET ${B}/lotes`) return new Promise((ok) => { soltarLotes = () => ok(resposta({ lotes: [{ id: 'x', status: 'em_revisao', criado_por: 'u-tec' }] })); });
-            const rotas = { ...SITES, [`GET ${B}/indicadores`]: {}, [`GET ${B}/conformidade`]: {}, [`GET ${B}/levantamentos`]: { levantamentos: [] } };
-            return Promise.resolve(k in rotas ? resposta(rotas[k]) : resposta({ error: 'x' }, 404));
-        }));
-        S.otAba = 'saidas';
-        const r = redesenhar();
-        await pausa(); await pausa();
-        expect(chamadas.map((x) => x.k)).toContain(`GET ${B}/indicadores`);
-        soltarLotes();
-        await r;
-        expect([...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim())).toContain('Coleta · 1 em revisão');
-    });
-
-    it('consultoria_admin (designação desconhecida na tela) entra pelo Inventário mesmo com lote em revisão', async () => {
-        S.user = { id: 'ca', role: 'consultoria_admin' };
-        servirOt({ ...SITES, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/levantamentos`]: { levantamentos: [] },
-            [`GET ${B}/lotes`]: { lotes: [{ id: 'x', status: 'em_revisao', criado_por: 'u-tec' }] } });
-        await redesenhar();
-        expect(el('c').querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Inventário');
     });
 });

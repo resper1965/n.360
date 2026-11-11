@@ -10,6 +10,7 @@ import '../src/ui.js';
 import html from '../login.html?raw';
 import { produtoAtual, aplicarCasca, enderecoDoProduto, atualizarItemOt, moduloPara, pedidoDoHub, TELAS_DOS_MODULOS, NAV_DO_HUB } from '../src/produto.js';
 import '../src/views/ot.js';
+import * as ui from '../src/ui.js';
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
 const ir = (caminho) => history.replaceState(null, '', caminho);
@@ -78,7 +79,7 @@ describe('tela do catálogo RO-CB.BR.01', () => {
     const req = (codigo, titulo, prazo_meses) => ({ id: `ons-${codigo}`, framework: 'ONS-RO-CB.BR.01', codigo, titulo, descricao: 'd', categoria: 'c', versao: 'Rev.00', prazo_meses });
     const abrir = async () => {
         document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>';
-        S.otAba = 'catalogo';
+        S.otProjeto = S.activeProject?.id; S.otTela = 'assessment';
         await window.renderOt(el('c'), el('h'), el('a'));
     };
     it('lista código, título e prazo (18, 27 ou sem prazo), tudo escapado, do projeto ativo', async () => {
@@ -123,5 +124,80 @@ describe('concessão do n.ot é sempre explícita (P0-1)', () => {
         const acoes = [...document.querySelectorAll('[data-action="alternarProdutoDoProjeto"]')].map((b) => JSON.parse(b.getAttribute('data-args')).slice(1));
         expect(acoes).toEqual([['iso', false], ['ot', true]]);
         expect(el('produtos-aviso-ot').textContent).toContain('não é concedido automaticamente');
+    });
+});
+
+describe('casca por subtela', () => {
+    const B = '/api/v1/projects/p9/ot';
+    const NAV = ['inicio', 'sites', 'assessment', 'relatorios', 'acessos'].map((t) => `<div id="nav-ot-${t}"></div>`).join('');
+    const abrir = () => { document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`; return window.renderOt(el('c'), el('h'), el('a')); };
+    const SITES = { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] };
+    beforeEach(() => {
+        S.activeProject = { id: 'p9', modulos: ['ot'] }; S.user = { id: 'u', role: 'consultor' };
+        S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otModo = null; S.otSub = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null;
+        window.render = vi.fn();
+    });
+
+    it('sem parâmetro desenha o Início; ?ot=relatorios desenha Relatórios; o endereço acompanha', async () => {
+        servir({ [`GET ${B}/sites`]: SITES });
+        await abrir();
+        expect(el('h').textContent).toBe('n.ot · Início');
+        expect(S.otTela).toBe('inicio');
+        S.otTela = null; ir('/ot?ot=relatorios');
+        await abrir();
+        expect(el('h').textContent).toBe('Relatórios');
+        expect(location.search).toBe('?ot=relatorios');
+    });
+    it('a subtela escolhida marca o item do menu; o site marca Sites', async () => {
+        servir({ [`GET ${B}/sites`]: SITES });
+        document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`;
+        await window.otTela('assessment'); await window.renderOt(el('c'), el('h'), el('a'));
+        expect(el('nav-ot-assessment').classList.contains('active')).toBe(true);
+        await window.otTela('site', 's1'); await window.renderOt(el('c'), el('h'), el('a'));
+        expect(el('nav-ot-sites').classList.contains('active')).toBe(true);
+        expect(el('nav-ot-assessment').classList.contains('active')).toBe(false);
+        expect(el('h').textContent).toBe('SE Norte');
+    });
+    it('otTela("acessos") sem poder editar cai no Início', async () => {
+        S.user = { id: 'u', role: 'org_user' };
+        servir({ [`GET ${B}/sites`]: SITES });
+        await window.otTela('acessos'); await abrir();
+        expect(S.otTela).toBe('inicio');
+        expect(el('h').textContent).toBe('n.ot · Início');
+    });
+    it('trocar de projeto zera site, subtela e modo', async () => {
+        servir({});
+        S.otTela = 'site'; S.otSite = 's1'; S.otModo = 'operacao'; S.otSub = 'desvios';
+        S.activeProject = { id: 'p8', modulos: ['ot'] };
+        ir('/ot');
+        await abrir();
+        expect([S.otSite, S.otModo, S.otSub]).toEqual([null, 'projeto', null]);
+        expect(S.otTela).toBe('inicio');
+    });
+    it('trocar de site pela otTela limpa lote e levantamento do site anterior', async () => {
+        S.otTela = 'site'; S.otSite = 's1'; S.otLote = 'x'; S.otLevantamento = 'l1';
+        await window.otTela('site', 's2');
+        expect([S.otSite, S.otLote, S.otLevantamento]).toEqual(['s2', null, null]);
+    });
+    it('otIrParaLote abre o site na sub-aba Lote de aprovação com o lote, depois do zerar', async () => {
+        S.otLote = 'velho';
+        await window.otIrParaLote('s2', 'x9');
+        expect([S.otTela, S.otSite, S.otModo, S.otSub, S.otLote]).toEqual(['site', 's2', 'projeto', 'aprovacao', 'x9']);
+        expect(window.render).toHaveBeenCalled();
+    });
+    it('deep link /ot/desvios/<id>: abre o site do desvio em Operação, sub Desvios', async () => {
+        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [{ id: 'd9', site_id: 's2', tipo: 'ativo_novo', situacao: 'aberto' }] } });
+        ir('/ot/desvios/d9');
+        await abrir();
+        expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
+        expect(el('c').querySelector('[aria-current="true"]')).toBeTruthy();
+    });
+    it('deep link de desvio que não existe: aviso e Início', async () => {
+        const toast = vi.spyOn(ui, 'showToast').mockImplementation(() => {});
+        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [] } });
+        ir('/ot/desvios/zz');
+        await abrir();
+        expect(toast).toHaveBeenCalledWith('Desvio não encontrado neste projeto', 'error');
+        expect(S.otTela).toBe('inicio');
     });
 });

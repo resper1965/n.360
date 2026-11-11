@@ -66,9 +66,7 @@ window.otFiltrarDesvios = (campo) => {
 
 // Abre o levantamento em que está o achado rascunho do desvio (na tela do site, Modo projeto).
 window.otVerAchadoDesvio = (levId, siteId) => {
-    S.otAba = 'levantamento'; S.otSub = 'levantamento'; S.otLevantamento = levId || null;
-    // Fora da tela do site (casca antiga, sem otTela) o salto continua pela aba Levantamento.
-    if (window.otTela && siteId) window.otTela('site', siteId, 'projeto'); else window.render();
+    return window.otTela('site', siteId || S.otSite, 'projeto', { otSub: 'levantamento', otLevantamento: levId || null });
 };
 
 function modal(titulo, campos, acao, id, rotulo) {

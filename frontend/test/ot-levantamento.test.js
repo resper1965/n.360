@@ -8,6 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
+import { desenhar } from './ot-abrir.js';
 
 const B = '/api/v1/projects/p1/ot';
 const el = (id) => document.getElementById(id);
@@ -33,8 +34,7 @@ function servirOt(rotas) {
     }));
 }
 async function abrir(aba) {
-    S.otAba = aba;
-    await window.renderOt(el('c'), el('h'), el('a'));
+    await desenhar(aba);
 }
 const detalhe = async (achados = [ACH()], extra = {}) => {
     servirOt({ [`GET ${B}/levantamentos/l1`]: { levantamento: LEV, achados }, [`GET ${B}/roteiro`]: ROTEIRO, ...extra });
@@ -97,22 +97,7 @@ describe('aba Levantamento', () => {
         expect(corpo(`POST ${B}/levantamentos/l1/enviar`)).toEqual({ achados: ['a1'] });
         expect(S.otLote).toBe('lote-9');
         expect(S.otLevantamento).toBeNull();
-        expect(S.otAba).toBe('coleta');
-    });
-
-    it('enviar ao lote, com a casca nova, abre o site em modo projeto na sub-aba Lote de aprovação', async () => {
-        await detalhe([ACH()], { [`POST ${B}/levantamentos/l1/enviar`]: { id: 'lote-9', itens: 1, com_erro: 0, status: 'em_revisao' } });
-        window.otTela = vi.fn();
-        try {
-            el('ach-sel-a1').checked = true;
-            const p = window.otEnviarAchados();
-            await new Promise((r) => setTimeout(r, 0));
-            document.querySelector('[data-confirmar="sim"]').click();
-            await p;
-            expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto');
-            expect(S.otSub).toBe('aprovacao');
-            expect(S.otLote).toBe('lote-9');
-        } finally { delete window.otTela; }
+        expect([S.otTela, S.otSite, S.otSub, S.otLote]).toEqual(['site', 's1', 'aprovacao', 'lote-9']);
     });
 
     it('registrar achado manda os campos do ativo e a evidência; descartar marca a situação', async () => {
@@ -240,12 +225,12 @@ describe('aba Levantamento', () => {
 
     it('trocar de projeto ou de aba volta à lista de sessões', async () => {
         S.otLevantamento = 'l1';
-        window.otAba('coleta');
+        await window.otTela('site', 's1');
         expect(S.otLevantamento).toBeNull();
-        S.otLevantamento = 'l1';
+        S.otLevantamento = 'l1'; S.otProjeto = S.activeProject.id;
         S.activeProject = { id: 'p2', modulos: ['ot'] };
         servirOt({});
-        await abrir('catalogo');
+        await window.renderOt(el('c'), el('h'), el('a'));
         expect(S.otLevantamento).toBeNull();
     });
 });

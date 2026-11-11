@@ -9,6 +9,7 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
 import { montarSite, montarSites, resolverDesvio, SUBS } from '../src/views/ot-site.js';
+import { desenhar } from './ot-abrir.js';
 
 const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);
@@ -41,8 +42,7 @@ function servirOt(rotas, falhas = {}) {
 const INVENTARIO = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/zonas`]: { zonas: ZONAS }, [`GET ${B}/ativos`]: { ativos: ATIVOS } };
 
 async function abrir(aba) {
-    S.otAba = aba;
-    await window.renderOt(el('c'), el('h'), el('a'));
+    await desenhar(aba);
 }
 const pausa = () => new Promise((r) => setTimeout(r, 0));
 
@@ -56,24 +56,6 @@ beforeEach(() => {
     window.render = vi.fn();
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
-
-describe('abas da casca /ot', () => {
-    it('catálogo, inventário, fluxos, coleta, levantamento e saídas; acesso por site só para quem administra', async () => {
-        servirOt({ [`GET ${B}/requisitos`]: { requisitos: [] } });
-        await abrir('catalogo');
-        const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
-        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Levantamento', 'Desvios', 'Saídas', 'Acessos e agente']);
-        for (const role of ['client', 'org_user']) {
-            S.user = { id: 'u', role };
-            await abrir('catalogo');
-            expect(abas(), role).not.toContain('Acessos e agente');
-        }
-        S.otAba = 'acessos';
-        await window.renderOt(el('c'), el('h'), el('a'));
-        // Aba que o papel não tem cai na aba de entrada (Inventário, ou a Coleta para quem aprova e tem lote esperando).
-        expect(el('c').querySelector('[aria-selected="true"]').textContent).toContain('Inventário');
-    });
-});
 
 describe('inventário', () => {
     it('lista sites, zonas e ativos, com IP/MAC como a API devolve e todo texto escapado', async () => {
@@ -122,6 +104,7 @@ describe('inventário', () => {
 
     it('trocar de projeto zera os filtros de site e zona e o lote aberto: o projeto B não abre vazio pelo filtro do A', async () => {
         servirOt(INVENTARIO);
+        S.otProjeto = 'p9';
         await abrir('inventario');
         window.otFiltrarSite('s1');
         window.otFiltrarZona('z2');
@@ -130,6 +113,8 @@ describe('inventário', () => {
         S.activeProject = { id: 'p8', modulos: ['ot'] };
         servirOt({ [`GET ${B2}/sites`]: { sites: [{ ...SITE, id: 's8', nome: 'SE Sul' }] }, [`GET ${B2}/zonas`]: { zonas: [] },
             [`GET ${B2}/ativos`]: { ativos: [{ ...ATIVOS[0], id: 'a8', site_id: 's8', zona_id: null, nome: 'RTU-SUL' }] } });
+        await window.renderOt(el('c'), el('h'), el('a')); // a casca vê o projeto novo e zera o estado
+        expect([S.otSite, S.otZona, S.otLote]).toEqual([null, null, null]);
         await abrir('inventario');
         expect(chamadas.filter((x) => /\/(zonas|ativos)$/.test(x.k)).map((x) => x.url.search)).toEqual(['', '']);
         expect(texto()).toContain('RTU-SUL');

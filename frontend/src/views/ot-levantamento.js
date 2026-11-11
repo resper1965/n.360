@@ -361,9 +361,7 @@ window.otEnviarAchados = async () => {
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
-        S.otLote = r.id; S.otLevantamento = null; S.otSub = 'aprovacao'; S.otAba = 'coleta';
-        // Fora da tela do site (casca antiga, sem otTela) o salto continua pela aba Coleta.
-        if (window.otTela) window.otTela('site', atual.site_id || S.otSite, 'projeto'); else window.render();
+        await window.otTela('site', atual.site_id || S.otSite, 'projeto', { otSub: 'aprovacao', otLote: r.id });
     } catch (e) { falhou(e, 'Não foi possível enviar os achados ao lote.'); }
 };
 

@@ -7,6 +7,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
+import { desenhar } from './ot-abrir.js';
 
 const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);
@@ -33,8 +34,7 @@ const CONTAGEM = `GET ${B}/desvios?situacao=aberto&contagem=1`;
 const BASE = { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }] }, [`GET ${B}/desvios`]: DESVIOS, [CONTAGEM]: { total: 2 } };
 async function abrir(aba, rotas = {}) {
     servir({ ...BASE, ...rotas });
-    S.otAba = aba;
-    await window.renderOt(el('c'), el('h'), el('a'));
+    await desenhar(aba);
 }
 beforeEach(() => {
     document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
@@ -45,15 +45,10 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('aba Desvios', () => {
-    it('aparece com a contagem de abertos no rótulo', async () => {
-        await abrir('desvios', { [CONTAGEM]: { total: 1 } });
-        await vi.waitFor(() => expect([...document.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toContain('Desvios · 1 aberto'));
-    });
-
     it('lista escapada, situação em texto, filtros pedem ao servidor e o ativo mostra o fabricante', async () => {
         await abrir('desvios');
         expect(el('xss')).toBeNull();
-        const t = el('ot-painel').textContent;
+        const t = el('c').textContent;
         expect(t).toContain('Aberto'); expect(t).toContain('Tratado'); expect(t).toContain('modbus:502 · externo'); expect(t).toContain('Siemens'); expect(t).toContain('Cadastrado');
         expect(chamadas.some((c) => c.k === `GET ${B}/desvios` && c.q === '?situacao=aberto')).toBe(true);
         el('des-f-tipo').value = 'ativo';
@@ -113,21 +108,9 @@ describe('aba Desvios', () => {
     it('Ver achado leva à aba Levantamento', async () => {
         await abrir('desvios');
         const botao = el('c').querySelector('[data-action="otVerAchadoDesvio"]');
-        window.otVerAchadoDesvio(...JSON.parse(botao.getAttribute('data-args')));
-        expect(S.otAba).toBe('levantamento');
+        await window.otVerAchadoDesvio(...JSON.parse(botao.getAttribute('data-args')));
+        expect([S.otTela, S.otModo, S.otSub]).toEqual(['site', 'projeto', 'levantamento']);
         expect(S.otLevantamento).toBe('lv7');
-    });
-
-    it('Ver achado, com a casca nova, abre o site em modo projeto na sub-aba Levantamento', async () => {
-        await abrir('desvios');
-        window.otTela = vi.fn();
-        try {
-            const botao = el('c').querySelector('[data-action="otVerAchadoDesvio"]');
-            window.otVerAchadoDesvio(...JSON.parse(botao.getAttribute('data-args')));
-            expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto');
-            expect(S.otSub).toBe('levantamento');
-            expect(S.otLevantamento).toBe('lv7');
-        } finally { delete window.otTela; }
     });
 });
 
