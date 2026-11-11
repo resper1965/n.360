@@ -1,6 +1,6 @@
 import type { ChavesOt } from './ot-cifra';
 import { aadOt, decifrarOt } from './ot-cifra';
-import { ativosDoSite, criarLote, indice, prepararItem, zonasDoSite } from './ot-coleta';
+import { ativosDoSite, criarLote, indice, motivoVisivel, prepararItem, zonasDoSite } from './ot-coleta';
 import { serializarAtivo, type LinhaAtivo } from './ot-inventario';
 import { prepararFluxo } from './ot-fluxo-achado';
 import { temPii } from './rascunhos-privacy';
@@ -19,10 +19,10 @@ export interface LinhaAchado {
 export const DESFECHO_SQL = 'i.decisao AS item_decisao, i.registro_id AS item_registro_id, i.motivo AS item_motivo';
 
 /** O que aconteceu com o achado depois do envio: gravado no inventário, ou recusado com o motivo (null nos demais casos). */
-export function desfechoDe(a: LinhaAchado) {
-  if (a.situacao === 'enviado' && a.item_decisao === 'gravado') return { desfecho: 'no_inventario' as const, registro_id: a.item_registro_id ?? null };
+export function desfechoDe(a: LinhaAchado, completo: boolean) {
+  if (a.situacao === 'enviado' && a.item_decisao === 'gravado') return { desfecho: 'no_inventario' as const, ...(completo && { registro_id: a.item_registro_id ?? null }) };
   if (a.situacao === 'rascunho' && (a.item_decisao === 'recusado' || a.item_decisao === 'descartado'))
-    return { desfecho: 'recusado' as const, motivo: a.item_motivo ?? 'Lote rejeitado' };
+    return { desfecho: 'recusado' as const, motivo: motivoVisivel(a.item_motivo ?? 'Lote rejeitado', completo) };
   return { desfecho: null };
 }
 
@@ -56,7 +56,7 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
   const d = JSON.parse(a.dados) as Record<string, unknown>;
   if (a.entidade === 'fluxo') {
     return { id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao,
-      lote_id: a.lote_id, evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a),
+      lote_id: a.lote_id, evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a, completo),
       dados: { ...d, ...(d.externo !== undefined && { externo: d.externo === 1 }), ...(d.via_vpn !== undefined && { via_vpn: d.via_vpn === 1 }) },
       ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }) };
   }
@@ -65,7 +65,7 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
   const { id: _i, project_id: _p, ...dados } = await serializarAtivo(linha, completo, chaves, 'ot_achados');
   return {
     id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao, lote_id: a.lote_id,
-    evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a), dados,
+    evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a, completo), dados,
     ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }),
   };
 }

@@ -4,7 +4,7 @@ import app from '../src/index';
 import { manutencaoDiaria } from '../src/manutencao';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
-// Levantamento do n.ot (spec 2026-11-01, L2): achado de fluxo. Base da L1: sessões, achados, confronto sem oráculo, envio ao lote. D1 real.
+// n.ot E2: decisão item a item no lote, devolução do achado na hora e `desfecho` do achado (com A1 para papel mascarado). D1 real.
 type H = Record<string, string>;
 const P = '/api/v1/projects/proj-a/ot';
 const chamar = (h: H, metodo: string, caminho: string, corpo?: unknown) => app.fetch(new Request('http://localhost' + caminho, {
@@ -104,5 +104,54 @@ describe('decisão item a item', () => {
     const r = await chamar(cons, 'POST', `${P}/sites/${ids.site}/enviar`, { achados: [a] });
     expect(r.status).toBe(400);
     expect(await env.DB.prepare('SELECT situacao FROM ot_achados WHERE id = ?').bind(a).first()).toEqual({ situacao: 'rascunho' });
+  });
+
+  it('lote gravando, concluído ou rejeitado: recusar é 409 e o item e o achado não mudam', async () => {
+    const a = await novo('I9', '10.8.0.9');
+    const lote = await enviar([a]);
+    const [i] = await itens(lote);
+    for (const st of ['gravando', 'concluido', 'rejeitado']) {
+      await env.DB.prepare('UPDATE ot_lotes SET status = ? WHERE id = ?').bind(st, lote).run();
+      expect((await recusar(gestor, lote, i.id)).status, st).toBe(409);
+    }
+    expect(await env.DB.prepare('SELECT decisao FROM ot_lote_itens WHERE id = ?').bind(i.id).first()).toEqual({ decisao: 'pendente' });
+    expect(await achado(a)).toMatchObject({ situacao: 'enviado' });
+  });
+
+  it('lote de site fora da lista permitida do decisor (site arquivado) é 404', async () => {
+    const site = await criar(cons, 'sites', { nome: 'SE Arquivado' });
+    const lev = await criar(cons, 'levantamentos', { site_id: site, tipo: 'visita', realizado_em: '2026-11-07' });
+    const a = await novo('I10', '10.8.0.10', lev);
+    const r0 = await chamar(cons, 'POST', `${P}/levantamentos/${lev}/enviar`, { achados: [a] });
+    const lote = (await r0.json<{ id: string }>()).id;
+    const [i] = (await (await chamar(gestor, 'GET', `${P}/lotes/${lote}`)).json<{ itens: Item[] }>()).itens;
+    await env.DB.prepare(`UPDATE ot_sites SET status = 'removido' WHERE id = ?`).bind(site).run();
+    expect((await recusar(gestor, lote, i.id)).status).toBe(404);
+    expect(await env.DB.prepare('SELECT decisao FROM ot_lote_itens WHERE id = ?').bind(i.id).first()).toEqual({ decisao: 'pendente' });
+  });
+
+  it('A1: papel mascarado não recebe registro_id nem o motivo "ativo mudou/fluxo removido" no desfecho', async () => {
+    const a = await novo('I11', '10.8.0.11');
+    const b = await novo('I12', '10.8.0.12');
+    const lote = await enviar([a, b]);
+    const [ia, ib] = await itens(lote);
+    await recusar(gestor, lote, ia.id, 'motivo comum');
+    await env.DB.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = 'O fluxo de destino foi removido depois da revisão: revise o item de novo' WHERE id = ?`).bind(ib.id).run();
+    await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL WHERE id = ?`).bind(b).run();
+    await env.DB.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = ? WHERE id = ?`).bind(lote, a).run();
+    await env.DB.prepare(`UPDATE ot_lote_itens SET decisao = 'gravado', registro_id = 'reg-1' WHERE id = ?`).bind(ia.id).run();
+    const completo = await achados(ids.lev);
+    expect(completo.find((x) => x.id === a)).toMatchObject({ desfecho: 'no_inventario', registro_id: 'reg-1' });
+    expect(completo.find((x) => x.id === b)!.motivo).toMatch(/fluxo de destino/);
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-tec2', 'tec2@cliente.teste', 'x', 'Tec', 'org_user', 'proj-a')`).run();
+    await concederModulos(['u-tec2'], ['ot']);
+    expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec2', site_id: ids.site })).status).toBe(201);
+    const tec = await sessionFor({ id: 'u-tec2', email: 'tec2@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
+    const mascarado = (await (await chamar(tec, 'GET', `${P}/levantamentos/${ids.lev}`)).json<{ achados: Ach[] }>()).achados;
+    const ma = mascarado.find((x) => x.id === a)!, mb = mascarado.find((x) => x.id === b)!;
+    expect(ma.desfecho).toBe('no_inventario');
+    expect(ma).not.toHaveProperty('registro_id');
+    expect(mb.desfecho).toBe('recusado');
+    expect(mb.motivo ?? null).toBeNull();
   });
 });
