@@ -415,6 +415,11 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Saúde da coleta');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('1 de 1');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Último resumo há 2 h');
+
+  // Os pontos que a sonda trouxe seguem no topo do Levantamento (Modo projeto).
+  await noSite(page, 'projeto', 'Levantamento');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Pontos a esclarecer');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
 });
 
 // Desvios (spec n-ot-desvio §5): listar, tratar (nota obrigatória) e aceitar (só o Gestor ARCiber). API mockada com estado.
@@ -479,7 +484,8 @@ test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abr
   await page.getByRole('button', { name: 'Abrir lote' }).click();
   await expect(page.getByRole('heading', { name: 'SE Norte' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Lote de aprovação' })).toHaveAttribute('aria-selected', 'true');
-  await expect(conteudo).toContainText('Lote de');
+  await expect(conteudo).toContainText('Lote de planilha · SE Norte'); // o lote l1 do mock, aberto por otIrParaLote
+  await expect(conteudo).toContainText('Em revisão');
 });
 
 // Deep link /ot/desvios/<id>: abre o site do desvio, em Modo operação, na sub-aba Desvios, com a linha marcada.
