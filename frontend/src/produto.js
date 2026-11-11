@@ -407,7 +407,7 @@ function linkDaBarra(doc, id) {
 }
 
 /** O item do menu está à mostra para o papel (o updateHeaderUser esconde por style.display). */
-const itemVisivel = (doc, id) => { const el = doc.getElementById(id); return !!el && el.style.display !== 'none'; };
+export const itemVisivel = (doc, id) => { const el = doc.getElementById(id); return !!el && el.style.display !== 'none'; };
 
 /**
  * Num módulo: "n.360" de volta ao início, "Conta e acessos (n.360)" na primeira tela da conta que o papel vê e, quando o

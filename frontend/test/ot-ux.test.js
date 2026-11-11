@@ -10,6 +10,7 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
 import { desenhar } from './ot-abrir.js';
+import { montarDesvios } from '../src/views/ot-desvios.js';
 
 const B = '/api/v1/projects/p1/ot';
 const el = (id) => document.getElementById(id);
@@ -363,5 +364,61 @@ describe('rodada de correção 1: notas em fila, por sessão e por projeto', () 
         expect(vivos.reduce((n, x) => n + new TextEncoder().encode(x.opts.body).length, 0)).toBeLessThanOrEqual(64 * 1024);
         servirOt({ [PUT1]: { ok: true }, [PUT2]: { ok: true }, [`GET ${B}/levantamentos/l2`]: { levantamento: L2, achados: [] }, [`GET ${B}/roteiro`]: ROTEIRO });
         await window.otSalvarNotas(); // esvazia para o próximo teste
+    });
+});
+
+describe('E1 T6: saídas diretas no lugar de texto sem link', () => {
+    const ACESSOS = { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }] }, [`GET ${B}/acessos`]: { acessos: [] }, 'GET /api/v1/users': [] };
+    const abrirModal = async (usersVisivel) => {
+        document.body.insertAdjacentHTML('beforeend', `<a id="nav-users" style="display:${usersVisivel ? '' : 'none'}"></a>`);
+        servirOt(ACESSOS);
+        await abrir('acessos');
+        window.otNovoAcesso();
+    };
+    afterEach(() => document.getElementById('nav-users')?.remove());
+
+    it('modal sem técnico: link para Usuários quando nav-users está visível', async () => {
+        await abrirModal(true);
+        expect(document.querySelector('#modal-content a.btn[href$="?tela=users"]')).not.toBeNull();
+    });
+    it('modal sem técnico: sem o link quando nav-users está escondido', async () => {
+        await abrirModal(false);
+        expect(document.querySelector('#modal-content a[href$="?tela=users"]')).toBeNull();
+        expect(el('modal-content').textContent).toContain('tela Usuários');
+    });
+    it('Fluxos sem site: botão Cadastrar site leva à tela de sites', async () => {
+        servirOt({ ...SITES, [`GET ${B}/sites`]: { sites: [] }, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/fluxos`]: { fluxos: [] } });
+        await abrir('fluxos');
+        const b = document.querySelector('#c button.btn[data-action="otTela"]');
+        expect(b.textContent).toBe('Cadastrar site');
+        expect(JSON.parse(b.dataset.args)).toEqual(['sites']);
+    });
+    it('Assessment: linha da governança com link só quando o hub abre a tela', async () => {
+        const REQ = { [`GET ${B}/requisitos`]: { requisitos: [{ codigo: '4.2.1', titulo: 'x', prazo_meses: 3 }] } };
+        servirOt(REQ); S.activeProject = { id: 'p1', modulos: ['ot'] };
+        await abrir('catalogo');
+        expect(el('c').textContent).toContain('4.2.1');
+        expect(document.querySelector('#c a[href$="?tela=governance"]')).toBeNull();
+        S.activeProject = { id: 'p1', modulos: ['ot', 'iso'] };
+        await abrir('catalogo');
+        expect(document.querySelector('#c a[href$="?tela=governance"]')).not.toBeNull();
+    });
+    const desvios = async (sensores, falha) => {
+        servirOt({ [`GET ${B}/sites`]: { sites: [] }, [`GET ${B}/desvios`]: { desvios: [] }, [`GET ${B}/sites/s1/sensores`]: { sensores } },
+            falha ? { [`GET ${B}/sites/s1/sensores`]: [500, { error: 'x' }] } : {});
+        S.user = { id: 'u', role: 'consultor' };
+        await montarDesvios(el('c'), el('a'), S.activeProject, { siteFixo: 's1' });
+    };
+    it('Desvios vazio sem sonda: aviso e botão para Acessos', async () => {
+        await desvios([]);
+        expect(el('c').textContent).toContain('Sem vigilância de rede neste site');
+        expect(JSON.parse(document.querySelector('#c button[data-action="otTela"]').dataset.args)).toEqual(['acessos']);
+    });
+    it('Desvios vazio com sonda ou com falha: texto neutro', async () => {
+        await desvios([{ id: 'k1' }]);
+        expect(el('c').textContent).toContain('Nenhum desvio aberto');
+        await desvios([], true);
+        expect(el('c').textContent).toContain('Nenhum desvio aberto');
+        expect(el('c').textContent).not.toContain('Sem vigilância');
     });
 });

@@ -10,6 +10,7 @@ import { cartaoAgente } from './ot-agente.js';
 import { areaSondas } from './ot-sensores.js';
 import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
+import { itemVisivel, moduloPara, enderecoDoProduto } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
@@ -88,7 +89,9 @@ export async function montarCatalogo(c, a, p) {
         return;
     }
     c.innerHTML = `<p class="org-header-intro">ONS RO-CB.BR.01 Rev.00: ${escapeHTML(String(reqs.length))} requisitos. Prazo em meses após o início da vigência (09/07/2021).</p>`
-        + renderDataTable(['Código', 'Requisito', 'Prazo'], reqs.map((r) => [escapeHTML(r.codigo), escapeHTML(r.titulo), escapeHTML(prazo(r.prazo_meses))]));
+        + renderDataTable(['Código', 'Requisito', 'Prazo'], reqs.map((r) => [escapeHTML(r.codigo), escapeHTML(r.titulo), escapeHTML(prazo(r.prazo_meses))]))
+        // O hub só abre a governança se o projeto tem n.iso ou n.privacy (moduloPara); senão, só o texto.
+        + `<p class="org-dica">O Gestor e o suplente (4.2.1) vêm da governança do projeto${moduloPara('governance', p) ? `: <a href="${enderecoDoProduto('n360')}?tela=governance">abrir governança</a>` : ''}.</p>`;
 }
 
 // ─── inventário (N2) ────────────────────────────────────────────────────────
@@ -348,7 +351,8 @@ export async function montarFluxos(c, a, p, { siteFixo } = {}) {
     try { await carregarInventario(p, { fluxos: true }); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os fluxos do n.ot.', e); return; }
     const editar = podeEditarOt();
     if (editar && D.sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoFluxo">+ Novo fluxo</button>';
-    if (!D.sites.length) { c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário', texto: 'Os fluxos ligam ativos e zonas de um site. Comece pela aba Inventário.' }); return; }
+    if (!D.sites.length) { c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário', texto: 'Os fluxos ligam ativos e zonas de um site.' })
+        + (editar ? '<p><button class="btn" data-action="otTela" data-args=\'["sites"]\'>Cadastrar site</button></p>' : ''); return; }
     const violados = D.fluxos.filter((f) => (f.violacoes || []).length);
     c.innerHTML = `${siteFixo ? '' : `<div class="d-flex gap-4 flex-wrap mb-4">${filtroSite()}</div>`}
         <p class="org-header-intro">${violados.length ? `<span class="t-perigo">${escapeHTML(String(violados.length))} fluxo(s) externo(s) sem VPN.</span> ` : ''}A RO-CB.BR.01 (4.1.2 e 4.1.3) pede que o acesso externo ao ARCiber passe por VPN; o inventário registra o fluxo como ele é e marca a violação.</p>
@@ -421,7 +425,7 @@ window.otNovoAcesso = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Conceder acesso a um site</span></div>
         <div class="form-group"><label class="form-label" for="ot-ac-site">Site</label><select class="form-input" id="ot-ac-site">${opcoes(D.sites.map((s) => [s.id, s.nome]), '')}</select></div>
         ${tecnicos.length ? `<div class="form-group"><label class="form-label" for="ot-ac-user">Técnico</label><select class="form-input" id="ot-ac-user">${opcoes(tecnicos.map((u) => [u.id, u.email]), '')}</select></div>`
-        : renderEmptyState({ titulo: 'Nenhum técnico neste projeto.', texto: 'Crie a conta de usuário do cliente na tela Usuários e dê a ela o módulo n.ot.', compacto: true })}
+        : renderEmptyState({ titulo: 'Nenhum técnico neste projeto.', texto: 'Crie a conta de usuário do cliente na tela Usuários e dê a ela o módulo n.ot.', compacto: true })}${itemVisivel(document, 'nav-users') ? `<p><a class="btn" href="${enderecoDoProduto('n360')}?tela=users">Abrir Usuários (n.360)</a></p>` : ''}
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button>${tecnicos.length ? '<button class="btn btn-primary" data-action="otSalvarAcesso">Conceder</button>' : ''}</div>`);
 };
 window.otSalvarAcesso = async () => {

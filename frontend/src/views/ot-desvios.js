@@ -29,13 +29,19 @@ export async function montarDesvios(c, a, p, { siteFixo, destacar } = {}) {
         const [s, d] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/desvios${q ? `?${q}` : ''}`)]);
         sites = lista(s, 'sites'); desvios = lista(d, 'desvios');
     } catch (e) { c.innerHTML = `<p class="org-dica" role="alert">${escapeHTML(mensagemDeErro(e, 'Não foi possível carregar os desvios do n.ot.'))}</p>`; return; }
+    // Sem sonda no site, o vazio vira o próximo passo; a falha da leitura (inclui 403) deixa o texto neutro.
+    const semSonda = siteFixo && !desvios.length
+        && await api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(siteFixo)}/sensores`).then((r) => !lista(r, 'sensores').length, () => false);
+    const vazio = !siteFixo || desvios.length ? { emptyMessage: 'Nenhum desvio neste recorte.', emptyHint: 'Os desvios aparecem quando uma sonda vê tráfego fora do inventário aprovado.' }
+        : semSonda ? { emptyMessage: 'Sem vigilância de rede neste site', emptyHint: 'Cadastre uma sonda para ver o tráfego fora do inventário aprovado.' }
+            : { emptyMessage: 'Nenhum desvio aberto', emptyHint: 'Os desvios aparecem quando uma sonda vê tráfego fora do inventário aprovado.' };
     const filtro = (id, rotulo, campo, itens) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label>
         <select class="form-input" id="${id}" data-action-change="otFiltrarDesvios" data-args='${args(campo)}'>${opcoes([['', 'Todos'], ...itens], f[campo])}</select></div>`;
     const sit = Object.entries(SITUACAO).map(([v, [, r]]) => [v, r]);
     c.innerHTML = `<p class="org-header-intro">Tráfego que a sonda viu e que o inventário aprovado não prevê. Trate ou aceite cada desvio; o que ficar fora do inventário continua aparecendo.</p>
         <div class="d-flex gap-3">${filtro('des-f-situacao', 'Situação', 'situacao', sit)}${siteFixo ? '' : filtro('des-f-site', 'Site', 'site_id', sites.map((s) => [s.id, s.nome]))}${filtro('des-f-tipo', 'Tipo', 'tipo', Object.entries(TIPO))}</div>
         ${renderDataTable(['Tipo', 'Site', 'Origem', 'Destino', 'Protocolo', 'Visto', 'Ocorrências', 'Situação', 'Ações'], desvios.map(linha),
-        { emptyMessage: 'Nenhum desvio neste recorte.', emptyHint: 'Os desvios aparecem quando uma sonda vê tráfego fora do inventário aprovado.' })}`;
+        vazio)}${semSonda && podeEditarOt() ? '<p><button class="btn" data-action="otTela" data-args=\'["acessos"]\'>Cadastrar sonda</button></p>' : ''}`;
     const alvo = destacar && c.querySelectorAll('tbody tr')[desvios.findIndex((d) => d.id === destacar)];
     if (alvo) { alvo.setAttribute('aria-current', 'true'); alvo.scrollIntoView?.({ block: 'center' }); }
 }
