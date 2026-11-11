@@ -38,7 +38,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - Rotas `GET /desvios` (com `?contagem=1`, só o total, para a aba e o cartão), `POST /desvios/:id/tratar` e `POST /desvios/:id/aceitar`. Migration 0108 (aditiva): tabela `ot_desvios`.
 
 ### n.ot: MAC do gateway deixa de ir para os ativos
-- Com a sonda atrás de roteador ou firewall, os IPs de outra sub-rede chegavam todos com o MAC do gateway (numa subestação, 212 de 230 ativos com o mesmo MAC). O script `n-ot-resumo-zeek.py` passa a descartar o MAC do `conn.log` visto para 3 ou mais IPs, e o fabricante tirado dele; o MAC do `dhcp.log` fica sempre. Avisa no stderr quantos descartou.
+- Com a sonda atrás de roteador ou firewall, os IPs de outra sub-rede chegavam todos com o MAC do gateway (num caso real, a maioria dos ativos chegava com o mesmo MAC). O script `n-ot-resumo-zeek.py` passa a descartar o MAC do `conn.log` visto para 3 ou mais IPs, e o fabricante tirado dele; o MAC do `dhcp.log` fica sempre. Avisa no stderr quantos descartou.
 - O n.ot repete a defesa para resumos de versões antigas do script ou enviados à mão: MAC em 3 ou mais ativos do resumo não gera achado de completar MAC, não vai no ativo novo e não dá fabricante.
 
 ### Requisitos: "não aplicável" com justificativa (migration 0107)
