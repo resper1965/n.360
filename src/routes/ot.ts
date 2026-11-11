@@ -585,15 +585,7 @@ otApp.get('/levantamentos/:id', async (c) => {
     // LIMIT explícito: sem ele o teto global de SELECT (query-cap, 500) cortaria a sessão em silêncio.
     const { results } = await db.prepare(`SELECT * FROM ot_achados WHERE levantamento_id = ? AND project_id = ? ORDER BY created_at LIMIT ${TETO_ACHADOS_SESSAO}`)
       .bind(lev.id, projectId).all<LinhaAchado>();
-    // A1: o confronto só é calculado (e devolvido) para quem vê completo; o índice do site é lido uma vez.
-    const idx = completo ? await indiceDoSite(db, projectId, lev.site_id) : undefined;
-    const idxF = completo && results.some((a) => a.entidade === 'fluxo') ? indiceFluxos(await fluxosDoSite(db, projectId, lev.site_id)) : undefined;
-    const achados = [];
-    for (const a of results) {
-      const conf = !idx || a.situacao !== 'rascunho' ? undefined
-        : a.entidade === 'fluxo' ? confrontarFluxo(JSON.parse(a.dados), idxF!) : await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados), idx);
-      achados.push(await serializarAchado(a, completo, chaves, conf));
-    }
+    const achados = await serializarAchados(db, projectId, lev.site_id, results, completo, chaves);
     const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) do levantamento ${lev.id} com IP/MAC sem máscara`, { tipo: 'ot_levantamento', id: lev.id });
     // Só nomes (nunca /ativos, que decifra IP/MAC): os das pontas citadas e os ativos do site que o achado de fluxo oferece como ponta.
@@ -602,6 +594,53 @@ otApp.get('/levantamentos/:id', async (c) => {
       LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lev.site_id).all<{ id: string; nome: string }>();
     return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados, nomes_pontas, ativos_do_site });
   } catch (e) { return erro500(c, 'Falha ao ler o levantamento', e); }
+});
+
+/** A1: o confronto só é calculado (e devolvido) para quem vê completo; os índices do site são lidos uma vez. */
+async function serializarAchados(db: D1Database, projectId: string, siteId: string, results: LinhaAchado[], completo: boolean, chaves: NonNullable<ReturnType<typeof chavesOt>>) {
+  const idx = completo ? await indiceDoSite(db, projectId, siteId) : undefined;
+  const idxF = completo && results.some((a) => a.entidade === 'fluxo') ? indiceFluxos(await fluxosDoSite(db, projectId, siteId)) : undefined;
+  const achados = [];
+  for (const a of results) {
+    const conf = !idx || a.situacao !== 'rascunho' ? undefined
+      : a.entidade === 'fluxo' ? confrontarFluxo(JSON.parse(a.dados), idxF!) : await confrontar(db, projectId, siteId, JSON.parse(a.dados), idx);
+    achados.push(await serializarAchado(a, completo, chaves, conf));
+  }
+  return achados;
+}
+
+// Fila de revisão do site: os achados de todos os levantamentos dele, para decidir o que vai ao lote.
+otApp.get('/achados', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const site = c.req.query('site_id');
+    const situacao = c.req.query('situacao') ?? 'rascunho';
+    if (!site) return c.json({ error: 'site_id é obrigatório' }, 400);
+    if (situacao !== 'rascunho' && situacao !== 'enviado') return c.json({ error: 'situacao deve ser rascunho ou enviado' }, 400);
+    if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
+    const completo = await podeVerCompleto(db, user, projectId);
+    const { results } = await db.prepare(`SELECT a.*, l.tipo AS levantamento_tipo, l.realizado_em AS levantamento_realizado_em
+      FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ? ORDER BY l.realizado_em, a.created_at LIMIT ${TETO_LEITURA_OT}`)
+      .bind(projectId, site, situacao).all<LinhaAchado & { levantamento_tipo: string; levantamento_realizado_em: string }>();
+    const ser = await serializarAchados(db, projectId, site, results, completo, chavesOt(c.env)!);
+    const achados = ser.map((a, i) => ({ ...a, levantamento_tipo: results[i].levantamento_tipo, levantamento_realizado_em: results[i].levantamento_realizado_em }));
+    const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
+    if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) da fila do site ${site} com IP/MAC sem máscara`, { tipo: 'ot_site', id: site });
+    return c.json({ achados });
+  } catch (e) { return erro500(c, 'Falha ao ler a fila de revisão', e); }
+});
+
+otApp.post('/sites/:siteId/enviar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const site = c.req.param('siteId');
+    if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
+    if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
+    const v = await validateBody(c, otEnviarAchadosSchema);
+    if (!v.success) return v.response;
+    return responderLote(c, await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { site_id: site }, v.data.achados), projectId, site);
+  } catch (e) { return erro500(c, 'Falha ao enviar os achados ao lote', e); }
 });
 
 otApp.put('/levantamentos/:id', async (c) => {
@@ -696,7 +735,7 @@ otApp.post('/levantamentos/:id/enviar', async (c) => {
     if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
     const v = await validateBody(c, otEnviarAchadosSchema);
     if (!v.success) return v.response;
-    const r = await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { id: lev.id, site_id: lev.site_id }, v.data.achados);
+    const r = await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { site_id: lev.site_id, levantamento_id: lev.id }, v.data.achados);
     return responderLote(c, r, projectId, lev.site_id, { levantamento_id: lev.id });
   } catch (e) { return erro500(c, 'Falha ao enviar os achados ao lote', e); }
 });

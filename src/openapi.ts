@@ -332,6 +332,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/manual', schema: otLoteManualSchema, nome: 'otLoteManualSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/sites/:id', schema: otSiteAtualizarSchema, nome: 'otSiteAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:sid/sensores', schema: sensorCriarSchema, nome: 'sensorCriarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:siteId/enviar', schema: otEnviarAchadosSchema, nome: 'otEnviarAchadosSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites', schema: otSiteCriarSchema, nome: 'otSiteCriarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/zonas/:id', schema: otZonaAtualizarSchema, nome: 'otZonaAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/zonas', schema: otZonaCriarSchema, nome: 'otZonaCriarSchema' },

@@ -66,17 +66,19 @@ const PARA_BRUTO = ['nome', 'zona_id', 'no_arciber', 'categoria_arciber', 'tipo_
  * dois envios simultâneos do mesmo achado não criam dois lotes; se o lote falha, os achados tomados voltam a rascunho.
  */
 export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id: string }, projectId: string,
-  lev: { id: string; site_id: string }, achadoIds: string[]) {
+  alvo: { site_id: string; levantamento_id?: string }, achadoIds: string[]) {
   const ids = JSON.stringify([...new Set(achadoIds)]);
   const { results } = await db.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
-    WHERE project_id = ? AND levantamento_id = ? AND situacao = 'rascunho' AND id IN (SELECT value FROM json_each(?)) RETURNING *`)
-    .bind(projectId, lev.id, ids).all<LinhaAchado>();
+    WHERE project_id = ? AND ${alvo.levantamento_id ? 'levantamento_id = ?'
+      : 'levantamento_id IN (SELECT id FROM ot_levantamentos WHERE project_id = ?1 AND site_id = ?)'} AND situacao = 'rascunho'
+    AND id IN (SELECT value FROM json_each(?)) RETURNING *`)
+    .bind(projectId, alvo.levantamento_id ?? alvo.site_id, ids).all<LinhaAchado>();
   const tomados = JSON.stringify(results.map((a) => a.id));
   const devolver = () => db.prepare(`UPDATE ot_achados SET situacao = 'rascunho', updated_at = CURRENT_TIMESTAMP
     WHERE situacao = 'enviado' AND lote_id IS NULL AND id IN (SELECT value FROM json_each(?))`).bind(tomados).run();
   if (results.length !== new Set(achadoIds).size) {
     if (results.length) await devolver();
-    return { ok: false as const, status: 400 as const, error: 'Achado inexistente, de outra sessão ou já enviado' };
+    return { ok: false as const, status: 400 as const, error: 'Achado inexistente, de outro levantamento ou já enviado' };
   }
   let r: Awaited<ReturnType<typeof criarLote>>;
   try {
@@ -98,7 +100,9 @@ export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id:
       }
       brutos.push(b);
     }
-    r = await criarLote(db, chaves, ator, projectId, lev.site_id, 'manual', brutos, lev.id, entidades);
+    // Sem alvo.levantamento_id (envio do site): o lote só liga a um levantamento se todos os achados vieram dele.
+    const levs = new Set(results.map((a) => a.levantamento_id));
+    r = await criarLote(db, chaves, ator, projectId, alvo.site_id, 'manual', brutos, alvo.levantamento_id ?? (levs.size === 1 ? [...levs][0] : null), entidades);
   } catch (e) {
     await devolver();
     throw e;
