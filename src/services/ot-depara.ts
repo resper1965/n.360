@@ -1,10 +1,10 @@
 // De-para de planilha do n.ot (L4, spec 2026-11-03 §2). Cabeçalho → campos do ativo: por perfil salvo (mesma assinatura do cabeçalho),
-// por proposta da IA (cabeçalho + até 5 linhas, com `mascararPii` por célula e a máscara de rede do ot-ia, P0-7) ou pelo mapa de
+// pelo perfil de fábrica do export de ativos do Nozomi (`NOZOMI`), por proposta da IA (cabeçalho + até 5 linhas, com `mascararPii` por célula e a máscara de rede do ot-ia, P0-7) ou pelo mapa de
 // cabeçalho da coleta (`COLUNAS`). Quem confirma o mapeamento é a pessoa; as linhas viram achados em rascunho da sessão documental.
 import { z } from 'zod';
 import { rateLimitD1, sha256Hex } from '../helpers';
 import { chave } from './tratamentos-importar';
-import { COLUNAS, valorDaCelula } from './ot-coleta';
+import { COLUNAS, semMacGateway, valorDaCelula } from './ot-coleta';
 import { garantirSemEndereco, mascararParaIa, tokenNovo, type MapaTokens, perguntarIa, perguntarIaItens, RecusaIa, semTokens, type EnvIa } from './ot-ia';
 import { mascararPii, temPii } from './rascunhos-privacy';
 import { ENDERECO_EM_TEXTO } from './ot-cifra';
@@ -24,6 +24,33 @@ export function mapeamentoPorCabecalho(cab: string[]): Mapeamento {
   const m: Mapeamento = {};
   cab.forEach((c, i) => { const campo = COLUNAS[chave(c)]; if (campo) m[String(i)] = campo as CampoDepara; });
   return m;
+}
+
+/**
+ * Perfil de fábrica: export de ativos do Nozomi Networks (Guardian/Vantage), reconhecido por `appliance_hosts` + `capture_device` e
+ * mapeado pelo nome da coluna. Ficam de fora de propósito: `mac_vendor` (no export real é o fabricante do roteador), roles, level,
+ * serial_number, vlan_id, appliance_*, capture_device e as datas.
+ */
+const NOZOMI: Record<string, CampoDepara> = { name: 'nome', ip: 'ip', mac_address: 'mac', vendor: 'fabricante', product_name: 'modelo',
+  type: 'tipo_dispositivo', os_or_firmware: 'firmware_so_versao', protocols: 'protocolos_portas', zones: 'zona' };
+export const ehNozomi = (cab: string[]) => { const k = new Set(cab.map(chave)); return k.has('appliance_hosts') && k.has('capture_device'); };
+export function mapeamentoNozomi(cab: string[]): Mapeamento {
+  const m: Mapeamento = {};
+  cab.forEach((c, i) => { const campo = NOZOMI[chave(c)]; if (campo && !Object.values(m).includes(campo)) m[String(i)] = campo; });
+  return m;
+}
+const ZONAS_NOZOMI_IGNORADAS = ['undefined', 'layer2', 'link_local'];
+/** Célula do export Nozomi: protocolos "tcp/445, iec104, other" e zonas "Undefined, Controle"; o resto como na coleta. */
+function valorNozomi(campo: string, v: string): unknown {
+  const partes = v.split(',').map((x) => x.trim()).filter(Boolean);
+  if (campo === 'protocolos_portas') {
+    return partes.filter((p) => chave(p) !== 'other').map((p) => {
+      const t = p.match(/^(tcp|udp)\/(\d{1,5})$/i);
+      return t ? { protocolo: t[1].toLowerCase(), porta: Number(t[2]) } : { protocolo: p };
+    });
+  }
+  if (campo === 'zona') return partes.find((z) => !ZONAS_NOZOMI_IGNORADAS.includes(chave(z)));
+  return valorDaCelula(campo, v);
 }
 
 const PROMPT = `Você mapeia as colunas de uma planilha de inventário de ativos de tecnologia operacional (OT) do setor elétrico para os campos
@@ -62,16 +89,21 @@ export async function proporMapeamento(env: EnvIa, cab: string[], amostra: strin
   }
 }
 
-/** Linhas SEM o cabeçalho → objetos brutos (como o corpo da entrada manual). Linha sem nenhum campo mapeado é pulada. */
-export function aplicarMapeamento(linhas: string[][], m: Mapeamento): Record<string, unknown>[] {
-  return linhas.map((l) => {
+/**
+ * Linhas SEM o cabeçalho → objetos brutos (como o corpo da entrada manual) com o número da linha na planilha (cabeçalho = 1).
+ * Linha sem nenhum campo mapeado é pulada; MAC de gateway sai (`semMacGateway`); `nozomi` liga a leitura das células do export Nozomi.
+ */
+export function aplicarMapeamento(linhas: string[][], m: Mapeamento, nozomi = false): { dados: Record<string, unknown>; linha: number }[] {
+  const dados = semMacGateway(linhas.map((l) => {
     const o: Record<string, unknown> = {};
     for (const [i, campo] of Object.entries(m)) {
       const v = (l[Number(i)] ?? '').trim();
-      if (v) o[campo] = valorDaCelula(campo, v);
+      const x = v && (nozomi ? valorNozomi(campo, v) : valorDaCelula(campo, v));
+      if (x !== undefined && x !== '' && !(Array.isArray(x) && !x.length)) o[campo] = x;
     }
     return o;
-  }).filter((o) => Object.keys(o).length > 0);
+  }));
+  return dados.flatMap((o, i) => (Object.keys(o).length ? [{ dados: o, linha: i + 2 }] : []));
 }
 
 /** true = dentro do teto. Conta a tentativa na pessoa e, só se ela passar, no projeto; janela de 1 h. */

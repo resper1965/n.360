@@ -240,3 +240,67 @@ describe('de-para de texto', () => {
     expect(toMarkdown).toEqual([]);
   });
 });
+
+// Export de ativos do Nozomi: cabeçalho real (19 colunas, na ordem real), linhas inventadas.
+const NOZOMI_CAB = 'appliance_sites,appliance_hosts,capture_device,name,type,os_or_firmware,ip,vendor,product_name,serial_number,vlan_id,mac_address,mac_vendor,roles,level,protocols,zones,created_at,last_activity_time';
+const nozomiLinha = (nome: string, ip: string, mac: string, protocols: string, zones: string) =>
+  `Site Teste,guardian-t,port1,${nome},rtu,v1.0,${ip},FabX,ModY,SN-${nome},10,${mac},RouterCo,slave,1,"${protocols}","${zones}",2026-01-01,2026-01-02`;
+const NOZOMI = [NOZOMI_CAB,
+  nozomiLinha('RTU-N1', '10.30.0.1', '02:00:00:00:aa:01', 'tcp/445,other,iec104', 'Undefined,Controle Nozomi'),
+  nozomiLinha('RTU-N2', '10.30.0.2', '02:00:00:00:ff:fe', 'other', 'Layer2'),
+  nozomiLinha('RTU-N3', '10.30.0.3', '02:00:00:00:ff:fe', 'udp/161', 'Controle Nozomi'),
+  nozomiLinha('RTU-N4', '192.0.2.4', '02:00:00:00:ff:fe', 'opc-ua', ''),
+].join('\n') + '\n';
+
+describe('de-para: perfil de fábrica Nozomi', () => {
+  const contagens = async () => (await env.DB.prepare(`SELECT key, count FROM rate_limits WHERE key LIKE 'ot:depara:%' ORDER BY key`).all()).results;
+  beforeAll(async () => {
+    await env.DB.prepare(`DELETE FROM rate_limits WHERE key LIKE 'ot:depara:%'`).run();
+    ids.noz = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-10', documento_titulo: 'Export Nozomi' });
+    ids.zNoz = await criar(cons, 'zonas', { site_id: ids.s1, nome: 'Controle Nozomi', nivel_purdue: 1 });
+  });
+
+  it('proposta: reconhece o export pelo cabeçalho, mapeia pelo nome da coluna, sem IA e sem gastar o teto da hora', async () => {
+    const antes = chamadasIa, teto = await contagens();
+    const r = await proposta(cons, NOZOMI, ids.noz);
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await r.json()).toEqual({ cabecalho: NOZOMI_CAB.split(','), origem: 'nozomi', linhas: 4, mapeamento: { '3': 'nome', '4': 'tipo_dispositivo',
+      '5': 'firmware_so_versao', '6': 'ip', '7': 'fabricante', '8': 'modelo', '11': 'mac', '15': 'protocolos_portas', '16': 'zona' } });
+    expect(chamadasIa).toBe(antes);
+    expect(await contagens()).toEqual(teto);
+  });
+
+  it('cabeçalho em outra ordem e com coluna a mais: mesmo mapeamento pelo nome', async () => {
+    const r = await proposta(cons, 'extra,zones,capture_device,ip,name,appliance_hosts\nx,Controle,p1,10.30.0.9,RTU-X,g\n', ids.noz);
+    expect(await r.json()).toMatchObject({ origem: 'nozomi', mapeamento: { '1': 'zona', '3': 'ip', '4': 'nome' } });
+  });
+
+  it('aplicar: protocolos e zona do Nozomi convertidos; MAC em 3 linhas sai, MAC único fica', async () => {
+    const mapa = (await (await proposta(cons, NOZOMI, ids.noz)).json<{ mapeamento: Record<string, string> }>()).mapeamento;
+    const r = await aplicar(cons, { mapeamento: JSON.stringify(mapa) }, NOZOMI, ids.noz);
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await r.json()).toMatchObject({ criados: 4 });
+    const { achados } = await (await chamar(cons, 'GET', `${P}/levantamentos/${ids.noz}`)).json<{ achados: Ach[] }>();
+    const por = (nome: string) => achados.find((a) => a.dados.nome === nome)!.dados;
+    expect(por('RTU-N1')).toMatchObject({ fabricante: 'FabX', modelo: 'ModY', tipo_dispositivo: 'rtu', firmware_so_versao: 'v1.0', ip: '10.30.0.1',
+      mac: '02:00:00:00:aa:01', zona_id: ids.zNoz });
+    expect(por('RTU-N1').protocolos_portas).toEqual([{ protocolo: 'tcp', porta: 445 }, { protocolo: 'iec104' }]);
+    expect(por('RTU-N2').protocolos_portas).toEqual([]); // só "other": nenhum protocolo
+    expect(por('RTU-N2')).not.toHaveProperty('zona_id');
+    expect(por('RTU-N3').protocolos_portas).toEqual([{ protocolo: 'udp', porta: 161 }]);
+    for (const n of ['RTU-N2', 'RTU-N3', 'RTU-N4']) expect(por(n).mac).toBeNull();
+  });
+
+  it('perfil salvo no projeto com a mesma assinatura vence o de fábrica', async () => {
+    const mapa = JSON.stringify({ '3': 'nome', '6': 'ip' });
+    expect((await aplicar(cons, { mapeamento: mapa, perfil_nome: 'Nozomi do cliente' }, NOZOMI_CAB + '\n', ids.noz)).status).toBe(201);
+    const r = await proposta(cons, NOZOMI, ids.noz);
+    expect(await r.json()).toMatchObject({ origem: 'perfil', mapeamento: { '3': 'nome', '6': 'ip' }, perfil: { nome: 'Nozomi do cliente' } });
+  });
+
+  it('planilha que não é Nozomi segue para a IA', async () => {
+    const antes = chamadasIa;
+    expect(await (await proposta(cons, 'name,ip,appliance_hosts\nX,10.30.0.8,g\n', ids.noz)).json()).toMatchObject({ origem: 'ia' });
+    expect(chamadasIa).toBe(antes + 1);
+  });
+});

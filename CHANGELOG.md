@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: perfil de fábrica para o export de ativos do Nozomi
+- "Importar planilha" reconhece o export de ativos do Nozomi Networks (colunas `appliance_hosts` e `capture_device`) e propõe o mapeamento pelo nome da coluna, com o selo "Perfil Nozomi", sem chamar a IA nem gastar o limite por hora. Perfil salvo no projeto com o mesmo cabeçalho continua vencendo.
+- No export, `tcp/445` vira protocolo e porta e `other` sai; das zonas, `Undefined`, `Layer2` e `Link-local` saem e vale a primeira restante. `mac_vendor` fica de fora (é o fabricante do roteador).
+- Toda importação de planilha (de-para e lote de coleta) tira das linhas o MAC que aparece em 3 ou mais delas: é o do gateway, como já fazia o sensor de rede. Num export real, 212 de 230 linhas traziam o MAC do firewall.
+
 ### Limpeza: quatro tabelas sem uso
 - Saem do banco `project_documents`, `project_scope_changes`, `ai_chat_history` e `project_knowledge` (migration 0109). Nenhum código as usava: as duas primeiras nunca foram gravadas, o chat nunca guardou conversa e a base de conhecimento ficou órfã quando a busca vetorial saiu, em 06/10. As 4 linhas antigas que restavam ficam no backup feito antes da migration.
 - A retenção de 180 dias do histórico de chat sai da manutenção diária junto com a tabela.

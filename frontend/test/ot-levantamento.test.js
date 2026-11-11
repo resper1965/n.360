@@ -282,7 +282,7 @@ describe('importar arquivo na sessão de documento', () => {
         expect(m).toContain('12 linhas');
         expect(m).toContain('Hostname <b id="xss2">');
         expect(el('xss2')).toBeNull(); expect(el('xss3')).toBeNull();
-        for (const [origem, selo] of [['ia', 'Sugerido pela IA'], ['cabecalho', 'Pelo nome da coluna']]) {
+        for (const [origem, selo] of [['ia', 'Sugerido pela IA'], ['cabecalho', 'Pelo nome da coluna'], ['nozomi', 'Perfil Nozomi (export de ativos)']]) {
             await abrirDoc({ [`POST ${P}/planilha/proposta`]: { ...PROPOSTA, origem, perfil: undefined, aviso: undefined } });
             window.otImportarArquivo(); escolher('a.xlsx');
             await window.otLerArquivo();

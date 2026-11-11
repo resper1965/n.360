@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, mapeamentoPorCabecalho, proporMapeamento } from '../src/services/ot-depara';
+import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, ehNozomi, mapeamentoNozomi, mapeamentoPorCabecalho, proporMapeamento } from '../src/services/ot-depara';
 import { RecusaIa } from '../src/services/ot-ia';
 import { dividirEmTrechos, lerDocumento } from '../src/services/ot-documento';
 import JSZip from 'jszip';
 
 // De-para de planilha do n.ot (L4): assinatura do cabeçalho, mapeamento por cabeçalho, aplicação e proposta da IA mascarada (P0-7).
+
+// Cabeçalho real do export de ativos do Nozomi (Guardian/Vantage), na ordem real; as linhas dos testes são inventadas.
+const NOZOMI_CAB = ['appliance_sites', 'appliance_hosts', 'capture_device', 'name', 'type', 'os_or_firmware', 'ip', 'vendor', 'product_name', 'serial_number',
+  'vlan_id', 'mac_address', 'mac_vendor', 'roles', 'level', 'protocols', 'zones', 'created_at', 'last_activity_time'];
 
 describe('de-para: serviço', () => {
   it('assinatura ignora caixa, acento e espaços', async () => {
@@ -19,7 +23,42 @@ describe('de-para: serviço', () => {
 
   it('aplicar converte como a coleta e pula linha vazia', () => {
     expect(aplicarMapeamento([['RTU', '10.0.0.1', 'sim'], ['', ' ', '']], { '0': 'nome', '1': 'ip', '2': 'no_arciber' }))
-      .toEqual([{ nome: 'RTU', ip: '10.0.0.1', no_arciber: true }]);
+      .toEqual([{ dados: { nome: 'RTU', ip: '10.0.0.1', no_arciber: true }, linha: 2 }]);
+  });
+
+  it('MAC em 3+ linhas da planilha é do gateway e sai delas; em 2 linhas fica', () => {
+    const m = { '0': 'nome', '1': 'mac' } as const;
+    const r = aplicarMapeamento([['A', '02:00:00:00:00:01'], ['B', '02-00-00-00-00-01'], ['C', '0200.0000.0001'], ['D', '02:00:00:00:00:02'],
+      ['E', '02:00:00:00:00:02'], ['', '02:00:00:00:00:01']], m);
+    expect(r.map((x) => x.dados)).toEqual([{ nome: 'A' }, { nome: 'B' }, { nome: 'C' }, { nome: 'D', mac: '02:00:00:00:00:02' }, { nome: 'E', mac: '02:00:00:00:00:02' }]);
+  });
+
+  it('export Nozomi: reconhecido por appliance_hosts + capture_device, mapeado pelo nome da coluna em qualquer ordem', () => {
+    expect(ehNozomi(NOZOMI_CAB)).toBe(true);
+    expect(ehNozomi(['Appliance_Hosts ', 'CAPTURE_DEVICE', 'ip'])).toBe(true);
+    expect(ehNozomi(['appliance_hosts', 'ip'])).toBe(false);
+    expect(mapeamentoNozomi(NOZOMI_CAB)).toEqual({ '3': 'nome', '4': 'tipo_dispositivo', '5': 'firmware_so_versao', '6': 'ip', '7': 'fabricante',
+      '8': 'modelo', '11': 'mac', '15': 'protocolos_portas', '16': 'zona' });
+    const invertido = [...NOZOMI_CAB].reverse();
+    expect(mapeamentoNozomi(invertido)).toEqual({ '15': 'nome', '14': 'tipo_dispositivo', '13': 'firmware_so_versao', '12': 'ip', '11': 'fabricante',
+      '10': 'modelo', '7': 'mac', '3': 'protocolos_portas', '2': 'zona' });
+  });
+
+  it('export Nozomi: protocolos tcp/445 viram protocolo + porta, other sai; zona tira Undefined/Layer2/Link-local e fica com a primeira', () => {
+    const m = mapeamentoNozomi(NOZOMI_CAB);
+    const l = (protocols: string, zones: string, mac = '02:00:00:00:00:10') => ['Site X', 'guardian-x', 'port1', 'RTU-01', 'rtu', 'v2.1', '10.20.0.5', 'Fab', 'Mod', 'SN1', '10',
+      mac, 'RouterVendor', 'slave', '1', protocols, zones, '2026-01-01', '2026-01-02'];
+    const [a, b, c] = aplicarMapeamento([l('tcp/445, other,iec104 ,udp/161,opc-ua', 'Undefined, Controle,Supervisao'), l('other', 'layer2, link-local ,undefined', '02:00:00:00:00:11'),
+      l('', 'Controle', '02:00:00:00:00:12')], m, true);
+    expect(a.dados).toEqual({ nome: 'RTU-01', tipo_dispositivo: 'rtu', firmware_so_versao: 'v2.1', ip: '10.20.0.5', fabricante: 'Fab', modelo: 'Mod',
+      mac: '02:00:00:00:00:10', protocolos_portas: [{ protocolo: 'tcp', porta: 445 }, { protocolo: 'iec104' }, { protocolo: 'udp', porta: 161 }, { protocolo: 'opc-ua' }],
+      zona: 'Controle' });
+    expect(b.dados).not.toHaveProperty('protocolos_portas');
+    expect(b.dados).not.toHaveProperty('zona');
+    expect(c.dados).toMatchObject({ zona: 'Controle', mac: '02:00:00:00:00:12' });
+    expect(c.dados).not.toHaveProperty('protocolos_portas');
+    // planilha comum: o "tcp/445" segue como texto livre
+    expect(aplicarMapeamento([['tcp/445']], { '0': 'protocolos_portas' })[0].dados).toEqual({ protocolos_portas: [{ protocolo: 'tcp/445' }] });
   });
 
   it('proposta da IA: entrada mascarada, saída validada', async () => {

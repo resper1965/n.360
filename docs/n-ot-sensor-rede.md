@@ -193,6 +193,10 @@ Sem o ICSNPP, o Zeek identifica Modbus, DNP3 e pouco mais de protocolo industria
 - Tetos por sessão: 2.000 pendências e 2.000 achados.
 - **Subir o mesmo resumo de novo não duplica**: no modo manual e no automático, o filtro de novidade pula o que já está em rascunho, foi descartado há menos de 90 dias ou está pendente (a resposta conta esses itens em `repetidos`). Fluxo que já está no inventário (mesmas pontas, protocolo e porta) também não vira achado (`fluxos_conhecidos`).
 
+## Export de ativos do Nozomi (planilha)
+
+Quem já tem um Nozomi Networks (Guardian ou Vantage) pode importar o export de ativos em vez de instalar a sonda: na sessão documental, **Importar planilha** com o CSV ou XLSX do export. O n.ot reconhece o export pelas colunas `appliance_hosts` e `capture_device` e propõe o mapeamento de fábrica ("Perfil Nozomi"), sem IA e sem gastar o limite por hora: `name`, `ip`, `mac_address`, `vendor`, `product_name`, `type`, `os_or_firmware`, `protocols` e `zones`, pelo nome da coluna (ordem e colunas a mais não importam). `mac_vendor` fica de fora de propósito: no export é o fabricante do roteador. Em `protocols`, `tcp/445` vira protocolo e porta e `other` sai; em `zones`, `Undefined`, `Layer2` e `Link-local` saem e vale a primeira zona que sobra. Perfil salvo no projeto para o mesmo cabeçalho vence o de fábrica. Como no sensor, em toda importação de planilha (de-para e lote de coleta) um MAC que aparece em 3 ou mais linhas é o do gateway e sai dessas linhas.
+
 ## Desvios
 
 Desvio é o que a sonda viu e o inventário aprovado não prevê. Serve para o consultor e o SOC saberem do tráfego fora do inventário sem esperar a revisão dos achados.

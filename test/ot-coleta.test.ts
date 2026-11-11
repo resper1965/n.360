@@ -4,7 +4,7 @@ import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { manutencaoDiaria } from '../src/manutencao';
 import { chavesOt, decifrarOt, aadOt, hmacOt } from '../src/services/ot-cifra';
-import { aprovarLote } from '../src/services/ot-coleta';
+import { aprovarLote, linhasDaPlanilha } from '../src/services/ot-coleta';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 import xlsxReal from './fixtures/ot-planilha-openpyxl.xlsx.b64?raw';
 
@@ -412,5 +412,14 @@ describe('retenção: lote não concluído expira em 7 dias', () => {
     const { results } = await env.DB.prepare(`SELECT id FROM ot_lotes WHERE id IN ('l-velho', 'l-feito', 'l-novo') ORDER BY id`).all<{ id: string }>();
     expect(results.map((l) => l.id)).toEqual(['l-feito', 'l-novo']);
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE id = 'i-velho'`).first('n')).toBe(0);
+  });
+});
+
+describe('planilha: MAC de gateway', () => {
+  it('MAC em 3+ linhas da mesma planilha sai delas (roteador visto por vários IPs); em 2 linhas fica', () => {
+    const { itens } = linhasDaPlanilha([['Nome', 'IP', 'MAC'], ['A', '10.0.0.1', '02:00:00:00:00:01'], ['B', '10.0.0.2', '02-00-00-00-00-01'],
+      ['C', '10.0.0.3', '020000000001'], ['D', '10.0.0.4', '02:00:00:00:00:02'], ['E', '10.0.0.5', '02:00:00:00:00:02']]);
+    expect(itens.map((i) => i.mac)).toEqual([undefined, undefined, undefined, '02:00:00:00:00:02', '02:00:00:00:00:02']);
+    expect(itens[0]).toEqual({ nome: 'A', ip: '10.0.0.1' });
   });
 });
