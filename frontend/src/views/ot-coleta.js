@@ -25,21 +25,27 @@ let itensDoLote = [];
 const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo original não é guardado. Só as linhas reconhecidas entram no lote, que espera a revisão '
     + 'de outra pessoa (o Gestor ARCiber ou o consultor) antes de chegar ao inventário. Lote não concluído expira em 7 dias.';
 
-export async function montarColeta(c, a, p) {
+let fixo = null; // site fixo da tela do site: recorta os lotes e tira o seletor de site
+
+export async function montarColeta(c, a, p, { siteFixo } = {}) {
+    fixo = siteFixo || null;
     let lotes;
     try {
         const [s, l] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/lotes`)]);
         sites = lista(s, 'sites'); lotes = lista(l, 'lotes');
+        if (fixo) { sites = sites.filter((x) => x.id === fixo); lotes = lotes.filter((x) => x.site_id === fixo); }
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a coleta do n.ot.', e); return; }
     if (S.otLote) { await montarLote(c, a, S.otLote); return; }
     const criar = podeCriarLote() && sites.length;
     // Secundário: sem a lista de sessões, a planilha só não se liga a um documento.
     if (criar) documentos = lista(await api('GET', `/api/v1/projects/${p.id}/ot/levantamentos`).catch(() => null), 'levantamentos').filter((l) => l.tipo === 'documento');
-    const siteLote = S.otSite || sites[0]?.id;
+    const siteLote = fixo || S.otSite || sites[0]?.id;
+    const campoSite = (id, extra) => (fixo ? `<input type="hidden" id="${id}" value="${escapeHTML(fixo)}">`
+        : `<div class="form-group"><label class="form-label" for="${id}">Site</label><select class="form-input" id="${id}"${extra}>${opcoes(sites.map((s) => [s.id, s.nome]), siteLote)}</select></div>`);
     if (criar) a.innerHTML = '<button class="btn" data-action="otEntradaManual">Entrada manual</button>';
     const envio = criar ? `<div class="bloco mb-4"><h3 class="mb-3">Enviar planilha</h3>
         <div class="d-flex gap-4 flex-wrap items-center">
-            <div class="form-group"><label class="form-label" for="ot-lote-site">Site</label><select class="form-input" id="ot-lote-site" data-action-change="otLoteSite" data-arg-val>${opcoes(sites.map((s) => [s.id, s.nome]), siteLote)}</select></div>
+            ${campoSite('ot-lote-site', ' data-action-change="otLoteSite" data-arg-val')}
             <div class="form-group"><label class="form-label" for="ot-lote-doc">Ligar a um documento (opcional)</label><select class="form-input" id="ot-lote-doc">${opcoesDoc(siteLote)}</select></div>
             <div class="form-group"><label class="form-label" for="ot-lote-arquivo">Planilha (CSV ou XLSX, até 5 MB)</label><input class="form-input" type="file" id="ot-lote-arquivo" accept=".csv,.xlsx"></div>
             <button class="btn btn-primary" data-action="otEnviarPlanilha">Enviar planilha</button></div>
@@ -90,10 +96,10 @@ const listaManuais = () => (manuais.length ? `<ul class="m-0">${manuais.map((m) 
     : renderEmptyState({ titulo: 'Nenhum item no lote ainda.', compacto: true }));
 window.otEntradaManual = () => {
     manuais = [];
-    const site = S.otSite || sites[0]?.id;
+    const site = fixo || S.otSite || sites[0]?.id;
     openModal(`<div class="modal-header"><span class="modal-title">Entrada manual</span></div>
         <p class="org-dica mb-3">Os itens formam um lote que outra pessoa revisa antes de chegarem ao inventário.</p>
-        <div class="form-group"><label class="form-label" for="ot-m-site">Site</label><select class="form-input" id="ot-m-site" data-action-change="otManualSite" data-arg-val>${opcoes(sites.map((s) => [s.id, s.nome]), site)}</select></div>
+        ${fixo ? `<input type="hidden" id="ot-m-site" value="${escapeHTML(fixo)}">` : `<div class="form-group"><label class="form-label" for="ot-m-site">Site</label><select class="form-input" id="ot-m-site" data-action-change="otManualSite" data-arg-val>${opcoes(sites.map((s) => [s.id, s.nome]), site)}</select></div>`}
         <div id="ot-m-campos">${camposDoAtivo({})}</div>
         <div class="d-flex justify-end mb-4"><button class="btn" data-action="otManualAdicionar">Adicionar ao lote</button></div>
         <h4 class="mb-2">Itens do lote</h4><div id="ot-m-itens">${listaManuais()}</div>

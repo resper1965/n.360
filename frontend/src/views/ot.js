@@ -72,7 +72,7 @@ async function renderOt(c, h, a) {
 window.otAba = async (v) => { S.otAba = v; S.otLote = null; S.otLevantamento = null; await esvaziarNotas(); window.render(); };
 
 // ─── catálogo (N1) ──────────────────────────────────────────────────────────
-async function montarCatalogo(c, a, p) {
+export async function montarCatalogo(c, a, p) {
     let reqs;
     try {
         const r = await api('GET', `/api/v1/projects/${p.id}/ot/requisitos`);
@@ -98,6 +98,11 @@ async function carregarInventario(p, { fluxos = false } = {}) {
     if (S.otSite && !D.sites.some((x) => x.id === S.otSite)) S.otSite = null;
 }
 
+// Site fixo (tela do site): os formulários levam o site num campo escondido, sem o seletor.
+let siteTravado = null;
+const campoSite = (id, rotulo, atual, extra = '') => (siteTravado ? `<input type="hidden" id="${id}" value="${escapeHTML(siteTravado)}">`
+    : `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}"${extra}>${opcoes(D.sites.map((s) => [s.id, s.nome]), atual)}</select></div>`);
+
 const filtroSite = () => `<div class="form-group"><label class="form-label" for="ot-filtro-site">Site</label>
     <select class="form-input" id="ot-filtro-site" data-action-change="otFiltrarSite" data-arg-val><option value="">Todos os sites</option>${opcoes(D.sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>`;
 
@@ -106,7 +111,8 @@ window.otFiltrarZona = (v) => { S.otZona = v || null; window.render(); };
 
 const linhaMais = (itens, nome) => renderMaisAcoes(itens, { nome });
 
-async function montarInventario(c, a, p) {
+export async function montarInventario(c, a, p, { siteFixo } = {}) {
+    siteTravado = siteFixo || null;
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o inventário do n.ot.', e); return; }
     const editar = podeEditarOt();
     if (!D.sites.length) {
@@ -117,7 +123,7 @@ async function montarInventario(c, a, p) {
         return;
     }
     if (editar) {
-        a.innerHTML = `<button class="btn" data-action="otNovoSite">+ Novo site</button><button class="btn" data-action="otNovaZona">+ Nova zona</button>`
+        a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}<button class="btn" data-action="otNovaZona">+ Nova zona</button>`
             + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="btn btn-primary" data-action="otNovoAtivo">+ Novo ativo</button>`;
     }
     const zonaVale = (x) => !S.otZona || (S.otZona === 'sem' ? !x.zona_id : x.zona_id === S.otZona);
@@ -149,12 +155,12 @@ async function montarInventario(c, a, p) {
     ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Cadastre o ativo aqui ou traga uma planilha pela aba Coleta.' : 'Os ativos entram pela aba Coleta, com a revisão de quem administra o n.ot.' });
     const mascarado = D.ativos.some((x) => x.mascarado);
 
-    c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${filtroSite()}
+    c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${siteFixo ? '' : filtroSite()}
         <div class="form-group"><label class="form-label" for="ot-filtro-zona">Zona</label>
             <select class="form-input" id="ot-filtro-zona" data-action-change="otFiltrarZona" data-arg-val><option value="">Todas as zonas</option>
             ${opcoes([...D.zonas.map((z) => [z.id, z.nome]), ['sem', 'Sem zona']], S.otZona)}</select></div></div>
-        <h3 class="mb-3">Sites</h3>${tabelaSites}
-        <h3 class="mt-6 mb-3">Zonas</h3>${tabelaZonas}
+        ${siteFixo ? '' : `<h3 class="mb-3">Sites</h3>${tabelaSites}`}
+        <h3 class="${siteFixo ? '' : 'mt-6 '}mb-3">Zonas</h3>${tabelaZonas}
         <h3 class="mt-6 mb-3">Ativos (${escapeHTML(String(ativos.length))})</h3>
         ${mascarado ? '<p class="org-dica mb-3">IP e MAC aparecem mascarados para o seu papel.</p>' : ''}${tabelaAtivos}`;
 }
@@ -162,7 +168,7 @@ async function montarInventario(c, a, p) {
 // sites
 window.otNovoSite = () => formSite({});
 window.otEditarSite = (id) => formSite(D.sites.find((s) => s.id === id) || {});
-function formSite(s) {
+export function formSite(s) {
     openModal(`<div class="modal-header"><span class="modal-title">${s.id ? 'Editar site' : 'Novo site'}</span></div>
         <div class="form-group"><label class="form-label" for="ot-s-nome">Nome</label><input class="form-input" id="ot-s-nome" maxlength="200" value="${escapeHTML(s.nome || '')}"></div>
         <div class="form-group"><label class="form-label" for="ot-s-tipo">Tipo</label><select class="form-input" id="ot-s-tipo">${opcoes(Object.entries(TIPOS_SITE), s.tipo || 'outro')}</select></div>
@@ -189,7 +195,7 @@ window.otNovaZona = () => formZona({ site_id: S.otSite });
 window.otEditarZona = (id) => formZona(D.zonas.find((z) => z.id === id) || {});
 function formZona(z) {
     openModal(`<div class="modal-header"><span class="modal-title">${z.id ? 'Editar zona' : 'Nova zona'}</span></div>
-        ${z.id ? '' : `<div class="form-group"><label class="form-label" for="ot-z-site">Site</label><select class="form-input" id="ot-z-site">${opcoes(D.sites.map((s) => [s.id, s.nome]), z.site_id)}</select></div>`}
+        ${z.id ? '' : campoSite('ot-z-site', 'Site', z.site_id)}
         <div class="form-group"><label class="form-label" for="ot-z-nome">Nome</label><input class="form-input" id="ot-z-nome" maxlength="200" value="${escapeHTML(z.nome || '')}"></div>
         <div class="form-group"><label class="form-label" for="ot-z-nivel">Nível Purdue</label><select class="form-input" id="ot-z-nivel">${opcoes([0, 1, 2, 3, 4, 5].map((n) => [n, `Nível ${n}`]), z.nivel_purdue ?? 2)}</select></div>
         <div class="form-group"><label class="form-label" for="ot-z-tipo">Tipo</label><select class="form-input" id="ot-z-tipo">${opcoes(Object.entries(TIPOS_ZONA), z.tipo || 'outra')}</select></div>
@@ -214,8 +220,7 @@ window.otEditarAtivo = (id) => formAtivo(D.ativos.find((x) => x.id === id) || {}
 function formAtivo(d) {
     const edicao = !!d.id;
     openModal(`<div class="modal-header"><span class="modal-title">${edicao ? 'Editar ativo' : 'Novo ativo'}</span></div>
-        ${edicao ? '' : `<div class="form-group"><label class="form-label" for="ot-f-site">Site</label>
-            <select class="form-input" id="ot-f-site" data-action-change="otZonasDoFormulario" data-arg-val>${opcoes(D.sites.map((s) => [s.id, s.nome]), d.site_id)}</select></div>`}
+        ${edicao ? '' : campoSite('ot-f-site', 'Site', d.site_id, ' data-action-change="otZonasDoFormulario" data-arg-val')}
         ${camposDoAtivo(d, { zonas: zonasDoSite(d.site_id), edicao })}
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAtivo" data-args='${args(d.id || '')}'>Salvar</button></div>`, 'modal-large');
 }
@@ -334,13 +339,14 @@ window.otUsarRascunho = () => {
 // ─── fluxos (N2): 4.1.2/4.1.3, fluxo externo só por VPN ──────────────────────
 const ponta = (ativoId, zonaId) => (ativoId ? `Ativo ${nomeDe(D.ativos, ativoId)}` : zonaId ? `Zona ${nomeDe(D.zonas, zonaId)}` : 'Fora do ARCiber');
 
-async function montarFluxos(c, a, p) {
+export async function montarFluxos(c, a, p, { siteFixo } = {}) {
+    siteTravado = siteFixo || null;
     try { await carregarInventario(p, { fluxos: true }); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os fluxos do n.ot.', e); return; }
     const editar = podeEditarOt();
     if (editar && D.sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoFluxo">+ Novo fluxo</button>';
     if (!D.sites.length) { c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário', texto: 'Os fluxos ligam ativos e zonas de um site. Comece pela aba Inventário.' }); return; }
     const violados = D.fluxos.filter((f) => (f.violacoes || []).length);
-    c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${filtroSite()}</div>
+    c.innerHTML = `${siteFixo ? '' : `<div class="d-flex gap-4 flex-wrap mb-4">${filtroSite()}</div>`}
         <p class="org-header-intro">${violados.length ? `<span class="t-perigo">${escapeHTML(String(violados.length))} fluxo(s) externo(s) sem VPN.</span> ` : ''}A RO-CB.BR.01 (4.1.2 e 4.1.3) pede que o acesso externo ao ARCiber passe por VPN; o inventário registra o fluxo como ele é e marca a violação.</p>
         ${renderDataTable(['Origem', 'Destino', 'Protocolo e porta', 'Direção', 'Externo', 'VPN', 'Situação', ...(editar ? ['Ações'] : [])], D.fluxos.map((f) => [
         escapeHTML(ponta(f.origem_ativo_id, f.origem_zona_id)), escapeHTML(ponta(f.destino_ativo_id, f.destino_zona_id)),
@@ -355,7 +361,7 @@ const pontasOpcoes = () => `<option value="">Fora do ARCiber (externo)</option>`
     + opcoes([...D.zonas.map((z) => [`zona:${z.id}`, `Zona ${z.nome}`]), ...D.ativos.map((x) => [`ativo:${x.id}`, `Ativo ${x.nome}`])], '');
 window.otNovoFluxo = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Novo fluxo</span></div>
-        <div class="form-group"><label class="form-label" for="ot-fl-site">Site</label><select class="form-input" id="ot-fl-site">${opcoes(D.sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>
+        ${campoSite('ot-fl-site', 'Site', S.otSite)}
         <div class="form-group"><label class="form-label" for="ot-fl-origem">Origem</label><select class="form-input" id="ot-fl-origem">${pontasOpcoes()}</select></div>
         <div class="form-group"><label class="form-label" for="ot-fl-destino">Destino</label><select class="form-input" id="ot-fl-destino">${pontasOpcoes()}</select></div>
         <div class="form-group"><label class="form-label" for="ot-fl-protocolo">Protocolo</label><input class="form-input" id="ot-fl-protocolo" maxlength="50"></div>
@@ -389,7 +395,7 @@ window.otSalvarFluxo = async () => {
 
 // ─── acesso por site (técnicos, ot_site_acessos) ─────────────────────────────
 let tecnicos = [];
-async function montarAcessos(c, a, p) {
+export async function montarAcessos(c, a, p) {
     let acessos;
     try {
         const [s, ac] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/acessos`)]);

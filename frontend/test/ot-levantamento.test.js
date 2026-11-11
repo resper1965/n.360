@@ -100,6 +100,21 @@ describe('aba Levantamento', () => {
         expect(S.otAba).toBe('coleta');
     });
 
+    it('enviar ao lote, com a casca nova, abre o site em modo projeto na sub-aba Lote de aprovação', async () => {
+        await detalhe([ACH()], { [`POST ${B}/levantamentos/l1/enviar`]: { id: 'lote-9', itens: 1, com_erro: 0, status: 'em_revisao' } });
+        window.otTela = vi.fn();
+        try {
+            el('ach-sel-a1').checked = true;
+            const p = window.otEnviarAchados();
+            await new Promise((r) => setTimeout(r, 0));
+            document.querySelector('[data-confirmar="sim"]').click();
+            await p;
+            expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto');
+            expect(S.otSub).toBe('aprovacao');
+            expect(S.otLote).toBe('lote-9');
+        } finally { delete window.otTela; }
+    });
+
     it('registrar achado manda os campos do ativo e a evidência; descartar marca a situação', async () => {
         await detalhe([ACH()], { [`GET ${B}/zonas`]: { zonas: [] }, [`POST ${B}/levantamentos/l1/achados`]: { id: 'a9', erros: [] },
             [`PUT ${B}/levantamentos/l1/achados/a1`]: { ok: true } });

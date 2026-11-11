@@ -19,8 +19,10 @@ let desvios = [];
 
 const ponta = (p) => (p ? `${escapeHTML(p.ativo || '—')}${p.zona ? ` <span class="org-dica">(${escapeHTML(p.zona)})</span>` : ''}` : '—');
 
-export async function montarDesvios(c, a, p) {
+// `siteFixo`: tela do site (sem filtro de site). `destacar`: id do desvio a marcar e levar à vista (deep link).
+export async function montarDesvios(c, a, p, { siteFixo, destacar } = {}) {
     const f = S.otDesvioFiltro || (S.otDesvioFiltro = { situacao: 'aberto', site_id: '', tipo: '' });
+    if (siteFixo) f.site_id = siteFixo;
     const q = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
     let sites;
     try {
@@ -31,9 +33,11 @@ export async function montarDesvios(c, a, p) {
         <select class="form-input" id="${id}" data-action-change="otFiltrarDesvios" data-args='${args(campo)}'>${opcoes([['', 'Todos'], ...itens], f[campo])}</select></div>`;
     const sit = Object.entries(SITUACAO).map(([v, [, r]]) => [v, r]);
     c.innerHTML = `<p class="org-header-intro">Tráfego que a sonda viu e que o inventário aprovado não prevê. Trate ou aceite cada desvio; o que ficar fora do inventário continua aparecendo.</p>
-        <div class="d-flex gap-3">${filtro('des-f-situacao', 'Situação', 'situacao', sit)}${filtro('des-f-site', 'Site', 'site_id', sites.map((s) => [s.id, s.nome]))}${filtro('des-f-tipo', 'Tipo', 'tipo', Object.entries(TIPO))}</div>
+        <div class="d-flex gap-3">${filtro('des-f-situacao', 'Situação', 'situacao', sit)}${siteFixo ? '' : filtro('des-f-site', 'Site', 'site_id', sites.map((s) => [s.id, s.nome]))}${filtro('des-f-tipo', 'Tipo', 'tipo', Object.entries(TIPO))}</div>
         ${renderDataTable(['Tipo', 'Site', 'Origem', 'Destino', 'Protocolo', 'Visto', 'Ocorrências', 'Situação', 'Ações'], desvios.map(linha),
         { emptyMessage: 'Nenhum desvio neste recorte.', emptyHint: 'Os desvios aparecem quando uma sonda vê tráfego fora do inventário aprovado.' })}`;
+    const alvo = destacar && c.querySelectorAll('tbody tr')[desvios.findIndex((d) => d.id === destacar)];
+    if (alvo) { alvo.setAttribute('aria-current', 'true'); alvo.scrollIntoView?.({ block: 'center' }); }
 }
 
 function linha(d) {
@@ -43,7 +47,7 @@ function linha(d) {
     const aberto = d.situacao === 'aberto';
     const acoes = [aberto && podeEditarOt() && `<button class="btn btn-sm" data-action="otTratarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Tratar ${nome}`)}">Tratar</button>`,
         aberto && podeAceitar() && `<button class="btn btn-sm" data-action="otAceitarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Aceitar temporariamente ${nome}`)}">Aceitar temporariamente</button>`,
-        d.achado_id && `<button class="btn btn-sm" data-action="otVerAchadoDesvio" data-args='${args(d.achado_levantamento_id)}' aria-label="${escapeHTML(`Ver achado de ${nome}`)}">Ver achado</button>`].filter(Boolean);
+        d.achado_id && `<button class="btn btn-sm" data-action="otVerAchadoDesvio" data-args='${args(d.achado_levantamento_id, d.site_id)}' aria-label="${escapeHTML(`Ver achado de ${nome}`)}">Ver achado</button>`].filter(Boolean);
     return [escapeHTML(TIPO[d.tipo] || d.tipo), escapeHTML(d.site_nome),
         ativo ? `${ponta(d.origem)}${sub.length ? `<div class="org-dica f-mono">${escapeHTML(sub.join(' · '))}</div>` : ''}` : ponta(d.origem),
         ativo ? '—' : ponta(d.destino),
@@ -60,8 +64,12 @@ window.otFiltrarDesvios = (campo) => {
     window.render();
 };
 
-// Abre a sessão do levantamento em que está o achado rascunho do desvio.
-window.otVerAchadoDesvio = (levId) => { S.otAba = 'levantamento'; S.otLevantamento = levId || null; window.render(); };
+// Abre o levantamento em que está o achado rascunho do desvio (na tela do site, Modo projeto).
+window.otVerAchadoDesvio = (levId, siteId) => {
+    S.otAba = 'levantamento'; S.otSub = 'levantamento'; S.otLevantamento = levId || null;
+    // Fora da tela do site (casca antiga, sem otTela) o salto continua pela aba Levantamento.
+    if (window.otTela && siteId) window.otTela('site', siteId, 'projeto'); else window.render();
+};
 
 function modal(titulo, campos, acao, id, rotulo) {
     openModal(`<div class="modal-header"><span class="modal-title">${titulo}</span></div>${campos}

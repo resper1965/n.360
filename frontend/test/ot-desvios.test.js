@@ -117,6 +117,18 @@ describe('aba Desvios', () => {
         expect(S.otAba).toBe('levantamento');
         expect(S.otLevantamento).toBe('lv7');
     });
+
+    it('Ver achado, com a casca nova, abre o site em modo projeto na sub-aba Levantamento', async () => {
+        await abrir('desvios');
+        window.otTela = vi.fn();
+        try {
+            const botao = el('c').querySelector('[data-action="otVerAchadoDesvio"]');
+            window.otVerAchadoDesvio(...JSON.parse(botao.getAttribute('data-args')));
+            expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto');
+            expect(S.otSub).toBe('levantamento');
+            expect(S.otLevantamento).toBe('lv7');
+        } finally { delete window.otTela; }
+    });
 });
 
 describe('cartão Pontos a esclarecer', () => {

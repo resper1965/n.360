@@ -8,6 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
+import { montarSite, montarSites, resolverDesvio, SUBS } from '../src/views/ot-site.js';
 
 const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);
@@ -697,5 +698,97 @@ describe('step-up de TOTP e teto por hora', () => {
         await responder('Auditoria de campo do ONS');
         await p;
         expect(document.body.textContent).toContain('Limite por hora atingido');
+    });
+});
+
+describe('lista de sites e tela do site (Task 4)', () => {
+    const SITE2 = { id: 's2', nome: 'SE Sul', tipo: 'usina', criticidade: 'media', localizacao: null, status: 'ativo' };
+    const lev = (id, site_id, funcao) => ({ id, site_id, tipo: 'entrevista', realizado_em: '2026-11-01', funcao, turno: null, achados: 0, situacao: 'em_andamento' });
+    const des = (id, site_id) => ({ id, site_id, site_nome: site_id, tipo: 'ativo', situacao: 'tratado', origem: { ativo: `host-${id}` }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-02T10:00:00Z', ocorrencias: 1 });
+    const ROTAS = { [`GET ${B}/sites`]: { sites: [SITE, SITE2] },
+        [`GET ${B}/levantamentos`]: { levantamentos: [lev('l1', 's1', 'l1-texto-unico'), lev('l2', 's2', 'l2-texto-unico')] },
+        [`GET ${B}/lotes`]: { lotes: [{ id: 'k1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', created_at: '2026-11-01T10:00:00Z' }, { id: 'k2', site_id: 's2', fonte: 'manual', status: 'concluido', created_at: '2026-11-02T10:00:00Z' }] },
+        [`GET ${B}/desvios`]: { desvios: [des('d1', 's2'), des('d2', 's2')] }, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/fluxos`]: { fluxos: [] } };
+    const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
+    const primarios = () => el('c').querySelectorAll('.btn-primary').length + el('a').querySelectorAll('.btn-primary').length;
+    const ir = (o) => montarSite(el('c'), el('a'), S.activeProject, o);
+    beforeEach(() => { S.otSub = null; S.otDesvioFiltro = null; S.otLevantamento = null; });
+
+    it('lista de sites: Abrir leva ao site em modo projeto; cadastro de site fica aqui', async () => {
+        servirOt(ROTAS);
+        await montarSites(el('c'), el('a'), S.activeProject);
+        expect(el('c').textContent).toContain('SE Sul');
+        expect(el('xss')).toBeNull();
+        const abrirS2 = [...el('c').querySelectorAll('[data-action="otTela"]')].find((b) => b.getAttribute('aria-label') === 'Abrir SE Sul');
+        expect(JSON.parse(abrirS2.getAttribute('data-args'))).toEqual(['site', 's2', 'projeto']);
+        expect(acoes(el('a'))).toContain('otNovoSite');
+        window.otEditarSiteDaLista('s2');
+        expect(el('ot-s-nome').value).toBe('SE Sul');
+        expect(primarios()).toBe(1);
+    });
+
+    it('modo projeto: Levantamento, Lote de aprovação e Base; a lista só tem as linhas do site', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
+        expect(abas()).toEqual(expect.arrayContaining(['Modo projeto', 'Modo operação', 'Levantamento', 'Lote de aprovação', 'Base']));
+        expect(el('c').textContent).toContain('l1-texto-unico');
+        expect(el('c').textContent).not.toContain('l2-texto-unico');
+        window.otNovoLevantamento();
+        expect(el('lev-f-site').type).toBe('hidden');
+        expect(el('lev-f-site').value).toBe('s1');
+        expect(primarios()).toBe(1);
+    });
+
+    it('lote de aprovação e base: recorte por site, sem seletor de site e um só botão primário', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'projeto', sub: 'aprovacao' });
+        expect(el('c').textContent).toContain('SE Norte');
+        expect(el('c').querySelectorAll('tbody tr')).toHaveLength(1);
+        expect(el('ot-lote-site').type).toBe('hidden');
+        await ir({ site: 's1', modo: 'projeto', sub: 'base' });
+        expect(el('ot-filtro-site')).toBeNull();
+        expect(el('c').textContent).not.toContain('Cadastrar o primeiro site');
+        expect(acoes(el('a'))).toEqual(expect.arrayContaining(['otNovoAtivo', 'otNovoFluxo']));
+        expect(primarios()).toBe(1);
+        expect(chamadas.some((x) => x.k === `GET ${B}/ativos` && x.url.search === '?site_id=s1')).toBe(true);
+    });
+
+    it('modo operação: Saúde da coleta, Desvios e Inventário; Desvios com o site fixo no filtro', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'operacao', sub: 'desvios' });
+        expect(abas()).toEqual(expect.arrayContaining(['Saúde da coleta', 'Desvios', 'Inventário']));
+        expect(S.otDesvioFiltro).toEqual({ situacao: 'aberto', site_id: 's1', tipo: '' });
+        expect(el('des-f-site')).toBeNull();
+        expect(chamadas.some((x) => x.k === `GET ${B}/desvios` && x.url.search === '?situacao=aberto&site_id=s1')).toBe(true);
+        await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
+        expect(el('ot-sondas')).not.toBeNull();
+        await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });
+        expect(el('ot-filtro-site')).toBeNull();
+        expect(SUBS.operacao).toEqual(['saude', 'desvios', 'inventario']);
+    });
+
+    it('sub-aba de outro modo cai na primeira do modo; site desconhecido mostra o aviso', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'operacao', sub: 'base' });
+        expect(S.otSub).toBe('saude');
+        await ir({ site: 'sX', modo: 'projeto' });
+        expect(el('c').textContent).toContain('Site não encontrado');
+    });
+
+    it('resolverDesvio: acha o site do desvio sem filtro de situação; desvio ausente dá null', async () => {
+        servirOt(ROTAS);
+        expect(await resolverDesvio(S.activeProject, 'd1')).toEqual({ site_id: 's2' });
+        expect(chamadas[0].url.search).toBe('');
+        expect(await resolverDesvio(S.activeProject, 'zz')).toBeNull();
+    });
+
+    it('deep link: a linha do desvio fica marcada, em todas as situações', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's2', modo: 'operacao', sub: 'desvios', desvio: 'd2' });
+        expect(S.otDesvioFiltro.situacao).toBe('');
+        const linhas = el('c').querySelectorAll('tbody tr');
+        expect(linhas).toHaveLength(2);
+        expect(linhas[1].getAttribute('aria-current')).toBe('true');
+        expect(linhas[0].hasAttribute('aria-current')).toBe(false);
     });
 });
