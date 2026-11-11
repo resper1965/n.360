@@ -27,10 +27,10 @@ describe('casca do n.ot', () => {
         expect(produtoAtual(loc('https://n360.ness.com.br/otario'))).toBe('n360');
         expect(enderecoDoProduto('ot')).toBe('/ot');
     });
-    it('no /ot o menu tem só o item do n.ot; a marca é n.ot em minúsculas, com o ponto em accent', () => {
+    it('no /ot o menu tem só os itens do n.ot; a marca é n.ot em minúsculas, com o ponto em accent', () => {
         montarApp();
         aplicarCasca('ot');
-        expect(visiveis()).toEqual(['nav-ot']);
+        expect(visiveis()).toEqual(['nav-ot', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos']);
         expect(document.title).toMatch(/^n\.ot \| ness\./);
         expect(el('sidebar-logo-mark').textContent).toBe('n.ot');
         expect(el('sidebar-logo-mark').innerHTML).toContain('var(--accent)');

@@ -48,7 +48,7 @@ describe('Segurança do projeto', () => {
 // A estrutura do menu do n.iso e do n.360, medida antes da alternativa A do n.privacy: não pode mudar (rótulos, ordem, grupos
 // e quem começa aberto). Formato: item `id=rótulo`, `[rótulo de grupo] aria-expanded` e `grupo (aberto): itens`.
 const estrutura = () => [...document.querySelector('.sidebar-nav-list').children]
-    .filter((n) => n.dataset.foraDoProduto !== '1')
+    .filter((n) => n.dataset.foraDoProduto !== '1' && n.id !== 'secao-ot-organizacao')
     .map((n) => (n.matches('.sidebar-label') ? `[${n.textContent.trim()}] ${n.getAttribute('aria-expanded')}`
         : n.matches('.sidebar-group') ? `${n.id}${n.classList.contains('expanded') ? ' (aberto)' : ''}: ${[...n.querySelectorAll('.sidebar-nav')].filter((i) => i.dataset.foraDoProduto !== '1').map((i) => `${i.id}=${i.querySelector('.sidebar-nav-text').textContent.trim()}`).join(', ')}`
         : `${n.id}=${n.querySelector('.sidebar-nav-text').textContent.trim()}`));
@@ -85,7 +85,7 @@ describe('n.iso e n.360: o menu não muda com a alternativa A do n.privacy', () 
         aplicarCasca(produto);
         expect(estrutura()).toEqual(esperado);
         expect(el('secoes-privacy')).toBeNull();
-        expect(document.querySelector('.sidebar-secao')).toBeNull();
+        expect(document.querySelector('#secoes-privacy .sidebar-secao')).toBeNull();
     });
 });
 
@@ -118,14 +118,14 @@ describe('n.privacy: menu em seções fixas (legado de 19/10/2026, revisto em 11
     it('os títulos de seção não são botão, não recolhem e dão nome à lista', () => {
         montarApp();
         aplicarCasca('privacy');
-        for (const t of document.querySelectorAll('.sidebar-secao')) {
+        for (const t of document.querySelectorAll('#secoes-privacy .sidebar-secao')) {
             expect(t.getAttribute('role'), t.textContent).toBeNull();
             expect(t.hasAttribute('tabindex'), t.textContent).toBe(false);
             expect(t.dataset.action, t.textContent).toBeUndefined();
             expect(t.hasAttribute('aria-expanded'), t.textContent).toBe(false);
             expect(t.nextElementSibling.getAttribute('aria-labelledby')).toBe(t.id);
         }
-        expect(document.querySelectorAll('.sidebar-secao').length).toBe(7);
+        expect(document.querySelectorAll('#secoes-privacy .sidebar-secao').length).toBe(7);
         // nenhum rótulo de grupo (acordeão) sobra no menu do n.privacy
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
@@ -144,7 +144,7 @@ describe('n.privacy: menu em seções fixas (legado de 19/10/2026, revisto em 11
         aplicarCasca('privacy');
         aplicarCasca('privacy');
         expect(document.querySelectorAll('#secoes-privacy').length).toBe(1);
-        expect(document.querySelectorAll('.sidebar-secao').length).toBe(7);
+        expect(document.querySelectorAll('#secoes-privacy .sidebar-secao').length).toBe(7);
     });
     it('n.iso não mostra Implantação nem Consentimentos', () => {
         montarApp();
@@ -204,7 +204,7 @@ describe('n.privacy: menu em seções fixas (legado de 19/10/2026, revisto em 11
             expect(el(id).style.display, id).toBe('none');
         }
         aplicarCasca('privacy');
-        for (const n of document.querySelectorAll('.sidebar-secao, #secoes-privacy ul[aria-labelledby]')) expect(n.classList.contains('group-project-only')).toBe(true);
+        for (const n of document.querySelectorAll('#secoes-privacy .sidebar-secao, #secoes-privacy ul[aria-labelledby]')) expect(n.classList.contains('group-project-only')).toBe(true);
     });
     it('Pedidos do titular, Incidentes e Consentimentos abrem a tela do titular na aba deles; Partes Interessadas, Ativos e Fornecedores ficam fora', () => {
         montarApp();
