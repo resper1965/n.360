@@ -35,7 +35,7 @@ export async function montarColeta(c, a, p, { siteFixo, semPrimario } = {}) {
         const [s, l] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/lotes`)]);
         sites = lista(s, 'sites'); lotes = lista(l, 'lotes');
         if (fixo) { sites = sites.filter((x) => x.id === fixo); lotes = lotes.filter((x) => x.site_id === fixo); }
-    } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a coleta do n.ot.', e); return; }
+    } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os lotes de aprovação do n.ot.', e); return; }
     if (S.otLote) { await montarLote(c, a, S.otLote); return; }
     const criar = podeCriarLote() && sites.length;
     // Secundário: sem a lista de sessões, a planilha só não se liga a um documento.
@@ -52,13 +52,13 @@ export async function montarColeta(c, a, p, { siteFixo, semPrimario } = {}) {
             <button class="btn${semPrimario ? '' : ' btn-primary'}" data-action="otEnviarPlanilha">Enviar planilha</button></div>
         <p class="org-dica">Colunas reconhecidas pelo cabeçalho: nome, ip, mac, fabricante, modelo, tipo, funcao, protocolos, firmware, arciber, categoria, zona. As demais são ignoradas.</p></div>` : '';
     c.innerHTML = `<p class="org-header-intro" id="ot-coleta-privacidade">${escapeHTML(PRIVACIDADE)}</p>
-        ${!sites.length ? renderEmptyState({ titulo: 'Nenhum site disponível para coleta', texto: 'A coleta é por site. Cadastre o site no Inventário ou peça a quem administra o n.ot o acesso ao seu site.' }) : envio}
+        ${!sites.length ? renderEmptyState({ titulo: 'Nenhum site disponível para o lote de aprovação', texto: 'O lote de aprovação é por site. Cadastre o site no Inventário ou peça a quem administra o n.ot o acesso ao seu site.' }) : envio}
         <h3 class="mb-3">Lotes</h3>
         ${renderDataTable(['Criado em', 'Site', 'Fonte', 'Situação', 'Itens', 'Com erro', 'Gravados', 'Ações'], lotes.map((l) => [
         escapeHTML(formatarData(l.created_at, { hora: true })), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(FONTE[l.fonte] || l.fonte), selo(STATUS, l.status),
         escapeHTML(String(l.itens ?? 0)), escapeHTML(String(l.com_erro ?? 0)), escapeHTML(String(l.gravados ?? 0)),
         `<button class="btn btn-sm" data-action="otAbrirLote" data-args='${args(l.id)}' aria-label="${escapeHTML(`Revisar lote de ${formatarData(l.created_at, { hora: true })}`)}">Revisar</button>`,
-    ]), { emptyMessage: 'Nenhum lote de coleta.', emptyHint: criar ? 'Envie uma planilha ou registre ativos pela entrada manual.' : 'Os lotes aparecem aqui quando alguém envia a coleta de um site.' })}`;
+    ]), { emptyMessage: 'Nenhum lote de aprovação.', emptyHint: criar ? 'Envie uma planilha ou registre ativos pela entrada manual.' : 'Os lotes aparecem aqui quando alguém envia ativos de um site.' })}`;
 }
 
 const opcoesDoc = (siteId) => `<option value="">Nenhum</option>${opcoes(documentos.filter((d) => d.site_id === siteId).map((d) => [d.id, d.documento_titulo || d.realizado_em]))}`;

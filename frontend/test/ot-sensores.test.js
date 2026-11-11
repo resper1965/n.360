@@ -118,7 +118,7 @@ describe('cartões do Levantamento', () => {
         expect(t).toContain('Saúde da coleta');
         expect(t).toContain('1 de 2');
         expect(t).toContain('Último resumo há 2 h');
-        expect(t).toContain('Pontos a esclarecer');
+        expect(t).toContain('Achados da sonda para revisar');
         expect(t).toContain('1 ativo');
         expect(t).toContain('2 fluxos');
         expect(t).toContain('Sensor de rede');

@@ -55,7 +55,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('aba Levantamento', () => {
-    it('lista as sessões com tipo, função e turno, sem nome de pessoa', async () => {
+    it('lista os levantamentos com tipo, função e turno, sem nome de pessoa', async () => {
         servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [LEV] }, ...SITES });
         await abrir('levantamento');
         expect(texto()).toContain('Entrevista');
@@ -63,7 +63,7 @@ describe('aba Levantamento', () => {
         expect(texto()).toContain('SE Norte');
     });
 
-    it('detalhe mostra roteiro do tipo da sessão, achados escapados e confronto só quando a API manda', async () => {
+    it('detalhe mostra roteiro do tipo do levantamento, achados escapados e confronto só quando a API manda', async () => {
         await detalhe();
         expect(texto()).toContain('acessado de fora da empresa');
         expect(texto()).not.toContain('Pergunta só de documento');
@@ -85,7 +85,7 @@ describe('aba Levantamento', () => {
         expect(corpo(`PUT ${B}/levantamentos/l1`)).toEqual({ notas: 'nova nota' });
     });
 
-    it('enviar ao lote manda só os achados marcados e abre a Coleta no lote criado', async () => {
+    it('enviar para aprovação manda só os achados marcados e abre o lote de aprovação criado', async () => {
         await detalhe([ACH(), ACH({ id: 'a2' }), ACH({ id: 'a3', situacao: 'enviado', lote_id: 'x' })],
             { [`POST ${B}/levantamentos/l1/enviar`]: { id: 'lote-9', itens: 1, com_erro: 0, status: 'em_revisao' } });
         expect(el('ach-sel-a3')).toBeNull();
@@ -328,7 +328,7 @@ describe('importar arquivo na sessão de documento', () => {
         window.otImportarArquivo(); escolher('ata.txt');
         const p = window.otLerArquivo();
         await new Promise((r) => setTimeout(r, 0));
-        expect(document.querySelector('.confirmar').textContent).toContain('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar ao lote.');
+        expect(document.querySelector('.confirmar').textContent).toContain('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar para aprovação.');
         document.querySelector('[data-confirmar="sim"]').click();
         await p;
         expect(fdDe(`POST ${P}/texto`).get('file').name).toBe('ata.txt');
@@ -434,7 +434,7 @@ describe('importar arquivo na sessão de documento', () => {
         expect(t).toContain('1 MAC completado');
         expect(t).toContain('3 fluxos criados');
         expect(t).toContain('1 ativo já estava no inventário');
-        expect(t).toContain('4 fluxos esperam');
+        expect(t).toContain('4 fluxos aguardando ativo');
         expect(t).not.toContain('Contradiz');
         expect(window.render).toHaveBeenCalled();
     });

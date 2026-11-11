@@ -106,7 +106,7 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
 
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 
-  await page.getByRole('tab', { name: 'Lote de aprovação' }).click();
+  await page.getByRole('tab', { name: 'Revisão e aprovação' }).click();
   await expect(page.locator('#ot-coleta-privacidade')).toContainText('o arquivo original não é guardado');
   await expect(conteudo).toContainText('Em revisão');
 
@@ -124,7 +124,7 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
 
 // Spec do Levantamento §9: abrir a sessão, registrar um achado e enviá-lo ao lote; o POST de envio leva só os ids marcados
 // e a tela vai ao lote criado na Coleta. API mockada com estado (o achado registrado volta no GET seguinte).
-test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre na Coleta', async ({ page }) => {
+test('levantamento: abre o levantamento, registra um achado e envia para aprovação, que abre no lote de aprovação', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0] };
   const achados = [];
@@ -184,10 +184,10 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
 
   await page.getByRole('checkbox', { name: 'Enviar Notebook IHM ao lote' }).check();
   await page.getByRole('checkbox', { name: 'Enviar RTU-01 → Fora da empresa ao lote' }).check();
-  await page.locator('#header-actions').getByRole('button', { name: 'Enviar ao lote' }).click();
+  await page.locator('#header-actions').getByRole('button', { name: 'Enviar para aprovação' }).click();
   await expect(page.locator('.confirmar')).toContainText('1 ativo e 1 fluxo');
-  await page.locator('.confirmar').getByRole('button', { name: 'Enviar ao lote' }).click();
-  await expect(page.getByRole('tab', { name: 'Lote de aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await page.locator('.confirmar').getByRole('button', { name: 'Enviar para aprovação' }).click();
+  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de');
   await expect(conteudo).toContainText('Notebook IHM');
   await expect(conteudo).toContainText('Fluxo: RTU-01 → Fora da empresa');
@@ -286,7 +286,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
   await expect(page.locator('#modal')).toContainText('1 ativo e 1 conexão no resumo.');
   await page.locator('#modal').getByRole('button', { name: 'Criar achados' }).click();
   await expect(page.locator('body')).toContainText('1 ativo novo');
-  await expect(page.locator('body')).toContainText('1 fluxo espera a aprovação dos ativos novos');
+  await expect(page.locator('body')).toContainText('1 fluxo aguardando ativo');
   await expect(conteudo.locator('tr', { hasText: 'Ativo 10.1.1.10' }).locator('.badge', { hasText: 'Sensor de rede' })).toBeVisible();
   expect(enviados).toHaveLength(1);
   expect(enviados[0]).toContain('"formato":"n.ot-resumo-rede/1"');
@@ -418,7 +418,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
 
   // Os pontos que a sonda trouxe seguem no topo do Levantamento (Modo projeto).
   await noSite(page, 'projeto', 'Levantamento');
-  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Pontos a esclarecer');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Achados da sonda para revisar');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
 });
 
@@ -483,7 +483,7 @@ test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abr
   await expect(conteudo).toContainText('Lote de aprovação em SE Norte');
   await page.getByRole('button', { name: 'Abrir lote' }).click();
   await expect(page.getByRole('heading', { name: 'SE Norte' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Lote de aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de planilha · SE Norte'); // o lote l1 do mock, aberto por otIrParaLote
   await expect(conteudo).toContainText('Em revisão');
 });

@@ -760,7 +760,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
         await vi.waitFor(() => expect(el('c').textContent).toContain('Saúde da coleta'));
         await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
-        expect(el('c').textContent).not.toContain('Pontos a esclarecer');
+        expect(el('c').textContent).not.toContain('Achados da sonda para revisar');
         expect(el('c').textContent).not.toContain('desvio');
         expect(chamadas.some((x) => x.k === `GET ${B}/sensores/pontos` || (x.k === `GET ${B}/desvios` && x.url.search.includes('contagem')))).toBe(false);
     });

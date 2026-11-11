@@ -241,7 +241,7 @@ describe('P1c: confirmações de alto risco com o conteúdo', () => {
         await p;
     });
 
-    it('enviar ao lote fica desabilitado até marcar um achado e confirma com a contagem e os nomes', async () => {
+    it('enviar para aprovação fica desabilitado até marcar um achado e confirma com a contagem e os nomes', async () => {
         await sessao([ACH(), ACH({ id: 'a2', dados: { nome: 'Switch rack 2' } })], { [`POST ${B}/levantamentos/l1/enviar`]: { id: 'lote-9', itens: 2, com_erro: 0, status: 'em_revisao' } });
         const botao = el('a').querySelector('[data-action="otEnviarAchados"]');
         expect(botao.disabled).toBe(true);

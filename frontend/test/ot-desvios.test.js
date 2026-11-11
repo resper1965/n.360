@@ -1,4 +1,4 @@
-// n.ot, aba Desvios (Task 5): lista, filtros, tratar, aceitar e o cartão "Pontos a esclarecer". api() REAL, fetch dublado.
+// n.ot, aba Desvios (Task 5): lista, filtros, tratar, aceitar e o cartão "Achados da sonda para revisar". api() REAL, fetch dublado.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resposta } from './servir-api.js';
 
@@ -114,7 +114,7 @@ describe('aba Desvios', () => {
     });
 });
 
-describe('cartão Pontos a esclarecer', () => {
+describe('cartão Achados da sonda para revisar', () => {
     it('mantém a linha de desvios mesmo se só os pontos falharem', async () => {
         await abrir('levantamento', { [`GET ${B}/levantamentos`]: { levantamentos: [] }, [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] },
             [`GET ${B}/sensores/pontos`]: [500, { error: 'x' }] });
