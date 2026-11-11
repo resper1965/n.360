@@ -7,6 +7,9 @@ import { api } from './api.js';
 // IP e MAC aparecem como a API devolve (mascarados ou completos) e vivem só na memória da tela: nunca em localStorage,
 // sessionStorage, endereço ou cache.
 
+/** `created_at` do SQLite (`YYYY-MM-DD HH:MM:SS`, UTC sem Z) como Date; sem isto o navegador leria no fuso local. */
+export const dataDoSqlite = (s) => new Date(/^\d{4}-\d{2}-\d{2} /.test(s) ? `${s.replace(' ', 'T')}Z` : s);
+
 const papel = () => S.user?.role || '';
 
 /** Cadastra e altera o inventário, exporta e pede rascunho à IA: Gestor ARCiber (org_admin) e a equipe. */

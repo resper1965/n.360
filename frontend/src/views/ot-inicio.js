@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderEmptyState } from '../ui.js';
-import { lista, podeAprovarOt, podeEditarOt } from '../ot-comum.js';
+import { lista, podeAprovarOt, podeEditarOt, dataDoSqlite } from '../ot-comum.js';
 import { emDiasSP } from '../hoje.js';
 
 // n.ot, tela Início (spec 2026-11-11 fluidez §2): "Espera por você", Sites e Postura RO-CB.BR.01. Clique pela delegação:
@@ -18,7 +18,7 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
     const out = [];
     if (podeAprovar) {
         for (const l of lotes.filter((x) => x.status === 'em_revisao' && x.criado_por !== id)) {
-            const [, m, d] = emDiasSP(PRAZO_DIAS, new Date(/^\d{4}-\d{2}-\d{2} /.test(l.created_at) ? `${l.created_at.replace(' ', 'T')}Z` : l.created_at)).split('-');
+            const [, m, d] = emDiasSP(PRAZO_DIAS, dataDoSqlite(l.created_at)).split('-');
             out.push({ tipo: 'lote', texto: `Lote de aprovação em ${nome(l.site_id)}: decidir até ${d}/${m}`, acao: alvo(l.site_id, 'projeto', l.id) });
         }
         const porSite = {};

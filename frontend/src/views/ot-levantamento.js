@@ -19,6 +19,9 @@ const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado a
 const SELO_ORIGEM = { ia: 'Sugerido pela IA', agente: 'Enviado pelo agente' };
 // O sensor de rede grava origem 'consultor'; a fonte fica na evidência (EVIDENCIA_SENSOR, src/services/ot-rede.ts).
 export const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sensor de rede' : '');
+/** Desfecho do achado no lote (a API só o devolve depois da decisão); sem ele, `enviado` é lote ainda em revisão. */
+const seloDaSituacao = (x, site) => (x.desfecho === 'no_inventario' ? `${renderStatusBadge('success', 'No inventário')} <button class="btn btn-sm" data-action="otVerNoInventario" data-args='${args(site)}'>Ver no inventário</button>`
+    : x.desfecho === 'recusado' ? renderStatusBadge('danger', `Recusado: ${x.motivo || '—'}`) : selo(ACHADO, x.situacao));
 const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—']));
 const situacao = (l) => (l.situacao === 'encerrado' ? renderStatusBadge('neutral', 'Encerrado') : renderStatusBadge('info', 'Aberto'));
 const quem = (l) => (l.tipo === 'documento' ? escapeHTML(l.documento_titulo || '—')
@@ -121,7 +124,7 @@ async function montarSessao(c, a, p, id) {
             const rasc = x.situacao === 'rascunho';
             return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} ao lote`)}">` : '—'] : []),
                 fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (seloDoAchado(x) ? ` <span class="badge selo-info">${seloDoAchado(x)}</span>` : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
-                ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
+                ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), seloDaSituacao(x, l.site_id),
                 ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>` : '—'] : [])];
         }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado nesta sessão.' : '' });
 
