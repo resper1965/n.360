@@ -150,10 +150,11 @@ async function montarLote(c, a, id) {
     const recusados = itens.filter((i) => i.decisao === 'recusado').length;
     const restantes = itens.filter((i) => i.decisao === 'pendente').length;
     a.innerHTML = '<button class="btn" data-action="otVoltarLotes">Voltar aos lotes</button>'
-        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>${recusados ? `Aprovar os restantes (${restantes})` : 'Aprovar lote'}</button>` : '');
+        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>${!recusados ? 'Aprovar lote' : restantes ? `Aprovar os restantes (${restantes})` : 'Concluir lote'}</button>` : '');
     let prazo = '';
-    if (emRevisao) {
-        const limite = emDiasSP(PRAZO_DIAS, dataDoSqlite(lote.created_at));
+    const criado = emRevisao ? dataDoSqlite(lote.created_at) : null;
+    if (criado) {
+        const limite = emDiasSP(PRAZO_DIAS, criado);
         const dias = Math.round((Date.parse(`${limite}T00:00:00Z`) - Date.parse(`${hojeSP()}T00:00:00Z`)) / 86400000);
         const [, m, d] = limite.split('-');
         prazo = ` Decidir até ${d}/${m} (${dias < 0 ? 'prazo vencido' : `faltam ${qtd(dias, 'dia', 'dias')}`}).`;
@@ -161,7 +162,7 @@ async function montarLote(c, a, id) {
     const decisao = (i) => {
         const rot = escapeHTML(DECISAO[i.decisao] || i.decisao);
         if (i.decisao === 'recusado' && i.motivo) return `${rot}: ${escapeHTML(i.motivo)}`;
-        if (i.decisao === 'gravado') return `${rot} <button class="btn btn-sm" data-action="otVerNoInventario" data-args='${args(lote.site_id)}'>Ver no inventário</button>`;
+        if (i.decisao === 'gravado') return `${rot} <button class="btn btn-sm" data-action="otVerNoInventario" data-args='${args(lote.site_id)}' aria-label="${escapeHTML(`Ver no inventário a linha ${i.linha}`)}">Ver no inventário</button>`;
         if (i.decisao === 'pendente' && decide) return `${rot} <button class="btn btn-sm" data-action="otRecusarItem" data-args='${args(lote.id, i.id)}' aria-label="${escapeHTML(`Recusar a linha ${i.linha}`)}">Recusar</button>`;
         return rot;
     };
@@ -193,13 +194,15 @@ function resumoDaAprovacao(itens) {
         + `${qtd(comErro, 'recusado por erro', 'recusados por erro')}.`;
 }
 window.otAprovarLote = async (id) => {
-    if (!await confirmar(`${resumoDaAprovacao(itensDoLote)} Você fica registrado como quem verificou.`, { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
+    const nenhum = !itensDoLote.some((i) => i.decisao === 'pendente');
+    if (!await confirmar(nenhum ? 'Todos os itens foram recusados: nada vai para o inventário e o lote fica concluído.' : `${resumoDaAprovacao(itensDoLote)} Você fica registrado como quem verificou.`,
+        nenhum ? { titulo: 'Concluir lote', rotulo: 'Concluir' } : { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/aprovar`);
         showToast(`Lote aprovado: ${r.criados} criado(s), ${r.atualizados} atualizado(s), ${r.recusados} recusado(s).`
             + (r.fluxos_pendentes_resolvidos > 0 ? ` ${r.fluxos_pendentes_resolvidos} fluxo(s) do sensor de rede viraram achados no levantamento de origem.` : ''), 'success');
         window.render();
-    } catch (e) { falhou(e, 'Não foi possível aprovar o lote.'); }
+    } catch (e) { falhou(e, 'Não foi possível aprovar o lote.'); window.render(); }
 };
 window.otRejeitarLote = async (id) => {
     const motivo = await pedirTexto('Por que rejeitar o lote? O motivo vai para a trilha de auditoria.', { titulo: 'Rejeitar lote', rotulo: 'Rejeitar' });
@@ -208,7 +211,7 @@ window.otRejeitarLote = async (id) => {
     try {
         await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/rejeitar`, { motivo });
         showToast('Lote rejeitado.', 'success'); window.render();
-    } catch (e) { falhou(e, 'Não foi possível rejeitar o lote.'); }
+    } catch (e) { falhou(e, 'Não foi possível rejeitar o lote.'); window.render(); }
 };
 window.otRecusarItem = async (id, item) => {
     const motivo = await pedirTexto('Por que recusar este item? O motivo fica no item e na trilha de auditoria.', { titulo: 'Recusar item', rotulo: 'Recusar' });
@@ -217,6 +220,6 @@ window.otRecusarItem = async (id, item) => {
     try {
         await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/itens/${encodeURIComponent(item)}/recusar`, { motivo });
         showToast('Item recusado.', 'success'); window.render();
-    } catch (e) { falhou(e, 'Não foi possível recusar o item.'); }
+    } catch (e) { falhou(e, 'Não foi possível recusar o item.'); window.render(); }
 };
 window.otVerNoInventario = (site) => window.otTela('site', site, 'projeto', { otSub: 'base' });

@@ -18,8 +18,9 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
     const out = [];
     if (podeAprovar) {
         for (const l of lotes.filter((x) => x.status === 'em_revisao' && x.criado_por !== id)) {
-            const [, m, d] = emDiasSP(PRAZO_DIAS, dataDoSqlite(l.created_at)).split('-');
-            out.push({ tipo: 'lote', texto: `Lote de aprovação em ${nome(l.site_id)}: decidir até ${d}/${m}`, acao: alvo(l.site_id, 'projeto', l.id) });
+            const criado = dataDoSqlite(l.created_at);
+            const [, m, d] = criado ? emDiasSP(PRAZO_DIAS, criado).split('-') : [];
+            out.push({ tipo: 'lote', texto: `Lote de aprovação em ${nome(l.site_id)}${criado ? `: decidir até ${d}/${m}` : ''}`, acao: alvo(l.site_id, 'projeto', l.id) });
         }
         const porSite = {};
         for (const d of desvios) porSite[d.site_id] = (porSite[d.site_id] || 0) + 1;

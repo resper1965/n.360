@@ -49,7 +49,37 @@ describe('dataDoSqlite', () => {
     });
 });
 
+describe('dataDoSqlite sem data', () => {
+    it('null e undefined viram null', () => { expect(dataDoSqlite(null)).toBeNull(); expect(dataDoSqlite(undefined)).toBeNull(); });
+});
+
 describe('lote item a item', () => {
+    it('409 na recusa mostra o erro e redesenha a tela', async () => {
+        vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => (opts.method === 'POST' ? resposta({ error: 'Item já decidido' }, 409)
+            : resposta(String(url).endsWith('/lotes/x1') ? lote : String(url).endsWith('/sites') ? { sites: [] } : { lotes: [] }))));
+        await desenhar('coleta');
+        window.render.mockClear();
+        const p = window.otRecusarItem('x1', 'i1');
+        await pausa();
+        document.querySelector('.confirmar input').value = 'motivo ok';
+        document.querySelector('[data-confirmar="sim"]').click();
+        await p;
+        expect(document.querySelector('.toast')?.textContent).toContain('Item já decidido');
+        expect(window.render).toHaveBeenCalled();
+    });
+
+    it('todos recusados: o principal vira "Concluir lote" e a confirmação diz que tudo foi recusado', async () => {
+        lote = { lote: LOTE, itens: [ITEM('i1', 2, { decisao: 'recusado', motivo: 'xx ok' }), ITEM('i2', 3, { decisao: 'recusado', motivo: 'yy ok' })] };
+        servir();
+        await desenhar('coleta');
+        expect(botoes().map((b) => b.textContent)).toEqual(['Concluir lote']);
+        const p = window.otAprovarLote('x1');
+        await pausa();
+        expect(document.querySelector('.confirmar-texto').textContent).toContain('Todos os itens foram recusados');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await p;
+    });
+
     it('o decisor vê Recusar no item pendente; o autor não', async () => {
         servir();
         await desenhar('coleta');
@@ -106,6 +136,7 @@ describe('lote item a item', () => {
         expect(el('c').textContent).not.toContain('Decidir até');
         const link = document.querySelector('[data-action="otVerNoInventario"]');
         expect(link.textContent).toBe('Ver no inventário');
+        expect(link.getAttribute('aria-label')).toContain('linha 2');
         window.otVerNoInventario('s1');
         expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'base' });
     });
