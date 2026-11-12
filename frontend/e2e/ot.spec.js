@@ -18,6 +18,9 @@ async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
     if (path === '/api/v1/auth/me') return json({ user });
     if (path === '/api/v1/projects' && method === 'GET') return json([{ id: 'proj-e2e', client_name: 'Cliente E2E', project_name: 'Projeto E2E', modulos }]);
     if (path === '/api/v1/projects/proj-e2e/ot/requisitos') return json({ requisitos: [REQ('4.1.1', 'Segregação em zonas de segurança', 18), REQ('5.1.1', 'Tratamento de exceções', null)] });
+    if (path === '/api/v1/projects/proj-e2e/ot/assessment') return json({ resumo: { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 2, revisar: 0, a_confirmar: 0 }, itens: [
+      { codigo: '4.1.1', titulo: 'Segregação em zonas de segurança', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_avaliado', por_site: [] },
+      { codigo: '5.1.1', titulo: 'Tratamento de exceções', categoria: 'Exceções', prazo: null, tipo: 'excecao', situacao: 'nao_avaliado', evidencia: 'Não avaliado neste ciclo' }] });
     return json(method === 'GET' ? [] : { ok: true });
   });
 }
@@ -50,7 +53,7 @@ test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB
   await expect(page.locator('#content')).toContainText('Espera por você');
   await page.locator('#nav-ot-assessment').click();
   await expect(page.locator('#content')).toContainText('4.1.1');
-  await expect(page.locator('#content')).toContainText('18 meses');
+  await expect(page.locator('#content')).toContainText('09/01/2023');
   await expect(page.locator('#content')).toContainText('Sem prazo');
 });
 
@@ -84,7 +87,7 @@ const ABAS_OT = {
     fluxos_externos: { externos: 1, sem_vpn: 1, situacao: 'nao_atende' }, prazos: [] },
   [`${B}/conformidade`]: { framework: 'ONS-RO-CB.BR.01', versao: 'Rev.00', vigencia: '2021-07-09', resumo: { nao_atende: 1, evidencia_no_inventario: 0, sem_evidencia: 1 }, itens: [
     { codigo: '4.1.3', titulo: 'Acesso externo por VPN', prazo_meses: 18, prazo_em: '2023-01-09', situacao: 'nao_atende', evidencia: '1 de 1 fluxo(s) externo(s) sem VPN' },
-    { codigo: '5.1.1', titulo: 'Tratamento de exceções', prazo_meses: null, prazo_em: null, situacao: 'sem_evidencia', evidencia: 'Fora do que o inventário registra' }] },
+      { codigo: '5.1.1', titulo: 'Tratamento de exceções', prazo_meses: null, prazo_em: null, situacao: 'sem_evidencia', evidencia: 'Fora do que o inventário registra' }] },
 };
 
 test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guardado e saídas sem "atende"', async ({ page }) => {

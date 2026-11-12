@@ -1,0 +1,121 @@
+// n.ot, tela Assessment (E5 Task 3): agrupamento, selos, item técnico só leitura, gravar, confirmar, evidências, filtro. api() REAL, fetch dublado.
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { resposta } from './servir-api.js';
+
+vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
+
+import { S } from '../src/state.js';
+import '../src/ui.js';
+import '../src/views/ot.js';
+import { montarAssessment } from '../src/views/ot-assessment.js';
+
+const B = '/api/v1/projects/p9/ot/assessment';
+const el = (id) => document.getElementById(id);
+const pausa = () => new Promise((r) => setTimeout(r, 0));
+const ITENS = { resumo: { atende: 1, parcial: 0, nao_atende: 1, nao_se_aplica: 0, nao_avaliado: 2, revisar: 1, a_confirmar: 1 }, itens: [
+    { codigo: '4.1.1', titulo: 'Zonas <b id="xss1">x</b>', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_atende',
+        por_site: [{ site_id: 's1', site_nome: 'SE <i id="xss2">N</i>', fase: 'em_levantamento', situacao: 'nao_atende', evidencia: '1 de 1 sem VPN' }] },
+    { codigo: '4.2.1', titulo: 'Gestor', categoria: 'Governança', prazo: null, tipo: 'politica', revisar: true, subsidio: [{ levantamento_id: 'lv1', site_nome: 'SE Norte', pergunta: 'Há pendrive?', resposta: 'sim', realizado_em: '2026-11-01' }],
+        avaliacao: { situacao: 'atende', justificativa: 'Feito <u id="xss3">j</u>', responsavel_id: 'u2', responsavel_nome: 'Ana', proxima_revisao: '2027-01-10', confirmado: false, confirmado_por_nome: null, confirmado_em: null },
+        evidencias: [{ id: 'e1', file_name: 'ata.pdf', valido_ate: '2027-03-01', vencida: false }] },
+    { codigo: '4.2.2', titulo: 'Papéis', categoria: 'Governança', prazo: null, tipo: 'politica', revisar: false, avaliacao: null, evidencias: [], subsidio: [] },
+    { codigo: '5.1.1', titulo: 'Exceções', categoria: 'Exceções', prazo: null, tipo: 'excecao', situacao: 'nao_avaliado', evidencia: 'Não avaliado neste ciclo' }] };
+let chamadas;
+function servir(extra = {}) {
+    chamadas = [];
+    const rotas = { [`GET ${B}`]: ITENS, 'GET /api/v1/users': [{ id: 'u2', name: 'Ana', email: 'ana@x.com', client_project_id: 'p9' }, { id: 'u3', email: 'fora@x.com', client_project_id: 'p1' }], ...extra };
+    vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
+        const u = new URL(url, 'http://localhost');
+        const k = `${opts.method || 'GET'} ${u.pathname}`;
+        chamadas.push({ k, opts });
+        return k in rotas ? resposta(rotas[k]) : resposta({ error: `API route not found: ${k}` }, 404);
+    }));
+}
+async function abrir(papel = 'consultor', extra) {
+    S.user = { id: 'u1', role: papel };
+    servir(extra);
+    await montarAssessment(el('c'), el('a'), S.activeProject);
+}
+beforeEach(() => {
+    document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+    S.token = 'tok'; S.activeProject = { id: 'p9', modulos: ['ot'] };
+    window.render = vi.fn(); window.otTela = vi.fn();
+});
+afterEach(() => { vi.unstubAllGlobals(); });
+
+describe('tela Assessment', () => {
+    it('agrupa por categoria, mostra selos, prazo em dd/mm/aaaa e escapa o que vem da API', async () => {
+        await abrir();
+        const t = el('c').textContent;
+        for (const x of ['Rede', 'Governança', 'Exceções', 'Não atende', 'Atende', 'Não avaliado', '09/01/2023', 'Ana', '10/01/2027', 'A confirmar', 'Revisar']) expect(t).toContain(x);
+        expect(el('c').querySelectorAll('h3').length).toBe(3);
+        expect(el('xss1')).toBeNull(); expect(el('xss3')).toBeNull();
+        window.otAssAbrir('4.1.1'); expect(el('xss2')).toBeNull();
+    });
+
+    it('item técnico é só leitura: tabela por site, aviso e link para o site', async () => {
+        await abrir();
+        window.otAssAbrir('4.1.1');
+        const m = el('modal-content');
+        expect(m.textContent).toContain('Calculado pelo inventário; não editável');
+        expect(m.textContent).toContain('1 de 1 sem VPN');
+        expect(m.querySelector('#ass-sit')).toBeNull();
+        window.otAssIrSite('s1');
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'base' });
+    });
+
+    it('5.1.1 mostra "Não avaliado neste ciclo"', async () => {
+        await abrir();
+        window.otAssAbrir('5.1.1');
+        expect(el('modal-content').textContent).toContain('Não avaliado neste ciclo');
+    });
+
+    it('gravar envia o corpo certo e é o único .btn-primary; responsável lista só usuários do projeto', async () => {
+        await abrir('consultor', { 'PUT /api/v1/projects/p9/ot/assessment/4.2.2': { ok: true } });
+        window.otAssAbrir('4.2.2');
+        expect(document.querySelectorAll('.btn-primary').length).toBe(1);
+        expect([...el('ass-resp').options].map((o) => o.value)).toEqual(['', 'u2']);
+        el('ass-sit').value = 'parcial'; el('ass-just').value = ' Em curso '; el('ass-resp').value = 'u2'; el('ass-rev').value = '2027-02-01';
+        await window.otAssGravar('4.2.2');
+        const c = chamadas.find((x) => x.k === `PUT ${B}/4.2.2`);
+        expect(JSON.parse(c.opts.body)).toEqual({ situacao: 'parcial', justificativa: 'Em curso', responsavel_id: 'u2', proxima_revisao: '2027-02-01' });
+    });
+
+    it('Confirmar só para o Gestor, e só com avaliação sem confirmação', async () => {
+        await abrir('consultor');
+        window.otAssAbrir('4.2.1');
+        expect(el('modal-content').textContent).not.toContain('Confirmar');
+        expect(el('modal-content').textContent).toContain('Editar tira a confirmação do Gestor');
+        await abrir('org_admin', { [`POST ${B}/4.2.1/confirmar`]: { ok: true } });
+        window.otAssAbrir('4.2.2'); expect(el('modal-content').textContent).not.toContain('Confirmar');
+        window.otAssAbrir('4.2.1');
+        expect(el('modal-content').querySelector('[data-action="otAssConfirmar"]')).not.toBeNull();
+        expect(document.querySelectorAll('.btn-primary').length).toBe(1);
+    });
+
+    it('anexar faz o upload multipart e depois liga a evidência; remover só desliga', async () => {
+        await abrir('consultor', { 'POST /api/v1/projects/p9/evidence/upload': { ok: true, id: 'ev9' }, [`POST ${B}/4.2.2/evidencias`]: { ok: true }, [`DELETE ${B}/4.2.1/evidencias/e1`]: { ok: true } });
+        window.otAssAbrir('4.2.2');
+        const input = el('ass-arq');
+        Object.defineProperty(input, 'files', { value: [new File(['x'], 'ata.pdf')] });
+        await window.otAssAnexar('4.2.2');
+        const ks = chamadas.map((x) => x.k);
+        expect(ks.indexOf('POST /api/v1/projects/p9/evidence/upload')).toBeGreaterThan(-1);
+        expect(ks.indexOf(`POST ${B}/4.2.2/evidencias`)).toBeGreaterThan(ks.indexOf('POST /api/v1/projects/p9/evidence/upload'));
+        expect(JSON.parse(chamadas.find((x) => x.k === `POST ${B}/4.2.2/evidencias`).opts.body)).toEqual({ evidencia_id: 'ev9' });
+        await window.otAssRemoverEv('4.2.1', 'e1');
+        expect(ks.concat(chamadas.map((x) => x.k))).toContain(`DELETE ${B}/4.2.1/evidencias/e1`);
+        expect(chamadas.some((x) => x.k.startsWith('DELETE /api/v1/projects/p9/evidence'))).toBe(false);
+    });
+
+    it('filtro "Só o que espera por mim": consultor vê o sem preencher; Gestor vê o a confirmar', async () => {
+        await abrir('consultor');
+        window.otAssFiltrar({ checked: true });
+        const linhas = () => [...el('c').querySelectorAll('tbody tr')].map((r) => r.cells[0].textContent);
+        expect(linhas()).toEqual(['4.2.2']);
+        await abrir('org_admin');
+        window.otAssFiltrar({ checked: true });
+        expect(linhas()).toEqual(['4.2.1']);
+        window.otAssFiltrar({ checked: false });
+    });
+});

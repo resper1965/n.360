@@ -9,6 +9,7 @@ import { esvaziarNotas } from './ot-levantamento.js';
 import { cartaoAgente } from './ot-agente.js';
 import { areaSondas } from './ot-sensores.js';
 import { cartaoIntegracao } from './ot-integracao.js';
+import { montarAssessment } from './ot-assessment.js';
 import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
 import { itemVisivel, moduloPara, enderecoDoProduto, modulosVisiveis } from '../produto.js';
@@ -29,7 +30,7 @@ const TEMPO_IA = 90000;
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
 const TITULOS = { inicio: 'n.ot · Início', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', acessos: 'Acessos e sondas' };
-const MONTAR = { inicio: montarInicio, sites: montarSites, assessment: (c, a, p) => montarCatalogo(c, a, p), relatorios: montarSaidas, acessos: (c, a, p) => montarAcessos(c, a, p) };
+const MONTAR = { inicio: montarInicio, sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, acessos: (c, a, p) => montarAcessos(c, a, p) };
 
 async function renderOt(c, h, a) {
     a.innerHTML = '';
