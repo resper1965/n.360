@@ -67,6 +67,10 @@ describe('obra do site', () => {
     expect((await chamar(gestor, 'POST', `${P}/sites/sb/obra/abrir`, { justificativa: 'Troca dos relés', ate: diaMaisSP(10) })).status).toBe(404);
   });
 
+  it('renovar em site de outro projeto: 404', async () => {
+    expect((await chamar(gestor, 'POST', `${P}/sites/sb/obra/renovar`, { justificativa: 'Atraso do fornecedor', ate: diaMaisSP(20) })).status).toBe(404);
+  });
+
   it('renovar: Gestor renova uma vez; consultor 403; obra já vencida (ainda sem varredura) 409', async () => {
     await run(`UPDATE ot_sites SET fase = 'em_obra', obra_ate = ? WHERE id = 's1'`, diaMaisSP(5));
     const corpo = { justificativa: 'Atraso do fornecedor', ate: diaMaisSP(20) };
@@ -113,6 +117,8 @@ describe('obra do site', () => {
     const email = posts.find((p) => p.url.includes('resend'));
     expect(email!.corpo.to[0]).toBe('gestora@cliente.teste');
     expect(email!.corpo.subject).toContain('SE Norte');
+    expect(posts.filter((p) => p.url.includes('resend')).map((p) => p.corpo.to[0])).not.toContain('c@ness.lat');
+    expect(JSON.stringify(email!.corpo)).not.toMatch(/\b\d{1,3}(\.\d{1,3}){3}\b/);
     const hook = posts.find((p) => p.url.startsWith('https://soc.example'));
     expect(hook!.corpo.desvios.map((d: any) => d.id)).toEqual(['d1']);
   });

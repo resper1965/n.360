@@ -96,6 +96,13 @@ describe('Contrato OpenAPI', () => {
     expect(orfas, `entrada órfã no OpenAPI:\n  ${orfas.join('\n  ')}`).toEqual([]);
   });
 
+  it('o contrato da base e da obra do site fica no caminho certo (schema registrado na rota errada sobrescreveria o outro)', () => {
+    const doc = documentoOpenApi('https://exemplo') as any;
+    const req = (c: string) => doc.paths[`/api/v1/projects/{projectId}/ot/sites/{id}/${c}`].post.requestBody.content['application/json'].schema;
+    expect(req('base/devolver').required).toEqual(['motivo']);
+    for (const c of ['obra/abrir', 'obra/renovar']) expect(req(c).required.sort()).toEqual(['ate', 'justificativa']);
+  });
+
   it('o documento é OpenAPI 3.1 válido no que importa, e descreve os corpos', () => {
     const doc = documentoOpenApi('https://exemplo') as any;
     expect(doc.openapi).toBe('3.1.0');

@@ -957,22 +957,32 @@ otApp.post('/sites/:id/base/devolver', async (c) => {
 });
 
 // ─── obra do site (spec fluidez E4): só o Gestor ARCiber abre ou renova ────────
-for (const [rota, fn, acao] of [['abrir', abrirObra, 'aberta'], ['renovar', renovarObra, 'renovada']] as const) {
-  otApp.post(`/sites/:id/obra/${rota}`, async (c) => {
-    try {
-      if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
-      const v = await validateBody(c, otObraSchema);
-      if (!v.success) return v.response;
-      const { db, user, projectId, sites } = await contexto(c);
-      const id = c.req.param('id')!;
-      if (!daLista(sites, id)) return NAO_ENCONTRADO(c, 'Site');
-      const r = await fn(db, user, projectId, id, v.data);
-      if (!r.ok) return c.json({ error: r.error }, r.status);
-      await trilha(c, `ot.site.obra_${acao}`, projectId, `Obra do site ${id} ${acao} até ${v.data.ate}`, { tipo: 'ot_site', id }, v.data.justificativa);
-      return c.json({ ok: true });
-    } catch (e) { return erro500(c, 'Falha ao decidir a obra', e); }
-  });
+async function decidirObra(c: C, fn: typeof abrirObra, acao: 'aberta' | 'renovada', dados: { justificativa: string; ate: string }) {
+  const { db, user, projectId, sites } = await contexto(c);
+  const id = c.req.param('id')!;
+  if (!daLista(sites, id)) return NAO_ENCONTRADO(c, 'Site');
+  const r = await fn(db, user, projectId, id, dados);
+  if (!r.ok) return c.json({ error: r.error }, r.status);
+  await trilha(c, `ot.site.obra_${acao}`, projectId, `Obra do site ${id} ${acao} até ${dados.ate}`, { tipo: 'ot_site', id }, dados.justificativa);
+  return c.json({ ok: true });
 }
+// uma rota por declaração, com o validateBody dentro dela: é o que o contrato (test/openapi.test.ts) consegue ler
+otApp.post('/sites/:id/obra/abrir', async (c) => {
+  try {
+    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
+    const v = await validateBody(c, otObraSchema);
+    if (!v.success) return v.response;
+    return await decidirObra(c, abrirObra, 'aberta', v.data);
+  } catch (e) { return erro500(c, 'Falha ao abrir a obra', e); }
+});
+otApp.post('/sites/:id/obra/renovar', async (c) => {
+  try {
+    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
+    const v = await validateBody(c, otObraSchema);
+    if (!v.success) return v.response;
+    return await decidirObra(c, renovarObra, 'renovada', v.data);
+  } catch (e) { return erro500(c, 'Falha ao renovar a obra', e); }
+});
 
 // ─── desvios (spec n-ot-desvio) ─────────────────────────────────────────────
 // `dados` nunca sai cru: só os campos da tela. Pontas por nome/zona (corpoWebhook resolve por id ou ip_hash, que não sai); IP só de ativo
