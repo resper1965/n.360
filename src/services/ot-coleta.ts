@@ -290,12 +290,12 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     stmts.push(db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(motivo, i.id));
   };
   for (const i of itens) {
-    if ((JSON.parse(i.erros) as Erro[]).length) { recusar(i, 'Item com erro de validação'); continue; }
+    if ((JSON.parse(i.erros) as Erro[]).length) { recusar(i, ITEM_COM_ERRO); continue; }
     const d = JSON.parse(i.dados) as Record<string, unknown>;
     if (i.entidade === 'fluxo') {
       const sumiu = (['origem', 'destino'] as const).some((l) => (d[`${l}_ativo_id`] && !pontas.ativos.has(d[`${l}_ativo_id`] as string))
         || (d[`${l}_zona_id`] && !pontas.zonas.has(d[`${l}_zona_id`] as string)));
-      if (sumiu) { recusar(i, 'Uma ponta do fluxo foi removida'); continue; }
+      if (sumiu) { recusar(i, PONTA_REMOVIDA); continue; }
       // Regra do confronto do fluxo: casou na chave (confirma ou contradiz, recalculado agora) atualiza só os campos do item; senão, cria.
       const alvo = idxF.achar(d);
       const fluxoId = alvo?.id ?? genId();
@@ -314,7 +314,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       n[alvo ? 'atualizados' : 'criados']++;
       continue;
     }
-    if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, 'A zona do item foi removida'); continue; }
+    if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, ZONA_REMOVIDA); continue; }
     const alvo = idx.achar(d);
     // P1-4: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão do item): o item volta a pendente, nada é gravado.
     if (alvo ? !tocados.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
@@ -370,11 +370,17 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   return { ok: true, ...n, pendentes, fluxos_pendentes_resolvidos };
 }
 
-/** A1: quem não vê completo não recebe o motivo que revela mudança no alvo (oráculo). */
-export const motivoVisivel = (motivo: string | null, completo: boolean) => completo || (motivo !== ALVO_MUDOU && motivo !== FLUXO_SUMIU) ? motivo : null;
-
 const ALVO_MUDOU = 'O ativo de destino mudou depois da revisão: revise o item de novo';
 const FLUXO_SUMIU = 'O fluxo de destino foi removido depois da revisão: revise o item de novo';
+const ITEM_COM_ERRO = 'Item com erro de validação';
+const PONTA_REMOVIDA = 'Uma ponta do fluxo foi removida';
+const ZONA_REMOVIDA = 'A zona do item foi removida';
+/** Motivos gerados pela aprovação (estado do inventário, não texto do revisor): quem não vê completo não os lê (oráculo, A1). */
+export const MOTIVOS_DO_SISTEMA = new Set([ALVO_MUDOU, FLUXO_SUMIU, ITEM_COM_ERRO, PONTA_REMOVIDA, ZONA_REMOVIDA, FALTA_4_3_1]);
+const RECUSADO_NA_APROVACAO = 'Recusado na aprovação';
+
+/** Motivo do revisor (já sem PII, `livreSemPii`) e "Lote rejeitado" ficam visíveis; os do sistema viram texto genérico para quem não vê completo. */
+export const motivoVisivel = (motivo: string | null, completo: boolean) => !completo && motivo !== null && MOTIVOS_DO_SISTEMA.has(motivo) ? RECUSADO_NA_APROVACAO : motivo;
 
 export async function rejeitarLote(db: D1Database, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string, motivo: string): Promise<Falha | { ok: true }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);

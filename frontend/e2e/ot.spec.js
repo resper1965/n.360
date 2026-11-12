@@ -541,6 +541,8 @@ test('revisão: marca achados de dois levantamentos, envia para aprovação e o 
   await page.getByRole('checkbox', { name: 'Enviar Notebook IHM para aprovação' }).check();
   await page.getByRole('checkbox', { name: 'Enviar Câmera CFTV para aprovação' }).check();
   await page.getByRole('button', { name: 'Enviar para aprovação (2)' }).click();
+  await expect(page.locator('.confirmar')).toContainText('Enviar 2 achados para aprovação?');
+  await page.locator('.confirmar').getByRole('button', { name: 'Enviar para aprovação' }).click();
   await expect(conteudo).toContainText('Notebook IHM');
   await expect(conteudo).toContainText('Lote de');
   expect(envio).toEqual({ achados: ['r1', 'r2'] });

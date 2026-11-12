@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, renderDataTable, renderStatusBadge, falhaDeCarga, showToast, formatarData } from '../ui.js';
+import { escapeHTML, renderDataTable, renderStatusBadge, falhaDeCarga, showToast, formatarData, confirmar } from '../ui.js';
 import { podeEditarOt, mensagemDeErro, lista, rotaDoFluxo } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 
@@ -80,6 +80,9 @@ window.otRevDescartar = async (lev, id) => {
 window.otRevEnviar = async () => {
     const ids = [...sel];
     if (!ids.length) return;
+    const ocultos = ids.filter((id) => !visiveis().some((x) => x.id === id)).length;
+    const texto = `Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} para aprovação?${ocultos ? ` ${ocultos} ${ocultos === 1 ? 'deles não aparece' : 'deles não aparecem'} no filtro atual.` : ''} No Lote de aprovação, outra pessoa aprova antes do inventário.`;
+    if (!await confirmar(texto, { titulo: 'Enviar para aprovação', rotulo: 'Enviar para aprovação' })) return;
     try {
         const r = await api('POST', `/api/v1/projects/${ctx.p.id}/ot/sites/${encodeURIComponent(ctx.site)}/enviar`, { achados: ids });
         sel = new Set();

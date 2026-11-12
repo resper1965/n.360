@@ -58,10 +58,31 @@ describe('montarRevisao', () => {
         marcar('a1'); marcar('a2');
         expect(b().disabled).toBe(false);
         expect(b().textContent).toBe('Enviar para aprovação (2)');
-        await window.otRevEnviar();
+        const env = window.otRevEnviar();
+        expect(document.querySelector('.confirmar').textContent).toContain('Enviar 2 achados para aprovação?');
+        expect(document.querySelector('.confirmar').textContent).toContain('outra pessoa aprova');
+        expect(document.querySelector('.confirmar').textContent).not.toContain('filtro atual');
+        document.querySelector('[data-confirmar="sim"]').click();
+        await env;
         const post = chamadas.find((x) => x.k === `POST ${B}/sites/s1/enviar`);
         expect(JSON.parse(post.opts.body)).toEqual({ achados: ['a1', 'a2'] });
         expect(window.otIrParaLote).toHaveBeenCalledWith('s1', 'l9');
+    });
+    it('cancelar a confirmação não envia nada', async () => {
+        await montar(); marcar('a1');
+        const env = window.otRevEnviar();
+        document.querySelector('[data-confirmar="nao"]').click();
+        await env;
+        expect(chamadas.some((x) => x.k === `POST ${B}/sites/s1/enviar`)).toBe(false);
+        expect(window.otIrParaLote).not.toHaveBeenCalled();
+    });
+    it('a confirmação diz quantos marcados o filtro atual esconde', async () => {
+        await montar(); marcar('a1'); marcar('a2');
+        window.otRevFiltro('origem', 'ia'); // só a2 visível: a1 fica oculto
+        const env = window.otRevEnviar();
+        expect(document.querySelector('.confirmar').textContent).toContain('Enviar 2 achados para aprovação? 1 deles não aparece no filtro atual.');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await env;
     });
     it('achado recusado mostra o selo e o motivo', async () => {
         await montar();
@@ -103,7 +124,10 @@ describe('montarRevisao', () => {
         expect(el('rev-sel-a1')).toBeNull();
         marcar('a2');
         expect(el('c').querySelector('.btn-primary').textContent).toBe('Enviar para aprovação (2)');
-        await window.otRevEnviar();
+        const env = window.otRevEnviar();
+        expect(document.querySelector('.confirmar').textContent).toContain('1 deles não aparece no filtro atual');
+        document.querySelector('[data-confirmar="sim"]').click();
+        await env;
         expect(JSON.parse(chamadas.find((x) => x.k === `POST ${B}/sites/s1/enviar`).opts.body).achados.sort()).toEqual(['a1', 'a2']);
     });
     it('fluxo mostra o nome das pontas vindo de nomes_pontas', async () => {

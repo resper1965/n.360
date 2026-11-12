@@ -131,7 +131,7 @@ describe('decisão item a item', () => {
     expect(await env.DB.prepare('SELECT decisao FROM ot_lote_itens WHERE id = ?').bind(i.id).first()).toEqual({ decisao: 'pendente' });
   });
 
-  it('A1: papel mascarado não recebe registro_id nem o motivo "ativo mudou/fluxo removido" no desfecho', async () => {
+  it('A1: papel mascarado não recebe registro_id e vê "Recusado na aprovação" no lugar do motivo do sistema; o completo vê o real', async () => {
     const a = await novo('I11', '10.8.0.11');
     const b = await novo('I12', '10.8.0.12');
     const lote = await enviar([a, b]);
@@ -153,7 +153,7 @@ describe('decisão item a item', () => {
     expect(ma.desfecho).toBe('no_inventario');
     expect(ma).not.toHaveProperty('registro_id');
     expect(mb.desfecho).toBe('recusado');
-    expect(mb.motivo ?? null).toBeNull();
+    expect(mb.motivo).toBe('Recusado na aprovação');
   });
 
   it('devolverRecusados(A) não puxa de volta o achado já reenviado no lote B (lote_item_id ainda no item recusado de A)', async () => {
