@@ -6,7 +6,7 @@ import mig from '../migrations/0112_ot_assessment.sql?raw';
 import req from '../migrations/0090_ot_requisitos.sql?raw';
 import app from '../src/index';
 import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
-import { diaMaisSP } from '../src/services/hoje';
+import { diaMaisSP, hojeEmSaoPaulo } from '../src/services/hoje';
 import { sessionFor, workerEnv, habilitarOt, concederModulos } from './helpers/d1';
 
 const P = 'proj-a';
@@ -79,6 +79,8 @@ async function chamar(h: H, metodo: string, caminho: string, corpo?: unknown) {
   await waitOnExecutionContext(ctx);
   return r;
 }
+// +12 meses: o mesmo dia do ano seguinte, em São Paulo (hoje nunca é 29/02 nos testes que rodam em 2026)
+const daquiAUmAno = () => { const h = hojeEmSaoPaulo(); return `${Number(h.slice(0, 4)) + 1}${h.slice(4)}`; };
 const item = async (h: H, codigo: string) => ((await (await chamar(h, 'GET', `${U}/assessment`)).json()) as any).itens.find((i: any) => i.codigo === codigo);
 const evid = (id: string, proj: string, valido: string | null = null) => run(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by, valido_ate) VALUES (?, ?, ?, 'k', 'h', 'u', ?)`, id, proj, `${id}.pdf`, valido);
 
@@ -135,7 +137,7 @@ describe('ot-avaliacao: assessment', () => {
     expect((await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`)).status).toBe(200);
     expect((await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`)).status).toBe(409);
     const a = (await item(cons, '4.4.1')).avaliacao;
-    expect(a).toMatchObject({ confirmado: true, confirmado_por_nome: 'Gestor', proxima_revisao: diaMaisSP(365) });
+    expect(a).toMatchObject({ confirmado: true, confirmado_por_nome: 'Gestor', proxima_revisao: daquiAUmAno() });
     await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'nao_se_aplica', justificativa: 'Sem firmware' });
     expect((await item(cons, '4.4.1')).avaliacao).toMatchObject({ confirmado: false, confirmado_por_nome: null });
     const acoes = (await env.DB.prepare(`SELECT action FROM audit_logs WHERE action LIKE 'ot.assessment.%' AND project_id = 'proj-a' ORDER BY rowid`).all<any>()).results.map((r) => r.action).slice(antes);
@@ -181,5 +183,43 @@ describe('ot-avaliacao: assessment', () => {
     const b: any = await (await chamar(gb, 'GET', '/api/v1/projects/proj-b/ot/assessment')).json();
     expect(b.resumo).toMatchObject({ atende: 0, parcial: 0, a_confirmar: 0 });
     expect(b.itens.find((i: any) => i.codigo === '4.1.1').por_site.map((s: any) => s.site_id)).toEqual(['sb']);
+  });
+  it('relatório de conformidade: itens e sites, sem IP, MAC nem nome de ativo; grava a trilha', async () => {
+    await run(`UPDATE ot_sites SET base_aprovada_em = '2026-10-01 12:00:00' WHERE id = 's1'`);
+    await run(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES ('z1', ?, 's1', 'z', 3)`, P);
+    await run(`INSERT INTO ot_ativos (id, project_id, site_id, nome, zona_id, ip_hash, mac_hash) VALUES ('a1', ?, 's1', 'RTU-Segredo-07 10.0.0.7', 'z1', 'h1', 'h2')`, P);
+    await run(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_zona_id, externo, via_vpn) VALUES ('f1', ?, 's1', 'a1', 'z1', 1, 0)`, P);
+    await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'parcial', justificativa: 'Falta política escrita', responsavel_id: 'u-g' });
+    await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`);
+    await evid('e-ok', 'proj-a', diaMaisSP(30));
+    await chamar(cons, 'POST', `${U}/assessment/4.4.1/evidencias`, { evidencia_id: 'e-ok' });
+
+    const r = await chamar(cons, 'GET', `${U}/relatorio/conformidade`);
+    expect(r.status).toBe(200);
+    const txt = await r.text();
+    const j = JSON.parse(txt);
+    const codigos = new Set(j.itens.map((i: any) => i.codigo)); // 4.5.1.1 tem a forma de um IP
+    expect((txt.match(/\b\d{1,3}(\.\d{1,3}){3}\b/g) ?? []).filter((x) => !codigos.has(x))).toEqual([]); // IP
+    expect(txt).not.toMatch(/\b[0-9a-f]{2}([:-][0-9a-f]{2}){5}\b/i); // MAC
+    expect(txt).not.toContain('RTU-Segredo');
+    expect(j.sites).toEqual([
+      { nome: 'SE Norte', fase: 'em_operacao', base_aprovada_em: '2026-10-01 12:00:00' },
+      { nome: 'SE Nova', fase: 'em_levantamento', base_aprovada_em: null },
+      { nome: 'SE Sul', fase: 'em_operacao', base_aprovada_em: null },
+    ]);
+    expect(j.gerado_por).toBe('Consultor');
+    expect(j.gerado_em).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(j.itens.find((i: any) => i.codigo === '4.4.1')).toMatchObject({
+      tipo: 'politica', situacao: 'parcial', justificativa: 'Falta política escrita', responsavel_nome: 'Gestor', confirmado_por_nome: 'Gestor',
+      evidencias: [{ file_name: 'e-ok.pdf', valido_ate: diaMaisSP(30), vencida: false }],
+    });
+    const t = j.itens.find((i: any) => i.codigo === '4.1.3');
+    expect(t).toMatchObject({ tipo: 'tecnico', situacao: 'nao_atende' });
+    expect(t.por_site.map((s: any) => s.site_nome)).toEqual(['SE Norte', 'SE Nova', 'SE Sul']);
+    expect(t.por_site[0]).toMatchObject({ situacao: 'nao_atende', evidencia: expect.stringContaining('sem VPN') });
+    expect(j.itens.some((i: any) => 'subsidio' in i || i.por_site?.some((s: any) => 'site_id' in s))).toBe(false);
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'ot.relatorio.conformidade' AND project_id = 'proj-a'`).first('n')).toBe(1);
+    // o site do proj-b não entra (sites acima); o projeto alheio é barrado antes da rota, pelo middleware de projeto
+    expect((await chamar(gestor, 'GET', '/api/v1/projects/proj-b/ot/relatorio/conformidade')).status).toBe(403);
   });
 });

@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderEmptyState } from '../ui.js';
-import { lista, podeAprovarOt, podeEditarOt, ehGestor, dataDoSqlite } from '../ot-comum.js';
+import { lista, podeAprovarOt, podeEditarOt, ehGestor, dataDoSqlite, FASE } from '../ot-comum.js';
 import { emDiasSP, hojeSP } from '../hoje.js';
 
 // n.ot, tela Início (spec 2026-11-11 fluidez §2): "Espera por você", Sites e Postura RO-CB.BR.01. Clique pela delegação:
@@ -9,7 +9,6 @@ import { emDiasSP, hojeSP } from '../hoje.js';
 
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const PRAZO_DIAS = 7;
-const FASE = { em_levantamento: 'Em levantamento', base_em_aprovacao: 'Base em aprovação', em_operacao: 'Em operação', em_obra: 'Em obra' };
 const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Em operação', revalidar: 'Revalidar' };
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const alvo = (site, modo, lote) => ({ tela: 'site', site, modo, ...(lote ? { lote } : {}) });

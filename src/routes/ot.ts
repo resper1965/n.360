@@ -14,7 +14,7 @@ import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedir
 import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { conformidadeOt } from '../services/ot-conformidade';
-import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, salvarAvaliacao } from '../services/ot-avaliacao';
+import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
 import { appUrl } from '../config/url';
@@ -798,6 +798,14 @@ otApp.delete('/assessment/:codigo/evidencias/:evidenciaId', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao desligar a evidência', e); }
 });
 
+otApp.get('/relatorio/conformidade', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const r = await relatorioConformidade(db, user, projectId, JSON.parse(sites));
+    await trilha(c, 'ot.relatorio.conformidade', projectId, `Relatório de conformidade gerado com ${r.itens.length} item(ns) e ${r.sites.length} site(s)`);
+    return c.json(r);
+  } catch (e) { return erro500(c, 'Falha ao gerar o relatório de conformidade', e); }
+});
 
 // ─── agente de coleta (L5, plano 2026-11-04) ───────────────────────────────────────────
 // Ligar é a autorização do cliente: só o Gestor ARCiber do projeto. Emitir/revogar: quem vê o inventário completo.

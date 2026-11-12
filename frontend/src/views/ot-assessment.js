@@ -11,7 +11,7 @@ const el = (id) => document.getElementById(id);
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const base = () => `/api/v1/projects/${S.activeProject.id}/ot/assessment`;
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
-const AVALIACAO = { atende: ['success', 'Atende'], parcial: ['warning', 'Parcial'], nao_atende: ['danger', 'Não atende'], nao_se_aplica: ['neutral', 'Não se aplica'] };
+export const AVALIACAO = { atende: ['success', 'Atende'], parcial: ['warning', 'Parcial'], nao_atende: ['danger', 'Não atende'], nao_se_aplica: ['neutral', 'Não se aplica'] };
 const RESPOSTA = { sim: 'Sim', nao: 'Não' };
 const NAO_AVALIADO = ['neutral', 'Não avaliado'];
 let dados = { itens: [], resumo: {} };

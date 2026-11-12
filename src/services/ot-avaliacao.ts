@@ -1,7 +1,7 @@
 // Assessment da RO-CB.BR.01 (spec 2026-11-11 fluidez §5): os itens técnicos vêm do inventário (por site e pior caso da organização),
 // os de política são autoavaliação do cliente, confirmada pelo Gestor ARCiber; o 5.1.1 (exceções) fica fora deste ciclo.
 import { conformidadePorSite, ITENS_TECNICOS, prazoEm, type ItemTecnico } from './ot-conformidade';
-import { diaMaisSP, hojeEmSaoPaulo } from './hoje';
+import { hojeEmSaoPaulo, mesesMaisSP } from './hoje';
 import { TETO_LEITURA_OT } from './ot-inventario';
 
 const FRAMEWORK = 'ONS-RO-CB.BR.01';
@@ -29,7 +29,7 @@ export async function montarAssessment(db: D1Database, projectId: string, sites:
       WHERE a.project_id = ? LIMIT ${TETO_LEITURA_OT}`).bind(projectId),
     db.prepare(`SELECT l.requisito_id, e.id, e.file_name, e.valido_ate FROM ot_requisito_evidencias l JOIN evidence e ON e.id = l.evidencia_id AND e.project_id = l.project_id
       WHERE l.project_id = ? ORDER BY e.file_name LIMIT ${TETO_LEITURA_OT}`).bind(projectId),
-    db.prepare('SELECT id, texto, item_norma FROM ot_roteiro_perguntas ORDER BY ordem'),
+    db.prepare(`SELECT id, texto, item_norma FROM ot_roteiro_perguntas ORDER BY ordem LIMIT ${TETO_LEITURA_OT}`),
     db.prepare(`SELECT l.id, l.site_id, s.nome AS site_nome, l.realizado_em, l.roteiro FROM ot_levantamentos l JOIN ot_sites s ON s.id = l.site_id AND s.project_id = l.project_id
       WHERE l.project_id = ? AND l.status = 'ativo' AND l.site_id IN (SELECT value FROM json_each(?)) ORDER BY l.realizado_em DESC LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lista),
   ]);
@@ -118,7 +118,7 @@ export async function confirmarAvaliacao(db: D1Database, ator: Ator, projectId: 
   const rq = await requisito(db, codigo);
   if (!rq) return falha(404, 'Requisito não encontrado');
   const r = await db.prepare(`UPDATE ot_avaliacoes SET confirmado_por = ?, confirmado_em = CURRENT_TIMESTAMP, proxima_revisao = coalesce(proxima_revisao, ?)
-    WHERE project_id = ? AND requisito_id = ? AND confirmado_em IS NULL`).bind(ator.id, diaMaisSP(365), projectId, rq.id).run();
+    WHERE project_id = ? AND requisito_id = ? AND confirmado_em IS NULL`).bind(ator.id, mesesMaisSP(12), projectId, rq.id).run();
   if (r.meta.changes) return { ok: true };
   const existe = await db.prepare('SELECT 1 FROM ot_avaliacoes WHERE project_id = ? AND requisito_id = ?').bind(projectId, rq.id).first();
   return existe ? falha(409, 'A avaliação já está confirmada') : falha(404, 'Avaliação não encontrada');
@@ -138,4 +138,30 @@ export async function desligarEvidencia(db: D1Database, projectId: string, codig
   if (!rq) return falha(404, 'Requisito não encontrado');
   const r = await db.prepare('DELETE FROM ot_requisito_evidencias WHERE evidencia_id = ? AND requisito_id = ? AND project_id = ?').bind(evidenciaId, rq.id, projectId).run();
   return r.meta.changes ? { ok: true } : falha(404, 'Evidência não ligada a este item');
+}
+
+/**
+ * Relatório de conformidade (spec fluidez §5): o assessment em forma de relatório, para imprimir. Nunca leva IP, MAC nem nome de ativo:
+ * do item técnico saem só a situação e o texto de contagens; o subsídio (perguntas e respostas do levantamento) e os ids ficam de fora.
+ */
+export async function relatorioConformidade(db: D1Database, ator: Ator, projectId: string, sites: string[]) {
+  const [{ itens, resumo }, sitesR, proj, quem] = await Promise.all([
+    montarAssessment(db, projectId, sites, false),
+    db.prepare(`SELECT nome, fase, base_aprovada_em FROM ot_sites WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`)
+      .bind(projectId, JSON.stringify(sites)).all<{ nome: string; fase: string; base_aprovada_em: string | null }>(),
+    db.prepare('SELECT coalesce(project_name, client_name) AS nome FROM projects WHERE id = ?').bind(projectId).first<{ nome: string }>(),
+    db.prepare('SELECT coalesce(name, email) AS nome FROM users WHERE id = ?').bind(ator.id).first<{ nome: string }>(),
+  ]);
+  return {
+    projeto: proj?.nome ?? null, gerado_em: new Date().toISOString(), gerado_por: quem?.nome ?? null, sites: sitesR.results, resumo,
+    itens: itens.map((i) => {
+      const base = { codigo: i.codigo, titulo: i.titulo, categoria: i.categoria, prazo: i.prazo, tipo: i.tipo };
+      if (i.tipo === 'tecnico') return { ...base, situacao: i.situacao_org, por_site: i.por_site.map((s) => ({ site_nome: s.site_nome, situacao: s.situacao, evidencia: s.evidencia })) };
+      if (i.tipo === 'excecao') return { ...base, situacao: i.situacao, justificativa: i.evidencia };
+      const a = i.avaliacao;
+      return { ...base, situacao: a?.situacao ?? 'nao_avaliado', justificativa: a?.justificativa ?? null, responsavel_nome: a?.responsavel_nome ?? null,
+        proxima_revisao: a?.proxima_revisao ?? null, confirmado_por_nome: a?.confirmado_por_nome ?? null, confirmado_em: a?.confirmado_em ?? null,
+        evidencias: i.evidencias.map((e) => ({ file_name: e.file_name, valido_ate: e.valido_ate, vencida: e.vencida })) };
+    }),
+  };
 }

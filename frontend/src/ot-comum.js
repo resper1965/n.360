@@ -138,6 +138,8 @@ export function lerCamposDoAtivo({ vazio = 'nulo' } = {}) {
 }
 
 /** Situação de um item da RO-CB.BR.01 calculada do inventário: só três, e nenhuma afirma que o item é cumprido. */
+export const FASE = { em_levantamento: 'Em levantamento', base_em_aprovacao: 'Base em aprovação', em_operacao: 'Em operação', em_obra: 'Em obra' };
+
 export const SITUACAO = {
     nao_atende: ['danger', 'Não atende'],
     evidencia_no_inventario: ['info', 'Evidência no inventário'],
