@@ -204,7 +204,7 @@ Desvio é o que a sonda viu e o inventário aprovado não prevê. Serve para o c
 
 ### O que vira desvio
 
-- Só em site **em operação**, isto é, com a **base aprovada** pelo Gestor ARCiber. Antes disso a sonda gera achados e não desvios.
+- Só em site **em operação**, isto é, com a **base aprovada** pelo Gestor ARCiber. Antes disso a sonda gera achados e não desvios. Exceção: em **obra** o desvio é calculado em silêncio (ver "Obra e desvio silencioso").
 - Só o **envio automático** da sonda. A importação manual não cria desvio.
 - Em todo envio aceito, o n.ot compara o resumo com o inventário **antes do filtro de novidade**: um item que já é achado em rascunho ou foi descartado continua sendo desvio. Desvio não é novidade.
 - Vira desvio o **ativo** novo e o **fluxo** que o inventário não tem, inclusive o fluxo pendente (cuja ponta interna ainda não foi aprovada). Cada desvio é único por projeto, tipo e chave; ver de novo só conta ocorrências.
@@ -224,6 +224,24 @@ Desvio é o que a sonda viu e o inventário aprovado não prevê. Serve para o c
 
 Em **Sites** > o site > **Modo operação** > **Desvios** (n.ot) há filtros por situação, site e tipo, e as ações Tratar e Aceitar temporariamente. O cartão **Achados da sonda para revisar**, no topo de **Modo projeto** > **Levantamento**, mostra "N desvios abertos". O IP de um desvio de ativo só aparece a quem vê o inventário completo, e cada visualização é registrada na trilha.
 
+### Obra e desvio silencioso
+
+Obra de campo muda a rede de propósito; avisar cada mudança seria ruído.
+
+- O **Gestor ARCiber** abre a obra no site em operação (**Abrir obra**, com justificativa sem IP nem MAC e prazo de até **90 dias**) e pode **renovar uma vez**, por até mais 90 dias. Só o Gestor vê esses botões.
+- Com obra aberta (site em obra, ou com a base em aprovação), o desvio é **calculado e gravado, sem webhook**. O cabeçalho do site mostra "Obra em andamento até dd/mm".
+- **Entrega ao fechar:** a obra fecha pela aprovação da base (a equipe pede a partir de "em obra"; o Gestor aprova). Os desvios abertos saem **num único webhook** e o site volta a "em operação".
+- **Entrega ao vencer:** passado o prazo, o job diário devolve o site a "em operação", registra `ot.site.obra_vencida` na trilha, avisa o Gestor por e-mail e entrega os desvios abertos da mesma forma.
+- O Início do Gestor lista "Obra em X vence em dd/mm" (ou "venceu") e "Aceite de desvio vence em dd/mm (site)" para o que vence em até 7 dias ou já passou.
+
+### Regularizar um desvio
+
+No desvio **aberto** que veio de um achado, **Regularizar** pede confirmação, envia o achado para aprovação e abre o lote. Quando o lote aprova o item, o desvio fecha como regularizado. Sem achado ligado, a tela orienta registrar num levantamento pontual.
+
+### Integração ness.OS
+
+Em **Acessos e sondas**, o cartão **Integração ness.OS** lista os webhooks do projeto que recebem `ot.desvio`. O Gestor cadastra a URL `https://` (o segredo da assinatura aparece **uma única vez**), envia um teste (só para webhook ativo; o corpo do teste é genérico, não o formato `ot.desvio`) ou remove. Os demais membros só leem a lista.
+
 ### Webhook `ot.desvio`
 
 Para avisar o SOC, cadastre um webhook do projeto com o evento `ot.desvio` na lista de eventos.
@@ -231,7 +249,7 @@ Para avisar o SOC, cadastre um webhook do projeto com o evento `ot.desvio` na li
 - Só recebe webhook cuja lista contém **exatamente** `ot.desvio`. Não há curinga.
 - **Cadastrar exige ver o inventário completo**, porque o corpo traz nome de ativo e zona.
 - O POST é assinado com HMAC em `X-nISO-Signature`. São até **3 tentativas** (agora, +2 s, +10 s), com **5 s** de tempo limite cada; o `event_id` é o mesmo nas tentativas, para o receptor deduplicar. **Redirecionamento não é seguido** (3xx conta como falha). Esgotar as tentativas soma o `failure_count` do webhook.
-- **Quando sai:** um POST por resumo aceito que abre ou reabre itens, e um por fechamento ou reabertura feito na tela ou pelo cron.
+- **Quando sai:** um POST por resumo aceito que abre ou reabre itens, e um por fechamento ou reabertura feito na tela ou pelo cron. Em obra não sai nada; os abertos saem juntos quando a obra fecha ou vence.
 - O corpo **não traz IP, MAC nem hash de IP**: as pontas vão como nome do ativo e da zona (`null` se a ponta não está no inventário). Até **200 itens** por POST; o excedente vem em `nao_listados`.
 
 ```json

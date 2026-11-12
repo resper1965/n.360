@@ -20,7 +20,7 @@ export async function cartaoIntegracao(p) {
     let ws;
     try { ws = lista(await api('GET', `/api/v1/projects/${p.id}/webhooks`), 'webhooks').filter(temDesvio); } catch { return ''; }
     const g = ehGestor();
-    const acoes = (w) => (g ? `<button class="btn btn-sm" data-action="otTestarWebhook" data-args='${args(w.id)}'>Enviar teste</button>
+    const acoes = (w) => (g ? `${w.status === 'Active' ? `<button class="btn btn-sm" data-action="otTestarWebhook" data-args='${args(w.id)}'>Enviar teste</button>` : ''}
         <button class="btn btn-sm" data-action="otRemoverWebhook" data-args='${args(w.id)}'>Remover</button>` : '—');
     return `<section class="card mt-6" id="ot-integracao" aria-labelledby="ot-integracao-titulo">
         <h3 id="ot-integracao-titulo">Integração ness.OS</h3>

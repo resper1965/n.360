@@ -12,6 +12,15 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: E4, obra e operação (migração 0111)
+- **Obra** (`ot_sites.obra_*`, migração 0111, aditiva): o Gestor ARCiber abre com `POST /ot/sites/:id/obra/abrir` (`{justificativa, ate}`, prazo de até 90 dias) e renova uma vez com `/obra/renovar` (até mais 90 dias). Fecha pela aprovação da base: o técnico pede a partir de "em obra" e o aceite do Gestor encerra a obra.
+- **Desvio silencioso:** durante a obra (e em base em aprovação com obra aberta) o desvio é calculado e gravado, sem webhook. Ao fechar a obra, os desvios abertos saem num único webhook.
+- **Obra vencida:** o job diário (`CRON_AVISOS`) devolve o site a "em operação", registra `ot.site.obra_vencida` na trilha, avisa o Gestor por e-mail e entrega os desvios abertos.
+- **Regularizar** no desvio aberto com achado de origem: confirma, envia o achado para aprovação e abre o lote. Sem achado, a tela mostra uma dica.
+- **Site:** selo "Obra em andamento até dd/mm", "Abrir obra" e "Renovar obra" (só Gestor) e o passo "Revalide o inventário até dd/mm" quando a verificação 4.3.1 mais antiga de ativo ARCiber está a 60 dias ou menos dos 24 meses.
+- **Início (Gestor):** "Obra em X vence/venceu em dd/mm" e "Aceite de desvio vence/venceu em dd/mm (site)", para o que vence em até 7 dias ou já passou.
+- **Integração ness.OS** em Acessos e sondas: lista os webhooks `ot.desvio`; o Gestor cadastra (o segredo aparece uma vez), envia teste (só webhook ativo) e remove.
+
 ### n.ot: E3, fases do site e aprovação da base (migração 0110)
 - O site tem **fase**: em levantamento, base em aprovação, em operação e em obra (`ot_sites.fase`, mais quem pediu e quem aprovou a base e quando). `GET /ot/sites/:id/situacao` devolve a fase e o `proximo_passo`.
 - **Base:** a equipe pede (`POST /ot/sites/:id/base/pedir`); o Gestor ARCiber aprova com a declaração (`/base/aprovar`) ou devolve com motivo (`/base/devolver`). Aprovada, o site passa a **Em operação** e abre no Modo operação.

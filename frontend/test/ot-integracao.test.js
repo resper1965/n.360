@@ -46,6 +46,14 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('cartão Integração ness.OS', () => {
+  it('Enviar teste só aparece para webhook ativo (a API responde 409 para inativo); Remover fica nos dois', async () => {
+    gestor();
+    await abrir({ [`GET ${W}`]: LISTA });
+    const linhas = [...cartao().querySelectorAll('tbody tr')];
+    expect(linhas[0].textContent).toContain('Enviar teste');
+    expect(linhas[1].textContent).not.toContain('Enviar teste');
+    expect(linhas[1].textContent).toContain('Remover');
+  });
   it('lista só os webhooks de ot.desvio, com URL escapada, situação e falhas; consultor sem botões', async () => {
     await abrir({ [`GET ${W}`]: LISTA });
     const t = cartao().textContent;
