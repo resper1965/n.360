@@ -15,10 +15,13 @@ const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 
 const TIPO = { entrevista: 'Entrevista', visita: 'Visita de campo', documento: 'Documento' };
 const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_perguntado: 'Não perguntado' };
-const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado ao lote'], descartado: ['warning', 'Descartado'] };
+const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado para aprovação'], descartado: ['warning', 'Descartado'] };
 const SELO_ORIGEM = { ia: 'Sugerido pela IA', agente: 'Enviado pelo agente' };
 // O sensor de rede grava origem 'consultor'; a fonte fica na evidência (EVIDENCIA_SENSOR, src/services/ot-rede.ts).
 export const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sensor de rede' : '');
+/** Desfecho do achado no lote (a API só o devolve depois da decisão); sem ele, `enviado` é lote ainda em revisão. */
+const seloDaSituacao = (x, site) => (x.desfecho === 'no_inventario' ? `${renderStatusBadge('success', 'No inventário')} <button class="btn btn-sm" data-action="otVerNoInventario" data-args='${args(site)}'>Ver no inventário</button>`
+    : x.desfecho === 'recusado' ? renderStatusBadge('danger', `Recusado: ${x.motivo || '—'}`) : selo(ACHADO, x.situacao));
 const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—']));
 const situacao = (l) => (l.situacao === 'encerrado' ? renderStatusBadge('neutral', 'Encerrado') : renderStatusBadge('info', 'Aberto'));
 const quem = (l) => (l.tipo === 'documento' ? escapeHTML(l.documento_titulo || '—')
@@ -102,7 +105,7 @@ async function montarSessao(c, a, p, id) {
         + (editar ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
         + (editar && aberto ? '<button class="btn" data-action="otNovoAchado">Registrar achado</button>' : '')
         + (editar && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
-        + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar ao lote</button>' : '');
+        + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar para aprovação</button>' : '');
 
     const doTipo = perguntas.filter((q) => Array.isArray(q.tipos_sessao) && q.tipos_sessao.includes(l.tipo));
     const roteiro = !doTipo.length ? '' : `<h3 class="mb-3">Roteiro</h3>
@@ -119,21 +122,21 @@ async function montarSessao(c, a, p, id) {
             const fluxo = x.entidade === 'fluxo';
             const nome = nomeDoAchado(x.id, 'achado');
             const rasc = x.situacao === 'rascunho';
-            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} ao lote`)}">` : '—'] : []),
+            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} para aprovação`)}">` : '—'] : []),
                 fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (seloDoAchado(x) ? ` <span class="badge selo-info">${seloDoAchado(x)}</span>` : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
-                ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
+                ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), seloDaSituacao(x, l.site_id),
                 ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>` : '—'] : [])];
-        }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado nesta sessão.' : '' });
+        }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado neste levantamento.' : '' });
 
     c.innerHTML = `<h3 class="mb-2">${escapeHTML(TIPO[l.tipo] || l.tipo)} · ${quem(l)} · ${escapeHTML(nomeDe(sites, l.site_id))} ${situacao(l)}</h3>
-        <p class="org-dica mb-3">Realizado em ${escapeHTML(formatarData(l.realizado_em))}.${l.documento_data ? ` Documento de ${escapeHTML(formatarData(l.documento_data))}.` : ''} Os achados enviados viram um lote da Coleta, que outra pessoa aprova antes do inventário.</p>
+        <p class="org-dica mb-3">Realizado em ${escapeHTML(formatarData(l.realizado_em))}.${l.documento_data ? ` Documento de ${escapeHTML(formatarData(l.documento_data))}.` : ''} Os achados enviados viram um Lote de aprovação, que outra pessoa aprova antes do inventário.</p>
         <div class="bloco mb-4"><h3 class="mb-3">Notas</h3>
-            <div class="form-group"><label class="form-label" for="lev-notas">Notas da sessão (sem nomes, IP, MAC, e-mail ou telefone)</label>
+            <div class="form-group"><label class="form-label" for="lev-notas">Notas do levantamento (sem nomes, IP, MAC, e-mail ou telefone)</label>
             <textarea class="form-input" id="lev-notas" rows="5" maxlength="20000"${editar ? ' data-action-input="otNotasDigitadas" data-action-blur="otSalvarNotas" aria-describedby="lev-notas-status"' : ' readonly'}>${escapeHTML(notasNaTela(l))}</textarea></div>
             ${editar ? '<div class="d-flex gap-2 items-center"><p class="at-salvo" id="lev-notas-status" role="status"></p><span id="lev-notas-tentar"></span></div>' : ''}</div>
         ${roteiro}
         <h3 class="mb-3">Achados</h3>
-        ${editar && rascunhos.length ? '<p class="org-dica mb-2" id="lev-envio-dica">Marque os achados que vão ao lote.</p>' : ''}${tabela}`;
+        ${editar && rascunhos.length ? '<p class="org-dica mb-2" id="lev-envio-dica">Marque os achados que vão para aprovação.</p>' : ''}${tabela}`;
     if (editar) mostrarStatusNotas();
 }
 
@@ -291,7 +294,7 @@ window.otNovoAchado = async (evidencia = '', perguntaId = null, entidade = 'ativ
     const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(atual.site_id)}`).catch(() => null), 'zonas');
     const radio = (v, rot) => `<label class="d-flex gap-2 items-center"><input type="radio" name="ach-entidade" value="${v}" data-action-change="otEntidadeAchado" data-arg-val${v === entidade ? ' checked' : ''}> ${rot}</label>`;
     openModal(`<div class="modal-header"><span class="modal-title">Registrar achado</span></div>
-        <p class="org-dica mb-3">O achado fica nesta sessão até ser enviado ao lote. Campos que faltam viram aviso, não impedem o registro.</p>
+        <p class="org-dica mb-3">O achado fica neste levantamento até ser enviado para aprovação. Campos que faltam viram aviso, não impedem o registro.</p>
         <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
         <fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>
         <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo({}, { zonas, recolher: true })}</div>
@@ -347,7 +350,7 @@ window.otMarcarAchado = () => {
     const b = document.querySelector('[data-action="otEnviarAchados"]');
     if (b) b.disabled = !n;
     const dica = el('lev-envio-dica');
-    if (dica) dica.textContent = n ? `${n} ${n === 1 ? 'achado marcado' : 'achados marcados'} para o lote.` : 'Marque os achados que vão ao lote.';
+    if (dica) dica.textContent = n ? `${n} ${n === 1 ? 'achado marcado' : 'achados marcados'} para aprovação.` : 'Marque os achados que vão para aprovação.';
 };
 window.otEnviarAchados = async () => {
     const ids = marcados();
@@ -355,14 +358,14 @@ window.otEnviarAchados = async () => {
     const fl = ids.filter((id) => achados.find((x) => x.id === id)?.entidade === 'fluxo').length;
     const at = ids.length - fl;
     const conta = [at && `${at} ${at === 1 ? 'ativo' : 'ativos'}`, fl && `${fl} ${fl === 1 ? 'fluxo' : 'fluxos'}`].filter(Boolean).join(' e ');
-    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} ao lote (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. O lote vai para o Lote de aprovação, onde outra pessoa aprova antes do inventário.`,
-        { titulo: 'Enviar ao lote', rotulo: 'Enviar ao lote' })) return;
+    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} para aprovação (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. No Lote de aprovação, outra pessoa aprova antes do inventário.`,
+        { titulo: 'Enviar para aprovação', rotulo: 'Enviar para aprovação' })) return;
     await esvaziarNotas();
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
         await window.otTela('site', atual.site_id || S.otSite, 'projeto', { otSub: 'aprovacao', otLote: r.id });
-    } catch (e) { falhou(e, 'Não foi possível enviar os achados ao lote.'); }
+    } catch (e) { falhou(e, 'Não foi possível enviar os achados para aprovação.'); }
 };
 
 // ─── importar arquivo (L4, de-para): o arquivo fica só na memória desta tela e vai de novo, o mesmo, ao aplicar ─────
@@ -425,7 +428,7 @@ async function lerArquivo() {
     const fd = new FormData();
     fd.append('file', file);
     if (ext === 'txt' || ext === 'docx') {
-        if (!await confirmar('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar ao lote.', { titulo: 'Ler documento', rotulo: 'Ler com a IA' })) return;
+        if (!await confirmar('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar para aprovação.', { titulo: 'Ler documento', rotulo: 'Ler com a IA' })) return;
         try {
             const r = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/texto`,
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
@@ -522,8 +525,8 @@ async function importarRede() {
         showToast(`Achados criados: ${conta(r.ativos_novos, 'ativo novo', 'ativos novos')}, ${conta(r.macs_completados, 'MAC completado', 'MACs completados')}, `
             + `${conta(r.fluxos_criados, 'fluxo criado', 'fluxos criados')}.`
             + (r.ativos_conhecidos > 0 ? ` ${conta(r.ativos_conhecidos, 'ativo já estava', 'ativos já estavam')} no inventário.` : '')
-            + (r.fluxos_pendentes > 0 ? ` ${conta(r.fluxos_pendentes, 'fluxo espera', 'fluxos esperam')} a aprovação dos ativos novos.` : '')
-            + (fora > 0 ? ` ${conta(fora, 'item ficou', 'itens ficaram')} de fora pelo limite da sessão.` : ''), 'success');
+            + (r.fluxos_pendentes > 0 ? ` ${conta(r.fluxos_pendentes, 'fluxo aguardando ativo', 'fluxos aguardando ativo')}, até a aprovação dos ativos novos.` : '')
+            + (fora > 0 ? ` ${conta(fora, 'item ficou', 'itens ficaram')} de fora pelo limite do levantamento.` : ''), 'success');
         await redesenhar();
     } catch (e) { falhou(e, 'Não foi possível importar o resumo de rede.'); }
 }

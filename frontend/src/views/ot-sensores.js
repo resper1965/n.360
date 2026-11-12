@@ -7,7 +7,7 @@ import { seloDoAchado } from './ot-levantamento.js';
 const EVIDENCIA_SENSOR = 'Sensor de rede (Zeek): ';
 
 // n.ot, sonda de rede com envio automático (plano 2026-11-05, Task 8): a área "Sondas" por site na aba Acessos e agente e os cartões
-// "Saúde da coleta" e "Pontos a esclarecer" no topo do Levantamento, sobre /ot/sites/:sid/sensores e /ot/sensores* (src/routes/ot.ts).
+// "Saúde da coleta" e "Achados da sonda para revisar" no topo do Levantamento, sobre /ot/sites/:sid/sensores e /ot/sensores* (src/routes/ot.ts).
 // As rotas são de quem vê o inventário completo: quem leva 403 não vê a área nem os cartões. A credencial em claro vive só no modal
 // que a mostra (nunca em variável de módulo, S ou storage) e o modal é esvaziado ao fechar. No código é `sensor`; na tela, "Sonda".
 
@@ -157,7 +157,7 @@ export async function preencherCartoes(p, sites, { soSaude = false } = {}) {
     slot.innerHTML = `<div class="d-flex gap-3 mb-4" id="ot-cartoes-coleta">
         <section class="card" aria-labelledby="ot-saude-titulo"><h3 id="ot-saude-titulo">Saúde da coleta</h3>
         <p>${renderStatusBadge(corSaude, `${emDia} de ${sensores.length}`)} <span>· Último resumo ${escapeHTML(ultimo ? haQuanto(ultimo) : 'nunca')}</span></p></section>
-        ${soSaude ? '' : `<section class="card" aria-labelledby="ot-pontos-titulo"><h3 id="ot-pontos-titulo">Pontos a esclarecer</h3>
+        ${soSaude ? '' : `<section class="card" aria-labelledby="ot-pontos-titulo"><h3 id="ot-pontos-titulo">Achados da sonda para revisar</h3>
         ${pontos ? `<p>${n(pontos.ativos, 'ativo', 'ativos')} · ${n(pontos.fluxos, 'fluxo', 'fluxos')} <span class="badge selo-info">${seloDoAchado({ evidencia: EVIDENCIA_SENSOR })}</span></p>
         <p class="org-dica">Rascunhos que a sonda trouxe e ninguém revisou.</p>` : '<p class="org-dica">Não foi possível contar os pontos agora.</p>'}${nDesvios === null ? '' : `<p>${n(nDesvios, 'desvio aberto', 'desvios abertos')}</p>`}</section>`}</div>`;
 }

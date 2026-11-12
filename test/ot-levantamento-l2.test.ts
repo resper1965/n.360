@@ -136,14 +136,20 @@ describe('lote com fluxos', () => {
     expect(fs.find((x) => x.id === l.fluxo)).toMatchObject({ via_vpn: true, violacoes: [] });
   });
 
-  it('item de fluxo com erro é recusado e a manutenção devolve o achado a rascunho', async () => {
+  it('item de fluxo com erro é recusado, o achado volta na hora e a manutenção não zera o lote_item_id', async () => {
     const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { externo: true }, evidencia: 'x' });
     l.lote3 = await enviar([fl]);
     await aprovar(l.lote3);
-    expect((await itensDo(gestor, l.lote3))[0].decisao).toBe('recusado');
+    const item = (await itensDo(gestor, l.lote3))[0];
+    expect(item.decisao).toBe('recusado');
+    const volta = { situacao: 'rascunho', lote_id: null, lote_item_id: item.id };
+    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first()).toEqual(volta);
     await manutencaoDiaria(env as any);
-    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first())
-      .toEqual({ situacao: 'rascunho', lote_id: null, lote_item_id: null });
+    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first()).toEqual(volta);
+    // rede de segurança: achado ainda enviado cujo item já está recusado (lote vencido) é devolvido pelo cron, com o item preservado
+    await env.DB.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = ? WHERE id = ?`).bind(l.lote3, fl).run();
+    await manutencaoDiaria(env as any);
+    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first()).toEqual(volta);
   });
 
   it('bidirecional casado ao contrário: atualiza só externo/VPN, pontas intactas, lote concluído', async () => {
@@ -189,6 +195,14 @@ describe('revisão final (L2)', () => {
     expect((await fluxoAch({ origem_ativo_id: ids.a1 }, { pergunta_id: '' })).status).toBe(400);
     const id = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1 }, evidencia: 'x' });
     expect((await chamar(cons, 'PUT', `${P}/levantamentos/${ids.lev1}/achados/${id}`, { pergunta_id: '' })).status).toBe(400);
+  });
+
+  it('fila do site: nomes_pontas só nomes (sem IP/MAC)', async () => {
+    const lev = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-02' });
+    await criar(cons, `levantamentos/${lev}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_zona_id: ids.z1 }, evidencia: 'x' });
+    const r = await (await chamar(cons, 'GET', `${P}/achados?site_id=${ids.s1}&situacao=rascunho`)).json<{ nomes_pontas: Record<string, string> }>();
+    expect(r.nomes_pontas).toMatchObject({ [ids.a1]: 'RTU 1', [ids.z1]: 'Supervisão' });
+    expect(JSON.stringify(r.nomes_pontas)).not.toContain('10.1.1.');
   });
 
   it('nomes_pontas: só nomes das pontas citadas, do site; ler a sessão com fluxos não grava ver_sensivel', async () => {

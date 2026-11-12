@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: E2, revisão e aprovação item a item
+- Novo **Revisão e aprovação** no site (Modo projeto): fila com os rascunhos de todos os levantamentos do site, filtros de origem e tipo, **Descartar** e um único **Enviar para aprovação (N)**; abaixo, os lotes do site.
+- No **Lote de aprovação**, **Recusar** por item (motivo de 3 a 500 caracteres), **Aprovar os restantes (N)** e **Concluir lote** quando tudo foi recusado. O topo mostra "Decidir até dd/mm". Quem criou o lote não decide sobre ele.
+- No levantamento, cada achado mostra **No inventário** (com link), **Recusado: motivo** ou **Enviado para aprovação**.
+- Vocabulário único: Levantamento, Achado, Lote de aprovação, Base, Desvio. O cartão da sonda passa a se chamar **Achados da sonda para revisar**.
+- `GET /ot/achados` (fila por site), `POST /ot/sites/:siteId/enviar` e `POST /ot/lotes/:id/itens/:itemId/recusar`; os achados trazem `desfecho`, `motivo` e `registro_id`.
+
 ### n.ot: menu, tela Início e tela do site (modo projeto e operação)
 - As 8 abas saem. O menu lateral passa a ter **Início**, **Sites** e a seção **Organização** (Assessment RO-CB.BR.01, Relatórios, Acessos e sondas).
 - **Início** mostra "Espera por você" (lotes de aprovação, desvios abertos, achados em rascunho, sondas paradas), os sites e a postura da RO-CB.BR.01.

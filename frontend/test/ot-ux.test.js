@@ -62,7 +62,7 @@ beforeEach(async () => {
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); document.querySelectorAll('.confirmar').forEach((x) => x.remove()); });
 
-describe('P0: notas da sessão nunca se perdem', () => {
+describe('P0: notas do levantamento nunca se perdem', () => {
     it('salvam sozinhas depois de 1,5 s sem digitar, com "Salvo às HH:MM" num role="status"', async () => {
         await sessao();
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -127,7 +127,7 @@ describe('P0: notas da sessão nunca se perdem', () => {
     });
 });
 
-describe('P1a: a sessão conduz a entrevista', () => {
+describe('P1a: o levantamento conduz a entrevista', () => {
     it('a resposta escolhida fica marcada (aria-pressed) e há estilo para isso que não é só cor', async () => {
         await sessao();
         const marcado = el('c').querySelector('[data-action="otResponderRoteiro"][aria-pressed="true"]');
@@ -241,7 +241,7 @@ describe('P1c: confirmações de alto risco com o conteúdo', () => {
         await p;
     });
 
-    it('enviar ao lote fica desabilitado até marcar um achado e confirma com a contagem e os nomes', async () => {
+    it('enviar para aprovação fica desabilitado até marcar um achado e confirma com a contagem e os nomes', async () => {
         await sessao([ACH(), ACH({ id: 'a2', dados: { nome: 'Switch rack 2' } })], { [`POST ${B}/levantamentos/l1/enviar`]: { id: 'lote-9', itens: 2, com_erro: 0, status: 'em_revisao' } });
         const botao = el('a').querySelector('[data-action="otEnviarAchados"]');
         expect(botao.disabled).toBe(true);
@@ -261,7 +261,7 @@ describe('P1c: confirmações de alto risco com o conteúdo', () => {
     });
 });
 
-describe('rodada de correção 1: notas em fila, por sessão e por projeto', () => {
+describe('rodada de correção 1: notas em fila, por levantamento e por projeto', () => {
     // fetch com PUT de notas que só responde quando o teste manda (gravações sobrepostas).
     function servirComPutPendente(extra = {}) {
         const pendentes = [];
@@ -318,7 +318,7 @@ describe('rodada de correção 1: notas em fila, por sessão e por projeto', () 
         expect(chamadas.filter((x) => x.k.startsWith('PUT')).map((x) => x.k)).toEqual([`PUT ${B}/levantamentos/l1`]);
     });
 
-    it('texto recusado (400) não é reenviado sem mudar, e fica com a sessão dele ao abrir outra e voltar', async () => {
+    it('texto recusado (400) não é reenviado sem mudar, e fica com o levantamento dele ao abrir outra e voltar', async () => {
         const L2 = { ...LEV, id: 'l2', notas: 'notas da l2' };
         const recusa = [400, { error: 'Payload inválido', details: [{ path: 'notas', message: 'Não informe IP nem MAC em campo de texto livre' }] }];
         await sessao([], { [`GET ${B}/levantamentos/l2`]: { levantamento: L2, achados: [] } }, { [`PUT ${B}/levantamentos/l1`]: recusa });

@@ -235,14 +235,14 @@ export interface LinhaItem { id: string; project_id: string; linha: number; enti
 export async function serializarItem(i: LinhaItem, completo: boolean, chaves: ChavesOt) {
   const d = JSON.parse(i.dados) as Record<string, unknown>;
   if (i.entidade === 'fluxo') {
-    return { id: i.id, linha: i.linha, entidade: 'fluxo', decisao: i.decisao, motivo: completo || i.motivo !== FLUXO_SUMIU ? i.motivo : null, erros: JSON.parse(i.erros) as Erro[],
+    return { id: i.id, linha: i.linha, entidade: 'fluxo', decisao: i.decisao, motivo: motivoVisivel(i.motivo, completo), erros: JSON.parse(i.erros) as Erro[],
       ...(completo && { possivel_duplicata: !!i.duplicata_de, duplicata_de: i.duplicata_de, registro_id: i.registro_id }), dados: d };
   }
   const linha = { ip_cifrado: null, mac_cifrado: null, ip_hash: null, mac_hash: null, protocolos_portas: '[]', no_arciber: 0, firmware_nao_aplicavel: 0, ...d,
     id: i.id, project_id: i.project_id } as LinhaAtivo;
   const { id: _i, project_id: _p, ...dados } = await serializarAtivo(linha, completo, chaves, 'ot_lote_itens');
   return {
-    id: i.id, linha: i.linha, entidade: 'ativo', decisao: i.decisao, motivo: completo || i.motivo !== ALVO_MUDOU ? i.motivo : null, erros: JSON.parse(i.erros) as Erro[],
+    id: i.id, linha: i.linha, entidade: 'ativo', decisao: i.decisao, motivo: motivoVisivel(i.motivo, completo), erros: JSON.parse(i.erros) as Erro[],
     ...(completo && { possivel_duplicata: !!i.duplicata_de, duplicata_de: i.duplicata_de, registro_id: i.registro_id }),
     dados,
   };
@@ -290,12 +290,12 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     stmts.push(db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(motivo, i.id));
   };
   for (const i of itens) {
-    if ((JSON.parse(i.erros) as Erro[]).length) { recusar(i, 'Item com erro de validação'); continue; }
+    if ((JSON.parse(i.erros) as Erro[]).length) { recusar(i, ITEM_COM_ERRO); continue; }
     const d = JSON.parse(i.dados) as Record<string, unknown>;
     if (i.entidade === 'fluxo') {
       const sumiu = (['origem', 'destino'] as const).some((l) => (d[`${l}_ativo_id`] && !pontas.ativos.has(d[`${l}_ativo_id`] as string))
         || (d[`${l}_zona_id`] && !pontas.zonas.has(d[`${l}_zona_id`] as string)));
-      if (sumiu) { recusar(i, 'Uma ponta do fluxo foi removida'); continue; }
+      if (sumiu) { recusar(i, PONTA_REMOVIDA); continue; }
       // Regra do confronto do fluxo: casou na chave (confirma ou contradiz, recalculado agora) atualiza só os campos do item; senão, cria.
       const alvo = idxF.achar(d);
       const fluxoId = alvo?.id ?? genId();
@@ -314,7 +314,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       n[alvo ? 'atualizados' : 'criados']++;
       continue;
     }
-    if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, 'A zona do item foi removida'); continue; }
+    if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, ZONA_REMOVIDA); continue; }
     const alvo = idx.achar(d);
     // P1-4: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão do item): o item volta a pendente, nada é gravado.
     if (alvo ? !tocados.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
@@ -366,11 +366,21 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       await fecharRegularizados(desvio.env, desvio.ctx, projectId, results.map((r) => r.c));
     } catch (e) { console.error('ot.desvio: falha ao regularizar', e); }
   }
+  await devolverRecusados(db, loteId);
   return { ok: true, ...n, pendentes, fluxos_pendentes_resolvidos };
 }
 
 const ALVO_MUDOU = 'O ativo de destino mudou depois da revisão: revise o item de novo';
 const FLUXO_SUMIU = 'O fluxo de destino foi removido depois da revisão: revise o item de novo';
+const ITEM_COM_ERRO = 'Item com erro de validação';
+const PONTA_REMOVIDA = 'Uma ponta do fluxo foi removida';
+const ZONA_REMOVIDA = 'A zona do item foi removida';
+/** Motivos gerados pela aprovação (estado do inventário, não texto do revisor): quem não vê completo não os lê (oráculo, A1). */
+export const MOTIVOS_DO_SISTEMA = new Set([ALVO_MUDOU, FLUXO_SUMIU, ITEM_COM_ERRO, PONTA_REMOVIDA, ZONA_REMOVIDA, FALTA_4_3_1]);
+const RECUSADO_NA_APROVACAO = 'Recusado na aprovação';
+
+/** Motivo do revisor (já sem PII, `livreSemPii`) e "Lote rejeitado" ficam visíveis; os do sistema viram texto genérico para quem não vê completo. */
+export const motivoVisivel = (motivo: string | null, completo: boolean) => !completo && motivo !== null && MOTIVOS_DO_SISTEMA.has(motivo) ? RECUSADO_NA_APROVACAO : motivo;
 
 export async function rejeitarLote(db: D1Database, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string, motivo: string): Promise<Falha | { ok: true }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);
@@ -379,6 +389,30 @@ export async function rejeitarLote(db: D1Database, ator: { id: string; email: st
     WHERE id = ? AND project_id = ? AND status = 'em_revisao'`).bind(motivo, ator.email, loteId, projectId).run();
   if (!r.meta.changes) return { ok: false, status: 409, error: 'O lote não está em revisão' };
   await db.prepare(`UPDATE ot_lote_itens SET decisao = 'descartado', updated_at = CURRENT_TIMESTAMP WHERE lote_id = ? AND decisao = 'pendente'`).bind(loteId).run();
+  await devolverRecusados(db, loteId);
+  return { ok: true };
+}
+
+/** Achado cujo item do lote foi recusado ou descartado volta a rascunho na hora. `lote_item_id` fica: é por ele que o motivo continua legível. */
+const DEVOLVER = (db: D1Database, loteId: string) => db.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE situacao = 'enviado' AND lote_id = ? AND lote_item_id IN (SELECT id FROM ot_lote_itens WHERE lote_id = ? AND decisao IN ('recusado', 'descartado'))`).bind(loteId, loteId);
+/** `lote_id = ?`: o reenvio muda `lote_id` antes de religar `lote_item_id`; sem isso a devolução do lote antigo puxaria o achado reenviado. */
+export async function devolverRecusados(db: D1Database, loteId: string): Promise<number> {
+  return (await DEVOLVER(db, loteId).run()).meta.changes ?? 0;
+}
+
+/** Recusa um item pendente (decisão item a item): o achado ligado volta a rascunho na mesma chamada. */
+export async function recusarItem(db: D1Database, ator: { id: string }, projectId: string, sites: string, loteId: string, itemId: string, motivo: string): Promise<Falha | { ok: true }> {
+  const lote = await decidivel(db, ator, projectId, sites, loteId);
+  if (!lote.ok) return lote;
+  const item = await db.prepare(`SELECT decisao FROM ot_lote_itens WHERE id = ? AND lote_id = ? AND project_id = ?`).bind(itemId, loteId, projectId).first<{ decisao: string }>();
+  if (!item) return { ok: false, status: 404, error: 'Item não encontrado' };
+  // Atômico com o estado do lote: durante `gravando` (aprovação em curso) ou depois de decidido o item não muda.
+  // batch: as duas instruções comitam juntas; `changes` da primeira segue valendo para o 409.
+  const [r] = await db.batch([db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND lote_id = ? AND decisao = 'pendente' AND EXISTS (SELECT 1 FROM ot_lotes WHERE id = ? AND project_id = ? AND status = 'em_revisao')`)
+    .bind(motivo, itemId, loteId, loteId, projectId), DEVOLVER(db, loteId)]);
+  if (!r.meta.changes) return { ok: false, status: 409, error: 'O item já foi decidido ou o lote não está em revisão' };
   return { ok: true };
 }
 

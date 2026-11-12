@@ -4,14 +4,14 @@ import { erro500, genId, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
   otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
+import { aprovarLote, criarLote, linhasDaPlanilha, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
@@ -19,7 +19,7 @@ import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '
 import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
-import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
+import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, DESFECHO_SQL, type LinhaAchado } from '../services/ot-levantamento';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
 export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -47,7 +47,7 @@ otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
 });
 
 // P0-8, falha fechada: sem as duas chaves, nada de ativo nem de lote entra ou sai.
-for (const rota of ['/ativos/*', '/lotes/*', '/levantamentos/*']) {
+for (const rota of ['/ativos/*', '/lotes/*', '/levantamentos/*', '/achados']) {
   otApp.use(rota, async (c, next) => {
     if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
     await next();
@@ -523,6 +523,19 @@ otApp.post('/lotes/:id/rejeitar', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao rejeitar o lote', e); }
 });
 
+otApp.post('/lotes/:id/itens/:itemId/recusar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não decide sobre lote' }, 403);
+    const v = await validateBody(c, otItemRecusarSchema);
+    if (!v.success) return v.response;
+    const r = await recusarItem(db, user, projectId, sites, c.req.param('id'), c.req.param('itemId'), v.data.motivo);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await trilha(c, 'ot.lote.item_recusado', projectId, `Item ${c.req.param('itemId')} do lote ${c.req.param('id')} recusado`, { tipo: 'ot_lote', id: c.req.param('id') }, v.data.motivo);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao recusar o item', e); }
+});
+
 // ─── levantamento (spec descoberta operacional, L1) ──────────────────────────────────────────
 otApp.get('/roteiro', async (c) => {
   try {
@@ -583,17 +596,10 @@ otApp.get('/levantamentos/:id', async (c) => {
     const completo = await podeVerCompleto(db, user, projectId);
     const chaves = chavesOt(c.env)!;
     // LIMIT explícito: sem ele o teto global de SELECT (query-cap, 500) cortaria a sessão em silêncio.
-    const { results } = await db.prepare(`SELECT * FROM ot_achados WHERE levantamento_id = ? AND project_id = ? ORDER BY created_at LIMIT ${TETO_ACHADOS_SESSAO}`)
+    const { results } = await db.prepare(`SELECT a.*, ${DESFECHO_SQL} FROM ot_achados a LEFT JOIN ot_lote_itens i ON i.id = a.lote_item_id
+      WHERE a.levantamento_id = ? AND a.project_id = ? ORDER BY a.created_at LIMIT ${TETO_ACHADOS_SESSAO}`)
       .bind(lev.id, projectId).all<LinhaAchado>();
-    // A1: o confronto só é calculado (e devolvido) para quem vê completo; o índice do site é lido uma vez.
-    const idx = completo ? await indiceDoSite(db, projectId, lev.site_id) : undefined;
-    const idxF = completo && results.some((a) => a.entidade === 'fluxo') ? indiceFluxos(await fluxosDoSite(db, projectId, lev.site_id)) : undefined;
-    const achados = [];
-    for (const a of results) {
-      const conf = !idx || a.situacao !== 'rascunho' ? undefined
-        : a.entidade === 'fluxo' ? confrontarFluxo(JSON.parse(a.dados), idxF!) : await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados), idx);
-      achados.push(await serializarAchado(a, completo, chaves, conf));
-    }
+    const achados = await serializarAchados(db, projectId, lev.site_id, results, completo, chaves);
     const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) do levantamento ${lev.id} com IP/MAC sem máscara`, { tipo: 'ot_levantamento', id: lev.id });
     // Só nomes (nunca /ativos, que decifra IP/MAC): os das pontas citadas e os ativos do site que o achado de fluxo oferece como ponta.
@@ -602,6 +608,61 @@ otApp.get('/levantamentos/:id', async (c) => {
       LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lev.site_id).all<{ id: string; nome: string }>();
     return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados, nomes_pontas, ativos_do_site });
   } catch (e) { return erro500(c, 'Falha ao ler o levantamento', e); }
+});
+
+/** A1: o confronto só é calculado (e devolvido) para quem vê completo; os índices do site são lidos uma vez. */
+async function serializarAchados(db: D1Database, projectId: string, siteId: string, results: LinhaAchado[], completo: boolean, chaves: NonNullable<ReturnType<typeof chavesOt>>) {
+  const idx = completo ? await indiceDoSite(db, projectId, siteId) : undefined;
+  const idxF = completo && results.some((a) => a.entidade === 'fluxo') ? indiceFluxos(await fluxosDoSite(db, projectId, siteId)) : undefined;
+  const achados = [];
+  for (const a of results) {
+    const conf = !idx || a.situacao !== 'rascunho' ? undefined
+      : a.entidade === 'fluxo' ? confrontarFluxo(JSON.parse(a.dados), idxF!) : await confrontar(db, projectId, siteId, JSON.parse(a.dados), idx);
+    achados.push(await serializarAchado(a, completo, chaves, conf));
+  }
+  return achados;
+}
+
+// Fila de revisão do site: os achados de todos os levantamentos dele, para decidir o que vai ao lote.
+otApp.get('/achados', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const site = c.req.query('site_id');
+    const situacao = c.req.query('situacao') ?? 'rascunho';
+    if (!site) return c.json({ error: 'site_id é obrigatório' }, 400);
+    if (situacao !== 'rascunho' && situacao !== 'enviado') return c.json({ error: 'situacao deve ser rascunho ou enviado' }, 400);
+    if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
+    if (c.req.query('contagem') === '1') {
+      // só a contagem: não decifra nada, logo sem trilha de IP/MAC
+      const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+        WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ?`).bind(projectId, site, situacao).first<{ n: number }>();
+      return c.json({ total: n?.n ?? 0 });
+    }
+    const completo = await podeVerCompleto(db, user, projectId);
+    const { results } = await db.prepare(`SELECT a.*, ${DESFECHO_SQL}, l.tipo AS levantamento_tipo, l.realizado_em AS levantamento_realizado_em
+      FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      LEFT JOIN ot_lote_itens i ON i.id = a.lote_item_id
+      WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ? ORDER BY l.realizado_em, a.created_at LIMIT ${TETO_LEITURA_OT}`)
+      .bind(projectId, site, situacao).all<LinhaAchado & { levantamento_tipo: string; levantamento_realizado_em: string }>();
+    const ser = await serializarAchados(db, projectId, site, results, completo, chavesOt(c.env)!);
+    const achados = ser.map((a, i) => ({ ...a, levantamento_tipo: results[i].levantamento_tipo, levantamento_realizado_em: results[i].levantamento_realizado_em }));
+    const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
+    if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) da fila do site ${site} com IP/MAC sem máscara`, { tipo: 'ot_site', id: site });
+    const nomes_pontas = await nomesDasPontas(db, projectId, site, results.filter((a) => a.entidade === 'fluxo').map((a) => JSON.parse(a.dados)));
+    return c.json({ achados, nomes_pontas });
+  } catch (e) { return erro500(c, 'Falha ao ler a fila de revisão', e); }
+});
+
+otApp.post('/sites/:siteId/enviar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const site = c.req.param('siteId');
+    if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
+    if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
+    const v = await validateBody(c, otEnviarAchadosSchema);
+    if (!v.success) return v.response;
+    return responderLote(c, await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { site_id: site }, v.data.achados), projectId, site);
+  } catch (e) { return erro500(c, 'Falha ao enviar os achados para aprovação', e); }
 });
 
 otApp.put('/levantamentos/:id', async (c) => {
@@ -667,7 +728,7 @@ otApp.put('/levantamentos/:id/achados/:aid', async (c) => {
     const a = await db.prepare(`SELECT id, situacao, entidade FROM ot_achados WHERE id = ? AND levantamento_id = ? AND project_id = ?`)
       .bind(c.req.param('aid'), lev.id, projectId).first<{ id: string; situacao: string; entidade: string }>();
     if (!a) return NAO_ENCONTRADO(c, 'Achado');
-    if (a.situacao === 'enviado') return c.json({ error: 'Achado já enviado ao lote' }, 409);
+    if (a.situacao === 'enviado') return c.json({ error: 'Achado já enviado para aprovação' }, 409);
     const v = await validateBody(c, otAchadoAtualizarSchema);
     if (!v.success) return v.response;
     if (await perguntaRuim(db, v.data.pergunta_id)) return refRuim(c, 'pergunta_id');
@@ -683,7 +744,7 @@ otApp.put('/levantamentos/:id/achados/:aid', async (c) => {
     if (!sets.length) return c.json({ ok: true });
     // `situacao <> 'enviado'` de novo no UPDATE: um envio entre a leitura e a escrita não perde a trava.
     const r = await db.prepare(`UPDATE ot_achados SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND situacao <> 'enviado'`).bind(...vals, a.id).run();
-    if (!r.meta.changes) return c.json({ error: 'Achado já enviado ao lote' }, 409);
+    if (!r.meta.changes) return c.json({ error: 'Achado já enviado para aprovação' }, 409);
     await trilha(c, 'ot.achado.editado', projectId, `Achado ${a.id} editado`, { tipo: 'ot_achado', id: a.id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao editar o achado', e); }
@@ -696,9 +757,9 @@ otApp.post('/levantamentos/:id/enviar', async (c) => {
     if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
     const v = await validateBody(c, otEnviarAchadosSchema);
     if (!v.success) return v.response;
-    const r = await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { id: lev.id, site_id: lev.site_id }, v.data.achados);
+    const r = await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { site_id: lev.site_id, levantamento_id: lev.id }, v.data.achados);
     return responderLote(c, r, projectId, lev.site_id, { levantamento_id: lev.id });
-  } catch (e) { return erro500(c, 'Falha ao enviar os achados ao lote', e); }
+  } catch (e) { return erro500(c, 'Falha ao enviar os achados para aprovação', e); }
 });
 
 // ─── conformidade RO-CB.BR.01 calculada do inventário ───────────────────────

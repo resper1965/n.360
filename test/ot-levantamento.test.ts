@@ -186,3 +186,66 @@ describe('revisão do Codex no PR #539', () => {
     expect(levantamentos.filter((l) => l.id.startsWith('lev-massa-')).length).toBe(600);
   });
 });
+
+describe('fila de revisão do site e envio de vários levantamentos', () => {
+  const f: Record<string, string> = {};
+  type Ach = { id: string; levantamento_id: string; levantamento_tipo: string; levantamento_realizado_em: string; situacao: string; dados: { ip?: string } };
+  const fila = (h: H, q: string) => chamar(h, 'GET', `${P}/achados${q}`);
+  beforeAll(async () => {
+    f.site = await criar(cons, 'sites', { nome: 'SE Fila' });
+    f.outro = await criar(cons, 'sites', { nome: 'SE Fila 2' });
+    f.l1 = await criar(cons, 'levantamentos', { site_id: f.site, tipo: 'entrevista', realizado_em: '2026-11-03' });
+    f.l2 = await criar(cons, 'levantamentos', { site_id: f.site, tipo: 'visita', realizado_em: '2026-11-04' });
+    f.l3 = await criar(cons, 'levantamentos', { site_id: f.outro, tipo: 'visita', realizado_em: '2026-11-04' });
+    f.a1 = await criar(cons, `levantamentos/${f.l1}/achados`, { dados: { nome: 'Fila 1', ip: '10.9.9.1' }, evidencia: 'e1' });
+    f.a2 = await criar(cons, `levantamentos/${f.l2}/achados`, { dados: { nome: 'Fila 2', ip: '10.9.9.2' }, evidencia: 'e2' });
+    f.a3 = await criar(cons, `levantamentos/${f.l3}/achados`, { dados: { nome: 'Fila 3' }, evidencia: 'e3' });
+    await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('site-de-b', 'proj-b', 'B')`).run();
+  });
+
+  it('a fila traz os rascunhos de dois levantamentos do site e nenhum de outro site', async () => {
+    const r = await fila(cons, `?site_id=${f.site}`);
+    expect(r.status).toBe(200);
+    const { achados } = await r.json<{ achados: Ach[] }>();
+    expect(achados.map((a) => a.id).sort()).toEqual([f.a1, f.a2].sort());
+    expect(achados.find((a) => a.id === f.a2)).toMatchObject({ levantamento_id: f.l2, levantamento_tipo: 'visita', levantamento_realizado_em: '2026-11-04', situacao: 'rascunho' });
+    expect((await (await fila(cons, `?site_id=${f.site}&situacao=enviado`)).json<{ achados: Ach[] }>()).achados).toEqual([]);
+  });
+
+  it('sem site_id é 400; situacao fora da lista é 400; site de outro projeto ou sem acesso é 404', async () => {
+    expect((await fila(cons, '')).status).toBe(400);
+    expect((await fila(cons, `?site_id=${f.site}&situacao=lixo`)).status).toBe(400);
+    expect((await fila(cons, '?site_id=site-de-b')).status).toBe(404);
+    expect((await fila(tec, `?site_id=${f.site}`)).status).toBe(404);
+  });
+
+  it('papel mascarado recebe o IP mascarado', async () => {
+    const { achados } = await (await fila(tec, `?site_id=${ids.s1}`)).json<{ achados: Ach[] }>();
+    expect(achados.length).toBeGreaterThan(0);
+    const t = JSON.stringify(achados);
+    expect(t).not.toMatch(/10\.1\.1\.(99|77|78)/);
+    expect(t).not.toMatch(/confronto/);
+  });
+
+  it('enviar do site: achados de dois levantamentos viram um lote sem levantamento; achado de outro site é 400 e nada muda', async () => {
+    const enviar = (h: H, site: string, achados: string[]) => chamar(h, 'POST', `${P}/sites/${site}/enviar`, { achados });
+    const ruim = await enviar(cons, f.site, [f.a1, f.a3]);
+    expect(ruim.status).toBe(400);
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_achados WHERE id IN (?, ?) AND situacao = 'rascunho'`).bind(f.a1, f.a3).first()).toEqual({ n: 2 });
+    expect((await enviar(tec, f.site, [f.a1])).status).toBe(403);
+    expect((await enviar(cons, 'site-de-b', [f.a1])).status).toBe(404);
+    const r = await enviar(cons, f.site, [f.a1, f.a2]);
+    expect(r.status, await r.clone().text()).toBe(201);
+    const { id: lote } = await r.json<{ id: string }>();
+    const { results } = await env.DB.prepare('SELECT situacao, lote_id FROM ot_achados WHERE id IN (?, ?)').bind(f.a1, f.a2).all();
+    expect(results).toEqual([{ situacao: 'enviado', lote_id: lote }, { situacao: 'enviado', lote_id: lote }]);
+    expect(await env.DB.prepare('SELECT levantamento_id FROM ot_lotes WHERE id = ?').bind(lote).first()).toEqual({ levantamento_id: null });
+  });
+
+  it('chave de API é recusada nas duas rotas (P0-2)', async () => {
+    for (const [m, u] of [['GET', `${P}/achados?site_id=${f.site}`], ['POST', `${P}/sites/${f.site}/enviar`]]) {
+      const r = await app.fetch(new Request(`http://localhost${u}`, { method: m, headers: { 'X-API-Key': 'qualquer', 'Content-Type': 'application/json' }, body: m === 'POST' ? '{"achados":["x"]}' : undefined }), workerEnv());
+      expect([401, 403]).toContain(r.status);
+    }
+  });
+});

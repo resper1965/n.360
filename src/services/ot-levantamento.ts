@@ -1,6 +1,6 @@
 import type { ChavesOt } from './ot-cifra';
 import { aadOt, decifrarOt } from './ot-cifra';
-import { ativosDoSite, criarLote, indice, prepararItem, zonasDoSite } from './ot-coleta';
+import { ativosDoSite, criarLote, indice, motivoVisivel, prepararItem, zonasDoSite } from './ot-coleta';
 import { serializarAtivo, type LinhaAtivo } from './ot-inventario';
 import { prepararFluxo } from './ot-fluxo-achado';
 import { temPii } from './rascunhos-privacy';
@@ -12,6 +12,18 @@ import { temPii } from './rascunhos-privacy';
 export interface LinhaAchado {
   id: string; project_id: string; levantamento_id: string; entidade: string; dados: string; erros: string; evidencia: string;
   origem: string; situacao: string; lote_id: string | null; created_at: string; pergunta_id: string | null; lote_item_id: string | null;
+  // vêm do LEFT JOIN com ot_lote_itens (DESFECHO_SQL); ausentes quando a leitura não faz o join
+  item_decisao?: string | null; item_registro_id?: string | null; item_motivo?: string | null;
+}
+
+export const DESFECHO_SQL = 'i.decisao AS item_decisao, i.registro_id AS item_registro_id, i.motivo AS item_motivo';
+
+/** O que aconteceu com o achado depois do envio: gravado no inventário, ou recusado com o motivo (null nos demais casos). */
+export function desfechoDe(a: LinhaAchado, completo: boolean) {
+  if (a.situacao === 'enviado' && a.item_decisao === 'gravado') return { desfecho: 'no_inventario' as const, ...(completo && { registro_id: a.item_registro_id ?? null }) };
+  if (a.situacao === 'rascunho' && (a.item_decisao === 'recusado' || a.item_decisao === 'descartado'))
+    return { desfecho: 'recusado' as const, motivo: motivoVisivel(a.item_motivo ?? 'Lote rejeitado', completo) };
+  return { desfecho: null };
 }
 
 /** Valida e cifra. O "nome obrigatório" e a falta do 4.3.1 ficam em `erros` como aviso: achado é rascunho e pode estar incompleto. */
@@ -44,7 +56,7 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
   const d = JSON.parse(a.dados) as Record<string, unknown>;
   if (a.entidade === 'fluxo') {
     return { id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao,
-      lote_id: a.lote_id, evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at,
+      lote_id: a.lote_id, evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a, completo),
       dados: { ...d, ...(d.externo !== undefined && { externo: d.externo === 1 }), ...(d.via_vpn !== undefined && { via_vpn: d.via_vpn === 1 }) },
       ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }) };
   }
@@ -53,7 +65,7 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
   const { id: _i, project_id: _p, ...dados } = await serializarAtivo(linha, completo, chaves, 'ot_achados');
   return {
     id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao, lote_id: a.lote_id,
-    evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, dados,
+    evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, ...desfechoDe(a, completo), dados,
     ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }),
   };
 }
@@ -66,17 +78,19 @@ const PARA_BRUTO = ['nome', 'zona_id', 'no_arciber', 'categoria_arciber', 'tipo_
  * dois envios simultâneos do mesmo achado não criam dois lotes; se o lote falha, os achados tomados voltam a rascunho.
  */
 export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id: string }, projectId: string,
-  lev: { id: string; site_id: string }, achadoIds: string[]) {
+  alvo: { site_id: string; levantamento_id?: string }, achadoIds: string[]) {
   const ids = JSON.stringify([...new Set(achadoIds)]);
   const { results } = await db.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
-    WHERE project_id = ? AND levantamento_id = ? AND situacao = 'rascunho' AND id IN (SELECT value FROM json_each(?)) RETURNING *`)
-    .bind(projectId, lev.id, ids).all<LinhaAchado>();
+    WHERE project_id = ? AND ${alvo.levantamento_id ? 'levantamento_id = ?'
+      : `levantamento_id IN (SELECT id FROM ot_levantamentos WHERE project_id = ?1 AND site_id = ? AND status = 'ativo')`} AND situacao = 'rascunho'
+    AND id IN (SELECT value FROM json_each(?)) RETURNING *`)
+    .bind(projectId, alvo.levantamento_id ?? alvo.site_id, ids).all<LinhaAchado>();
   const tomados = JSON.stringify(results.map((a) => a.id));
   const devolver = () => db.prepare(`UPDATE ot_achados SET situacao = 'rascunho', updated_at = CURRENT_TIMESTAMP
     WHERE situacao = 'enviado' AND lote_id IS NULL AND id IN (SELECT value FROM json_each(?))`).bind(tomados).run();
   if (results.length !== new Set(achadoIds).size) {
     if (results.length) await devolver();
-    return { ok: false as const, status: 400 as const, error: 'Achado inexistente, de outra sessão ou já enviado' };
+    return { ok: false as const, status: 400 as const, error: 'Achado inexistente, de outro levantamento ou já enviado' };
   }
   let r: Awaited<ReturnType<typeof criarLote>>;
   try {
@@ -98,7 +112,9 @@ export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id:
       }
       brutos.push(b);
     }
-    r = await criarLote(db, chaves, ator, projectId, lev.site_id, 'manual', brutos, lev.id, entidades);
+    // Sem alvo.levantamento_id (envio do site): o lote só liga a um levantamento se todos os achados vieram dele.
+    const levs = new Set(results.map((a) => a.levantamento_id));
+    r = await criarLote(db, chaves, ator, projectId, alvo.site_id, 'manual', brutos, alvo.levantamento_id ?? (levs.size === 1 ? [...levs][0] : null), entidades);
   } catch (e) {
     await devolver();
     throw e;

@@ -86,7 +86,7 @@ const ABAS_OT = {
     { codigo: '5.1.1', titulo: 'Tratamento de exceções', prazo_meses: null, prazo_em: null, situacao: 'sem_evidencia', evidencia: 'Fora do que o inventário registra' }] },
 };
 
-test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo guardado e saídas sem "atende"', async ({ page }) => {
+test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guardado e saídas sem "atende"', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   await page.route(`**${B}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -106,7 +106,7 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
 
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 
-  await page.getByRole('tab', { name: 'Lote de aprovação' }).click();
+  await page.getByRole('tab', { name: 'Revisão e aprovação' }).click();
   await expect(page.locator('#ot-coleta-privacidade')).toContainText('o arquivo original não é guardado');
   await expect(conteudo).toContainText('Em revisão');
 
@@ -122,9 +122,9 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
   await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeVisible();
 });
 
-// Spec do Levantamento §9: abrir a sessão, registrar um achado e enviá-lo ao lote; o POST de envio leva só os ids marcados
-// e a tela vai ao lote criado na Coleta. API mockada com estado (o achado registrado volta no GET seguinte).
-test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre na Coleta', async ({ page }) => {
+// Spec do Levantamento §9: abrir o levantamento, registrar um achado e enviá-lo para aprovação; o POST de envio leva só os ids marcados
+// e a tela vai ao lote criado. API mockada com estado (o achado registrado volta no GET seguinte).
+test('levantamento: abre o levantamento, registra um achado e envia para aprovação, que abre no lote de aprovação', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0] };
   const achados = [];
@@ -182,19 +182,19 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
   expect(criado).toMatchObject({ entidade: 'fluxo', pergunta_id: 'rot-01', dados: { origem_ativo_id: 'a1', protocolo: 'HTTPS', porta: 443, externo: true, via_vpn: true } });
   expect(criado.dados).not.toHaveProperty('destino_ativo_id');
 
-  await page.getByRole('checkbox', { name: 'Enviar Notebook IHM ao lote' }).check();
-  await page.getByRole('checkbox', { name: 'Enviar RTU-01 → Fora da empresa ao lote' }).check();
-  await page.locator('#header-actions').getByRole('button', { name: 'Enviar ao lote' }).click();
+  await page.getByRole('checkbox', { name: 'Enviar Notebook IHM para aprovação' }).check();
+  await page.getByRole('checkbox', { name: 'Enviar RTU-01 → Fora da empresa para aprovação' }).check();
+  await page.locator('#header-actions').getByRole('button', { name: 'Enviar para aprovação' }).click();
   await expect(page.locator('.confirmar')).toContainText('1 ativo e 1 fluxo');
-  await page.locator('.confirmar').getByRole('button', { name: 'Enviar ao lote' }).click();
-  await expect(page.getByRole('tab', { name: 'Lote de aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await page.locator('.confirmar').getByRole('button', { name: 'Enviar para aprovação' }).click();
+  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de');
   await expect(conteudo).toContainText('Notebook IHM');
   await expect(conteudo).toContainText('Fluxo: RTU-01 → Fora da empresa');
   expect(envio).toEqual({ achados: ['ach1', 'ach2'] });
 });
 
-// L4 (de-para, src/routes/ot-depara.ts): sessão documento → importar CSV → proposta pelo nome da coluna → criar achados.
+// L4 (de-para, src/routes/ot-depara.ts): levantamento documento → importar CSV → proposta pelo nome da coluna → criar achados.
 // O mesmo arquivo vai nas duas chamadas; o achado sugerido pela IA (origem ia) traz o selo.
 test('levantamento documento: importa CSV pelo de-para e os achados aparecem', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
@@ -286,7 +286,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
   await expect(page.locator('#modal')).toContainText('1 ativo e 1 conexão no resumo.');
   await page.locator('#modal').getByRole('button', { name: 'Criar achados' }).click();
   await expect(page.locator('body')).toContainText('1 ativo novo');
-  await expect(page.locator('body')).toContainText('1 fluxo espera a aprovação dos ativos novos');
+  await expect(page.locator('body')).toContainText('1 fluxo aguardando ativo');
   await expect(conteudo.locator('tr', { hasText: 'Ativo 10.1.1.10' }).locator('.badge', { hasText: 'Sensor de rede' })).toBeVisible();
   expect(enviados).toHaveLength(1);
   expect(enviados[0]).toContain('"formato":"n.ot-resumo-rede/1"');
@@ -418,7 +418,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
 
   // Os pontos que a sonda trouxe seguem no topo do Levantamento (Modo projeto).
   await noSite(page, 'projeto', 'Levantamento');
-  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Pontos a esclarecer');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('Achados da sonda para revisar');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
 });
 
@@ -483,7 +483,7 @@ test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abr
   await expect(conteudo).toContainText('Lote de aprovação em SE Norte');
   await page.getByRole('button', { name: 'Abrir lote' }).click();
   await expect(page.getByRole('heading', { name: 'SE Norte' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Lote de aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de planilha · SE Norte'); // o lote l1 do mock, aberto por otIrParaLote
   await expect(conteudo).toContainText('Em revisão');
 });
@@ -508,4 +508,102 @@ test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a
   await expect(page.locator('tbody tr[aria-current="true"]')).toContainText('CLP-01');
   await expect(page.locator('tbody tr[aria-current="true"]')).toHaveCount(1);
   await expect(page).toHaveURL(/modo=operacao/);
+});
+
+// Fluidez E2: na Revisão e aprovação do site, marcar achados de levantamentos diferentes e enviar de uma vez; o lote abre.
+test('revisão: marca achados de dois levantamentos, envia para aprovação e o lote abre', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  const fila = [
+    { id: 'r1', levantamento_id: 'lv1', levantamento_tipo: 'entrevista', levantamento_data: '2026-11-01', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', evidencia: 'visto na sala', dados: { nome: 'Notebook IHM' }, desfecho: null },
+    { id: 'r2', levantamento_id: 'lv2', levantamento_tipo: 'visita', levantamento_data: '2026-11-03', entidade: 'ativo', origem: 'ia', situacao: 'rascunho', evidencia: 'planilha', dados: { nome: 'Câmera CFTV' }, desfecho: null }];
+  let envio;
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/achados`) return json({ achados: fila, nomes_pontas: {} });
+    if (chave === `POST ${B}/sites/s1/enviar`) { envio = req.postDataJSON(); return json({ id: 'lote-rev', itens: 2 }, 201); }
+    if (chave === `GET ${B}/lotes/lote-rev`) {
+      return json({ lote: { id: 'lote-rev', site_id: 's1', fonte: 'manual', status: 'em_revisao', criado_por: 'u1', created_at: '2026-11-11 10:00:00', motivo: null },
+        itens: fila.map((x, n) => ({ id: `i${n + 1}`, linha: n + 1, entidade: x.entidade, dados: x.dados, erros: [], decisao: 'pendente', duplicata_de: null })), nomes_pontas: {} });
+    }
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  const conteudo = page.locator('#content');
+  await noSite(page, 'projeto', 'Revisão e aprovação');
+  await expect(conteudo).toContainText('Notebook IHM');
+  await expect(conteudo).toContainText('Câmera CFTV');
+  await expect(page.getByRole('button', { name: 'Enviar para aprovação (0)' })).toBeDisabled();
+  await page.getByRole('checkbox', { name: 'Enviar Notebook IHM para aprovação' }).check();
+  await page.getByRole('checkbox', { name: 'Enviar Câmera CFTV para aprovação' }).check();
+  await page.getByRole('button', { name: 'Enviar para aprovação (2)' }).click();
+  await expect(page.locator('.confirmar')).toContainText('Enviar 2 achados para aprovação?');
+  await page.locator('.confirmar').getByRole('button', { name: 'Enviar para aprovação' }).click();
+  await expect(conteudo).toContainText('Notebook IHM');
+  await expect(conteudo).toContainText('Lote de');
+  expect(envio).toEqual({ achados: ['r1', 'r2'] });
+});
+
+// Fluidez E2: o gestor recusa um item com motivo, aprova os restantes e o lote conclui; o levantamento mostra o desfecho de cada achado.
+test('decisão: o gestor recusa um item com motivo, aprova o restante e o levantamento mostra o desfecho', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0] };
+  const lote = { id: 'lote-d', site_id: 's1', fonte: 'manual', status: 'em_revisao', criado_por: 'u-tec', created_at: new Date().toISOString().slice(0, 19).replace('T', ' '), motivo: null };
+  const itens = [{ id: 'i1', linha: 1, entidade: 'ativo', dados: { nome: 'Notebook IHM' }, erros: [], decisao: 'pendente', duplicata_de: null, motivo: null },
+    { id: 'i2', linha: 2, entidade: 'ativo', dados: { nome: 'Câmera CFTV' }, erros: [], decisao: 'pendente', duplicata_de: null, motivo: null }];
+  const achados = [{ id: 'a1', levantamento_id: 'lv1', entidade: 'ativo', origem: 'consultor', situacao: 'enviado', lote_id: 'lote-d', evidencia: 'e1', erros: [], dados: { nome: 'Notebook IHM' }, desfecho: null },
+    { id: 'a2', levantamento_id: 'lv1', entidade: 'ativo', origem: 'consultor', situacao: 'enviado', lote_id: 'lote-d', evidencia: 'e2', erros: [], dados: { nome: 'Câmera CFTV' }, desfecho: null }];
+  let recusa, aprovado = false;
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/achados`) return json({ achados: [], nomes_pontas: {} });
+    if (chave === `GET ${B}/lotes`) return json({ lotes: [{ ...lote, itens: 2, com_erro: 0, gravados: itens.filter((i) => i.decisao === 'gravado').length }] });
+    if (chave === `GET ${B}/lotes/lote-d`) return json({ lote, itens, nomes_pontas: {} });
+    if (chave === `POST ${B}/lotes/lote-d/itens/i1/recusar`) {
+      recusa = req.postDataJSON();
+      itens[0] = { ...itens[0], decisao: 'recusado', motivo: recusa.motivo };
+      achados[0] = { ...achados[0], desfecho: 'recusado', motivo: recusa.motivo };
+      return json({ ok: true });
+    }
+    if (chave === `POST ${B}/lotes/lote-d/aprovar`) {
+      aprovado = true;
+      lote.status = 'concluido';
+      itens[1] = { ...itens[1], decisao: 'gravado' };
+      achados[1] = { ...achados[1], desfecho: 'no_inventario', registro_id: 'a9' };
+      return json({ criados: 1, atualizados: 0, recusados: 1, fluxos_pendentes_resolvidos: 0 });
+    }
+    if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados, nomes_pontas: {}, ativos_do_site: [] });
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  const conteudo = page.locator('#content');
+  await noSite(page, 'projeto', 'Revisão e aprovação');
+  await page.getByRole('button', { name: /^Revisar lote/ }).click();
+  await expect(conteudo).toContainText('Decidir até');
+  await expect(page.getByRole('button', { name: 'Aprovar lote' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Recusar a linha 1' }).click();
+  await page.locator('.confirmar input, .confirmar textarea').first().fill('Equipamento pessoal, fora do escopo');
+  await page.locator('.confirmar').getByRole('button', { name: 'Recusar', exact: true }).click();
+  expect(recusa).toEqual({ motivo: 'Equipamento pessoal, fora do escopo' });
+  await expect(conteudo).toContainText('Equipamento pessoal, fora do escopo');
+  await page.getByRole('button', { name: 'Aprovar os restantes (1)' }).click();
+  await page.locator('.confirmar').getByRole('button', { name: 'Aprovar', exact: true }).click();
+  await expect.poll(() => aprovado).toBe(true);
+  await expect(page.getByRole('button', { name: /^Aprovar/ })).toHaveCount(0);
+  await expect(conteudo).toContainText('Concluído');
+
+  await page.getByRole('tab', { name: 'Levantamento', exact: true }).click();
+  await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
+  await expect(conteudo).toContainText('Recusado: Equipamento pessoal, fora do escopo');
+  await expect(conteudo).toContainText('No inventário');
 });

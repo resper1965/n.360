@@ -2,7 +2,8 @@ import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
-import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo } from '../ot-comum.js';
+import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, dataDoSqlite } from '../ot-comum.js';
+import { hojeSP, emDiasSP } from '../hoje.js';
 
 // Coleta do n.ot (N3; spec §7, P0-3, P0-5): planilha (multipart `file` + `site_id`) e entrada manual caem em lotes que outra pessoa
 // revisa antes do inventário. A duplicata aparece como a API devolve (`possivel_duplicata`); quem não vê completo não recebe o alvo.
@@ -27,14 +28,14 @@ const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo orig
 
 let fixo = null; // site fixo da tela do site: recorta os lotes e tira o seletor de site
 
-export async function montarColeta(c, a, p, { siteFixo } = {}) {
+export async function montarColeta(c, a, p, { siteFixo, semPrimario } = {}) {
     fixo = siteFixo || null;
     let lotes;
     try {
         const [s, l] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/lotes`)]);
         sites = lista(s, 'sites'); lotes = lista(l, 'lotes');
         if (fixo) { sites = sites.filter((x) => x.id === fixo); lotes = lotes.filter((x) => x.site_id === fixo); }
-    } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a coleta do n.ot.', e); return; }
+    } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os lotes de aprovação do n.ot.', e); return; }
     if (S.otLote) { await montarLote(c, a, S.otLote); return; }
     const criar = podeCriarLote() && sites.length;
     // Secundário: sem a lista de sessões, a planilha só não se liga a um documento.
@@ -48,16 +49,16 @@ export async function montarColeta(c, a, p, { siteFixo } = {}) {
             ${campoSite('ot-lote-site', ' data-action-change="otLoteSite" data-arg-val')}
             <div class="form-group"><label class="form-label" for="ot-lote-doc">Ligar a um documento (opcional)</label><select class="form-input" id="ot-lote-doc">${opcoesDoc(siteLote)}</select></div>
             <div class="form-group"><label class="form-label" for="ot-lote-arquivo">Planilha (CSV ou XLSX, até 5 MB)</label><input class="form-input" type="file" id="ot-lote-arquivo" accept=".csv,.xlsx"></div>
-            <button class="btn btn-primary" data-action="otEnviarPlanilha">Enviar planilha</button></div>
+            <button class="btn${semPrimario ? '' : ' btn-primary'}" data-action="otEnviarPlanilha">Enviar planilha</button></div>
         <p class="org-dica">Colunas reconhecidas pelo cabeçalho: nome, ip, mac, fabricante, modelo, tipo, funcao, protocolos, firmware, arciber, categoria, zona. As demais são ignoradas.</p></div>` : '';
     c.innerHTML = `<p class="org-header-intro" id="ot-coleta-privacidade">${escapeHTML(PRIVACIDADE)}</p>
-        ${!sites.length ? renderEmptyState({ titulo: 'Nenhum site disponível para coleta', texto: 'A coleta é por site. Cadastre o site no Inventário ou peça a quem administra o n.ot o acesso ao seu site.' }) : envio}
+        ${!sites.length ? renderEmptyState({ titulo: 'Nenhum site disponível para o lote de aprovação', texto: 'O lote de aprovação é por site. Cadastre o site no Inventário ou peça a quem administra o n.ot o acesso ao seu site.' }) : envio}
         <h3 class="mb-3">Lotes</h3>
         ${renderDataTable(['Criado em', 'Site', 'Fonte', 'Situação', 'Itens', 'Com erro', 'Gravados', 'Ações'], lotes.map((l) => [
         escapeHTML(formatarData(l.created_at, { hora: true })), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(FONTE[l.fonte] || l.fonte), selo(STATUS, l.status),
         escapeHTML(String(l.itens ?? 0)), escapeHTML(String(l.com_erro ?? 0)), escapeHTML(String(l.gravados ?? 0)),
         `<button class="btn btn-sm" data-action="otAbrirLote" data-args='${args(l.id)}' aria-label="${escapeHTML(`Revisar lote de ${formatarData(l.created_at, { hora: true })}`)}">Revisar</button>`,
-    ]), { emptyMessage: 'Nenhum lote de coleta.', emptyHint: criar ? 'Envie uma planilha ou registre ativos pela entrada manual.' : 'Os lotes aparecem aqui quando alguém envia a coleta de um site.' })}`;
+    ]), { emptyMessage: 'Nenhum lote de aprovação.', emptyHint: criar ? 'Envie uma planilha ou registre ativos pela entrada manual.' : 'Os lotes aparecem aqui quando alguém envia ativos de um site.' })}`;
 }
 
 const opcoesDoc = (siteId) => `<option value="">Nenhum</option>${opcoes(documentos.filter((d) => d.site_id === siteId).map((d) => [d.id, d.documento_titulo || d.realizado_em]))}`;
@@ -132,6 +133,10 @@ window.otManualEnviar = async () => {
     } catch (e) { falhou(e, 'Não foi possível criar o lote.'); }
 };
 
+/** Todo item decidido foi recusado e nada resta pendente: aprovar não grava nada, só conclui o lote. */
+const todosRecusados = (itens) => itens.some((i) => i.decisao === 'recusado') && !itens.some((i) => i.decisao === 'pendente');
+const qtd = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+const PRAZO_DIAS = 7;
 // ─── revisão do lote ────────────────────────────────────────────────────────
 async function montarLote(c, a, id) {
     let r;
@@ -144,25 +149,41 @@ async function montarLote(c, a, id) {
     // A API aprova só quem vê completo (podeAprovar = podeVerCompleto): item mascarado diz que não é o caso (o consultoria_admin não designado).
     const aprova = podeAprovarOt() && !itens.some((i) => i.entidade !== 'fluxo' && i.dados?.mascarado === true);
     const decide = emRevisao && aprova && !criou;
+    const recusados = itens.filter((i) => i.decisao === 'recusado').length;
+    const restantes = itens.filter((i) => i.decisao === 'pendente').length;
     a.innerHTML = '<button class="btn" data-action="otVoltarLotes">Voltar aos lotes</button>'
-        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>Aprovar lote</button>` : '');
+        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>${todosRecusados(itens) ? 'Concluir lote' : recusados ? `Aprovar os restantes (${restantes})` : 'Aprovar lote'}</button>` : '');
+    let prazo = '';
+    const criado = emRevisao ? dataDoSqlite(lote.created_at) : null;
+    if (criado) {
+        const limite = emDiasSP(PRAZO_DIAS, criado);
+        const dias = Math.round((Date.parse(`${limite}T00:00:00Z`) - Date.parse(`${hojeSP()}T00:00:00Z`)) / 86400000);
+        const [, m, d] = limite.split('-');
+        prazo = ` Decidir até ${d}/${m} (${dias < 0 ? 'prazo vencido' : `faltam ${qtd(dias, 'dia', 'dias')}`}).`;
+    }
+    const decisao = (i) => {
+        const rot = escapeHTML(DECISAO[i.decisao] || i.decisao);
+        if (i.decisao === 'recusado' && i.motivo) return `${rot}: ${escapeHTML(i.motivo)}`;
+        if (i.decisao === 'gravado') return `${rot} <button class="btn btn-sm" data-action="otVerNoInventario" data-args='${args(lote.site_id)}' aria-label="${escapeHTML(`Ver no inventário a linha ${i.linha}`)}">Ver no inventário</button>`;
+        if (i.decisao === 'pendente' && decide) return `${rot} <button class="btn btn-sm" data-action="otRecusarItem" data-args='${args(lote.id, i.id)}' aria-label="${escapeHTML(`Recusar a linha ${i.linha}`)}">Recusar</button>`;
+        return rot;
+    };
     const aviso = !emRevisao ? '' : criou ? 'Você criou este lote: a aprovação é de outra pessoa.'
         : !aprova ? 'A aprovação é do Gestor ARCiber ou do consultor do projeto.' : 'Aprovar grava no inventário os itens sem erro (a possível duplicata é mesclada no ativo existente) e registra você como quem verificou (4.3.1) só nos itens que trazem todos os campos do 4.3.1. Itens com erro são recusados.';
     c.innerHTML = `<h3 class="mb-2">Lote de ${escapeHTML((FONTE[lote.fonte] || lote.fonte).toLowerCase())} · ${escapeHTML(nomeDe(sites, lote.site_id))} ${selo(STATUS, lote.status)}</h3>
-        <p class="org-dica mb-3">Criado em ${escapeHTML(formatarData(lote.created_at, { hora: true }))}.${lote.motivo ? ` Motivo: ${escapeHTML(lote.motivo)}` : ''} ${escapeHTML(aviso)}</p>
+        <p class="org-dica mb-3">Criado em ${escapeHTML(formatarData(lote.created_at, { hora: true }))}.${lote.motivo ? ` Motivo: ${escapeHTML(lote.motivo)}` : ''}${escapeHTML(prazo)} ${escapeHTML(aviso)}</p>
         ${renderDataTable(['Linha', 'Nome', 'Tipo', 'Fabricante', 'IP', 'MAC', 'Erros', 'Duplicata', 'Decisão'], itens.map((i) => {
         const d = i.dados || {};
         if (i.entidade === 'fluxo') {
             return [escapeHTML(String(i.linha)), escapeHTML(`Fluxo: ${rotaDoFluxo(d, r.nomes_pontas)}`), '—', '—', '—', '—', listaDeErros(i.erros, 't-perigo'),
-                i.possivel_duplicata ? renderStatusBadge('warning', 'Atualiza fluxo existente') : '—', escapeHTML(DECISAO[i.decisao] || i.decisao)];
+                i.possivel_duplicata ? renderStatusBadge('warning', 'Atualiza fluxo existente') : '—', decisao(i)];
         }
         return [escapeHTML(String(i.linha)), escapeHTML(d.nome || '—'), escapeHTML(d.tipo_dispositivo || '—'), escapeHTML(d.fabricante || '—'),
             `<span class="f-mono">${escapeHTML(d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(d.mac ?? '—')}</span>`, listaDeErros(i.erros, 't-perigo'),
-            i.possivel_duplicata ? renderStatusBadge('warning', `Possível duplicata de ${nomeDoAtivo(i.duplicata_de)}`) : '—', escapeHTML(DECISAO[i.decisao] || i.decisao)];
+            i.possivel_duplicata ? renderStatusBadge('warning', `Possível duplicata de ${nomeDoAtivo(i.duplicata_de)}`) : '—', decisao(i)];
     }), { emptyMessage: 'Lote sem itens.' })}`;
 }
 
-const qtd = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 /** O que a aprovação vai fazer, contado dos itens pendentes que a tela já tem. Sem a duplicata (quem não vê completo), só sem erro e com erro. */
 function resumoDaAprovacao(itens) {
     const pend = itens.filter((i) => i.decisao === 'pendente');
@@ -175,13 +196,15 @@ function resumoDaAprovacao(itens) {
         + `${qtd(comErro, 'recusado por erro', 'recusados por erro')}.`;
 }
 window.otAprovarLote = async (id) => {
-    if (!await confirmar(`${resumoDaAprovacao(itensDoLote)} Você fica registrado como quem verificou.`, { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
+    const nenhum = todosRecusados(itensDoLote);
+    if (!await confirmar(nenhum ? 'Todos os itens foram recusados: nada vai para o inventário e o lote fica concluído.' : `${resumoDaAprovacao(itensDoLote)} Você fica registrado como quem verificou.`,
+        nenhum ? { titulo: 'Concluir lote', rotulo: 'Concluir' } : { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/aprovar`);
         showToast(`Lote aprovado: ${r.criados} criado(s), ${r.atualizados} atualizado(s), ${r.recusados} recusado(s).`
             + (r.fluxos_pendentes_resolvidos > 0 ? ` ${r.fluxos_pendentes_resolvidos} fluxo(s) do sensor de rede viraram achados no levantamento de origem.` : ''), 'success');
         window.render();
-    } catch (e) { falhou(e, 'Não foi possível aprovar o lote.'); }
+    } catch (e) { falhou(e, 'Não foi possível aprovar o lote.'); window.render(); }
 };
 window.otRejeitarLote = async (id) => {
     const motivo = await pedirTexto('Por que rejeitar o lote? O motivo vai para a trilha de auditoria.', { titulo: 'Rejeitar lote', rotulo: 'Rejeitar' });
@@ -190,5 +213,15 @@ window.otRejeitarLote = async (id) => {
     try {
         await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/rejeitar`, { motivo });
         showToast('Lote rejeitado.', 'success'); window.render();
-    } catch (e) { falhou(e, 'Não foi possível rejeitar o lote.'); }
+    } catch (e) { falhou(e, 'Não foi possível rejeitar o lote.'); window.render(); }
 };
+window.otRecusarItem = async (id, item) => {
+    const motivo = await pedirTexto('Por que recusar este item? O motivo fica no item e na trilha de auditoria.', { titulo: 'Recusar item', rotulo: 'Recusar' });
+    if (motivo === null) return;
+    if (motivo.length < 3 || motivo.length > 500) { showToast('O motivo precisa ter de 3 a 500 caracteres.', 'error'); return; }
+    try {
+        await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/itens/${encodeURIComponent(item)}/recusar`, { motivo });
+        showToast('Item recusado.', 'success'); window.render();
+    } catch (e) { falhou(e, 'Não foi possível recusar o item.'); window.render(); }
+};
+window.otVerNoInventario = (site) => window.otTela('site', site, 'projeto', { otSub: 'base' });

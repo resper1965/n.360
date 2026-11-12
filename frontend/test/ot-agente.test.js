@@ -67,7 +67,7 @@ describe('cartão Agente de coleta', () => {
 
     it('diz o que o agente faz, com o aviso do modelo em negrito, e lista as chaves escapadas', async () => {
         await abrir({ [`GET ${B}/agente`]: AGENTE({ ligado: true }), [`GET ${B}/agente/chaves`]: CHAVES });
-        expect(cartao().textContent).toContain('Um agente externo (Claude Code, Cursor) lê os arquivos na sua máquina e grava achados em rascunho aqui. Ele não lê o inventário e não envia ao lote.');
+        expect(cartao().textContent).toContain('Um agente externo (Claude Code, Cursor) lê os arquivos na sua máquina e grava achados em rascunho aqui. Ele não lê o inventário e não envia para aprovação.');
         expect(cartao().querySelector('strong').textContent).toBe('Os arquivos passam pelo modelo do agente antes de chegar ao n.ot, sem a máscara do n.ot.');
         expect(el('xss')).toBeNull();
         expect(cartao().textContent).toContain('Notebook <b id="xss">x</b>');

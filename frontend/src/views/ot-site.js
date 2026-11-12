@@ -4,7 +4,7 @@ import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderAbas
 import { podeEditarOt, lista, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
 import { montarInventario, montarFluxos, formSite } from './ot.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
-import { montarColeta } from './ot-coleta.js';
+import { montarRevisao } from './ot-revisao.js';
 import { montarDesvios } from './ot-desvios.js';
 import { areaSondas, preencherCartoes } from './ot-sensores.js';
 
@@ -13,7 +13,7 @@ import { areaSondas, preencherCartoes } from './ot-sensores.js';
 
 export const SUBS = { projeto: ['levantamento', 'aprovacao', 'base'], operacao: ['saude', 'desvios', 'inventario'] };
 const MODOS = [['projeto', 'Modo projeto'], ['operacao', 'Modo operação']];
-const ROTULO = { levantamento: 'Levantamento', aprovacao: 'Lote de aprovação', base: 'Base', saude: 'Saúde da coleta', desvios: 'Desvios', inventario: 'Inventário' };
+const ROTULO = { levantamento: 'Levantamento', aprovacao: 'Revisão e aprovação', base: 'Base', saude: 'Saúde da coleta', desvios: 'Desvios', inventario: 'Inventário' };
 
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 let sitesDaLista = [];
@@ -75,7 +75,7 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     const painel = c.querySelector('#ot-site-painel');
     const o = { siteFixo: site };
     if (sub === 'levantamento') await montarLevantamento(painel, a, p, o);
-    else if (sub === 'aprovacao') await montarColeta(painel, a, p, o);
+    else if (sub === 'aprovacao') await montarRevisao(painel, a, p, o);
     else if (sub === 'base') await montarBase(painel, a, p, o);
     else if (sub === 'inventario') await montarInventario(painel, a, p, o);
     else if (sub === 'desvios') await montarDesvios(painel, a, p, { ...o, destacar: desvio });
