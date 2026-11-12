@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir, classePrimario } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 import { preencherCartoes } from './ot-sensores.js';
 
@@ -37,8 +37,9 @@ let perguntaDoAchado = null;
 
 let fixo = null; // site fixo da tela do site: recorta a lista e tira o seletor de site do formulário
 
-export async function montarLevantamento(c, a, p, { siteFixo } = {}) {
-    fixo = siteFixo || null;
+let semPri = false;
+export async function montarLevantamento(c, a, p, { siteFixo, semPrimario } = {}) {
+    fixo = siteFixo || null; semPri = !!semPrimario;
     if (S.otLevantamento) { await montarSessao(c, a, p, S.otLevantamento); return; }
     let levs;
     try {
@@ -46,7 +47,7 @@ export async function montarLevantamento(c, a, p, { siteFixo } = {}) {
         sites = lista(s, 'sites'); levs = lista(l, 'levantamentos');
         if (fixo) { sites = sites.filter((x) => x.id === fixo); levs = levs.filter((x) => x.site_id === fixo); }
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os levantamentos do n.ot.', e); return; }
-    if (podeCriarLote() && sites.length) a.innerHTML = '<button class="btn" data-action="otTrazerDados">Trazer dados</button><button class="btn btn-primary" data-action="otNovoLevantamento">+ Novo levantamento</button>';
+    if (podeCriarLote() && sites.length) a.innerHTML = '<button class="btn" data-action="otTrazerDados">Trazer dados</button>' + `<button class="${classePrimario(semPri)}" data-action="otNovoLevantamento">+ Novo levantamento</button>`;
     c.innerHTML = `<div id="ot-cartoes-slot"></div><p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
         ${renderDataTable(['Tipo', 'Data', 'Quem ou documento', 'Site', 'Achados', 'Situação', 'Ações'], levs.map((l) => [
         escapeHTML(TIPO[l.tipo] || l.tipo), escapeHTML(formatarData(l.realizado_em)), quem(l), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(String(l.achados ?? 0)), situacao(l),
@@ -131,7 +132,7 @@ async function montarSessao(c, a, p, id) {
         + (editar ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
         + (editar && aberto ? '<button class="btn" data-action="otNovoAchado">Registrar achado</button>' : '')
         + (podeCriarLote() && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
-        + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar para aprovação</button>' : '');
+        + (editar && rascunhos.length ? `<button class="${classePrimario(semPri)}" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar para aprovação</button>` : '');
 
     const doTipo = perguntas.filter((q) => Array.isArray(q.tipos_sessao) && q.tipos_sessao.includes(l.tipo));
     const roteiro = !doTipo.length ? '' : `<h3 class="mb-3">Roteiro</h3>

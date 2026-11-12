@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderEmptyState } from '../ui.js';
-import { lista, podeAprovarOt, podeEditarOt, dataDoSqlite } from '../ot-comum.js';
+import { lista, podeAprovarOt, podeEditarOt, ehGestor, dataDoSqlite } from '../ot-comum.js';
 import { emDiasSP } from '../hoje.js';
 
 // n.ot, tela Início (spec 2026-11-11 fluidez §2): "Espera por você", Sites e Postura RO-CB.BR.01. Clique pela delegação:
@@ -9,11 +9,13 @@ import { emDiasSP } from '../hoje.js';
 
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const PRAZO_DIAS = 7;
+const FASE = { em_levantamento: 'Em levantamento', base_em_aprovacao: 'Base em aprovação', em_operacao: 'Em operação', em_obra: 'Em obra' };
+const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Em operação' };
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const alvo = (site, modo, lote) => ({ tela: 'site', site, modo, ...(lote ? { lote } : {}) });
 
 /** Linhas de "Espera por você" para o papel de quem olha. Pura: recebe os dados já lidos. `sites` mapeia id → nome. */
-export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite = {}, sondas = [], sites = {} }, { id, podeAprovar, podeEditar }) {
+export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite = {}, sondas = [], sites = {}, situacoes = {} }, { id, podeAprovar, podeEditar, gestor }) {
     const nome = (s) => sites[s] || 'site';
     const out = [];
     if (podeAprovar) {
@@ -25,6 +27,9 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
         const porSite = {};
         for (const d of desvios) porSite[d.site_id] = (porSite[d.site_id] || 0) + 1;
         for (const [s, n] of Object.entries(porSite)) out.push({ tipo: 'desvio', texto: `${plural(n, 'desvio aberto', 'desvios abertos')} em ${nome(s)}`, acao: { ...alvo(s, 'operacao'), extra: { otSub: 'desvios' } } });
+    }
+    if (gestor) {
+        for (const [s] of Object.entries(situacoes).filter(([, x]) => x?.proximo_passo === 'aguardar_base')) out.push({ tipo: 'base', texto: `Base de ${nome(s)} aguardando sua aprovação`, acao: alvo(s, 'projeto') });
     }
     if (podeEditar) {
         for (const [s, n] of Object.entries(rascunhosPorSite).filter(([, n]) => n > 0)) out.push({ tipo: 'rascunho', texto: `${plural(n, 'achado em rascunho', 'achados em rascunho')} em ${nome(s)}`, acao: { ...alvo(s, 'projeto'), extra: { otSub: 'aprovacao' } } });
@@ -57,9 +62,13 @@ export async function montarInicio(c, a, p) {
     const rQ = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${encodeURIComponent(s.id)}&situacao=rascunho&contagem=1`)));
     const rascunhosPorSite = {};
     sitesL.forEach((s, i) => { if (rQ[i].status === 'fulfilled') rascunhosPorSite[s.id] = rQ[i].value?.total ?? 0; });
+    // situação (fase e próximo passo) de cada site; a que falha deixa a linha com "—"
+    const rSit = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(s.id)}/situacao`)));
+    const situacoes = {};
+    sitesL.forEach((s, i) => { if (rSit[i].status === 'fulfilled') situacoes[s.id] = rSit[i].value; });
     const desvios = v(rD, 'desvios');
-    const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, rascunhosPorSite, sondas, sites },
-        { id: S.user?.id, podeAprovar: podeAprovarOt() && S.user?.role !== 'consultoria_admin', podeEditar: podeEditarOt() });
+    const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, rascunhosPorSite, sondas, sites, situacoes },
+        { id: S.user?.id, podeAprovar: podeAprovarOt() && S.user?.role !== 'consultoria_admin', podeEditar: podeEditarOt(), gestor: ehGestor() });
 
     const falhou = [rL, rD, ...rQ].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';
     const espera = pend.length
@@ -70,8 +79,9 @@ export async function montarInicio(c, a, p) {
     const sit = (s) => sondas.filter((x) => x.site_id === s).map((x) => x.saude || x.situacao);
     const pior = (s) => { const t = sit(s); return ['parada', 'atrasada'].find((x) => t.includes(x)); };
     const blocoSites = rS.status === 'rejected' ? '<p class="org-dica" role="alert">Não foi possível carregar os sites.</p>' : sitesL.length
-        ? renderDataTable(['Site', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome),
-            escapeHTML(String(abertos[s.id] || 0)), escapeHTML(pior(s.id) || (sondas.some((x) => x.site_id === s.id) ? 'em dia' : '—')), botao('Abrir', `Abrir ${s.nome}`, 'otTela', 'site', s.id, 'projeto')]))
+        ? renderDataTable(['Site', 'Fase', 'Próximo passo', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome),
+            escapeHTML(FASE[situacoes[s.id]?.fase] || '—'), escapeHTML(PASSO[situacoes[s.id]?.proximo_passo] || '—'),
+            escapeHTML(String(abertos[s.id] || 0)), escapeHTML(pior(s.id) || (sondas.some((x) => x.site_id === s.id) ? 'em dia' : '—')), botao('Abrir', `Abrir ${s.nome}`, 'otTela', 'site', s.id, null)]))
         : renderEmptyState({ titulo: 'Cadastre o primeiro site', texto: 'O site é onde o inventário e os levantamentos acontecem.', acao: podeEditarOt() ? `<button class="btn btn-primary" data-action="otTela" data-args='${args('sites')}'>Cadastrar site</button>` : '' });
     const r = rC.status === 'fulfilled' ? rC.value.resumo || {} : null;
     const postura = r

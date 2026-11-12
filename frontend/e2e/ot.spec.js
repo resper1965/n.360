@@ -66,6 +66,7 @@ test('pessoa sem o n.ot (projeto com ele): o item não aparece', async ({ page }
 const B = '/api/v1/projects/proj-e2e/ot';
 const ABAS_OT = {
   [`${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte', tipo: 'subestacao', criticidade: 'alta', localizacao: null, status: 'ativo' }] },
+  [`${B}/sites/s1/situacao`]: { fase: 'em_levantamento', base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 1, zonas_4_1_1: false, tem_conteudo: true, proximo_passo: 'revisar', lote_em_revisao_id: null },
   [`${B}/zonas`]: { zonas: [{ id: 'z2', site_id: 's1', nome: 'Supervisão', nivel_purdue: 2, tipo: 'supervisao', descricao: null, status: 'ativo' }] },
   [`${B}/ativos`]: { ativos: [{ id: 'a1', project_id: 'proj-e2e', site_id: 's1', zona_id: 'z2', nome: 'RTU-01', no_arciber: true, categoria_arciber: 'centro_operacao',
     tipo_dispositivo: 'RTU', fabricante: 'ACME', modelo: 'X1', funcao: 'Telecontrole', firmware_so_versao: '1.2', firmware_nao_aplicavel: false, status: 'ativo',
@@ -102,7 +103,10 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guard
   await noSite(page, 'projeto', 'Base');
   await expect(conteudo).toContainText('RTU-01');
   await expect(conteudo).toContainText('aa:bb:cc:••:••:••');
-  await expect(page.locator('#header-actions .btn-primary')).toHaveText('+ Novo ativo');
+  // o único primário da tela é o do cartão Próximo passo; a sub-aba Base fica com os botões comuns
+  await expect(page.locator('#content .btn-primary, #header-actions .btn-primary')).toHaveCount(1);
+  await expect(page.locator('#content .card .btn-primary')).toHaveText('Abrir Base');
+  await expect(page.locator('#header-actions').getByRole('button', { name: '+ Novo ativo' })).toBeVisible();
 
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 

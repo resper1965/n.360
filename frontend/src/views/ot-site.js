@@ -6,6 +6,7 @@ import { montarInventario, montarFluxos, formSite } from './ot.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
 import { montarRevisao } from './ot-revisao.js';
 import { montarDesvios } from './ot-desvios.js';
+import { cabecalhoDoSite } from './ot-base.js';
 import { areaSondas, preencherCartoes } from './ot-sensores.js';
 
 // n.ot, lista de sites e tela do site (spec 2026-11-11 fluidez §3). A tela do site tem dois modos, cada um com suas sub-abas; o recorte
@@ -32,7 +33,7 @@ export async function montarSites(c, a, p) {
     if (editar) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoSite">+ Novo site</button>';
     c.innerHTML = renderDataTable(['Site', 'Tipo', 'Criticidade', 'Localização', 'Ações'], sitesDaLista.map((s) => [
         `<strong>${escapeHTML(s.nome)}</strong>`, escapeHTML(TIPOS_SITE[s.tipo] || s.tipo), escapeHTML(CRITICIDADE[s.criticidade] || '—'), escapeHTML(s.localizacao || '—'),
-        `<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otTela" data-args='${args('site', s.id, 'projeto')}' aria-label="${escapeHTML(`Abrir ${s.nome}`)}">Abrir</button>`
+        `<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otTela" data-args='${args('site', s.id, null)}' aria-label="${escapeHTML(`Abrir ${s.nome}`)}">Abrir</button>`
         + (editar ? `<button class="btn btn-sm" data-action="otEditarSiteDaLista" data-args='${args(s.id)}' aria-label="${escapeHTML(`Editar ${s.nome}`)}">Editar</button>`
             + renderMaisAcoes([{ rotulo: 'Remover', action: 'otRemover', args: ['sites', s.id], perigo: true }], { nome: s.nome }) : '') + '</div>',
     ]));
@@ -54,26 +55,33 @@ async function montarBase(c, a, p, o) {
     const af = document.createElement('div');
     await montarInventario(c.querySelector('#ot-base-inv'), a, p, o);
     await montarFluxos(c.querySelector('#ot-base-fluxos'), af, p, o);
-    a.insertAdjacentHTML('beforeend', af.innerHTML.replaceAll('btn btn-primary', 'btn'));
+    a.insertAdjacentHTML('beforeend', af.innerHTML);
 }
 
 export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
-    modo = SUBS[modo] ? modo : 'projeto';
-    sub = SUBS[modo].includes(sub) ? sub : SUBS[modo][0];
     let sites;
-    try { sites = lista(await api('GET', `/api/v1/projects/${p.id}/ot/sites`), 'sites'); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o site.', e); return; }
+    let sit = null; // sem a situação o cartão avisa e a tela segue
+    try {
+        const [rs, rt] = await Promise.allSettled([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(site)}/situacao`)]);
+        if (rs.status === 'rejected') throw rs.reason;
+        sites = lista(rs.value, 'sites');
+        if (rt.status === 'fulfilled') sit = rt.value;
+    } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o site.', e); return; }
     const s = sites.find((x) => x.id === site);
     if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
-    S.otSite = site; S.otSub = sub;
+    // sem modo pedido, a fase decide: em operação abre no Modo operação, o resto no Modo projeto
+    modo = SUBS[modo] ? modo : sit?.proximo_passo === 'em_operacao' ? 'operacao' : 'projeto';
+    sub = SUBS[modo].includes(sub) ? sub : SUBS[modo][0];
+    S.otSite = site; S.otSub = sub; S.otModo = modo;
     if (sub === 'desvios') {
         const f = S.otDesvioFiltro;
         if (desvio) S.otDesvioFiltro = { situacao: '', site_id: site, tipo: '' }; // o desvio do link pode estar em qualquer situação
         else if (!f || f.site_id !== site) S.otDesvioFiltro = { situacao: 'aberto', site_id: site, tipo: '' };
     }
     a.innerHTML = '';
-    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}<div id="ot-site-painel"><div class="loading"></div></div>`;
+    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site)}${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
     const painel = c.querySelector('#ot-site-painel');
-    const o = { siteFixo: site };
+    const o = { siteFixo: site, semPrimario: true }; // o único primário é o do cartão Próximo passo
     if (sub === 'levantamento') await montarLevantamento(painel, a, p, o);
     else if (sub === 'aprovacao') await montarRevisao(painel, a, p, o);
     else if (sub === 'base') await montarBase(painel, a, p, o);

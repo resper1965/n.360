@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
-import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, dataDoSqlite } from '../ot-comum.js';
+import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, dataDoSqlite, classePrimario } from '../ot-comum.js';
 import { hojeSP, emDiasSP } from '../hoje.js';
 
 // Coleta do n.ot (N3; spec §7, P0-3, P0-5): a entrada manual (e o que o Levantamento envia) cai em lotes que outra pessoa
@@ -27,8 +27,9 @@ const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo orig
 
 let fixo = null; // site fixo da tela do site: recorta os lotes e tira o seletor de site
 
-export async function montarColeta(c, a, p, { siteFixo } = {}) {
-    fixo = siteFixo || null;
+let semPri = false;
+export async function montarColeta(c, a, p, { siteFixo, semPrimario } = {}) {
+    fixo = siteFixo || null; semPri = !!semPrimario;
     let lotes;
     try {
         const [s, l] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/lotes`)]);
@@ -118,7 +119,7 @@ async function montarLote(c, a, id) {
     const recusados = itens.filter((i) => i.decisao === 'recusado').length;
     const restantes = itens.filter((i) => i.decisao === 'pendente').length;
     a.innerHTML = '<button class="btn" data-action="otVoltarLotes">Voltar aos lotes</button>'
-        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>${todosRecusados(itens) ? 'Concluir lote' : recusados ? `Aprovar os restantes (${restantes})` : 'Aprovar lote'}</button>` : '');
+        + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="${classePrimario(semPri)}" data-action="otAprovarLote" data-args='${args(lote.id)}'>${todosRecusados(itens) ? 'Concluir lote' : recusados ? `Aprovar os restantes (${restantes})` : 'Aprovar lote'}</button>` : '');
     let prazo = '';
     const criado = emRevisao ? dataDoSqlite(lote.created_at) : null;
     if (criado) {
