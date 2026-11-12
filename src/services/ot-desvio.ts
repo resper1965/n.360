@@ -155,6 +155,15 @@ export async function detectarDesvios(env: Bindings, ctx: Ctx, a: { projectId: s
   return n;
 }
 
+/** Só os desvios de site fora de obra: em obra o SOC não ouve; `entregarAbertos` entrega os que sobrarem ao fechar a obra. */
+async function foraDeObra(env: Bindings, rows: LinhaDesvio[]): Promise<LinhaDesvio[]> {
+  if (!rows.length) return rows;
+  const { results } = await env.DB.prepare(`SELECT project_id, id FROM ot_sites WHERE obra_ate IS NOT NULL AND id IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify([...new Set(rows.map((d) => d.site_id))])).all<{ project_id: string; id: string }>();
+  const em = new Set(results.map((x) => `${x.project_id}/${x.id}`));
+  return rows.filter((d) => !em.has(`${d.project_id}/${d.site_id}`));
+}
+
 /** O lote aprovado gravou o ativo ou o fluxo com essas chaves: o desvio deixa de ser desvio (regularizado). */
 export async function fecharRegularizados(env: Bindings, ctx: Ctx, projectId: string, chaves: string[]): Promise<number> {
   if (!chaves.length) return 0;
@@ -163,7 +172,8 @@ export async function fecharRegularizados(env: Bindings, ctx: Ctx, projectId: st
     .bind(projectId, JSON.stringify(chaves)).all<LinhaDesvio>();
   if (!results.length) return 0;
   await trilha(env, 'ot.desvio.regularizado', 'sistema', `${results.length} desvio(s) regularizado(s) pelo lote aprovado`, projectId);
-  avisar(env, ctx, projectId, results, 'fechado');
+  const fora = await foraDeObra(env, results);
+  if (fora.length) avisar(env, ctx, projectId, fora, 'fechado');
   return results.length;
 }
 
@@ -176,7 +186,8 @@ export async function reabrirVencidos(env: Bindings, ctx: Ctx, agora: Date): Pro
   for (const [projectId, lista] of projetos) {
     try { // um projeto que falha não segura os outros
       await trilha(env, 'ot.desvio.aceite_vencido', 'sistema', `${lista.length} desvio(s) com aceite vencido reaberto(s)`, projectId);
-      avisar(env, ctx, projectId, lista, 'aceite_vencido');
+      const fora = await foraDeObra(env, lista);
+      if (fora.length) avisar(env, ctx, projectId, fora, 'aceite_vencido');
     } catch (e) { console.error('ot.desvio: falha ao avisar o aceite vencido', projectId, e); }
   }
   return results.length;
@@ -195,6 +206,7 @@ export async function encerrarObrasVencidas(env: Bindings, ctx: Ctx, hoje: strin
   for (const { siteId, projectId } of sites) {
     try { // um site que falha não segura os outros
       await trilha(env, 'ot.site.obra_vencida', 'sistema', `Obra do site ${siteId} venceu; o site voltou a em_operacao`, projectId);
+      await entregarAbertos(env, ctx, projectId, siteId); // primeiro: uma falha nos SELECTs ou no e-mail não deixa o SOC sem os desvios
       const site = await env.DB.prepare('SELECT nome FROM ot_sites WHERE id = ? AND project_id = ?').bind(siteId, projectId).first<{ nome: string }>();
       const { results: gestores } = await env.DB.prepare(`SELECT email FROM project_governance WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER}
         AND coalesce(trim(email), '') <> '' ORDER BY is_primary DESC LIMIT ${TETO_LEITURA_OT}`).bind(projectId).all<{ email: string }>();
@@ -203,7 +215,6 @@ export async function encerrarObrasVencidas(env: Bindings, ctx: Ctx, hoje: strin
         paragrafos: [`A obra do site ${site?.nome ?? siteId} venceu e o site voltou a operação: o alerta de desvio está ligado de novo.`],
         acao: 'Abrir o n.ot e conferir os desvios do site', motivo: 'você é Gestor ARCiber de um projeto com o n.ot.' });
       for (const g of gestores) await sendEmail({ env }, g.email, assunto, corpo);
-      await entregarAbertos(env, ctx, projectId, siteId);
     } catch (e) { console.error('ot.obra: falha ao encerrar a obra vencida', siteId, e); }
   }
   return sites.length;

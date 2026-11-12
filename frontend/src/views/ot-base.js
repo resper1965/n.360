@@ -47,7 +47,7 @@ export function cabecalhoDoSite(sit, site, papeis = { gestor: ehGestor(), editar
         : sit.fase === 'em_operacao' ? `<button class="btn" data-action="otObra" data-args='${args('abrir', site)}'>Abrir obra</button>` : '';
     return `<section class="card mb-4"><ol class="ot-regua" aria-label="Etapas do site">${ETAPAS.map((e, i) =>
         `<li${i === atual ? ' aria-current="step"' : ''}>${i === atual ? '<strong>' : ''}${i + 1}. ${e}${i === atual ? '</strong>' : ''}</li>`).join('')}</ol>
-        ${sit.proximo_passo === 'em_operacao' && desde ? `<p class="org-dica mb-3">Em operação desde ${escapeHTML(desde)}</p>` : ''}
+        ${sit.fase === 'em_operacao' && desde ? `<p class="org-dica mb-3">Em operação desde ${escapeHTML(desde)}</p>` : ''}
         <h3 class="mb-2">Próximo passo</h3><div class="d-flex gap-4 items-center flex-wrap">${obra}<span>${escapeHTML(texto)}</span>${acao}${btnObra}</div></section>`;
 }
 

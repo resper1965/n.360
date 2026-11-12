@@ -927,13 +927,13 @@ async function decidirBase(c: C, acao: 'pedida' | 'aprovada' | 'devolvida', just
   const fn = { pedida: pedirBase, aprovada: aprovarBase, devolvida: devolverBase }[acao];
   const r = await fn(db, user, projectId, id);
   if (!r.ok) return c.json({ error: r.error }, r.status);
-  await trilha(c, `ot.site.base_${acao}`, projectId, `Base do site ${id} ${acao}`, { tipo: 'ot_site', id }, justificativa);
+  // a entrega sai antes da trilha: um erro ao gravar a auditoria (já com a obra fechada) não pode deixar o SOC sem os desvios
   if ('fechouObra' in r && r.fechouObra) {
-    await trilha(c, 'ot.site.obra_fechada', projectId, `Obra do site ${id} fechada pela aprovação da base`, { tipo: 'ot_site', id });
-    // o SOC ouve os desvios abertos durante a obra agora; a entrega não segura a resposta
     const ctx = { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto (testes): segue solta */ } } };
     ctx.waitUntil(entregarAbertos(c.env, ctx, projectId, id).catch((e) => console.error('ot.desvio: falha ao entregar ao fechar a obra', e)));
   }
+  await trilha(c, `ot.site.base_${acao}`, projectId, `Base do site ${id} ${acao}`, { tipo: 'ot_site', id }, justificativa);
+  if ('fechouObra' in r && r.fechouObra) await trilha(c, 'ot.site.obra_fechada', projectId, `Obra do site ${id} fechada pela aprovação da base`, { tipo: 'ot_site', id });
   return c.json({ ok: true });
 }
 otApp.post('/sites/:id/base/pedir', async (c) => {

@@ -26,6 +26,11 @@ describe('pendenciasDoPapel', () => {
         const p = pendenciasDoPapel({ ...base, desvios }, { id: 'u1', podeAprovar: true, podeEditar: false });
         expect(p).toEqual([expect.objectContaining({ tipo: 'desvio', texto: '2 desvios abertos em SE Norte', acao: { tela: 'site', site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } } })]);
     });
+    it('desvio de site em obra não entra em Espera por você', () => {
+        const desvios = [{ site_id: 's1' }, { site_id: 's2' }];
+        const p = pendenciasDoPapel({ ...base, desvios, sites: { s1: 'SE Norte', s2: 'SE Sul' }, situacoes: { s1: { obra: { ate: '2099-01-01' } } } }, { id: 'u1', podeAprovar: true, podeEditar: false });
+        expect(p.map((x) => x.texto)).toEqual(['1 desvio aberto em SE Sul']);
+    });
     it('consultor vê rascunhos e sonda parada; técnico só a recusa do próprio lote', () => {
         const dados = { ...base, rascunhosPorSite: { s1: 3 }, sondas: [{ nome: 'S-1', site_id: 's1', situacao: 'parada' }],
             lotes: [{ id: 'l3', status: 'rejeitado', criado_por: 'u9', site_id: 's1', created_at: '2026-11-01T00:00:00Z' }] };
@@ -171,6 +176,12 @@ describe('montarInicio', () => {
         await montarInicio(c, null, { id: 'p9' });
         const cels = [...c.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
         expect(cels[0][4]).toBe('parada');
+    });
+    it('revalidar tem rótulo no Próximo passo', async () => {
+        rotas[`GET ${B}/sites/s1/situacao`] = { ...rotas[`GET ${B}/sites/s1/situacao`], fase: 'em_operacao', proximo_passo: 'revalidar' };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect([...c.querySelectorAll('tbody tr')][0].children[2].textContent).toBe('Revalidar');
     });
     it('colunas Fase e Próximo passo; o Gestor vê a base aguardando e o botão leva ao site', async () => {
         const c = document.getElementById('c');

@@ -10,7 +10,7 @@ import { emDiasSP, hojeSP } from '../hoje.js';
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const PRAZO_DIAS = 7;
 const FASE = { em_levantamento: 'Em levantamento', base_em_aprovacao: 'Base em aprovação', em_operacao: 'Em operação', em_obra: 'Em obra' };
-const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Em operação' };
+const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Em operação', revalidar: 'Revalidar' };
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const alvo = (site, modo, lote) => ({ tela: 'site', site, modo, ...(lote ? { lote } : {}) });
 
@@ -25,7 +25,7 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rasc
             out.push({ tipo: 'lote', texto: `Lote de aprovação em ${nome(l.site_id)}${criado ? `: decidir até ${d}/${m}` : ''}`, acao: alvo(l.site_id, 'projeto', l.id) });
         }
         const porSite = {};
-        for (const d of desvios) porSite[d.site_id] = (porSite[d.site_id] || 0) + 1;
+        for (const d of desvios.filter((x) => !situacoes[x.site_id]?.obra)) porSite[d.site_id] = (porSite[d.site_id] || 0) + 1;
         for (const [s, n] of Object.entries(porSite)) out.push({ tipo: 'desvio', texto: `${plural(n, 'desvio aberto', 'desvios abertos')} em ${nome(s)}`, acao: { ...alvo(s, 'operacao'), extra: { otSub: 'desvios' } } });
     }
     if (gestor) {

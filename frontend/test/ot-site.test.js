@@ -776,6 +776,12 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(S.otModo).toBe('projeto');
     });
 
+    it('revalidar em operação abre em Modo operação', async () => {
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('revalidar', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }) });
+        await ir({ site: 's1', modo: null });
+        expect(S.otModo).toBe('operacao');
+    });
+
     it('modo operação num site sem base aprovada avisa que desvios não são calculados', async () => {
         servirOt(ROTAS);
         await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });

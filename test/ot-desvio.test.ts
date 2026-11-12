@@ -5,7 +5,7 @@ import { sha256Hex } from '../src/helpers';
 import { handlerOtSensor } from '../src/routes/ot-sensor';
 import { aadOt, chavesOt, decifrarOt, hmacOt } from '../src/services/ot-cifra';
 import { aprovarLote } from '../src/services/ot-coleta';
-import { detectarDesvios, reabrirVencidos } from '../src/services/ot-desvio';
+import { detectarDesvios, fecharRegularizados, reabrirVencidos } from '../src/services/ot-desvio';
 import { enviarAoLote } from '../src/services/ot-levantamento';
 import type { Plano } from '../src/services/ot-rede';
 import { applySchema, workerEnv, seedTwoProjects, habilitarOt, designarConsultor, concederModulos, sessionFor } from './helpers/d1';
@@ -246,6 +246,29 @@ describe('detecção pelo envio da sonda', () => {
     expect((await c.desvios())[0]).toMatchObject({ situacao: 'aberto', aceito_ate: null });
     expect(posts.map((p) => p.desvios.map((d: any) => [d.id, d.acao]))).toEqual([[[ativo.id, 'aceite_vencido']]]);
     expect(await trilhas('ot.desvio.aceite_vencido')).toBe(antes + 1);
+  });
+
+  it('aceite vencido durante a obra: reabre o desvio, sem webhook; fora da obra o webhook sai', async () => {
+    const c = await cenario();
+    await c.enviar();
+    const [ativo] = await c.desvios();
+    await env.DB.prepare(`UPDATE ot_desvios SET situacao = 'aceito', aceito_ate = '2026-01-01T00:00:00.000Z' WHERE id = ?`).bind(ativo.id).run();
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'em_obra', obra_ate = '2099-01-01' WHERE id = ?`).bind(c.site).run();
+    const { r, posts } = await comCtx((ctx) => reabrirVencidos(workerEnv(), ctx, new Date()));
+    expect(r).toBe(1);
+    expect((await c.desvios())[0]).toMatchObject({ situacao: 'aberto', aceito_ate: null });
+    expect(posts).toHaveLength(0);
+  });
+
+  it('fecharRegularizados durante a obra: regulariza, sem webhook fechado', async () => {
+    const c = await cenario();
+    await c.enviar();
+    const [ativo] = await c.desvios();
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'em_obra', obra_ate = '2099-01-01' WHERE id = ?`).bind(c.site).run();
+    const { r, posts } = await comCtx((ctx) => fecharRegularizados(workerEnv(), ctx, 'proj-a', [ativo.chave_sensor]));
+    expect(r).toBe(1);
+    expect((await c.desvios())[0]).toMatchObject({ situacao: 'regularizado' });
+    expect(posts).toHaveLength(0);
   });
 
   it('aprovar no lote o achado do desvio: regularizado, com webhook fechado; o reenvio não o reabre', async () => {

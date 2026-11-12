@@ -57,7 +57,8 @@ describe('cabeçalho do site', () => {
         const c = render(sit('pedir_base'), EQ);
         expect(c.querySelectorAll('[aria-current="step"]')).toHaveLength(1);
         expect(c.querySelector('[aria-current="step"]').textContent).toContain('Revisar e aprovar');
-        expect(render(sit('em_operacao', { base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
+        expect(render(sit('em_operacao', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
+        expect(render(sit('revalidar', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
         expect(render(null, EQ).textContent).toContain('Não foi possível carregar a situação do site.');
     });
 
