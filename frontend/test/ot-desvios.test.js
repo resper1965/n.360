@@ -129,7 +129,14 @@ describe('aba Desvios', () => {
             expect(window.otIrParaLote).toHaveBeenCalledWith('s1', 'l5');
         });
         it('técnico e cliente não veem o botão', async () => {
-            for (const role of ['tecnico', 'cliente']) { S.user.role = role; await abrir('desvios'); expect(el('c').querySelector('[data-action="otRegularizarDesvio"]')).toBeNull(); }
+            for (const role of ['org_user', 'client']) { S.user.role = role; await abrir('desvios'); expect(el('c').querySelector('[data-action="otRegularizarDesvio"]')).toBeNull(); }
+        });
+        it('cancelar a confirmação não envia nada', async () => {
+            await abrir('desvios');
+            const p = window.otRegularizarDesvio('s1', 'a1');
+            await vi.waitFor(() => expect(document.querySelector('[data-confirmar="nao"]')).not.toBeNull());
+            document.querySelector('[data-confirmar="nao"]').click(); await p;
+            expect(chamadas.some((c) => c.k.startsWith('POST'))).toBe(false);
         });
         it('409: toast e redesenho', async () => {
             await abrir('desvios', { [`POST ${B}/sites/s1/enviar`]: [409, { error: 'Achado já em lote' }] });
