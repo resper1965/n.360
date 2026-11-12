@@ -45,11 +45,12 @@ export function cabecalhoDoSite(sit, site, papeis = { gestor: ehGestor(), editar
 }
 
 let ocupado = false;
-async function enviar(fn, ok, erro) {
+async function enviar(fn, ok, erro, depois = () => window.render()) {
     if (ocupado) return;
     ocupado = true;
-    try { await fn(); showToast(ok, 'success'); } catch (e) { showToast(mensagemDeErro(e, erro), 'error'); } finally { ocupado = false; }
-    window.render();
+    let deu = false;
+    try { await fn(); deu = true; showToast(ok, 'success'); } catch (e) { showToast(mensagemDeErro(e, erro), 'error'); } finally { ocupado = false; }
+    (deu ? depois : () => window.render())();
 }
 const proj = () => S.activeProject;
 
@@ -63,7 +64,7 @@ window.otPedirBase = async (site) => {
 };
 window.otAprovarBase = async (site) => {
     if (!(await confirmar('Confirmo que este inventário representa o site.', { titulo: 'Aprovar a base', rotulo: 'Aprovar a base' }))) return;
-    await enviar(() => api('POST', `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(site)}/base/aprovar`, { declaracao: true }), 'Base aprovada.', 'Não foi possível aprovar a base.');
+    await enviar(() => api('POST', `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(site)}/base/aprovar`, { declaracao: true }), 'Base aprovada.', 'Não foi possível aprovar a base.', () => window.otTela('site', site, 'operacao')); // aprovada, o site abre em operação
 };
 window.otDevolverBase = async (site) => {
     const motivo = await pedirTexto('Diga o que precisa ser corrigido (3 a 500 caracteres; sem IP ou MAC).', { titulo: 'Devolver a base', rotulo: 'Devolver' });

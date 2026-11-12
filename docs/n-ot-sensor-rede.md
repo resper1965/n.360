@@ -204,6 +204,7 @@ Desvio é o que a sonda viu e o inventário aprovado não prevê. Serve para o c
 
 ### O que vira desvio
 
+- Só em site **em operação**, isto é, com a **base aprovada** pelo Gestor ARCiber. Antes disso a sonda gera achados e não desvios.
 - Só o **envio automático** da sonda. A importação manual não cria desvio.
 - Em todo envio aceito, o n.ot compara o resumo com o inventário **antes do filtro de novidade**: um item que já é achado em rascunho ou foi descartado continua sendo desvio. Desvio não é novidade.
 - Vira desvio o **ativo** novo e o **fluxo** que o inventário não tem, inclusive o fluxo pendente (cuja ponta interna ainda não foi aprovada). Cada desvio é único por projeto, tipo e chave; ver de novo só conta ocorrências.
@@ -257,7 +258,7 @@ Para avisar o SOC, cadastre um webhook do projeto com o evento `ot.desvio` na li
 
 O `link` (`/ot/desvios/<id>`) abre o site do desvio em **Modo operação** > **Desvios**, com a linha do desvio marcada. Se a pessoa não vê o desvio, o n.ot avisa e abre o Início; o `id` é o mesmo da linha.
 
-**Recomendação:** ligue o webhook **só depois de aprovar o inventário inicial**. No primeiro dia a sonda vê tudo como novo e o aviso seria só ruído.
+**Recomendação:** **aprove a base do site antes de ligar o webhook** (cartão Próximo passo > Pedir aprovação da base; o Gestor aprova). Sem base aprovada não há desvio, e ligar antes só gera ruído. No primeiro dia a sonda vê tudo como novo e o aviso seria só ruído.
 
 ## Rede interna
 

@@ -58,6 +58,7 @@ describe('cabeçalho do site', () => {
         const f = vi.fn(async () => resposta({ ok: true }));
         vi.stubGlobal('fetch', f);
         window.render = vi.fn();
+        window.otTela = vi.fn();
         const p = window.otAprovarBase('s1');
         await vi.waitFor(() => expect(document.querySelector('.confirmar')).not.toBeNull());
         expect(document.querySelector('.confirmar').textContent).toContain('Confirmo que este inventário representa o site');
@@ -66,6 +67,7 @@ describe('cabeçalho do site', () => {
         const [url, opts] = f.mock.calls[0];
         expect(new URL(url, 'http://x').pathname).toBe(`${B}/sites/s1/base/aprovar`);
         expect(JSON.parse(opts.body)).toEqual({ declaracao: true });
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'operacao'); // aprovada, abre em operação
     });
 
     it('aprovar cancelado não chama a API; devolver manda o motivo; 409 mostra a mensagem', async () => {

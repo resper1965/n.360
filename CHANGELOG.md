@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: E3, fases do site e aprovação da base (migração 0110)
+- O site tem **fase**: em levantamento, base em aprovação, em operação e em obra (`ot_sites.fase`, mais quem pediu e quem aprovou a base e quando). `GET /ot/sites/:id/situacao` devolve a fase e o `proximo_passo`.
+- **Base:** a equipe pede (`POST /ot/sites/:id/base/pedir`); o Gestor ARCiber aprova com a declaração (`/base/aprovar`) ou devolve com motivo (`/base/devolver`). Aprovada, o site passa a **Em operação** e abre no Modo operação.
+- **Desvio** só é calculado em site em operação. A sonda de um site sem base aprovada continua gerando achados, não desvios.
+- **Técnico** (`org_user`) cria levantamento, anota, responde o roteiro, encerra (não reabre), importa por de-para nos sites concedidos (o JSON do sensor não) e envia para aprovação.
+- **Trazer dados** no Levantamento; a rota multipart de planilha da Coleta (`POST /ot/lotes`) e o botão "Enviar planilha" saem. Entrada manual fica.
+- Cabeçalho do site com régua e cartão **Próximo passo** (o único botão primário); o Início ganha Fase e Próximo passo e "Base de <site> aguardando sua aprovação"; o inventário marca "não verificado (4.3.1)" o ativo sem lote de aprovação.
+
 ### n.ot: E2, revisão e aprovação item a item
 - Novo **Revisão e aprovação** no site (Modo projeto): fila com os rascunhos de todos os levantamentos do site, filtros de origem e tipo, **Descartar** e um único **Enviar para aprovação (N)**; abaixo, os lotes do site.
 - No **Lote de aprovação**, **Recusar** por item (motivo de 3 a 500 caracteres), **Aprovar os restantes (N)** e **Concluir lote** quando tudo foi recusado. O topo mostra "Decidir até dd/mm". Quem criou o lote não decide sobre ele.
