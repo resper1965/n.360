@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, closeModal, showToast, confirmar, falhaDeCarga, renderEmptyState, formatarData } from '../ui.js';
-import { mensagemDeErro, podeEditarOt, ehGestor, lista, opcoes, SITUACAO } from '../ot-comum.js';
+import { mensagemDeErro, podeEditarOt, ehGestor, lista, opcoes, SITUACAO, AVALIACAO } from '../ot-comum.js';
 import { moduloPara, enderecoDoProduto } from '../produto.js';
 
 // n.ot, tela Assessment (RO-CB.BR.01) sobre /ot/assessment (src/routes/ot.ts). Item técnico: só leitura, calculado do inventário.
@@ -11,7 +11,6 @@ const el = (id) => document.getElementById(id);
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const base = () => `/api/v1/projects/${S.activeProject.id}/ot/assessment`;
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
-export const AVALIACAO = { atende: ['success', 'Atende'], parcial: ['warning', 'Parcial'], nao_atende: ['danger', 'Não atende'], nao_se_aplica: ['neutral', 'Não se aplica'] };
 const RESPOSTA = { sim: 'Sim', nao: 'Não' };
 const NAO_AVALIADO = ['neutral', 'Não avaliado'];
 let dados = { itens: [], resumo: {} };
@@ -84,7 +83,8 @@ function corpoPolitica(i) {
     const resp = responsaveis.map((u) => [u.id, u.name || u.email]);
     if (av.responsavel_id && !resp.some(([v]) => v === av.responsavel_id)) resp.push([av.responsavel_id, av.responsavel_nome || av.responsavel_id]);
     const form = editar ? `<div class="form-group"><label class="form-label" for="ass-sit">Situação</label><select class="form-input" id="ass-sit">${opcoes(Object.entries(AVALIACAO).map(([v, [, r]]) => [v, r]), av.situacao)}</select></div>
-        <div class="form-group"><label class="form-label" for="ass-just">Justificativa</label><textarea class="form-input" id="ass-just" maxlength="500">${escapeHTML(av.justificativa || '')}</textarea></div>
+        <div class="form-group"><label class="form-label" for="ass-just">Justificativa</label><textarea class="form-input" id="ass-just" maxlength="500" aria-describedby="ass-just-dica">${escapeHTML(av.justificativa || '')}</textarea>
+            <p class="org-dica" id="ass-just-dica">Não cite IP, MAC nem nome de ativo: este texto vai para o relatório.</p></div>
         <div class="form-group"><label class="form-label" for="ass-resp">Responsável</label><select class="form-input" id="ass-resp">${opcoes([['', 'Sem responsável'], ...resp], av.responsavel_id)}</select></div>
         <div class="form-group"><label class="form-label" for="ass-rev">Próxima revisão</label><input class="form-input" type="date" id="ass-rev" value="${escapeHTML(av.proxima_revisao || '')}"></div>
         <p class="org-dica">Editar tira a confirmação do Gestor.</p>

@@ -193,6 +193,12 @@ describe('ot-avaliacao: assessment', () => {
     await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`);
     await evid('e-ok', 'proj-a', diaMaisSP(30));
     await chamar(cons, 'POST', `${U}/assessment/4.4.1/evidencias`, { evidencia_id: 'e-ok' });
+    // a API já recusa IP/MAC na justificativa (livre); o relatório mascara mesmo assim o que chegou ao banco por outro caminho
+    expect((await chamar(cons, 'PUT', `${U}/assessment/4.4.2`, { situacao: 'parcial', justificativa: 'RTU 10.0.0.7 aa:bb:cc:dd:ee:ff' })).status).toBe(400);
+    await run(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, justificativa, atualizado_por)
+      SELECT 'av-ip', ?, id, 'parcial', 'RTU 10.0.0.7 aa:bb:cc:dd:ee:ff', 'u' FROM ot_requisitos WHERE codigo = '4.4.2'`, P);
+    await run(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES ('e-ip', ?, 'print 192.168.1.20.png', 'k', 'h', 'u')`, P);
+    await chamar(cons, 'POST', `${U}/assessment/4.4.2/evidencias`, { evidencia_id: 'e-ip' });
 
     const r = await chamar(cons, 'GET', `${U}/relatorio/conformidade`);
     expect(r.status).toBe(200);
@@ -213,6 +219,7 @@ describe('ot-avaliacao: assessment', () => {
       tipo: 'politica', situacao: 'parcial', justificativa: 'Falta política escrita', responsavel_nome: 'Gestor', confirmado_por_nome: 'Gestor',
       evidencias: [{ file_name: 'e-ok.pdf', valido_ate: diaMaisSP(30), vencida: false }],
     });
+    expect(j.itens.find((i: any) => i.codigo === '4.4.2')).toMatchObject({ justificativa: 'RTU [omitido] [omitido]', evidencias: [{ file_name: 'print [omitido].png' }] });
     const t = j.itens.find((i: any) => i.codigo === '4.1.3');
     expect(t).toMatchObject({ tipo: 'tecnico', situacao: 'nao_atende' });
     expect(t.por_site.map((s: any) => s.site_nome)).toEqual(['SE Norte', 'SE Nova', 'SE Sul']);
@@ -221,5 +228,14 @@ describe('ot-avaliacao: assessment', () => {
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'ot.relatorio.conformidade' AND project_id = 'proj-a'`).first('n')).toBe(1);
     // o site do proj-b não entra (sites acima); o projeto alheio é barrado antes da rota, pelo middleware de projeto
     expect((await chamar(gestor, 'GET', '/api/v1/projects/proj-b/ot/relatorio/conformidade')).status).toBe(403);
+  });
+
+  it('relatório com acesso restrito: quem só tem um site vê só ele, em sites e em cada por_site', async () => {
+    await run(`INSERT INTO ot_site_acessos (user_id, site_id, project_id, concedido_por) VALUES ('u-t', 's2', ?, 'u-g')`, P);
+    const r = await chamar(tecnico, 'GET', `${U}/relatorio/conformidade`);
+    expect(r.status).toBe(200);
+    const j: any = await r.json();
+    expect(j.sites.map((s: any) => s.nome)).toEqual(['SE Sul']);
+    for (const i of j.itens.filter((x: any) => x.tipo === 'tecnico')) expect(i.por_site.map((s: any) => s.site_nome)).toEqual(['SE Sul']);
   });
 });

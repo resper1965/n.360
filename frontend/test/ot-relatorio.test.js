@@ -19,7 +19,7 @@ const pausa = () => new Promise((r) => setTimeout(r, 0));
 const SITES = { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] };
 const IND = { completude: { total: 4, completos: 3, percentual: 75, arciber: { total: 2, completos: 2 } }, sem_zona: 2, sem_ip: 1, sem_mac: 1,
     por_zona: [{ zona_id: 'z2', site_id: 's2', nome: 'Supervisão', nivel_purdue: 2, ativos: 3 }], fluxos_externos: { externos: 1, sem_vpn: 0 }, prazos: [] };
-const REL = { projeto: 'Projeto <b id="xss1">X</b>', gerado_em: '2026-11-12T15:00:00.000Z', gerado_por: 'Ana', resumo: {},
+const REL = { projeto: 'Projeto <b id="xss1">X</b>', gerado_em: '2026-11-12T15:00:00.000Z', gerado_por: 'Ana',
     sites: [{ nome: 'SE Norte', fase: 'em_operacao', base_aprovada_em: '2026-10-01 12:00:00' }],
     itens: [
         { codigo: '4.1.1', titulo: 'Zonas', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao: 'nao_atende', por_site: [{ site_nome: 'SE Norte', situacao: 'nao_atende', evidencia: '1 de 1 site(s) sem zonas' }] },
@@ -45,6 +45,9 @@ describe('Relatórios: relatório de conformidade e indicadores clicáveis', () 
         const t = el('c').textContent;
         for (const x of ['Projeto', '12/11/2026', 'Ana', 'SE Norte', '01/10/2026', 'Em operação', '4.1.1', 'Não atende', '1 de 1 site(s) sem zonas', '4.4.1', 'Parcial', 'politica.pdf', '01/03/2027', 'Gestor', '12/11/2027']) expect(t).toContain(x);
         expect(el('xss1')).toBeNull(); expect(el('xss2')).toBeNull();
+        const html = el('c').innerHTML;
+        expect(html.match(/\b\d{1,3}(\.\d{1,3}){3}\b/g) ?? []).toEqual([]); // IP (os códigos de item aqui têm 3 partes)
+        expect(html).not.toMatch(/\b[0-9a-f]{2}([:-][0-9a-f]{2}){5}\b/i); // MAC
         expect(document.querySelectorAll('.btn-primary')).toHaveLength(1);
         const imprimir = document.querySelector('.btn-primary');
         expect(imprimir.textContent).toBe('Imprimir / Salvar PDF');

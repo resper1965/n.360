@@ -1,7 +1,6 @@
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, formatarData, falhaDeCarga } from '../ui.js';
-import { SITUACAO, FASE, dataDoSqlite } from '../ot-comum.js';
-import { AVALIACAO } from './ot-assessment.js';
+import { SITUACAO, AVALIACAO, FASE, dataDoSqlite } from '../ot-comum.js';
 
 // n.ot, relatório de conformidade da RO-CB.BR.01 (spec fluidez §5) sobre GET /ot/relatorio/conformidade. Página para imprimir ou salvar
 // em PDF: o @media print esconde o resto da aplicação. O servidor já tirou IP, MAC e nome de ativo; aqui só se desenha e escapa.
