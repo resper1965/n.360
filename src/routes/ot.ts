@@ -6,7 +6,7 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
@@ -14,6 +14,7 @@ import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedir
 import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { conformidadeOt } from '../services/ot-conformidade';
+import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
 import { appUrl } from '../config/url';
@@ -740,6 +741,72 @@ otApp.get('/conformidade', async (c) => {
     const { db, projectId, sites } = await contexto(c);
     return c.json(await conformidadeOt(db, projectId, sites));
   } catch (e) { return erro500(c, 'Falha ao calcular a conformidade', e); }
+});
+
+// ─── assessment da RO-CB.BR.01 (spec fluidez §5) ────────────────────────────
+const respostaAvaliacao = (c: C, r: { ok: true } | { ok: false; status: 400 | 404 | 409; error: string }) => r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+
+otApp.get('/assessment', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    return c.json(await montarAssessment(db, projectId, JSON.parse(sites)));
+  } catch (e) { return erro500(c, 'Falha ao montar o assessment', e); }
+});
+
+otApp.put('/assessment/:codigo', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    const v = await validateBody(c, otAvaliacaoSchema);
+    if (!v.success) return v.response;
+    const codigo = c.req.param('codigo');
+    const r = await salvarAvaliacao(db, user, projectId, codigo, v.data);
+    if (r.ok) await trilha(c, 'ot.assessment.salvo', projectId, `Item ${codigo} avaliado como ${v.data.situacao}`);
+    return respostaAvaliacao(c, r);
+  } catch (e) { return erro500(c, 'Falha ao salvar a avaliação', e); }
+});
+
+otApp.post('/assessment/:codigo/confirmar', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    if (!ehGestorArciber(c, projectId)) return c.json({ error: 'Só o Gestor ARCiber confirma a avaliação' }, 403);
+    const v = await validateBody(c, otAvaliacaoConfirmarSchema);
+    if (!v.success) return v.response;
+    const codigo = c.req.param('codigo');
+    const r = await confirmarAvaliacao(db, user, projectId, codigo, v.data.updated_at);
+    if (r.ok) await trilha(c, 'ot.assessment.confirmado', projectId, `Item ${codigo} confirmado pelo Gestor`);
+    return respostaAvaliacao(c, r);
+  } catch (e) { return erro500(c, 'Falha ao confirmar a avaliação', e); }
+});
+
+otApp.post('/assessment/:codigo/evidencias', async (c) => {
+  try {
+    const { db, projectId } = await contexto(c);
+    const v = await validateBody(c, otAvaliacaoEvidenciaSchema);
+    if (!v.success) return v.response;
+    const codigo = c.req.param('codigo');
+    const r = await ligarEvidencia(db, projectId, codigo, v.data.evidencia_id);
+    if (r.ok) await trilha(c, 'ot.assessment.evidencia', projectId, `Evidência ${v.data.evidencia_id} ligada ao item ${codigo}`);
+    return respostaAvaliacao(c, r);
+  } catch (e) { return erro500(c, 'Falha ao ligar a evidência', e); }
+});
+
+otApp.delete('/assessment/:codigo/evidencias/:evidenciaId', async (c) => {
+  try {
+    const { db, projectId } = await contexto(c);
+    const { codigo, evidenciaId } = c.req.param();
+    const r = await desligarEvidencia(db, projectId, codigo, evidenciaId);
+    if (r.ok) await trilha(c, 'ot.assessment.evidencia', projectId, `Evidência ${evidenciaId} desligada do item ${codigo}`);
+    return respostaAvaliacao(c, r);
+  } catch (e) { return erro500(c, 'Falha ao desligar a evidência', e); }
+});
+
+otApp.get('/relatorio/conformidade', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const r = await relatorioConformidade(db, user, projectId, JSON.parse(sites));
+    await trilha(c, 'ot.relatorio.conformidade', projectId, `Relatório de conformidade gerado com ${r.itens.length} item(ns) e ${r.sites.length} site(s)`);
+    return c.json(r);
+  } catch (e) { return erro500(c, 'Falha ao gerar o relatório de conformidade', e); }
 });
 
 // ─── agente de coleta (L5, plano 2026-11-04) ───────────────────────────────────────────

@@ -18,6 +18,9 @@ async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
     if (path === '/api/v1/auth/me') return json({ user });
     if (path === '/api/v1/projects' && method === 'GET') return json([{ id: 'proj-e2e', client_name: 'Cliente E2E', project_name: 'Projeto E2E', modulos }]);
     if (path === '/api/v1/projects/proj-e2e/ot/requisitos') return json({ requisitos: [REQ('4.1.1', 'Segregação em zonas de segurança', 18), REQ('5.1.1', 'Tratamento de exceções', null)] });
+    if (path === '/api/v1/projects/proj-e2e/ot/assessment') return json({ resumo: { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 2, revisar: 0, a_confirmar: 0 }, itens: [
+      { codigo: '4.1.1', titulo: 'Segregação em zonas de segurança', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_avaliado', por_site: [] },
+      { codigo: '5.1.1', titulo: 'Tratamento de exceções', categoria: 'Exceções', prazo: null, tipo: 'excecao', situacao: 'nao_avaliado', evidencia: 'Não avaliado neste ciclo' }] });
     return json(method === 'GET' ? [] : { ok: true });
   });
 }
@@ -50,7 +53,7 @@ test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB
   await expect(page.locator('#content')).toContainText('Espera por você');
   await page.locator('#nav-ot-assessment').click();
   await expect(page.locator('#content')).toContainText('4.1.1');
-  await expect(page.locator('#content')).toContainText('18 meses');
+  await expect(page.locator('#content')).toContainText('09/01/2023');
   await expect(page.locator('#content')).toContainText('Sem prazo');
 });
 
@@ -84,7 +87,7 @@ const ABAS_OT = {
     fluxos_externos: { externos: 1, sem_vpn: 1, situacao: 'nao_atende' }, prazos: [] },
   [`${B}/conformidade`]: { framework: 'ONS-RO-CB.BR.01', versao: 'Rev.00', vigencia: '2021-07-09', resumo: { nao_atende: 1, evidencia_no_inventario: 0, sem_evidencia: 1 }, itens: [
     { codigo: '4.1.3', titulo: 'Acesso externo por VPN', prazo_meses: 18, prazo_em: '2023-01-09', situacao: 'nao_atende', evidencia: '1 de 1 fluxo(s) externo(s) sem VPN' },
-    { codigo: '5.1.1', titulo: 'Tratamento de exceções', prazo_meses: null, prazo_em: null, situacao: 'sem_evidencia', evidencia: 'Fora do que o inventário registra' }] },
+      { codigo: '5.1.1', titulo: 'Tratamento de exceções', prazo_meses: null, prazo_em: null, situacao: 'sem_evidencia', evidencia: 'Fora do que o inventário registra' }] },
 };
 
 test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guardado e saídas sem "atende"', async ({ page }) => {
@@ -730,4 +733,83 @@ test('desvios: Regularizar envia o achado do desvio e abre o lote', async ({ pag
   await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#content')).toContainText('Lote de planilha · SE Norte');
   expect(posts).toEqual([{ achados: ['ach1'] }]);
+});
+
+// Fluidez E5: o consultor avalia um item de política; o Gestor ARCiber o vê "A confirmar" e confirma. API mockada com estado.
+test('assessment: o consultor preenche um item de política e o gestor o vê "A confirmar" e confirma', async ({ page }) => {
+  let papel = 'consultor';
+  let avaliacao = null;
+  const envios = [];
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  await page.route(`**${B}/assessment**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (req.method() === 'PUT' && path === `${B}/assessment/4.2.1`) {
+      const corpo = req.postDataJSON();
+      envios.push(['PUT', corpo]);
+      avaliacao = { ...corpo, confirmado: false, responsavel_nome: null, updated_at: '2026-11-12 13:00:00.123' };
+      return json({ ok: true });
+    }
+    if (req.method() === 'POST' && path === `${B}/assessment/4.2.1/confirmar`) {
+      envios.push(['confirmar', req.postDataJSON()]);
+      avaliacao = { ...avaliacao, confirmado: true, confirmado_por_nome: 'Gestor', confirmado_em: '2026-11-12' };
+      return json({ ok: true });
+    }
+    const conf = avaliacao && avaliacao.confirmado ? 0 : avaliacao ? 1 : 0;
+    return json({ resumo: { atende: 0, parcial: avaliacao ? 1 : 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: avaliacao ? 0 : 1, revisar: 0, a_confirmar: conf },
+      itens: [{ codigo: '4.2.1', titulo: 'Gestor e suplente designados', categoria: 'Governança', prazo: null, tipo: 'politica', avaliacao, evidencias: [], subsidio: [] }] });
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await page.locator('#nav-ot-assessment').click();
+  const conteudo = page.locator('#content');
+  await expect(conteudo).toContainText('4.2.1');
+  await page.getByRole('button', { name: 'Abrir 4.2.1' }).click();
+  await page.locator('#ass-sit').selectOption('parcial');
+  await page.fill('#ass-just', 'Suplente ainda não designado formalmente');
+  await page.locator('#modal').getByRole('button', { name: 'Gravar' }).click();
+  await expect(conteudo.locator('.badge', { hasText: 'A confirmar' })).toBeVisible();
+  expect(envios[0]).toEqual(['PUT', { situacao: 'parcial', justificativa: 'Suplente ainda não designado formalmente', responsavel_id: null, proxima_revisao: null }]);
+  // o consultor não confirma
+  await page.getByRole('button', { name: 'Abrir 4.2.1' }).click();
+  await expect(page.locator('#modal').getByRole('button', { name: 'Confirmar' })).toHaveCount(0);
+
+  // o Gestor entra com a mesma API, filtra o que espera por ele e confirma
+  papel = 'org_admin';
+  await page.route('**/api/v1/auth/me', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { ...USER, role: papel, modulos: ['iso', 'ot'] } }) }));
+  await page.reload();
+  await page.locator('#nav-ot-assessment').click();
+  await page.locator('#ass-meus').check();
+  await expect(conteudo.locator('.badge', { hasText: 'A confirmar' })).toBeVisible();
+  await page.getByRole('button', { name: 'Abrir 4.2.1' }).click();
+  await page.locator('#modal').getByRole('button', { name: 'Confirmar' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Confirmar' }).click();
+  await expect(conteudo).toContainText('Nada espera por você');
+  await page.locator('#ass-meus').uncheck();
+  await expect(conteudo.locator('.badge', { hasText: 'A confirmar' })).toHaveCount(0);
+  expect(envios[1]).toEqual(['confirmar', { updated_at: '2026-11-12 13:00:00.123' }]);
+});
+
+// Fluidez E5: o relatório de conformidade abre a partir de Relatórios e tem o botão de imprimir.
+test('relatório: Relatórios abre o relatório de conformidade com o botão Imprimir / Salvar PDF', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  await page.route(`**${B}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (path === `${B}/relatorio/conformidade`) return json({ projeto: 'Projeto E2E', gerado_em: '2026-11-12 10:00:00', gerado_por: 'Consultor',
+      sites: [{ nome: 'SE Norte', fase: 'em_operacao', base_aprovada_em: '2026-11-01 10:00:00' }],
+      itens: [{ codigo: '4.2.1', titulo: 'Gestor e suplente designados', tipo: 'politica', situacao: 'parcial', prazo: null, justificativa: 'Suplente ainda não designado',
+        evidencias: [], responsavel_nome: null, confirmado_em: null, proxima_revisao: '2027-11-12' }] });
+    if (path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await page.locator('#nav-ot-relatorios').click();
+  await page.getByRole('button', { name: 'Relatório de conformidade' }).click();
+  const conteudo = page.locator('#content');
+  await expect(conteudo).toContainText('Relatório de conformidade RO-CB.BR.01');
+  await expect(conteudo).toContainText('Suplente ainda não designado');
+  await expect(page.getByRole('button', { name: 'Imprimir / Salvar PDF' })).toBeVisible();
 });

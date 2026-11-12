@@ -137,6 +137,11 @@ export function lerCamposDoAtivo({ vazio = 'nulo' } = {}) {
     return { dados: d };
 }
 
+export const FASE = { em_levantamento: 'Em levantamento', base_em_aprovacao: 'Base em aprovação', em_operacao: 'Em operação', em_obra: 'Em obra' };
+
+/** Autoavaliação de um item de política do assessment (a do Gestor e da consultoria, não a do inventário). */
+export const AVALIACAO = { atende: ['success', 'Atende'], parcial: ['warning', 'Parcial'], nao_atende: ['danger', 'Não atende'], nao_se_aplica: ['neutral', 'Não se aplica'] };
+
 /** Situação de um item da RO-CB.BR.01 calculada do inventário: só três, e nenhuma afirma que o item é cumprido. */
 export const SITUACAO = {
     nao_atende: ['danger', 'Não atende'],

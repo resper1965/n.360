@@ -2249,6 +2249,31 @@ CREATE TABLE IF NOT EXISTS ot_requisitos (
     UNIQUE (framework, codigo)
 );
 
+CREATE TABLE IF NOT EXISTS ot_avaliacoes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    requisito_id TEXT NOT NULL REFERENCES ot_requisitos(id),
+    situacao TEXT NOT NULL CHECK (situacao IN ('atende', 'parcial', 'nao_atende', 'nao_se_aplica')),
+    justificativa TEXT,
+    responsavel_id TEXT,
+    proxima_revisao TEXT,
+    confirmado_por TEXT,
+    confirmado_em DATETIME,
+    atualizado_por TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, requisito_id),
+    CHECK (situacao = 'atende' OR length(trim(coalesce(justificativa, ''))) >= 3)
+);
+CREATE TABLE IF NOT EXISTS ot_requisito_evidencias (
+    evidencia_id TEXT NOT NULL REFERENCES evidence(id) ON DELETE CASCADE,
+    requisito_id TEXT NOT NULL REFERENCES ot_requisitos(id),
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (evidencia_id, requisito_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ot_req_evid_projeto ON ot_requisito_evidencias(project_id, requisito_id);
+
 INSERT OR IGNORE INTO ot_requisitos (id, framework, codigo, titulo, descricao, categoria, versao, prazo_meses) VALUES
   ('ons-ro-cb-br-01-rev00-4.1.1', 'ONS-RO-CB.BR.01', '4.1.1', 'Segregação em zonas de segurança', 'As redes devem ser segregadas em zonas de segurança, de acordo com a sua função. O agente deve definir uma arquitetura que segmente as redes minimamente em: Zona de Supervisão (nível 2 da ISA-95 e do Purdue Reference Model), Zona DMZ Operativa (nível 3) e Zona Corporativa (nível 4).', 'Arquitetura tecnológica para o ambiente', 'Rev.00', 27),
   ('ons-ro-cb-br-01-rev00-4.1.2', 'ONS-RO-CB.BR.01', '4.1.2', 'ARCiber não acessível pela internet', 'O ARCiber não deve ser diretamente acessível através da internet, mesmo que protegido por um ou mais firewalls, bem como seus ativos: não devem ser visíveis nem acessíveis a partir da internet, exceto nos casos previstos em 4.1.3, e não devem ser capazes de se conectar com a internet.', 'Arquitetura tecnológica para o ambiente', 'Rev.00', 18),

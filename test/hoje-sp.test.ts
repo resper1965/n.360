@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { env } from 'cloudflare:test';
-import { hojeEmSaoPaulo, diaMaisSP } from '../src/services/hoje';
+import { hojeEmSaoPaulo, diaMaisSP, mesesMaisSP } from '../src/services/hoje';
 import { visaoDoEncarregado } from '../src/services/encarregado';
 import { applySchema, habilitarPrivacy } from './helpers/d1';
 
@@ -24,6 +24,12 @@ describe('"hoje" é o dia de São Paulo', () => {
     expect(hojeEmSaoPaulo(new Date('2026-10-21T00:30:00Z'))).toBe('2026-10-20');
     expect(hojeEmSaoPaulo(new Date('2026-10-21T03:30:00Z'))).toBe('2026-10-21');
     expect(diaMaisSP(7, new Date('2026-10-21T00:30:00Z'))).toBe('2026-10-27');
+  });
+
+  it('+12 meses é o mesmo dia do ano seguinte em São Paulo, não 365 dias', () => {
+    expect(mesesMaisSP(12, new Date('2027-03-01T12:00:00Z'))).toBe('2028-03-01'); // 365 dias dariam 29/02/2028
+    expect(mesesMaisSP(12, new Date('2026-11-13T01:00:00Z'))).toBe('2027-11-12'); // 22h de 12/11 em Brasília
+    expect(mesesMaisSP(12, new Date('2028-02-29T12:00:00Z'))).toBe('2029-03-01'); // 29/02 sem par no ano seguinte
   });
 
   it('às 21h30 de Brasília a evidência que vence hoje não está vencida no encarregado', async () => {

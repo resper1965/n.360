@@ -14,6 +14,13 @@ export function diaMaisSP(dias: number, agora: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** O dia de São Paulo daqui a `meses` meses: o mesmo dia do calendário (29/02 + 12 meses vira 01/03). */
+export function mesesMaisSP(meses: number, agora: Date = new Date()): string {
+  const d = new Date(`${hojeEmSaoPaulo(agora)}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + meses);
+  return d.toISOString().slice(0, 10);
+}
+
 /** O dia (AAAA-MM-DD) de uma data gravada, em São Paulo. Data pura ou meia-noite UTC exata é dia de calendário (prazo) e fica como
  *  está; instante (`toISOString`, ou o `datetime` do SQLite, em UTC) vira o dia de São Paulo. A mesma regra de `dataHoraBr`. */
 export function diaEmSaoPaulo(v: string | null): string | null {

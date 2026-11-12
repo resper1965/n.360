@@ -74,28 +74,28 @@ describe('item n.ot: projeto E pessoa com o módulo', () => {
     });
 });
 
-describe('tela do catálogo RO-CB.BR.01', () => {
-    // Corpo de GET /api/v1/projects/:projectId/ot/requisitos (src/routes/ot.ts).
-    const req = (codigo, titulo, prazo_meses) => ({ id: `ons-${codigo}`, framework: 'ONS-RO-CB.BR.01', codigo, titulo, descricao: 'd', categoria: 'c', versao: 'Rev.00', prazo_meses });
+describe('tela Assessment RO-CB.BR.01', () => {
+    // Corpo de GET /api/v1/projects/:projectId/ot/assessment (src/routes/ot.ts).
+    const req = (codigo, titulo, prazo) => ({ codigo, titulo, categoria: 'c', prazo, tipo: 'tecnico', situacao_org: 'nao_avaliado', por_site: [] });
     const abrir = async () => {
         document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>';
         S.otProjeto = S.activeProject?.id; S.otTela = 'assessment';
         await window.renderOt(el('c'), el('h'), el('a'));
     };
-    it('lista código, título e prazo (18, 27 ou sem prazo), tudo escapado, do projeto ativo', async () => {
+    it('lista código, título e prazo (dd/mm/aaaa ou sem prazo), tudo escapado, do projeto ativo', async () => {
         S.activeProject = { id: 'p9', modulos: ['ot'] };
-        const f = servir({ 'GET /api/v1/projects/p9/ot/requisitos': { requisitos: [req('4.1.1', 'Zonas <b id="x">x</b>', 18), req('4.3.1', 'Inventário', 27), req('5.1.1', 'Exceções', null)] } });
+        const f = servir({ 'GET /api/v1/projects/p9/ot/assessment': { resumo: {}, itens: [req('4.1.1', 'Zonas <b id="x">x</b>', '2023-01-09'), req('4.3.1', 'Inventário', '2023-10-09'), req('5.1.1', 'Exceções', null)] } });
         await abrir();
-        expect(f.mock.calls.map((c) => new URL(c[0], 'http://x').pathname)).toContain('/api/v1/projects/p9/ot/requisitos');
-        expect([...el('c').querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Código', 'Requisito', 'Prazo']);
+        expect(f.mock.calls.map((c) => new URL(c[0], 'http://x').pathname)).toContain('/api/v1/projects/p9/ot/assessment');
+        expect([...el('c').querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Código', 'Requisito', 'Situação', 'Prazo ONS', 'Responsável', 'Próxima revisão', '']);
         const linhas = [...el('c').querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim()));
-        expect(linhas).toEqual([['4.1.1', 'Zonas <b id="x">x</b>', '18 meses'], ['4.3.1', 'Inventário', '27 meses'], ['5.1.1', 'Exceções', 'Sem prazo']]);
+        expect(linhas.map((l) => [l[0], l[1], l[3]])).toEqual([['4.1.1', 'Zonas <b id="x">x</b>', '09/01/2023'], ['4.3.1', 'Inventário', '09/10/2023'], ['5.1.1', 'Exceções', 'Sem prazo']]);
         expect(el('x')).toBeNull();
         expect(el('c').textContent).toContain('RO-CB.BR.01 Rev.00');
     });
     it('catálogo vazio: estado vazio, não tabela', async () => {
         S.activeProject = { id: 'p9', modulos: ['ot'] };
-        servir({ 'GET /api/v1/projects/p9/ot/requisitos': { requisitos: [] } });
+        servir({ 'GET /api/v1/projects/p9/ot/assessment': { resumo: {}, itens: [] } });
         await abrir();
         expect(el('c').querySelector('.empty-state')).toBeTruthy();
         expect(el('c').querySelector('table')).toBeNull();
@@ -202,7 +202,7 @@ describe('casca por subtela', () => {
         expect(S.otTela).toBe('inicio');
     });
     it('?ot=assessment e ?ot=acessos (quem edita) desenham a própria tela', async () => {
-        servir({ [`GET ${B}/requisitos`]: { requisitos: [] } });
+        servir({ [`GET ${B}/assessment`]: { resumo: {}, itens: [] } });
         ir('/ot?ot=assessment');
         await abrir();
         expect(el('h').textContent).toBe('Assessment RO-CB.BR.01');
