@@ -154,6 +154,21 @@ describe('detecção pelo envio da sonda', () => {
     await c.enviar();
     expect(await c.desvios()).toEqual([]);
   });
+  it('site em_obra: o desvio é gravado e nenhum webhook sai; com a obra em aprovação também', async () => {
+    const c = await cenario();
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'em_obra', obra_ate = '2099-01-01' WHERE id = ?`).bind(c.site).run();
+    expect(await c.enviar()).toHaveLength(0);
+    expect(await c.desvios()).toHaveLength(3);
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'base_em_aprovacao' WHERE id = ?`).bind(c.site).run();
+    expect(await c.enviar()).toHaveLength(0);
+    expect((await c.desvios()).every((d) => d.ocorrencias === 2)).toBe(true);
+  });
+  it('base_em_aprovacao sem obra: nada é calculado', async () => {
+    const c = await cenario();
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'base_em_aprovacao' WHERE id = ?`).bind(c.site).run();
+    expect(await c.enviar()).toHaveLength(0);
+    expect(await c.desvios()).toEqual([]);
+  });
   it('o mesmo resumo de novo: ocorrências 2 e nenhum webhook', async () => {
     const c = await cenario();
     await c.enviar();

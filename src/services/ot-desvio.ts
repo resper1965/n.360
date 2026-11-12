@@ -1,7 +1,10 @@
 // Desvio do n.ot (spec 2026-11-09-n-ot-desvio §2–§4): o que a sonda viu e não está aprovado no inventário. Calculado sobre o plano
 // do resumo (antes do filtro de novidade), com ciclo aberto → tratado/aceito/regularizado e webhook `ot.desvio` sem IP nem MAC.
 import type { Bindings } from '../index';
-import { genId, logAudit } from '../helpers';
+import { genId, logAudit, sendEmail } from '../helpers';
+import { montarEmail } from './email-layout';
+import { CARGO_GESTOR_ARCIBER } from './ot-conformidade';
+import { vencerObras } from './ot-fase';
 import { appUrl } from '../config/url';
 import { chavesOt, cifrarEnderecos } from './ot-cifra';
 import { ativosDoSite } from './ot-coleta';
@@ -79,7 +82,8 @@ const trilha = (env: Bindings, acao: string, ator: string, detalhe: string, proj
  * Upsert por (projeto, tipo, chave): novo → aberto; aberto ou aceito no prazo → só conta; tratado, regularizado (o item voltou a
  * aparecer, então saiu do inventário) ou aceito vencido → reabre. `dados` só é cifrado na criação (AAD com o id da linha).
  */
-export async function detectarDesvios(env: Bindings, ctx: Ctx, a: { projectId: string; siteId: string; sensorId: string; plano: Plano; agora: Date }):
+export async function detectarDesvios(env: Bindings, ctx: Ctx, a: { projectId: string; siteId: string; sensorId: string; plano: Plano; agora: Date },
+  { silencioso = false } = {}):
   Promise<{ abertos: number; reabertos: number; atualizados: number }> {
   const { projectId, siteId, sensorId, plano } = a;
   const db = env.DB;
@@ -146,7 +150,7 @@ export async function detectarDesvios(env: Bindings, ctx: Ctx, a: { projectId: s
   if (porAcao.aceite_vencido) {
     await trilha(env, 'ot.desvio.aceite_vencido', ator, `${porAcao.aceite_vencido} desvio(s) com aceite vencido reaberto(s) no site ${siteId}`, projectId);
   }
-  if (avisos.length) avisar(env, ctx, projectId, avisos, 'aberto');
+  if (avisos.length && !silencioso) avisar(env, ctx, projectId, avisos, 'aberto'); // em obra grava e abre, mas o SOC só ouve ao fechar a obra
   if (falha) throw falha;
   return n;
 }
@@ -176,4 +180,31 @@ export async function reabrirVencidos(env: Bindings, ctx: Ctx, agora: Date): Pro
     } catch (e) { console.error('ot.desvio: falha ao avisar o aceite vencido', projectId, e); }
   }
   return results.length;
+}
+
+/** Fim da obra (aprovação da base ou prazo): um único POST com os desvios que ficaram abertos no site, ou nada se não há. */
+export async function entregarAbertos(env: Bindings, ctx: Ctx, projectId: string, siteId: string): Promise<void> {
+  const { results } = await env.DB.prepare(`SELECT * FROM ot_desvios WHERE project_id = ? AND site_id = ? AND situacao = 'aberto' ORDER BY ultima_vez DESC LIMIT ${TETO_LEITURA_OT}`)
+    .bind(projectId, siteId).all<LinhaDesvio>();
+  if (results.length) avisar(env, ctx, projectId, results, 'aberto');
+}
+
+/** Cron diário: obra vencida volta a em_operacao; por site, trilha, e-mail ao Gestor ARCiber (sem dado de rede) e entrega dos desvios abertos. */
+export async function encerrarObrasVencidas(env: Bindings, ctx: Ctx, hoje: string): Promise<number> {
+  const sites = await vencerObras(env.DB, hoje);
+  for (const { siteId, projectId } of sites) {
+    try { // um site que falha não segura os outros
+      await trilha(env, 'ot.site.obra_vencida', 'sistema', `Obra do site ${siteId} venceu; o site voltou a em_operacao`, projectId);
+      const site = await env.DB.prepare('SELECT nome FROM ot_sites WHERE id = ? AND project_id = ?').bind(siteId, projectId).first<{ nome: string }>();
+      const { results: gestores } = await env.DB.prepare(`SELECT email FROM project_governance WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER}
+        AND coalesce(trim(email), '') <> '' ORDER BY is_primary DESC LIMIT ${TETO_LEITURA_OT}`).bind(projectId).all<{ email: string }>();
+      const assunto = `n.ot: a obra do site ${site?.nome ?? siteId} venceu`;
+      const corpo = montarEmail({ assunto, titulo: 'Obra vencida', saudacao: 'Olá,',
+        paragrafos: [`A obra do site ${site?.nome ?? siteId} venceu e o site voltou a operação: o alerta de desvio está ligado de novo.`],
+        acao: 'Abrir o n.ot e conferir os desvios do site', motivo: 'você é Gestor ARCiber de um projeto com o n.ot.' });
+      for (const g of gestores) await sendEmail({ env }, g.email, assunto, corpo);
+      await entregarAbertos(env, ctx, projectId, siteId);
+    } catch (e) { console.error('ot.obra: falha ao encerrar a obra vencida', siteId, e); }
+  }
+  return sites.length;
 }

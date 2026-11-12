@@ -4,13 +4,13 @@ import { erro500, genId, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
   otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
-import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
-import { aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
+import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
+import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
 import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { conformidadeOt } from '../services/ot-conformidade';
@@ -928,6 +928,12 @@ async function decidirBase(c: C, acao: 'pedida' | 'aprovada' | 'devolvida', just
   const r = await fn(db, user, projectId, id);
   if (!r.ok) return c.json({ error: r.error }, r.status);
   await trilha(c, `ot.site.base_${acao}`, projectId, `Base do site ${id} ${acao}`, { tipo: 'ot_site', id }, justificativa);
+  if ('fechouObra' in r && r.fechouObra) {
+    await trilha(c, 'ot.site.obra_fechada', projectId, `Obra do site ${id} fechada pela aprovação da base`, { tipo: 'ot_site', id });
+    // o SOC ouve os desvios abertos durante a obra agora; a entrega não segura a resposta
+    const ctx = { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto (testes): segue solta */ } } };
+    ctx.waitUntil(entregarAbertos(c.env, ctx, projectId, id).catch((e) => console.error('ot.desvio: falha ao entregar ao fechar a obra', e)));
+  }
   return c.json({ ok: true });
 }
 otApp.post('/sites/:id/base/pedir', async (c) => {
@@ -949,6 +955,24 @@ otApp.post('/sites/:id/base/devolver', async (c) => {
     return await decidirBase(c, 'devolvida', v.data.motivo);
   } catch (e) { return erro500(c, 'Falha ao devolver a base', e); }
 });
+
+// ─── obra do site (spec fluidez E4): só o Gestor ARCiber abre ou renova ────────
+for (const [rota, fn, acao] of [['abrir', abrirObra, 'aberta'], ['renovar', renovarObra, 'renovada']] as const) {
+  otApp.post(`/sites/:id/obra/${rota}`, async (c) => {
+    try {
+      if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
+      const v = await validateBody(c, otObraSchema);
+      if (!v.success) return v.response;
+      const { db, user, projectId, sites } = await contexto(c);
+      const id = c.req.param('id')!;
+      if (!daLista(sites, id)) return NAO_ENCONTRADO(c, 'Site');
+      const r = await fn(db, user, projectId, id, v.data);
+      if (!r.ok) return c.json({ error: r.error }, r.status);
+      await trilha(c, `ot.site.obra_${acao}`, projectId, `Obra do site ${id} ${acao} até ${v.data.ate}`, { tipo: 'ot_site', id }, v.data.justificativa);
+      return c.json({ ok: true });
+    } catch (e) { return erro500(c, 'Falha ao decidir a obra', e); }
+  });
+}
 
 // ─── desvios (spec n-ot-desvio) ─────────────────────────────────────────────
 // `dados` nunca sai cru: só os campos da tela. Pontas por nome/zona (corpoWebhook resolve por id ou ip_hash, que não sai); IP só de ativo

@@ -128,6 +128,7 @@ export async function renovarObra(db: D1Database, _ator: Ator, projectId: string
     return existe ? { ok: false, status: 409, error: 'A obra não existe ou já foi renovada' } : { ok: false, status: 404, error: 'Site não encontrado' };
   }
   const atual = o.obra_ate.slice(0, 10);
+  if (atual < hojeEmSaoPaulo()) return { ok: false, status: 409, error: 'A obra já venceu' };
   const limite = new Date(`${atual}T00:00:00Z`); limite.setUTCDate(limite.getUTCDate() + OBRA_MAX_DIAS);
   if (!diaReal(d.ate) || d.ate <= atual || d.ate > limite.toISOString().slice(0, 10)) return { ok: false, status: 400, error: `O novo prazo vai até ${OBRA_MAX_DIAS} dias além do atual` };
   const r = await db.prepare(`UPDATE ot_sites SET obra_ate = ?, obra_justificativa = ?, obra_renovada = 1, updated_at = CURRENT_TIMESTAMP

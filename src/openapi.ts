@@ -136,7 +136,7 @@ import {
 } from './schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
   otDesvioTratarSchema, otDesvioAceitarSchema,
 } from './schemas/ot';
@@ -333,6 +333,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/manual', schema: otLoteManualSchema, nome: 'otLoteManualSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:id/base/aprovar', schema: otBaseAprovarSchema, nome: 'otBaseAprovarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:id/base/devolver', schema: otBaseDevolverSchema, nome: 'otBaseDevolverSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:id/base/devolver', schema: otObraSchema, nome: 'otObraSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/sites/:id', schema: otSiteAtualizarSchema, nome: 'otSiteAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:sid/sensores', schema: sensorCriarSchema, nome: 'sensorCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:siteId/enviar', schema: otEnviarAchadosSchema, nome: 'otEnviarAchadosSchema' },
