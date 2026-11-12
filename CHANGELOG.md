@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: E5, assessment da RO-CB.BR.01 e relatório de conformidade (migração 0112)
+- **Assessment** (`ot_avaliacoes` e `ot_requisito_evidencias`, migração 0112, aditiva): itens técnicos vêm do inventário, por site, e não se editam; itens de política são autoavaliados por quem edita o n.ot (situação, justificativa, responsável e próxima revisão) e **confirmados pelo Gestor ARCiber**. Editar tira a confirmação. A justificativa é obrigatória, salvo em "atende". Ao confirmar, a próxima revisão fica para daqui a 12 meses.
+- **Evidências:** o arquivo sobe para as evidências do projeto e fica ligado ao item; remover só desliga, o arquivo continua no projeto. Evidência vencida ou revisão passada marca o item como "Revisar".
+- Rotas `GET /ot/assessment`, `PUT /ot/assessment/:codigo`, `POST /ot/assessment/:codigo/confirmar` e `POST`/`DELETE /ot/assessment/:codigo/evidencias`, com trilha.
+- **Relatório de conformidade** (`GET /ot/relatorio/conformidade`): página para imprimir ou salvar em PDF, aberta em Relatórios. Nunca traz IP, MAC nem nome de ativo; o texto livre sai mascarado. Gerar o relatório grava `ot.relatorio.conformidade` na trilha.
+- **Tela Assessment** com os filtros "Só o que espera por mim" e "Só o que precisa de revisão"; o **Início** mostra os itens a confirmar (Gestor), a preencher (equipe) e a revisar; os indicadores de Relatórios levam à Base do site com o filtro de zona.
+
 ### n.ot: E4, obra e operação (migração 0111)
 - **Obra** (`ot_sites.obra_*`, migração 0111, aditiva): o Gestor ARCiber abre com `POST /ot/sites/:id/obra/abrir` (`{justificativa, ate}`, prazo de até 90 dias) e renova uma vez com `/obra/renovar` (até mais 90 dias). Fecha pela aprovação da base: o técnico pede a partir de "em obra" e o aceite do Gestor encerra a obra.
 - **Desvio silencioso:** durante a obra (e em base em aprovação com obra aberta) o desvio é calculado e gravado, sem webhook. Ao fechar a obra, os desvios abertos saem num único webhook.
