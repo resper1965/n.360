@@ -2293,6 +2293,11 @@ CREATE TABLE IF NOT EXISTS ot_sites (
     base_pedida_por TEXT,
     base_aprovada_em DATETIME,
     base_aprovada_por TEXT,
+    obra_ate DATETIME,
+    obra_justificativa TEXT,
+    obra_renovada INTEGER NOT NULL DEFAULT 0 CHECK (obra_renovada IN (0, 1)),
+    obra_aberta_em DATETIME,
+    obra_aberta_por TEXT,
     UNIQUE (id, project_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ot_sites_projeto ON ot_sites(project_id);

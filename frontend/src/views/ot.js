@@ -8,6 +8,7 @@ import { montarSaidas } from './ot-saidas.js';
 import { esvaziarNotas } from './ot-levantamento.js';
 import { cartaoAgente } from './ot-agente.js';
 import { areaSondas } from './ot-sensores.js';
+import { cartaoIntegracao } from './ot-integracao.js';
 import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
 import { itemVisivel, moduloPara, enderecoDoProduto, modulosVisiveis } from '../produto.js';
@@ -422,7 +423,7 @@ export async function montarAcessos(c, a, p) {
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os acessos por site.', e); return; }
     // Secundários: sem a lista de contas, a tabela mostra o id e o formulário avisa; sem o agente, a aba segue sem o cartão.
     const [contas, agente] = await Promise.all([api('GET', '/api/v1/users').then((r) => (Array.isArray(r) ? r : []), () => []), cartaoAgente(p)]);
-    const sondas = await areaSondas(p, D.sites);
+    const [sondas, integracao] = await Promise.all([areaSondas(p, D.sites), cartaoIntegracao(p)]);
     tecnicos = contas.filter((u) => u.role === 'org_user' && u.client_project_id === p.id);
     const email = (id) => (contas.find((u) => u.id === id) || {}).email || id;
     if (D.sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoAcesso">+ Conceder acesso</button>';
@@ -430,7 +431,7 @@ export async function montarAcessos(c, a, p) {
         ${renderDataTable(['Site', 'Técnico', 'Concedido por', 'Desde', 'Ações'], acessos.map((x) => [
         escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(email(x.user_id)), escapeHTML(x.concedido_por || '—'), escapeHTML(formatarData(x.created_at)),
         linhaMais([{ rotulo: 'Revogar acesso', action: 'otRevogarAcesso', args: [x.site_id, x.user_id], perigo: true }], email(x.user_id)),
-    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site em Sites antes de conceder acesso.' })}${agente}${sondas}`;
+    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site em Sites antes de conceder acesso.' })}${agente}${integracao}${sondas}`;
 }
 window.otNovoAcesso = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Conceder acesso a um site</span></div>

@@ -4,6 +4,7 @@ import { resposta } from './servir-api.js';
 
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
+import { emDiasSP } from '../src/hoje.js';
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import { cabecalhoDoSite, proximoPasso } from '../src/views/ot-base.js';
@@ -56,7 +57,8 @@ describe('cabeçalho do site', () => {
         const c = render(sit('pedir_base'), EQ);
         expect(c.querySelectorAll('[aria-current="step"]')).toHaveLength(1);
         expect(c.querySelector('[aria-current="step"]').textContent).toContain('Revisar e aprovar');
-        expect(render(sit('em_operacao', { base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
+        expect(render(sit('em_operacao', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
+        expect(render(sit('revalidar', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
         expect(render(null, EQ).textContent).toContain('Não foi possível carregar a situação do site.');
     });
 
@@ -116,5 +118,70 @@ describe('cabeçalho do site', () => {
         document.querySelector('[data-confirmar="sim"]').click();
         await p;
         expect(new URL(f.mock.calls[0][0], 'http://x').pathname).toBe(`${B}/sites/s1/base/pedir`);
+    });
+
+    it('em obra: selo com a justificativa no title; só o Gestor vê Renovar, e só antes de renovar; um só primário', () => {
+        const em = (renovada) => sit('comecar', { fase: 'em_obra', obra: { ate: '2026-12-05', renovada, justificativa: 'Troca "do" <b>switch</b>' } });
+        const g = render(em(false), GE);
+        expect(g.textContent).toContain('Obra em andamento até 05/12');
+        expect(g.querySelector('.badge').getAttribute('title')).toBe('Troca "do" <b>switch</b>');
+        expect(g.querySelector('[data-args*="renovar"]').textContent).toBe('Renovar obra');
+        expect(g.querySelector('[data-args*="renovar"]').classList.contains('btn-primary')).toBe(false);
+        expect(g.querySelectorAll('.btn-primary')).toHaveLength(1);
+        expect(render(em(true), GE).textContent).not.toContain('Renovar obra');
+        expect(render(em(false), EQ).textContent).not.toContain('Renovar obra');
+    });
+    it('Abrir obra só em operação e só para o Gestor; revalidar mostra o prazo e Novo levantamento', () => {
+        const op = sit('em_operacao', { fase: 'em_operacao', obra: null });
+        expect(render(op, GE).textContent).toContain('Abrir obra');
+        expect(render(op, EQ).textContent).not.toContain('Abrir obra');
+        const r = render(sit('revalidar', { fase: 'em_operacao', obra: null, revalidar_em: '2026-12-20' }), { ...GE, criar: true });
+        expect(r.textContent).toContain('Revalide o inventário até 20/12');
+        expect(r.querySelector('.btn-primary').textContent).toBe('Novo levantamento');
+        expect(r.querySelectorAll('.btn-primary')).toHaveLength(1);
+    });
+    it('datas fora da faixa: nada é enviado (abrir: hoje e +91; renovar: antes do fim e além de fim+90)', async () => {
+        const f = vi.fn(async () => resposta({ ok: true }));
+        vi.stubGlobal('fetch', f);
+        window.render = vi.fn();
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        const tenta = async (quem, atual, ate) => {
+            window.otObra(quem, 's1', atual);
+            document.getElementById('obra-just').value = 'x';
+            document.getElementById('obra-ate').value = ate;
+            await window.otSalvarObra(quem, 's1', atual);
+        };
+        await tenta('abrir', undefined, emDiasSP(0));
+        await tenta('abrir', undefined, emDiasSP(91));
+        await tenta('renovar', '2026-12-05', '2026-12-05');
+        await tenta('renovar', '2026-12-05', '2026-12-04');
+        await tenta('renovar', '2026-12-05', '2027-03-06'); // fim + 91
+        expect(f).not.toHaveBeenCalled();
+        expect(document.body.textContent).toContain('A data deve ficar entre');
+        window.otObra('renovar', 's1', '2026-12-05');
+        expect(document.getElementById('obra-ate').min).toBe('2026-12-06');
+        expect(document.getElementById('obra-ate').max).toBe('2027-03-05');
+        await tenta('renovar', '2026-12-05', '2027-03-05'); // fim + 90 passa
+        expect(f).toHaveBeenCalledTimes(1);
+    });
+    it('Abrir obra pede data e justificativa e envia o corpo certo', async () => {
+        const f = vi.fn(async () => resposta({ ok: true }));
+        vi.stubGlobal('fetch', f);
+        window.render = vi.fn();
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        window.otObra('abrir', 's1');
+        expect(document.body.textContent).toContain('Durante a obra os desvios são registrados sem alerta.');
+        await window.otSalvarObra('abrir', 's1');
+        expect(f).not.toHaveBeenCalled(); // vazio: avisa
+        document.getElementById('obra-just').value = ' Troca do switch ';
+        document.getElementById('obra-ate').value = emDiasSP(10);
+        await window.otSalvarObra('abrir', 's1');
+        expect(new URL(f.mock.calls[0][0], 'http://x').pathname).toBe(`${B}/sites/s1/obra/abrir`);
+        expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ justificativa: 'Troca do switch', ate: emDiasSP(10) });
+        window.otObra('renovar', 's1', '2026-12-05');
+        document.getElementById('obra-just').value = 'Atraso';
+        document.getElementById('obra-ate').value = '2026-12-20';
+        await window.otSalvarObra('renovar', 's1', '2026-12-05');
+        expect(new URL(f.mock.calls[1][0], 'http://x').pathname).toBe(`${B}/sites/s1/obra/renovar`);
     });
 });

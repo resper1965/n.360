@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resposta } from './servir-api.js';
 import { pendenciasDoPapel, montarInicio } from '../src/views/ot-inicio.js';
+import { emDiasSP } from '../src/hoje.js';
 import { S } from '../src/state.js';
 import '../src/ui.js';
 
@@ -25,6 +26,11 @@ describe('pendenciasDoPapel', () => {
         const p = pendenciasDoPapel({ ...base, desvios }, { id: 'u1', podeAprovar: true, podeEditar: false });
         expect(p).toEqual([expect.objectContaining({ tipo: 'desvio', texto: '2 desvios abertos em SE Norte', acao: { tela: 'site', site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } } })]);
     });
+    it('desvio de site em obra não entra em Espera por você', () => {
+        const desvios = [{ site_id: 's1' }, { site_id: 's2' }];
+        const p = pendenciasDoPapel({ ...base, desvios, sites: { s1: 'SE Norte', s2: 'SE Sul' }, situacoes: { s1: { obra: { ate: '2099-01-01' } } } }, { id: 'u1', podeAprovar: true, podeEditar: false });
+        expect(p.map((x) => x.texto)).toEqual(['1 desvio aberto em SE Sul']);
+    });
     it('consultor vê rascunhos e sonda parada; técnico só a recusa do próprio lote', () => {
         const dados = { ...base, rascunhosPorSite: { s1: 3 }, sondas: [{ nome: 'S-1', site_id: 's1', situacao: 'parada' }],
             lotes: [{ id: 'l3', status: 'rejeitado', criado_por: 'u9', site_id: 's1', created_at: '2026-11-01T00:00:00Z' }] };
@@ -34,6 +40,24 @@ describe('pendenciasDoPapel', () => {
     it('a API traz a situação da sonda em `saude`; atrasada vira "atrasada"', () => {
         const p = pendenciasDoPapel({ ...base, sondas: [{ nome: 'S-2', site_id: 's1', saude: 'atrasada' }, { nome: 'S-3', site_id: 's1', saude: 'em_dia' }] }, { id: 'u1', podeAprovar: false, podeEditar: true });
         expect(p.map((x) => x.texto)).toEqual(['Sonda S-2 atrasada em SE Norte']);
+    });
+    it('o Gestor vê obra e aceite vencendo em até 7 dias; o prazo longe e quem não é Gestor, não', () => {
+        const perto = emDiasSP(3); const longe = emDiasSP(30);
+        const dm = (i) => `${i.slice(8)}/${i.slice(5, 7)}`;
+        const dados = { ...base, aceitos: [{ site_id: 's1', aceito_ate: `${perto}T23:59:59.999Z` }, { site_id: 's1', aceito_ate: `${longe}T23:59:59.999Z` }],
+            situacoes: { s1: { obra: { ate: perto, renovada: false } }, s2: { obra: { ate: longe } } } };
+        const p = pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: true });
+        expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte vence em ${dm(perto)}`, `Aceite de desvio vence em ${dm(perto)} (SE Norte)`]);
+        expect(p[0].acao).toMatchObject({ site: 's1', modo: 'projeto' });
+        expect(p[1].acao).toMatchObject({ site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } });
+        expect(pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: false })).toEqual([]);
+    });
+    it('prazo já passado diz "venceu"', () => {
+        const velho = emDiasSP(-2);
+        const dm = (i) => `${i.slice(8)}/${i.slice(5, 7)}`;
+        const p = pendenciasDoPapel({ ...base, aceitos: [{ site_id: 's1', aceito_ate: `${velho}T23:59:59.999Z` }], situacoes: { s1: { obra: { ate: velho } } } },
+            { id: 'u1', podeAprovar: false, podeEditar: false, gestor: true });
+        expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte venceu em ${dm(velho)}`, `Aceite de desvio venceu em ${dm(velho)} (SE Norte)`]);
     });
     it('nada pendente devolve lista vazia', () => {
         expect(pendenciasDoPapel(base, { id: 'u1', podeAprovar: true, podeEditar: true })).toEqual([]);
@@ -87,6 +111,21 @@ describe('montarInicio', () => {
         expect(c.querySelector('[data-action="otIrParaLote"]')).not.toBeNull();
         expect(c.querySelector('[data-action="otAbrirLote"]')).toBeNull();
     });
+    it('o Gestor vê o aceite vencendo; se a leitura dos aceitos falha, o resto da tela segue; quem não é Gestor nem pede', async () => {
+        const dia = emDiasSP(2);
+        rotas[`GET ${B}/desvios`] = (u) => (u.searchParams.get('situacao') === 'aceito' ? { desvios: [{ site_id: 's1', aceito_ate: `${dia}T23:59:59.999Z` }] } : { desvios: [] });
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain(`Aceite de desvio vence em ${dia.slice(8)}/${dia.slice(5, 7)}`);
+        rotas[`GET ${B}/desvios`] = (u) => (u.searchParams.get('situacao') === 'aceito' ? null : { desvios: [] });
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Espera por você');
+        expect(c.textContent).not.toContain('Aceite de desvio');
+        S.user = { id: 'u1', role: 'analyst' };
+        urls.length = 0;
+        await montarInicio(c, null, { id: 'p9' });
+        expect(urls.some((u) => u.includes('situacao=aceito'))).toBe(false);
+    });
     it('sites que falham: aviso, sem primário e sem "Cadastre o primeiro site"', async () => {
         delete rotas[`GET ${B}/sites`];
         const c = document.getElementById('c');
@@ -137,6 +176,12 @@ describe('montarInicio', () => {
         await montarInicio(c, null, { id: 'p9' });
         const cels = [...c.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
         expect(cels[0][4]).toBe('parada');
+    });
+    it('revalidar tem rótulo no Próximo passo', async () => {
+        rotas[`GET ${B}/sites/s1/situacao`] = { ...rotas[`GET ${B}/sites/s1/situacao`], fase: 'em_operacao', proximo_passo: 'revalidar' };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect([...c.querySelectorAll('tbody tr')][0].children[2].textContent).toBe('Revalidar');
     });
     it('colunas Fase e Próximo passo; o Gestor vê a base aguardando e o botão leva ao site', async () => {
         const c = document.getElementById('c');

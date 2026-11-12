@@ -99,6 +99,11 @@ export const otItemRecusarSchema = z.object({ motivo: livreSemPii(500, 3) }).str
 export const otBaseAprovarSchema = z.object({ declaracao: z.literal(true) }).strict();
 export const otBaseDevolverSchema = z.object({ motivo: livreSemPii(500, 3) }).strict();
 const data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD');
+/** Obra: justificativa sem PII e prazo (a faixa de dias é do serviço, em dias de São Paulo). */
+export const otObraSchema = z.object({
+  justificativa: livreSemPii(500, 3),
+  ate: data.refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v, 'Data inexistente'),
+}).strict();
 export const TETO_ACHADOS_SESSAO = 2000;
 const respostaRoteiro = z.object({ resposta: z.enum(['sim', 'nao', 'nao_perguntado']), nota: livreSemPii(500).optional() }).strict();
 

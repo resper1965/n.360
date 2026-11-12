@@ -132,9 +132,10 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
       .catch((e) => console.error('ot.sensor.resumo: falha na trilha', e));
     // Desvio sobre o plano de ANTES do filtro de novidade (o que está em rascunho ainda não está aprovado). Falha só vai ao log.
     try {
-      // sem base aprovada não há o que comparar (spec fluidez §4). E4: rodar também em em_obra, mas em silêncio (spec §4).
-      const fase = await db.prepare(`SELECT fase FROM ot_sites WHERE id = ? AND project_id = ?`).bind(sensor.siteId, sensor.projectId).first<{ fase: string }>();
-      if (fase?.fase === 'em_operacao') await (deps.detectarDesvios ?? detectarDesvios)(env, ctx, { projectId: sensor.projectId, siteId: sensor.siteId, sensorId: sensor.id, plano, agora });
+      // sem base aprovada não há o que comparar (spec fluidez §4): em_operacao alerta; em obra (ou base da obra em aprovação) grava em silêncio.
+      const f = await db.prepare(`SELECT fase, obra_ate FROM ot_sites WHERE id = ? AND project_id = ?`).bind(sensor.siteId, sensor.projectId).first<{ fase: string; obra_ate: string | null }>();
+      const silencioso = f?.fase === 'em_obra' || (f?.fase === 'base_em_aprovacao' && f.obra_ate !== null);
+      if (f?.fase === 'em_operacao' || silencioso) await (deps.detectarDesvios ?? detectarDesvios)(env, ctx, { projectId: sensor.projectId, siteId: sensor.siteId, sensorId: sensor.id, plano, agora }, { silencioso });
     } catch (e) { console.error('ot.desvio', e); }
     return json({ recebido: true, envio_id: envioId }, 200);
   } catch (e) {

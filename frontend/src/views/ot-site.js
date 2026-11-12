@@ -70,7 +70,7 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     const s = sites.find((x) => x.id === site);
     if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
     // sem modo pedido, a fase decide: em operação abre no Modo operação, o resto no Modo projeto
-    modo = SUBS[modo] ? modo : sit?.proximo_passo === 'em_operacao' ? 'operacao' : 'projeto';
+    modo = SUBS[modo] ? modo : sit?.fase === 'em_operacao' ? 'operacao' : 'projeto';
     sub = SUBS[modo].includes(sub) ? sub : SUBS[modo][0];
     S.otSite = site; S.otSub = sub; S.otModo = modo;
     if (sub === 'desvios') {

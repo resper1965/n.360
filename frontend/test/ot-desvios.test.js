@@ -112,6 +112,40 @@ describe('aba Desvios', () => {
         expect([S.otTela, S.otModo, S.otSub]).toEqual(['site', 'projeto', 'levantamento']);
         expect(S.otLevantamento).toBe('lv7');
     });
+
+    describe('Regularizar', () => {
+        const sem = { id: 'd3', site_id: 's1', site_nome: 'SE Norte', tipo: 'ativo', situacao: 'aberto', origem: { ativo: 'X' }, ocorrencias: 1, achado_id: null };
+        const sim = async () => { await vi.waitFor(() => expect(document.querySelector('[data-confirmar="sim"]')).not.toBeNull()); document.querySelector('[data-confirmar="sim"]').click(); };
+        it('com achado: confirma, envia o achado e abre o lote; sem achado: só a dica', async () => {
+            await abrir('desvios', { [`GET ${B}/desvios`]: { desvios: [...DESVIOS.desvios, sem] }, [`POST ${B}/sites/s1/enviar`]: { id: 'l5' } });
+            const bs = el('c').querySelectorAll('[data-action="otRegularizarDesvio"]');
+            expect(bs).toHaveLength(1);
+            expect(bs[0].classList.contains('btn-primary')).toBe(false);
+            expect(el('c').textContent).toContain('Sem achado ligado: registre num levantamento pontual.');
+            window.otIrParaLote = vi.fn();
+            const p = window.otRegularizarDesvio(...JSON.parse(bs[0].getAttribute('data-args')));
+            await sim(); await p;
+            expect(JSON.parse(chamadas.find((c) => c.k === `POST ${B}/sites/s1/enviar`).opts.body)).toEqual({ achados: ['a1'] });
+            expect(window.otIrParaLote).toHaveBeenCalledWith('s1', 'l5');
+        });
+        it('técnico e cliente não veem o botão', async () => {
+            for (const role of ['org_user', 'client']) { S.user.role = role; await abrir('desvios'); expect(el('c').querySelector('[data-action="otRegularizarDesvio"]')).toBeNull(); }
+        });
+        it('cancelar a confirmação não envia nada', async () => {
+            await abrir('desvios');
+            const p = window.otRegularizarDesvio('s1', 'a1');
+            await vi.waitFor(() => expect(document.querySelector('[data-confirmar="nao"]')).not.toBeNull());
+            document.querySelector('[data-confirmar="nao"]').click(); await p;
+            expect(chamadas.some((c) => c.k.startsWith('POST'))).toBe(false);
+        });
+        it('409: toast e redesenho', async () => {
+            await abrir('desvios', { [`POST ${B}/sites/s1/enviar`]: [409, { error: 'Achado já em lote' }] });
+            const p = window.otRegularizarDesvio('s1', 'a1');
+            await sim(); await p;
+            expect(document.body.textContent).toContain('Achado já em lote');
+            expect(window.render).toHaveBeenCalled();
+        });
+    });
 });
 
 describe('cartão Achados da sonda para revisar', () => {

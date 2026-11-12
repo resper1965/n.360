@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, formatarData } from '../ui.js';
+import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, confirmar, formatarData } from '../ui.js';
 import { mensagemDeErro, podeEditarOt, lista, opcoes, semRepetir } from '../ot-comum.js';
 import { hojeSP, emDiasSP } from '../hoje.js';
 
@@ -54,6 +54,8 @@ function linha(d) {
     const aberto = d.situacao === 'aberto';
     const acoes = [aberto && podeEditarOt() && `<button class="btn btn-sm" data-action="otTratarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Tratar ${nome}`)}">Tratar</button>`,
         aberto && podeAceitar() && `<button class="btn btn-sm" data-action="otAceitarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Aceitar temporariamente ${nome}`)}">Aceitar temporariamente</button>`,
+        aberto && podeEditarOt() && (d.achado_id ? `<button class="btn btn-sm" data-action="otRegularizarDesvio" data-args='${args(d.site_id, d.achado_id)}' aria-label="${escapeHTML(`Regularizar ${nome}`)}">Regularizar</button>`
+            : '<span class="org-dica">Sem achado ligado: registre num levantamento pontual.</span>'),
         d.achado_id && `<button class="btn btn-sm" data-action="otVerAchadoDesvio" data-args='${args(d.achado_levantamento_id, d.site_id)}' aria-label="${escapeHTML(`Ver achado de ${nome}`)}">Ver achado</button>`].filter(Boolean);
     return [escapeHTML(TIPO[d.tipo] || d.tipo), escapeHTML(d.site_nome),
         ativo ? `${ponta(d.origem)}${sub.length ? `<div class="org-dica f-mono">${escapeHTML(sub.join(' · '))}</div>` : ''}` : ponta(d.origem),
@@ -75,6 +77,14 @@ window.otFiltrarDesvios = (campo) => {
 window.otVerAchadoDesvio = (levId, siteId) => {
     return window.otTela('site', siteId || S.otSite, 'projeto', { otSub: 'levantamento', otLevantamento: levId || null });
 };
+
+window.otRegularizarDesvio = (site, achado) => semRepetir('otRegularizarDesvio', async () => {
+    if (!await confirmar('Enviar o achado deste desvio para aprovação? Quando o lote for aprovado, o desvio fecha como regularizado.', { rotulo: 'Regularizar' })) return;
+    let lote;
+    try { lote = await api('POST', `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(site)}/enviar`, { achados: [achado] }); }
+    catch (e) { falhou(e, 'Não foi possível enviar o achado para aprovação.'); window.render(); return; }
+    window.otIrParaLote(site, lote.id);
+});
 
 function modal(titulo, campos, acao, id, rotulo) {
     openModal(`<div class="modal-header"><span class="modal-title">${titulo}</span></div>${campos}

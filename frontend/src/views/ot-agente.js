@@ -86,7 +86,7 @@ async function emitir() {
 window.otSalvarChaveAgente = () => semRepetir('otSalvarChaveAgente', emitir);
 
 /** Fechar o modal por qualquer caminho (Fechar, Esc, fundo) apaga a chave do DOM. */
-function apagarAoFechar() {
+export function apagarAoFechar() {
     const ov = el('modal-overlay');
     const obs = new MutationObserver(() => {
         if (ov.classList.contains('open')) return;

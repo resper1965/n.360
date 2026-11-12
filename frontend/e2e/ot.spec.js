@@ -671,3 +671,63 @@ test('técnico: vê "Trazer dados" e "Novo levantamento" e não vê "Pedir aprov
   await expect(page.getByRole('button', { name: '+ Novo levantamento' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Pedir aprovação da base' })).toHaveCount(0);
 });
+
+// Fluidez E4: o Gestor abre a obra no site em operação; o selo aparece e "Renovar obra" fica disponível.
+test('obra: o gestor abre a obra, o selo aparece e Renovar obra fica disponível', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const sit = { ...ABAS_OT[`${B}/sites/s1/situacao`], fase: 'em_operacao', lotes_em_revisao: 0, zonas_4_1_1: true, proximo_passo: 'em_operacao', obra: null, revalidar_em: null };
+  const posts = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (req.method() === 'POST' && path === `${B}/sites/s1/obra/abrir`) {
+      posts.push(req.postDataJSON());
+      Object.assign(sit, { fase: 'em_obra', obra: { ate: req.postDataJSON().ate, renovada: false, justificativa: req.postDataJSON().justificativa } });
+      return json({ ok: true });
+    }
+    if (path === `${B}/sites/s1/situacao`) return json(sit);
+    if (path === `${B}/desvios`) return json({ desvios: [] });
+    if (path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await page.locator('#nav-ot-sites').click();
+  await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
+  await expect(page.getByRole('button', { name: 'Renovar obra' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Abrir obra' }).click();
+  await page.getByLabel('Justificativa').fill('Troca do painel de controle');
+  await page.getByLabel('Fim da obra').fill(await page.locator('#obra-ate').getAttribute('max'));
+  await page.locator('#modal-content').getByRole('button', { name: 'Abrir obra' }).click();
+  await expect(page.locator('#content')).toContainText('Obra em andamento até');
+  await expect(page.getByRole('button', { name: 'Renovar obra' })).toBeVisible();
+  expect(posts).toHaveLength(1);
+  expect(posts[0].justificativa).toBe('Troca do painel de controle');
+});
+
+// Fluidez E4: desvio aberto com achado de origem. Regularizar confirma, envia o achado e abre o lote.
+test('desvios: Regularizar envia o achado do desvio e abre o lote', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const desvio = { id: 'd1', site_id: 's1', site_nome: 'SE Norte', tipo: 'fluxo', situacao: 'aberto', protocolo: 'modbus', porta: 502, externo: false,
+    origem: { ativo: 'CLP-01', zona: 'Supervisão' }, destino: { ativo: 'Historiador', zona: 'DMZ' }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-08T10:00:00Z', ocorrencias: 3, aceito_ate: null, nota: null, achado_id: 'ach1' };
+  const posts = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (req.method() === 'POST' && path === `${B}/sites/s1/enviar`) { posts.push(req.postDataJSON()); return json({ id: 'l1' }); }
+    if (path === `${B}/lotes/l1`) return json({ lote: ABAS_OT[`${B}/lotes`].lotes[0], itens: [], nomes_pontas: {} });
+    if (path === `${B}/desvios`) return json(new URL(req.url()).searchParams.get('contagem') ? { total: 1 } : { desvios: [desvio] });
+    if (path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await noSite(page, 'operacao', 'Desvios');
+  await page.getByRole('button', { name: /Regularizar Fluxo/ }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Regularizar' }).click();
+  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#content')).toContainText('Lote de planilha · SE Norte');
+  expect(posts).toEqual([{ achados: ['ach1'] }]);
+});
