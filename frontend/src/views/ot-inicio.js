@@ -15,7 +15,7 @@ const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const alvo = (site, modo, lote) => ({ tela: 'site', site, modo, ...(lote ? { lote } : {}) });
 
 /** Linhas de "Espera por você" para o papel de quem olha. Pura: recebe os dados já lidos. `sites` mapeia id → nome. */
-export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite = {}, sondas = [], sites = {}, situacoes = {} }, { id, podeAprovar, podeEditar, gestor }) {
+export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rascunhosPorSite = {}, sondas = [], sites = {}, situacoes = {} }, { id, podeAprovar, podeEditar, gestor }) {
     const nome = (s) => sites[s] || 'site';
     const out = [];
     if (podeAprovar) {
@@ -30,6 +30,12 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], rascunhosPorSite =
     }
     if (gestor) {
         for (const [s] of Object.entries(situacoes).filter(([, x]) => x?.proximo_passo === 'aguardar_base')) out.push({ tipo: 'base', texto: `Base de ${nome(s)} aguardando sua aprovação`, acao: alvo(s, 'projeto') });
+    }
+    if (gestor) {
+        const limite = emDiasSP(PRAZO_DIAS);
+        const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+        for (const [s, x] of Object.entries(situacoes)) if (x?.obra?.ate && x.obra.ate <= limite) out.push({ tipo: 'obra', texto: `Obra em ${nome(s)} vence em ${dm(x.obra.ate)}`, acao: alvo(s, 'projeto') });
+        for (const d of aceitos) if (d.aceito_ate && d.aceito_ate.slice(0, 10) <= limite) out.push({ tipo: 'aceite', texto: `Aceite de desvio vence em ${dm(d.aceito_ate)}`, acao: { ...alvo(d.site_id, 'operacao'), extra: { otSub: 'desvios' } } });
     }
     if (podeEditar) {
         for (const [s, n] of Object.entries(rascunhosPorSite).filter(([, n]) => n > 0)) out.push({ tipo: 'rascunho', texto: `${plural(n, 'achado em rascunho', 'achados em rascunho')} em ${nome(s)}`, acao: { ...alvo(s, 'projeto'), extra: { otSub: 'aprovacao' } } });
@@ -48,10 +54,11 @@ const abrir = (a) => (a.lote ? botao('Abrir', 'Abrir lote', 'otIrParaLote', a.si
     : a.site ? botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.modo, ...(a.extra ? [a.extra] : [])) : botao('Abrir', 'Abrir sites', 'otTela', 'sites'));
 
 export async function montarInicio(c, a, p) {
-    const [rL, rD, rS, rC] = await Promise.allSettled([
+    const [rL, rD, rS, rC, rA] = await Promise.allSettled([
         api('GET', `/api/v1/projects/${p.id}/ot/lotes`),
         api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto`), api('GET', `/api/v1/projects/${p.id}/ot/sites`),
-        api('GET', `/api/v1/projects/${p.id}/ot/conformidade`)]);
+        api('GET', `/api/v1/projects/${p.id}/ot/conformidade`),
+        api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aceito`)]);
     const v = (r, k) => (r.status === 'fulfilled' ? lista(r.value, k) : []);
     const sitesL = v(rS, 'sites');
     const sites = Object.fromEntries(sitesL.map((s) => [s.id, s.nome]));
@@ -68,7 +75,7 @@ export async function montarInicio(c, a, p) {
     const situacoes = {};
     sitesL.forEach((s, i) => { if (rSit[i].status === 'fulfilled') situacoes[s.id] = rSit[i].value; });
     const desvios = v(rD, 'desvios');
-    const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, rascunhosPorSite, sondas, sites, situacoes },
+    const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, aceitos: v(rA, 'desvios'), rascunhosPorSite, sondas, sites, situacoes },
         { id: S.user?.id, podeAprovar: podeAprovarOt() && S.user?.role !== 'consultoria_admin', podeEditar: podeEditarOt(), gestor: ehGestor() });
 
     const falhou = [rL, rD, ...rQ].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resposta } from './servir-api.js';
 import { pendenciasDoPapel, montarInicio } from '../src/views/ot-inicio.js';
+import { emDiasSP } from '../src/hoje.js';
 import { S } from '../src/state.js';
 import '../src/ui.js';
 
@@ -34,6 +35,17 @@ describe('pendenciasDoPapel', () => {
     it('a API traz a situação da sonda em `saude`; atrasada vira "atrasada"', () => {
         const p = pendenciasDoPapel({ ...base, sondas: [{ nome: 'S-2', site_id: 's1', saude: 'atrasada' }, { nome: 'S-3', site_id: 's1', saude: 'em_dia' }] }, { id: 'u1', podeAprovar: false, podeEditar: true });
         expect(p.map((x) => x.texto)).toEqual(['Sonda S-2 atrasada em SE Norte']);
+    });
+    it('o Gestor vê obra e aceite vencendo em até 7 dias; o prazo longe e quem não é Gestor, não', () => {
+        const perto = emDiasSP(3); const longe = emDiasSP(30);
+        const dm = (i) => `${i.slice(8)}/${i.slice(5, 7)}`;
+        const dados = { ...base, aceitos: [{ site_id: 's1', aceito_ate: `${perto} 00:00:00` }, { site_id: 's1', aceito_ate: longe }],
+            situacoes: { s1: { obra: { ate: perto, renovada: false } }, s2: { obra: { ate: longe } } } };
+        const p = pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: true });
+        expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte vence em ${dm(perto)}`, `Aceite de desvio vence em ${dm(perto)}`]);
+        expect(p[0].acao).toMatchObject({ site: 's1', modo: 'projeto' });
+        expect(p[1].acao).toMatchObject({ site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } });
+        expect(pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: false })).toEqual([]);
     });
     it('nada pendente devolve lista vazia', () => {
         expect(pendenciasDoPapel(base, { id: 'u1', podeAprovar: true, podeEditar: true })).toEqual([]);
