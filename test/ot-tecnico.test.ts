@@ -43,20 +43,36 @@ beforeAll(async () => {
 
 const nova = (site: string) => ({ site_id: site, tipo: 'visita', realizado_em: '2026-11-12' });
 
+const lev = (h: H, extra: Record<string, unknown> = {}) => criar(h, 'levantamentos', { ...nova(ids.s1), ...extra });
+
 describe('técnico: levantamento e dados nos sites concedidos', () => {
   it('cria levantamento no site concedido (201) e não no outro (400, referência inválida)', async () => {
-    ids.lev = await criar(tec, 'levantamentos', nova(ids.s1));
+    await lev(tec);
     expect((await chamar(tec, 'POST', `${P}/levantamentos`, nova(ids.s2))).status).toBe(400);
   });
 
   it('edita notas, registra achado, edita achado e envia para aprovação', async () => {
-    { const r = await chamar(tec, "PUT", `${P}/levantamentos/${ids.lev}`, { notas: "ronda feita" }); expect(r.status, await r.clone().text()).toBe(200); }
-    const a = await chamar(tec, 'POST', `${P}/levantamentos/${ids.lev}/achados`, { dados: { nome: 'RTU Tec', ip: '10.1.7.9' }, evidencia: 'visto no painel' });
+    const l = await lev(tec);
+    const n = await chamar(tec, 'PUT', `${P}/levantamentos/${l}`, { notas: 'ronda feita' });
+    expect(n.status, await n.clone().text()).toBe(200);
+    const a = await chamar(tec, 'POST', `${P}/levantamentos/${l}/achados`, { dados: { nome: 'RTU Tec', ip: '10.1.7.9' }, evidencia: 'visto no painel' });
     expect(a.status, await a.clone().text()).toBe(201);
     const aid = (await a.json<{ id: string }>()).id;
-    expect((await chamar(tec, 'PUT', `${P}/levantamentos/${ids.lev}/achados/${aid}`, { evidencia: 'visto no painel 2' })).status).toBe(200);
-    const e = await chamar(tec, 'POST', `${P}/levantamentos/${ids.lev}/enviar`, { achados: [aid] });
+    expect((await chamar(tec, 'PUT', `${P}/levantamentos/${l}/achados/${aid}`, { evidencia: 'visto no painel 2' })).status).toBe(200);
+    const e = await chamar(tec, 'POST', `${P}/levantamentos/${l}/enviar`, { achados: [aid] });
     expect(e.status, await e.clone().text()).toBe(201);
+  });
+
+  it('PUT do levantamento: técnico só notas, roteiro e encerrar; reabrir ou mexer em função é 403; editor segue livre', async () => {
+    const l = await lev(tec);
+    expect((await chamar(tec, 'PUT', `${P}/levantamentos/${l}`, { notas: 'a', roteiro: {} })).status).toBe(200);
+    expect((await chamar(tec, 'PUT', `${P}/levantamentos/${l}`, { situacao: 'encerrado' })).status).toBe(200);
+    const r = await chamar(tec, 'PUT', `${P}/levantamentos/${l}`, { situacao: 'aberto' });
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ error: 'Forbidden: o técnico só registra notas, respostas e encerra o levantamento' });
+    expect((await chamar(tec, 'PUT', `${P}/levantamentos/${l}`, { funcao: 'Chefe' })).status).toBe(403);
+    expect((await chamar(tec, 'PUT', `${P}/levantamentos/${l}`, { notas: 'b', turno: 'A' })).status).toBe(403);
+    expect((await chamar(cons, 'PUT', `${P}/levantamentos/${l}`, { situacao: 'aberto', funcao: 'Chefe' })).status).toBe(200);
   });
 
   it('levantamento de site não concedido: 404 em PUT, achados e enviar', async () => {
@@ -68,7 +84,7 @@ describe('técnico: levantamento e dados nos sites concedidos', () => {
   });
 
   it('de-para: planilha e texto passam no site concedido e dão 404 no outro; rede segue A1', async () => {
-    const doc = await criar(tec, 'levantamentos', { ...nova(ids.s1), tipo: 'documento', documento_titulo: 'Inventário' });
+    const doc = await lev(tec, { tipo: 'documento', documento_titulo: 'Inventário' });
     const docOutro = await criar(cons, 'levantamentos', { ...nova(ids.s2), tipo: 'documento', documento_titulo: 'Inventário' });
     const prop = await multipart(tec, `${P}/levantamentos/${doc}/depara/planilha/proposta`, {});
     expect(prop.status, await prop.clone().text()).toBe(200);
@@ -76,8 +92,9 @@ describe('técnico: levantamento e dados nos sites concedidos', () => {
     expect(apl.status, await apl.clone().text()).toBe(201);
     expect((await multipart(tec, `${P}/levantamentos/${docOutro}/depara/planilha/proposta`, {})).status).toBe(404);
     expect((await multipart(tec, `${P}/levantamentos/${docOutro}/depara/planilha/aplicar`, { mapeamento: '{"0":"nome"}' })).status).toBe(404);
-    expect((await chamar(tec, 'POST', `${P}/levantamentos/${docOutro}/depara/texto`, {})).status).toBe(404);
-    expect((await chamar(tec, 'POST', `${P}/levantamentos/${doc}/depara/texto`, {})).status).not.toBe(403);
+    // texto: o arquivo de teste é CSV, que o leitor de documento recusa com 400 (passou da permissão e da trava de site)
+    expect((await multipart(tec, `${P}/levantamentos/${docOutro}/depara/texto`, {})).status).toBe(404);
+    expect((await multipart(tec, `${P}/levantamentos/${doc}/depara/texto`, {})).status).toBe(400);
     // rede: liberada no middleware, mas a rota (A1) só aceita quem vê o inventário completo; técnico segue 403 com a mensagem da rota
     const rede = await chamar(tec, 'POST', `${P}/levantamentos/${doc}/depara/rede`, {});
     expect(rede.status).toBe(403);
@@ -101,7 +118,7 @@ describe('técnico e cliente: o resto continua 403', () => {
   });
   it('cliente: nenhuma escrita, nem as do técnico', async () => {
     for (const [m, rota, corpo] of [...proibidas, ['POST', 'levantamentos', nova(ids.s1)], ['POST', 'lotes/manual', {}],
-      ['POST', `levantamentos/${ids.lev}/enviar`, {}], ['POST', `levantamentos/${ids.lev}/depara/texto`, {}]] as [string, string, unknown][]) {
+      ['POST', 'levantamentos/x/enviar', {}], ['POST', 'levantamentos/x/depara/texto', {}]] as [string, string, unknown][]) {
       expect((await chamar(cli, m, `${P}/${rota}`, corpo)).status, `${m} ${rota}`).toBe(403);
     }
   });

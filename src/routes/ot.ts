@@ -672,6 +672,10 @@ otApp.put('/levantamentos/:id', async (c) => {
     if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
     const v = await validateBody(c, otLevantamentoAtualizarSchema);
     if (!v.success) return v.response;
+    // Técnico (org_user): só notas, respostas do roteiro e encerrar; reabrir e mexer em função/turno/documento é de quem edita.
+    if (!podeEditarOt(c.get('user')) && Object.entries(v.data).some(([k, x]) => !(k === 'notas' || k === 'roteiro' || (k === 'situacao' && x === 'encerrado')))) {
+      return c.json({ error: 'Forbidden: o técnico só registra notas, respostas e encerra o levantamento' }, 403);
+    }
     if (lev.tipo === 'documento' && 'documento_titulo' in v.data && !v.data.documento_titulo) return c.json({ error: 'Documento exige o título' }, 400);
     if (await roteiroRuim(db, v.data.roteiro)) return refRuim(c, 'roteiro');
     // Colunas só das chaves do esquema `.strict()` (como em atualizar()); valores sempre por bind.
