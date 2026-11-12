@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderEmptyState } from '../ui.js';
 import { lista, podeAprovarOt, podeEditarOt, ehGestor, dataDoSqlite } from '../ot-comum.js';
-import { emDiasSP } from '../hoje.js';
+import { emDiasSP, hojeSP } from '../hoje.js';
 
 // n.ot, tela Início (spec 2026-11-11 fluidez §2): "Espera por você", Sites e Postura RO-CB.BR.01. Clique pela delegação:
 // data-action="otTela" / "otIrParaLote" (definidas na casca, Task 5). Tudo que vem da API passa por escapeHTML.
@@ -32,10 +32,15 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rasc
         for (const [s] of Object.entries(situacoes).filter(([, x]) => x?.proximo_passo === 'aguardar_base')) out.push({ tipo: 'base', texto: `Base de ${nome(s)} aguardando sua aprovação`, acao: alvo(s, 'projeto') });
     }
     if (gestor) {
-        const limite = emDiasSP(PRAZO_DIAS);
+        const hoje = hojeSP(); const limite = emDiasSP(PRAZO_DIAS);
         const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
-        for (const [s, x] of Object.entries(situacoes)) if (x?.obra?.ate && x.obra.ate <= limite) out.push({ tipo: 'obra', texto: `Obra em ${nome(s)} vence em ${dm(x.obra.ate)}`, acao: alvo(s, 'projeto') });
-        for (const d of aceitos) if (d.aceito_ate && d.aceito_ate.slice(0, 10) <= limite) out.push({ tipo: 'aceite', texto: `Aceite de desvio vence em ${dm(d.aceito_ate)}`, acao: { ...alvo(d.site_id, 'operacao'), extra: { otSub: 'desvios' } } });
+        const verbo = (iso) => (iso < hoje ? 'venceu' : 'vence');
+        for (const [s, x] of Object.entries(situacoes)) if (x?.obra?.ate && x.obra.ate <= limite) out.push({ tipo: 'obra', texto: `Obra em ${nome(s)} ${verbo(x.obra.ate)} em ${dm(x.obra.ate)}`, acao: alvo(s, 'projeto') });
+        for (const d of aceitos) { // aceito_ate é um instante: o dia vale em São Paulo
+            const t = dataDoSqlite(d.aceito_ate);
+            const dia = t && hojeSP(t);
+            if (dia && dia <= limite) out.push({ tipo: 'aceite', texto: `Aceite de desvio ${verbo(dia)} em ${dm(dia)} (${nome(d.site_id)})`, acao: { ...alvo(d.site_id, 'operacao'), extra: { otSub: 'desvios' } } });
+        }
     }
     if (podeEditar) {
         for (const [s, n] of Object.entries(rascunhosPorSite).filter(([, n]) => n > 0)) out.push({ tipo: 'rascunho', texto: `${plural(n, 'achado em rascunho', 'achados em rascunho')} em ${nome(s)}`, acao: { ...alvo(s, 'projeto'), extra: { otSub: 'aprovacao' } } });
@@ -58,7 +63,7 @@ export async function montarInicio(c, a, p) {
         api('GET', `/api/v1/projects/${p.id}/ot/lotes`),
         api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto`), api('GET', `/api/v1/projects/${p.id}/ot/sites`),
         api('GET', `/api/v1/projects/${p.id}/ot/conformidade`),
-        api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aceito`)]);
+        ehGestor() ? api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aceito`) : Promise.resolve({ desvios: [] })]); // só o Gestor vê os aceites vencendo
     const v = (r, k) => (r.status === 'fulfilled' ? lista(r.value, k) : []);
     const sitesL = v(rS, 'sites');
     const sites = Object.fromEntries(sitesL.map((s) => [s.id, s.nome]));

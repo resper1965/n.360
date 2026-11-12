@@ -4,6 +4,7 @@ import { resposta } from './servir-api.js';
 
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
+import { emDiasSP } from '../src/hoje.js';
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import { cabecalhoDoSite, proximoPasso } from '../src/views/ot-base.js';
@@ -119,10 +120,10 @@ describe('cabeçalho do site', () => {
     });
 
     it('em obra: selo com a justificativa no title; só o Gestor vê Renovar, e só antes de renovar; um só primário', () => {
-        const em = (renovada) => sit('comecar', { fase: 'em_obra', obra: { ate: '2026-12-05', renovada, justificativa: 'Troca <b>do</b> switch' } });
+        const em = (renovada) => sit('comecar', { fase: 'em_obra', obra: { ate: '2026-12-05', renovada, justificativa: 'Troca "do" <b>switch</b>' } });
         const g = render(em(false), GE);
         expect(g.textContent).toContain('Obra em andamento até 05/12');
-        expect(g.querySelector('.badge').getAttribute('title')).toBe('Troca <b>do</b> switch');
+        expect(g.querySelector('.badge').getAttribute('title')).toBe('Troca "do" <b>switch</b>');
         expect(g.querySelector('[data-args*="renovar"]').textContent).toBe('Renovar obra');
         expect(g.querySelector('[data-args*="renovar"]').classList.contains('btn-primary')).toBe(false);
         expect(g.querySelectorAll('.btn-primary')).toHaveLength(1);
@@ -138,6 +139,30 @@ describe('cabeçalho do site', () => {
         expect(r.querySelector('.btn-primary').textContent).toBe('Novo levantamento');
         expect(r.querySelectorAll('.btn-primary')).toHaveLength(1);
     });
+    it('datas fora da faixa: nada é enviado (abrir: hoje e +91; renovar: antes do fim e além de fim+90)', async () => {
+        const f = vi.fn(async () => resposta({ ok: true }));
+        vi.stubGlobal('fetch', f);
+        window.render = vi.fn();
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        const tenta = async (quem, atual, ate) => {
+            window.otObra(quem, 's1', atual);
+            document.getElementById('obra-just').value = 'x';
+            document.getElementById('obra-ate').value = ate;
+            await window.otSalvarObra(quem, 's1', atual);
+        };
+        await tenta('abrir', undefined, emDiasSP(0));
+        await tenta('abrir', undefined, emDiasSP(91));
+        await tenta('renovar', '2026-12-05', '2026-12-05');
+        await tenta('renovar', '2026-12-05', '2026-12-04');
+        await tenta('renovar', '2026-12-05', '2027-03-06'); // fim + 91
+        expect(f).not.toHaveBeenCalled();
+        expect(document.body.textContent).toContain('A data deve ficar entre');
+        window.otObra('renovar', 's1', '2026-12-05');
+        expect(document.getElementById('obra-ate').min).toBe('2026-12-06');
+        expect(document.getElementById('obra-ate').max).toBe('2027-03-05');
+        await tenta('renovar', '2026-12-05', '2027-03-05'); // fim + 90 passa
+        expect(f).toHaveBeenCalledTimes(1);
+    });
     it('Abrir obra pede data e justificativa e envia o corpo certo', async () => {
         const f = vi.fn(async () => resposta({ ok: true }));
         vi.stubGlobal('fetch', f);
@@ -148,14 +173,14 @@ describe('cabeçalho do site', () => {
         await window.otSalvarObra('abrir', 's1');
         expect(f).not.toHaveBeenCalled(); // vazio: avisa
         document.getElementById('obra-just').value = ' Troca do switch ';
-        document.getElementById('obra-ate').value = '2026-12-05';
+        document.getElementById('obra-ate').value = emDiasSP(10);
         await window.otSalvarObra('abrir', 's1');
         expect(new URL(f.mock.calls[0][0], 'http://x').pathname).toBe(`${B}/sites/s1/obra/abrir`);
-        expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ justificativa: 'Troca do switch', ate: '2026-12-05' });
-        window.otObra('renovar', 's1');
+        expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ justificativa: 'Troca do switch', ate: emDiasSP(10) });
+        window.otObra('renovar', 's1', '2026-12-05');
         document.getElementById('obra-just').value = 'Atraso';
         document.getElementById('obra-ate').value = '2026-12-20';
-        await window.otSalvarObra('renovar', 's1');
+        await window.otSalvarObra('renovar', 's1', '2026-12-05');
         expect(new URL(f.mock.calls[1][0], 'http://x').pathname).toBe(`${B}/sites/s1/obra/renovar`);
     });
 });

@@ -39,13 +39,20 @@ describe('pendenciasDoPapel', () => {
     it('o Gestor vê obra e aceite vencendo em até 7 dias; o prazo longe e quem não é Gestor, não', () => {
         const perto = emDiasSP(3); const longe = emDiasSP(30);
         const dm = (i) => `${i.slice(8)}/${i.slice(5, 7)}`;
-        const dados = { ...base, aceitos: [{ site_id: 's1', aceito_ate: `${perto} 00:00:00` }, { site_id: 's1', aceito_ate: longe }],
+        const dados = { ...base, aceitos: [{ site_id: 's1', aceito_ate: `${perto}T23:59:59.999Z` }, { site_id: 's1', aceito_ate: `${longe}T23:59:59.999Z` }],
             situacoes: { s1: { obra: { ate: perto, renovada: false } }, s2: { obra: { ate: longe } } } };
         const p = pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: true });
-        expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte vence em ${dm(perto)}`, `Aceite de desvio vence em ${dm(perto)}`]);
+        expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte vence em ${dm(perto)}`, `Aceite de desvio vence em ${dm(perto)} (SE Norte)`]);
         expect(p[0].acao).toMatchObject({ site: 's1', modo: 'projeto' });
         expect(p[1].acao).toMatchObject({ site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } });
         expect(pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: false })).toEqual([]);
+    });
+    it('prazo já passado diz "venceu"', () => {
+        const velho = emDiasSP(-2);
+        const dm = (i) => `${i.slice(8)}/${i.slice(5, 7)}`;
+        const p = pendenciasDoPapel({ ...base, aceitos: [{ site_id: 's1', aceito_ate: `${velho}T23:59:59.999Z` }], situacoes: { s1: { obra: { ate: velho } } } },
+            { id: 'u1', podeAprovar: false, podeEditar: false, gestor: true });
+        expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte venceu em ${dm(velho)}`, `Aceite de desvio venceu em ${dm(velho)} (SE Norte)`]);
     });
     it('nada pendente devolve lista vazia', () => {
         expect(pendenciasDoPapel(base, { id: 'u1', podeAprovar: true, podeEditar: true })).toEqual([]);
@@ -98,6 +105,21 @@ describe('montarInicio', () => {
         expect(c.textContent).not.toContain('da sonda para revisar');
         expect(c.querySelector('[data-action="otIrParaLote"]')).not.toBeNull();
         expect(c.querySelector('[data-action="otAbrirLote"]')).toBeNull();
+    });
+    it('o Gestor vê o aceite vencendo; se a leitura dos aceitos falha, o resto da tela segue; quem não é Gestor nem pede', async () => {
+        const dia = emDiasSP(2);
+        rotas[`GET ${B}/desvios`] = (u) => (u.searchParams.get('situacao') === 'aceito' ? { desvios: [{ site_id: 's1', aceito_ate: `${dia}T23:59:59.999Z` }] } : { desvios: [] });
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain(`Aceite de desvio vence em ${dia.slice(8)}/${dia.slice(5, 7)}`);
+        rotas[`GET ${B}/desvios`] = (u) => (u.searchParams.get('situacao') === 'aceito' ? null : { desvios: [] });
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Espera por você');
+        expect(c.textContent).not.toContain('Aceite de desvio');
+        S.user = { id: 'u1', role: 'analyst' };
+        urls.length = 0;
+        await montarInicio(c, null, { id: 'p9' });
+        expect(urls.some((u) => u.includes('situacao=aceito'))).toBe(false);
     });
     it('sites que falham: aviso, sem primário e sem "Cadastre o primeiro site"', async () => {
         delete rotas[`GET ${B}/sites`];

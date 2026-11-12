@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, confirmar, pedirTexto, showToast, formatarData, openModal } from '../ui.js';
-import { hojeSP, emDiasSP } from '../hoje.js';
+import { emDiasSP } from '../hoje.js';
 import { podeEditarOt, podeCriarLote, ehGestor, classePrimario, mensagemDeErro, dataDoSqlite } from '../ot-comum.js';
 
 // n.ot, cabeçalho do site (spec 2026-11-12 E3): régua Levantar → Revisar e aprovar → Base aprovada e o cartão "Próximo passo", que
@@ -43,7 +43,7 @@ export function cabecalhoDoSite(sit, site, papeis = { gestor: ehGestor(), editar
     const desde = sit.base_aprovada_em ? formatarData(dataDoSqlite(sit.base_aprovada_em)) : '';
     const { texto, acao } = proximoPasso(sit, site, papeis);
     const obra = sit.obra ? `<span class="badge" title="${escapeHTML(sit.obra.justificativa || '')}">Obra em andamento até ${escapeHTML(ddmm(sit.obra.ate))}</span>` : '';
-    const btnObra = !papeis.gestor ? '' : sit.obra ? (sit.obra.renovada ? '' : `<button class="btn" data-action="otObra" data-args='${args('renovar', site)}'>Renovar obra</button>`)
+    const btnObra = !papeis.gestor ? '' : sit.obra ? (sit.obra.renovada ? '' : `<button class="btn" data-action="otObra" data-args='${args('renovar', site, sit.obra.ate)}'>Renovar obra</button>`)
         : sit.fase === 'em_operacao' ? `<button class="btn" data-action="otObra" data-args='${args('abrir', site)}'>Abrir obra</button>` : '';
     return `<section class="card mb-4"><ol class="ot-regua" aria-label="Etapas do site">${ETAPAS.map((e, i) =>
         `<li${i === atual ? ' aria-current="step"' : ''}>${i === atual ? '<strong>' : ''}${i + 1}. ${e}${i === atual ? '</strong>' : ''}</li>`).join('')}</ol>
@@ -81,19 +81,24 @@ window.otDevolverBase = async (site) => {
 };
 
 // Abrir e renovar pedem o mesmo (fim e justificativa); o servidor confere o teto, a fase e o papel.
-window.otObra = (quem, site) => {
+// Abrir: de amanhã a hoje + 90. Renovar: depois do fim atual, até o fim atual + 90 (o servidor confere de novo).
+const faixaObra = (atual) => (atual ? [emDiasSP(1, new Date(`${atual}T12:00:00Z`)), emDiasSP(OBRA_MAX_DIAS, new Date(`${atual}T12:00:00Z`))] : [emDiasSP(1), emDiasSP(OBRA_MAX_DIAS)]);
+window.otObra = (quem, site, atual) => {
     const abrir = quem === 'abrir';
+    const [min, max] = faixaObra(abrir ? null : atual);
     openModal(`<div class="modal-header"><span class="modal-title">${abrir ? 'Abrir obra' : 'Renovar obra'}</span></div>
         <p class="org-dica mb-3">${abrir ? 'Durante a obra os desvios são registrados sem alerta.' : 'A obra só pode ser renovada uma vez.'}</p>
         <div class="form-group"><label class="form-label" for="obra-just">Justificativa</label><textarea class="form-input" id="obra-just" rows="3" maxlength="500" autofocus></textarea><p class="org-dica">Não escreva IP ou MAC.</p></div>
-        <div class="form-group"><label class="form-label" for="obra-ate">${abrir ? 'Fim da obra' : 'Novo prazo'}</label><input class="form-input" type="date" id="obra-ate" min="${hojeSP()}" max="${emDiasSP(OBRA_MAX_DIAS)}"><p class="org-dica">No máximo ${OBRA_MAX_DIAS} dias.</p></div>
-        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn" data-action="otSalvarObra" data-args='${args(quem, site)}'>${abrir ? 'Abrir obra' : 'Renovar obra'}</button></div>`);
+        <div class="form-group"><label class="form-label" for="obra-ate">${abrir ? 'Fim da obra' : 'Novo prazo'}</label><input class="form-input" type="date" id="obra-ate" min="${min}" max="${max}"><p class="org-dica">De ${ddmm(min)} a ${ddmm(max)}.</p></div>
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn" data-action="otSalvarObra" data-args='${args(quem, site, atual)}'>${abrir ? 'Abrir obra' : 'Renovar obra'}</button></div>`);
 };
-window.otSalvarObra = async (quem, site) => {
+window.otSalvarObra = async (quem, site, atual) => {
     const justificativa = document.getElementById('obra-just')?.value.trim();
     const ate = document.getElementById('obra-ate')?.value;
     if (!justificativa) { showToast('Escreva a justificativa da obra.', 'error'); return; }
     if (!ate) { showToast(`Informe a data de fim (no máximo ${OBRA_MAX_DIAS} dias).`, 'error'); return; }
+    const [min, max] = faixaObra(quem === 'abrir' ? null : atual);
+    if (ate < min || ate > max) { showToast(`A data deve ficar entre ${ddmm(min)} e ${ddmm(max)}.`, 'error'); return; }
     const corpo = { justificativa, ate };
     const depois = () => { window.closeModal?.(); window.render(); };
     // Um literal por rota: o contrato tela-API (varredura estática) precisa enxergar cada caminho.
