@@ -517,6 +517,34 @@ describe('Trazer dados', () => {
         expect(el('modal-content').textContent).toContain('Importar planilha');
     });
 
+    it('extensão fora da lista ou arquivo acima de 5 MB: aviso e nenhum levantamento criado', async () => {
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES, [`POST ${B}/levantamentos`]: { id: 'l9' } });
+        await abrir('levantamento');
+        for (const f of [new File(['x'], 'a.pdf'), Object.defineProperty(new File(['x'], 'g.csv'), 'size', { value: 6 * 1024 * 1024 })]) {
+            window.otTrazerDados();
+            const input = el('lev-trazer-arquivo');
+            Object.defineProperty(input, 'files', { value: [f] });
+            input.dispatchEvent(new Event('change'));
+            await new Promise((r) => setTimeout(r, 0));
+        }
+        expect(chamadas.some((x) => x.k === `POST ${B}/levantamentos`)).toBe(false);
+        expect(S.otLevantamento).toBeNull();
+    });
+
+    it('cancelar a confirmação da IA (txt/docx) não cria levantamento', async () => {
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES, [`POST ${B}/levantamentos`]: { id: 'l9' } });
+        await abrir('levantamento');
+        window.otTrazerDados();
+        const input = el('lev-trazer-arquivo');
+        Object.defineProperty(input, 'files', { value: [new File(['x'], 'ata.txt')] });
+        input.dispatchEvent(new Event('change'));
+        await new Promise((r) => setTimeout(r, 0));
+        expect(document.querySelector('.confirmar').textContent).toContain('A IA vai ler o texto mascarado');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(chamadas.some((x) => x.k === `POST ${B}/levantamentos`)).toBe(false);
+    });
+
     it('o seletor aceita planilha e documento, e o resumo do sensor (json) só para quem aprova', async () => {
         servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES });
         await abrir('levantamento');

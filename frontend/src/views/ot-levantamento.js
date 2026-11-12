@@ -78,7 +78,13 @@ window.otTrazerDados = () => {
     document.body.appendChild(input);
     input.click();
 };
+const CONFIRMA_IA = ['A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar para aprovação.', { titulo: 'Ler documento', rotulo: 'Ler com a IA' }];
 async function trazerDados(file) {
+    // Valida e confirma ANTES de criar: cancelar aqui não deixa levantamento vazio.
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!ACEITA_ARQUIVO().split(',').includes(`.${ext}`)) return showToast(`Use ${ofereceRede() ? 'CSV, XLSX, TXT, DOCX ou JSON' : 'CSV, XLSX, TXT ou DOCX'}.`, 'error');
+    if (file.size > 5 * 1024 * 1024) return showToast('Arquivo acima de 5 MB.', 'error');
+    if ((ext === 'txt' || ext === 'docx') && !await confirmar(...CONFIRMA_IA)) return;
     const site = fixo || S.otSite || sites[0]?.id;
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: site, tipo: 'documento', realizado_em: hojeSP(), documento_titulo: file.name.slice(0, 200) });
@@ -87,7 +93,7 @@ async function trazerDados(file) {
         importacao = null;
         window.render();
     } catch (e) { return falhou(e, 'Não foi possível criar o levantamento.'); }
-    await lerArquivo(file);
+    await lerArquivo(file, true);
 }
 window.otTipoLevantamento = (tipo) => { el('lev-f-pessoa').hidden = tipo === 'documento'; el('lev-f-doc').hidden = tipo !== 'documento'; };
 window.otCriarLevantamento = async () => {
@@ -442,14 +448,14 @@ window.otImportarArquivo = () => {
 };
 
 window.otLerArquivo = () => semRepetir('otLerArquivo', lerArquivo);
-async function lerArquivo(escolhido) {
+async function lerArquivo(escolhido, jaConfirmou = false) {
     const file = escolhido || el('lev-imp-arquivo')?.files?.[0];
     if (!file) return showToast('Escolha o arquivo.', 'error');
     const ext = file.name.split('.').pop().toLowerCase();
     const fd = new FormData();
     fd.append('file', file);
     if (ext === 'txt' || ext === 'docx') {
-        if (!await confirmar('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar para aprovação.', { titulo: 'Ler documento', rotulo: 'Ler com a IA' })) return;
+        if (!jaConfirmou && !await confirmar(...CONFIRMA_IA)) return;
         try {
             const r = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/texto`,
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
