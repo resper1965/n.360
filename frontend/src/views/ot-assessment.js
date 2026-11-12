@@ -12,10 +12,12 @@ const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const base = () => `/api/v1/projects/${S.activeProject.id}/ot/assessment`;
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const AVALIACAO = { atende: ['success', 'Atende'], parcial: ['warning', 'Parcial'], nao_atende: ['danger', 'Não atende'], nao_se_aplica: ['neutral', 'Não se aplica'] };
+const RESPOSTA = { sim: 'Sim', nao: 'Não' };
 const NAO_AVALIADO = ['neutral', 'Não avaliado'];
 let dados = { itens: [], resumo: {} };
 let responsaveis = [];
 let soMeus = false;
+let raiz = null; // o contêiner que montarAssessment recebeu
 
 const selo = (par) => renderStatusBadge(par[0], par[1]);
 const situacaoDe = (i) => (i.tipo === 'politica' ? (i.avaliacao ? AVALIACAO[i.avaliacao.situacao] : null)
@@ -25,6 +27,7 @@ const esperaPorMim = (i) => i.tipo === 'politica' && (ehGestor() ? i.avaliacao &
 const achar = (codigo) => dados.itens.find((i) => i.codigo === codigo);
 
 export async function montarAssessment(c, a, p) {
+    raiz = c; soMeus = false; dados = { itens: [], resumo: {} }; responsaveis = [];
     try {
         const [r, us] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/assessment`),
             api('GET', '/api/v1/users').then((x) => (Array.isArray(x) ? x : []), () => [])]);
@@ -34,7 +37,7 @@ export async function montarAssessment(c, a, p) {
     pintar(c);
 }
 
-function pintar(c = el('content') || document.getElementById('c')) {
+function pintar(c = raiz) {
     const r = dados.resumo;
     const cont = (rot, n) => `<span class="org-dica">${rot}: <strong>${escapeHTML(String(n ?? 0))}</strong></span>`;
     const itens = soMeus ? dados.itens.filter(esperaPorMim) : dados.itens;
@@ -56,7 +59,7 @@ function linha(i) {
         `<button class="btn btn-sm" data-action="otAssAbrir" data-args='${args(i.codigo)}' aria-label="${escapeHTML(`Abrir ${i.codigo}`)}">Abrir</button>`];
 }
 
-window.otAssFiltrar = (caixa) => { soMeus = !!caixa.checked; pintar(document.getElementById('c') || el('content')); };
+window.otAssFiltrar = (caixa) => { soMeus = !!caixa.checked; pintar(); };
 
 window.otAssAbrir = (codigo) => {
     const i = achar(codigo);
@@ -90,19 +93,20 @@ function corpoPolitica(i) {
     const evidencias = `<h4>Evidências</h4>${renderDataTable(['Arquivo', 'Validade', ''], evs.map((e) => [escapeHTML(e.file_name), escapeHTML(e.valido_ate ? formatarData(e.valido_ate) : '—') + (e.vencida ? ' (vencida)' : ''),
         editar ? `<button class="btn btn-sm" data-action="otAssRemoverEv" data-args='${args(i.codigo, e.id)}' aria-label="${escapeHTML(`Remover ${e.file_name}`)}">Remover</button>` : '']), { emptyMessage: 'Nenhuma evidência ligada.' })}
         ${editar ? `<div class="form-group"><label class="form-label" for="ass-arq">Arquivo</label><input class="form-input" type="file" id="ass-arq"></div><button class="btn" data-action="otAssAnexar" data-args='${args(i.codigo)}'>Anexar arquivo</button>` : ''}`;
-    const subsidio = `<h4>Subsídio do levantamento</h4>${sub.length ? `<ul>${sub.map((s) => `<li>${escapeHTML(s.site_nome)}: ${escapeHTML(s.pergunta)}: <strong>${s.resposta === 'sim' ? 'Sim' : 'Não'}</strong> (${escapeHTML(formatarData(s.realizado_em))}) <button class="btn btn-sm" data-action="otAssIrLevantamento">Ver levantamentos</button></li>`).join('')}</ul>` : '<p class="org-dica">Sem respostas do roteiro para este item.</p>'}`;
+    const subsidio = `<h4>Subsídio do levantamento</h4>${sub.length ? `<ul>${sub.map((s) => `<li>${escapeHTML(s.site_nome)}: ${escapeHTML(s.pergunta)}: <strong>${escapeHTML(RESPOSTA[s.resposta] || String(s.resposta))}</strong> (${escapeHTML(formatarData(s.realizado_em))}) <button class="btn btn-sm" data-action="otAssIrLevantamento" data-args='${args(s.site_id, s.levantamento_id)}'>Ver levantamento</button></li>`).join('')}</ul>` : '<p class="org-dica">Sem respostas do roteiro para este item.</p>'}`;
     const confirmacao = av.situacao && av.confirmado ? `<p class="org-dica">Confirmado por ${escapeHTML(av.confirmado_por_nome || '—')} em ${escapeHTML(formatarData(av.confirmado_em))}.</p>` : '';
     const confirmar_ = ehGestor() && av.situacao && !av.confirmado ? `<button class="btn" data-action="otAssConfirmar" data-args='${args(i.codigo)}'>Confirmar</button>` : '';
     return `${form}${confirmacao}${confirmar_}${evidencias}${subsidio}`;
 }
-// shortcut: o subsídio não traz o site_id, então o link leva à lista de Sites; passar o id na resposta do servidor se for preciso abrir direto.
-window.otAssIrLevantamento = () => { closeModal(); window.otTela('sites', null, 'projeto'); };
+window.otAssIrLevantamento = (site, lev) => { closeModal(); window.otTela('site', site, 'projeto', { otSub: 'levantamento', otLevantamento: lev }); };
 
+const CAMPOS = ['ass-sit', 'ass-just', 'ass-resp', 'ass-rev'];
 async function recarregar(codigo) {
+    const rascunho = codigo ? CAMPOS.map((id) => [id, el(id)?.value]) : [];
     const r = await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/assessment`);
     dados = { itens: lista(r, 'itens'), resumo: (r && r.resumo) || {} };
-    pintar(document.getElementById('c') || el('content'));
-    if (codigo) window.otAssAbrir(codigo);
+    pintar();
+    if (codigo) { window.otAssAbrir(codigo); for (const [id, v] of rascunho) if (v !== undefined && el(id)) el(id).value = v; }
 }
 
 window.otAssGravar = async (codigo) => {

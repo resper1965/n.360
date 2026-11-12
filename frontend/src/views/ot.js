@@ -12,14 +12,13 @@ import { cartaoIntegracao } from './ot-integracao.js';
 import { montarAssessment } from './ot-assessment.js';
 import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
-import { itemVisivel, moduloPara, enderecoDoProduto, modulosVisiveis } from '../produto.js';
+import { itemVisivel, enderecoDoProduto, modulosVisiveis } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
 // site (N2), coleta (N3, ot-coleta.js) e saídas (N4, ot-saidas.js), sobre as rotas de src/routes/ot.ts e ot-saidas.ts. Todo texto é
 // escapado; o que vem da API fica só na memória desta tela (D), que se refaz a cada desenho.
 
-const prazo = (m) => (Number.isInteger(m) && m > 0 ? `${m} meses` : 'Sem prazo');
 const el = (id) => document.getElementById(id);
 const proj = () => S.activeProject;
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
@@ -88,24 +87,6 @@ window.otTela = async (tela, site = null, modo = 'projeto', extra = {}) => {
 };
 // Abre o lote de um site vindo de fora (Início): sub-aba Lote de aprovação.
 window.otIrParaLote = (site, lote) => window.otTela('site', site, 'projeto', { otSub: 'aprovacao', otLote: lote });
-
-// ─── catálogo (N1) ──────────────────────────────────────────────────────────
-export async function montarCatalogo(c, a, p) {
-    let reqs;
-    try {
-        const r = await api('GET', `/api/v1/projects/${p.id}/ot/requisitos`);
-        reqs = Array.isArray(r && r.requisitos) ? r.requisitos : [];
-    } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os requisitos da RO-CB.BR.01.', e); return; }
-    if (!reqs.length) {
-        c.innerHTML = renderEmptyState({ titulo: 'Catálogo da RO-CB.BR.01 ainda não carregado',
-            texto: 'O catálogo é carregado pela migração do n.ot. Fale com o suporte da ness.' });
-        return;
-    }
-    c.innerHTML = `<p class="org-header-intro">ONS RO-CB.BR.01 Rev.00: ${escapeHTML(String(reqs.length))} requisitos. Prazo em meses após o início da vigência (09/07/2021).</p>`
-        + renderDataTable(['Código', 'Requisito', 'Prazo'], reqs.map((r) => [escapeHTML(r.codigo), escapeHTML(r.titulo), escapeHTML(prazo(r.prazo_meses))]))
-        // O hub só abre a governança se o projeto tem n.iso ou n.privacy (moduloPara); senão, só o texto.
-        + `<p class="org-dica">O Gestor e o suplente (4.2.1) vêm da governança do projeto${moduloPara('governance', p) ? `: <a href="${enderecoDoProduto('n360')}?tela=governance">abrir governança</a>` : ''}.</p>`;
-}
 
 // ─── inventário (N2) ────────────────────────────────────────────────────────
 const doSite = () => (S.otSite ? `?site_id=${encodeURIComponent(S.otSite)}` : '');

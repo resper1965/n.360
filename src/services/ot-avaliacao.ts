@@ -30,7 +30,7 @@ export async function montarAssessment(db: D1Database, projectId: string, sites:
     db.prepare(`SELECT l.requisito_id, e.id, e.file_name, e.valido_ate FROM ot_requisito_evidencias l JOIN evidence e ON e.id = l.evidencia_id AND e.project_id = l.project_id
       WHERE l.project_id = ? ORDER BY e.file_name LIMIT ${TETO_LEITURA_OT}`).bind(projectId),
     db.prepare('SELECT id, texto, item_norma FROM ot_roteiro_perguntas ORDER BY ordem'),
-    db.prepare(`SELECT l.id, s.nome AS site_nome, l.realizado_em, l.roteiro FROM ot_levantamentos l JOIN ot_sites s ON s.id = l.site_id AND s.project_id = l.project_id
+    db.prepare(`SELECT l.id, l.site_id, s.nome AS site_nome, l.realizado_em, l.roteiro FROM ot_levantamentos l JOIN ot_sites s ON s.id = l.site_id AND s.project_id = l.project_id
       WHERE l.project_id = ? AND l.status = 'ativo' AND l.site_id IN (SELECT value FROM json_each(?)) ORDER BY l.realizado_em DESC LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lista),
   ]);
   const porSite = await conformidadePorSite(db, projectId, sites);
@@ -43,14 +43,14 @@ export async function montarAssessment(db: D1Database, projectId: string, sites:
   }
   // item_norma é uma lista ("4.1.3, 4.5.1.5"); a resposta mora no JSON `roteiro` do levantamento, por id da pergunta.
   const subsidio = new Map<string, any[]>();
-  for (const l of levs.results as { id: string; site_nome: string; realizado_em: string; roteiro: string }[]) {
+  for (const l of levs.results as { id: string; site_id: string; site_nome: string; realizado_em: string; roteiro: string }[]) {
     const roteiro = JSON.parse(l.roteiro) as Record<string, { resposta: string }>;
     for (const p of perg.results as { id: string; texto: string; item_norma: string }[]) {
       const r = roteiro[p.id]?.resposta;
       if (!r || r === 'nao_perguntado') continue;
       for (const cod of p.item_norma.split(',').map((x) => x.trim())) {
         const q = subsidio.get(cod) ?? subsidio.set(cod, []).get(cod)!;
-        q.push({ levantamento_id: l.id, site_nome: l.site_nome, pergunta: p.texto, resposta: r, realizado_em: l.realizado_em });
+        q.push({ levantamento_id: l.id, site_id: l.site_id, site_nome: l.site_nome, pergunta: p.texto, resposta: r, realizado_em: l.realizado_em });
       }
     }
   }

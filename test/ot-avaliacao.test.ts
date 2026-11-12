@@ -164,7 +164,7 @@ describe('ot-avaliacao: assessment', () => {
     await run(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, roteiro, criado_por) VALUES ('l1', ?, 's1', 'entrevista', '2026-11-01', ?, 'u')`,
       P, JSON.stringify({ 'rot-02': { resposta: 'sim' }, 'rot-06': { resposta: 'nao_perguntado' } }));
     const s = (await item(cons, '4.5.1.5')).subsidio;
-    expect(s).toEqual([expect.objectContaining({ levantamento_id: 'l1', site_nome: 'SE Norte', resposta: 'sim', realizado_em: '2026-11-01' })]);
+    expect(s).toEqual([expect.objectContaining({ levantamento_id: 'l1', site_id: expect.any(String), site_nome: 'SE Norte', resposta: 'sim', realizado_em: '2026-11-01' })]);
     expect((await item(cons, '4.4.1')).subsidio).toEqual([]);
   });
 

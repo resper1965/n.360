@@ -15,7 +15,7 @@ const pausa = () => new Promise((r) => setTimeout(r, 0));
 const ITENS = { resumo: { atende: 1, parcial: 0, nao_atende: 1, nao_se_aplica: 0, nao_avaliado: 2, revisar: 1, a_confirmar: 1 }, itens: [
     { codigo: '4.1.1', titulo: 'Zonas <b id="xss1">x</b>', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_atende',
         por_site: [{ site_id: 's1', site_nome: 'SE <i id="xss2">N</i>', fase: 'em_levantamento', situacao: 'nao_atende', evidencia: '1 de 1 sem VPN' }] },
-    { codigo: '4.2.1', titulo: 'Gestor', categoria: 'Governança', prazo: null, tipo: 'politica', revisar: true, subsidio: [{ levantamento_id: 'lv1', site_nome: 'SE Norte', pergunta: 'Há pendrive?', resposta: 'sim', realizado_em: '2026-11-01' }],
+    { codigo: '4.2.1', titulo: 'Gestor', categoria: 'Governança', prazo: null, tipo: 'politica', revisar: true, subsidio: [{ levantamento_id: 'lv1', site_nome: 'SE Norte', pergunta: 'Há pendrive?', resposta: 'sim', realizado_em: '2026-11-01', site_id: 's1' }],
         avaliacao: { situacao: 'atende', justificativa: 'Feito <u id="xss3">j</u>', responsavel_id: 'u2', responsavel_nome: 'Ana', proxima_revisao: '2027-01-10', confirmado: false, confirmado_por_nome: null, confirmado_em: null },
         evidencias: [{ id: 'e1', file_name: 'ata.pdf', valido_ate: '2027-03-01', vencida: false }] },
     { codigo: '4.2.2', titulo: 'Papéis', categoria: 'Governança', prazo: null, tipo: 'politica', revisar: false, avaliacao: null, evidencias: [], subsidio: [] },
@@ -117,5 +117,31 @@ describe('tela Assessment', () => {
         window.otAssFiltrar({ checked: true });
         expect(linhas()).toEqual(['4.2.1']);
         window.otAssFiltrar({ checked: false });
+    });
+
+    it('anexar e remover mantêm o que foi digitado no formulário', async () => {
+        await abrir('consultor', { 'POST /api/v1/projects/p9/evidence/upload': { ok: true, id: 'ev9' }, [`POST ${B}/4.2.1/evidencias`]: { ok: true } });
+        window.otAssAbrir('4.2.1');
+        el('ass-sit').value = 'parcial'; el('ass-just').value = 'rascunho não gravado';
+        Object.defineProperty(el('ass-arq'), 'files', { value: [new File(['x'], 'a.pdf')] });
+        await window.otAssAnexar('4.2.1');
+        expect(el('ass-sit').value).toBe('parcial'); expect(el('ass-just').value).toBe('rascunho não gravado');
+    });
+
+    it('Ver levantamento abre o Levantamento do site; resposta fora de sim/nao aparece escapada; remontar zera o filtro', async () => {
+        await abrir();
+        window.otAssAbrir('4.2.1');
+        const b = el('modal-content').querySelector('[data-action="otAssIrLevantamento"]');
+        const [site, lev] = JSON.parse(b.dataset.args);
+        window.otAssIrLevantamento(site, lev);
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'levantamento', otLevantamento: 'lv1' });
+        const it = ITENS.itens[1]; const antes = it.subsidio[0].resposta;
+        it.subsidio[0].resposta = 'talvez<b id="xss4">';
+        await abrir(); window.otAssAbrir('4.2.1');
+        expect(el('modal-content').textContent).toContain('talvez<b id="xss4">'); expect(el('xss4')).toBeNull();
+        it.subsidio[0].resposta = antes;
+        window.otAssFiltrar({ checked: true });
+        await abrir();
+        expect(el('ass-meus').checked).toBe(false);
     });
 });

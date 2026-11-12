@@ -11,6 +11,7 @@ import '../src/ui.js';
 import '../src/views/ot.js';
 import { desenhar } from './ot-abrir.js';
 import { montarDesvios } from '../src/views/ot-desvios.js';
+import { montarAssessment } from '../src/views/ot-assessment.js';
 
 const B = '/api/v1/projects/p1/ot';
 const el = (id) => document.getElementById(id);
@@ -394,13 +395,13 @@ describe('E1 T6: saídas diretas no lugar de texto sem link', () => {
         expect(JSON.parse(b.dataset.args)).toEqual(['sites']);
     });
     it('Assessment: linha da governança com link só quando o hub abre a tela', async () => {
-        const REQ = { [`GET ${B}/requisitos`]: { requisitos: [{ codigo: '4.2.1', titulo: 'x', prazo_meses: 3 }] } };
+        const REQ = { [`GET ${B}/assessment`]: { resumo: {}, itens: [{ codigo: '4.2.1', titulo: 'x', categoria: 'c', prazo: null, tipo: 'excecao', evidencia: '' }] } };
         servirOt(REQ); S.activeProject = { id: 'p1', modulos: ['ot'] };
-        await abrir('catalogo');
+        await montarAssessment(el('c'), el('a'), S.activeProject);
         expect(el('c').textContent).toContain('4.2.1');
         expect(document.querySelector('#c a[href$="?tela=governance"]')).toBeNull();
         S.activeProject = { id: 'p1', modulos: ['ot', 'iso'] };
-        await abrir('catalogo');
+        await montarAssessment(el('c'), el('a'), S.activeProject);
         expect(document.querySelector('#c a[href$="?tela=governance"]')).not.toBeNull();
     });
     const desvios = async (sensores, falha) => {
