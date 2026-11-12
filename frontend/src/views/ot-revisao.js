@@ -65,7 +65,7 @@ async function carregar(c, a, p, { siteFixo } = {}) {
     c.innerHTML = '<h3 class="mb-3">Fila de revisão</h3><div id="ot-rev-fila"></div><h3 class="mt-6 mb-3">Lotes de aprovação</h3><div id="ot-rev-lotes"></div>';
     desenharFila();
     const lotes = el('ot-rev-lotes');
-    await montarColeta(lotes, a, p, { siteFixo, semPrimario: true }); // um só primário por tela: o da fila
+    await montarColeta(lotes, a, p, { siteFixo });
 }
 
 const redesenhar = () => carregar(ctx.c, ctx.a, ctx.p, { siteFixo: ctx.site });

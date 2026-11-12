@@ -97,7 +97,7 @@ describe('montarRevisao', () => {
         expect(n).toBeTruthy(); expect(n.classList.contains('btn-primary')).toBe(false);
         expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(0);
     });
-    it('um só .btn-primary na tela, mesmo com o envio de planilha dos lotes', async () => {
+    it('um só .btn-primary na tela, mesmo com a Coleta dos lotes', async () => {
         await montar();
         expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(1);
     });

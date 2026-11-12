@@ -4,7 +4,8 @@ import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { manutencaoDiaria } from '../src/manutencao';
 import { chavesOt, decifrarOt, aadOt, hmacOt } from '../src/services/ot-cifra';
-import { aprovarLote, linhasDaPlanilha } from '../src/services/ot-coleta';
+import { aprovarLote, criarLote, linhasDaPlanilha } from '../src/services/ot-coleta';
+import { lerPlanilha } from '../src/services/ot-planilha';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 import xlsxReal from './fixtures/ot-planilha-openpyxl.xlsx.b64?raw';
 
@@ -19,12 +20,13 @@ const chamar = async (h: H, metodo: string, caminho: string, corpo?: unknown, ex
   }), { ...workerEnv(), ...extra });
 const json = async <T = Record<string, unknown>>(r: Response) => r.json<T>();
 
-/** Upload multipart: o arquivo e o site. */
-const enviar = async (h: H, site: string, nome: string, conteudo: BlobPart, extra: Record<string, unknown> = {}) => {
-  const fd = new FormData();
-  fd.set('site_id', site);
-  fd.set('file', new File([conteudo], nome));
-  return app.fetch(new Request(`http://localhost${P}/lotes`, { method: 'POST', headers: h, body: fd }), { ...workerEnv(), ...extra });
+/** A rota multipart `POST /lotes` saiu (a planilha entra pelo de-para do levantamento): este atalho só alimenta o staging com linhas de planilha. */
+const enviar = async (h: H, site: string, nome: string, conteudo: BlobPart) => {
+  const lida = await lerPlanilha(nome, await new Response(conteudo).arrayBuffer());
+  if ('erro' in lida) return Response.json({ error: lida.erro }, { status: 400 });
+  const ator = h === tec ? 'u-tec' : h === gestor ? 'u-gestor' : 'cons:cons-ot@ness.lat';
+  const r = await criarLote(env.DB, chavesOt(env)!, { id: ator }, 'proj-a', site, 'planilha', linhasDaPlanilha(lida.linhas).itens);
+  return r.ok ? Response.json({ id: r.id, itens: r.itens, com_erro: r.com_erro, status: 'em_revisao' }, { status: 201 }) : Response.json({ error: r.error }, { status: r.status });
 };
 
 const IP1 = '10.1.1.10';
@@ -84,13 +86,10 @@ beforeAll(async () => {
 });
 
 describe('P0-3: a planilha é lida no Worker; o original não fica e nada vai à IA', () => {
-  it('CSV e XLSX viram lote em revisão; o R2 não recebe nada; env.AI (toMarkdown e run) não é chamado', async () => {
-    const chamadas: string[] = [];
-    const AI = { toMarkdown: async () => { chamadas.push('toMarkdown'); throw new Error('proibido'); }, run: async () => { chamadas.push('run'); throw new Error('proibido'); } };
-    const antes = (await env.STORAGE.list()).objects.length;
+  it('CSV e XLSX viram lote em revisão', async () => {
     const xlsx = Uint8Array.from(atob(xlsxReal.trim()), (ch) => ch.charCodeAt(0));
     for (const [nome, conteudo] of [['inv.csv', csv(`Novo IED;10.1.1.99;;Fab;M5;IED;protecao;;;nao;;`)], ['inv.xlsx', xlsx]] as const) {
-      const r = await enviar(tec, ids.s1, nome, conteudo, { AI });
+      const r = await enviar(tec, ids.s1, nome, conteudo);
       expect(r.status, `${nome} ${await r.clone().text()}`).toBe(201);
       const b = await json<{ id: string; status: string; itens: number }>(r);
       expect(b.status).toBe('em_revisao');
@@ -98,9 +97,6 @@ describe('P0-3: a planilha é lida no Worker; o original não fica e nada vai à
       const lote = await env.DB.prepare(`SELECT * FROM ot_lotes WHERE id = ?`).bind(b.id).first<Record<string, unknown>>();
       expect(lote).toMatchObject({ fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', site_id: ids.s1 });
     }
-    expect(chamadas).toEqual([]);
-    const depois = await env.STORAGE.list();
-    expect(depois.objects.length, depois.objects.map((o) => o.key).join(',')).toBe(antes);
   });
 
   it('o staging guarda IP/MAC só cifrados (AAD do item) e com o HMAC do projeto', async () => {
@@ -116,23 +112,11 @@ describe('P0-3: a planilha é lida no Worker; o original não fica e nada vai à
     expect(d.ip_hash).toBe(await hmacOt(k, 'proj-a', '10.1.1.77'));
   });
 
-  it('acima dos tetos ou ilegível: 400 e nenhum lote nem item gravado', async () => {
-    const conta = async () => (await env.DB.prepare(`SELECT (SELECT count(*) FROM ot_lotes) + (SELECT count(*) FROM ot_lote_itens) AS n`).first<{ n: number }>())!.n;
-    const n0 = await conta();
-    for (const [nome, conteudo] of [['g.csv', csv(...Array(5001).fill('X;;;;;;;;;;;'))], ['x.xlsx', 'não é zip'], ['x.pdf', '%PDF'], ['v.csv', CAB]] as const) {
-      const r = await enviar(tec, ids.s1, nome, conteudo);
-      expect(r.status, nome).toBe(400);
-    }
-    expect(await conta()).toBe(n0);
-  });
-
-  it('corpo sem Content-Length (chunked) acima do teto: 413, lido só até o teto', async () => {
-    const pedaco = new Uint8Array(1024 * 1024).fill(97);
-    let enviados = 0;
-    const corpo = new ReadableStream<Uint8Array>({ pull(ctl) { if (enviados++ < 8) ctl.enqueue(pedaco); else ctl.close(); } });
-    const r = await app.fetch(new Request(`http://localhost${P}/lotes`, { method: 'POST', headers: { ...tec, 'Content-Type': 'multipart/form-data; boundary=x' }, body: corpo }), workerEnv());
-    expect(r.status).toBe(413);
-    expect(enviados, 'leu o corpo inteiro').toBeLessThan(8);
+  it('a rota multipart POST /lotes saiu: 404 (a planilha entra pelo de-para do levantamento)', async () => {
+    const fd = new FormData();
+    fd.set('site_id', ids.s1); fd.set('file', new File(['nome\nX'], 'a.csv'));
+    const r = await app.fetch(new Request(`http://localhost${P}/lotes`, { method: 'POST', headers: cons, body: fd }), workerEnv());
+    expect(r.status).toBe(404);
   });
 
   it('linha inválida não derruba o lote: fica com o erro (campo e regra, sem o valor)', async () => {
@@ -152,7 +136,6 @@ describe('P0-5: dedupe sem revelar o alvo, só no site do lote', () => {
     expect(r.status).toBe(201);
     const resposta = await json<{ id: string }>(r);
     const id = resposta.id;
-    expect(Object.keys(resposta).sort()).toEqual(['colunas_ignoradas', 'com_erro', 'id', 'itens', 'status']);
     for (const h of [tec, cli, plat]) {
       const { itens, texto } = await lerLote(h, id);
       expect(texto).not.toContain('duplicata');
@@ -189,11 +172,11 @@ describe('P0-5: dedupe sem revelar o alvo, só no site do lote', () => {
   });
 
   it('técnico só cria lote nos sites vinculados; site sem acesso responde igual a site inexistente; sem vínculo, nenhum', async () => {
-    const semAcesso = await enviar(tec, ids.s2, 'a.csv', csv(`X;;;;;;;;;nao;;`));
-    const inexistente = await enviar(tec, 'site-que-nao-existe', 'a.csv', csv(`X;;;;;;;;;nao;;`));
+    const manual = (h: H, site: string) => chamar(h, 'POST', `${P}/lotes/manual`, { site_id: site, itens: [{ nome: 'X' }] });
+    const semAcesso = await manual(tec, ids.s2);
+    const inexistente = await manual(tec, 'site-que-nao-existe');
     expect(semAcesso.status).toBe(400);
     expect(await semAcesso.text()).toBe(await inexistente.text());
-    expect((await enviar(tec0, ids.s1, 'a.csv', csv(`X;;;;;;;;;nao;;`))).status).toBe(400);
     expect((await chamar(tec0, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] })).status).toBe(400);
     expect((await json<{ lotes: unknown[] }>(await chamar(tec0, 'GET', `${P}/lotes`))).lotes).toEqual([]);
   });
@@ -227,7 +210,6 @@ describe('entrada manual pela mesma tubulação', () => {
 
 describe('papéis', () => {
   it('client só lê; chave de API e agente recebem 403; sem as chaves do n.ot, 503', async () => {
-    expect((await enviar(cli, ids.s1, 'a.csv', csv(`X;;;;;;;;;nao;;`))).status).toBe(403);
     expect((await chamar(cli, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] })).status).toBe(403);
     expect((await chamar(cli, 'GET', `${P}/lotes`)).status).toBe(200);
     const CHAVE = 'chave-ot-coleta';
@@ -240,7 +222,6 @@ describe('papéis', () => {
     for (const falta of [{ OT_INVENTARIO_KEY: undefined }, { OT_INVENTARIO_HMAC_KEY: undefined }]) {
       expect((await chamar(cons, 'GET', `${P}/lotes`, undefined, falta)).status).toBe(503);
       expect((await chamar(cons, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] }, falta)).status).toBe(503);
-      expect((await enviar(cons, ids.s1, 'a.csv', csv(`X;;;;;;;;;nao;;`), falta)).status).toBe(503);
     }
   });
 });

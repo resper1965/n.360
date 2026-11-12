@@ -96,8 +96,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) abre o n.ot na aba Saidas
   (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
   o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
-  Coleta (N3, migration 0092): `POST …/ot/lotes` (planilha CSV/XLSX em multipart, lida em memoria: nunca vai ao R2 nem a
-  IA) e `POST …/ot/lotes/manual` (JSON) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
+  Coleta (N3, migration 0092): `POST …/ot/lotes/manual` (JSON; a planilha entra pelo de-para do levantamento, o multipart `POST …/ot/lotes` saiu na E3) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
   no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
   aprovar/rejeitar e de quem `podeVerCompleto` e nunca de quem criou o lote; a aprovacao grava `verificado_por` e
   `ultima_verificacao_em` (a evidencia do 4.3.1) so quando o item trouxe todos os campos do 4.3.1; item que muda um deles sem
@@ -108,7 +107,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   nao existe: sem amostra.
   Levantamento (L1 da descoberta operacional, migracao 0093, `src/services/ot-levantamento.ts`): sessoes de entrevista, visita e
   documento, roteiro de 15 perguntas (`GET …/ot/roteiro`), achados confrontados com o inventario e enviados ao lote existente
-  (`/levantamentos*`, incl. `…/:id/achados` e `…/:id/enviar`; `POST …/ot/lotes` aceita `levantamento_id` para sessoes de documento).
+  (`/levantamentos*`, incl. `…/:id/achados` e `…/:id/enviar`; a planilha do documento entra pelo de-para).
   Operador so por funcao e turno; texto livre recusa IP/MAC/CPF/e-mail/telefone; o confronto com o inventario so sai para quem
   `podeVerCompleto`; achado so entra no inventario por lote aprovado; a leitura sem mascara da sessao vai a trilha
   (`ot.inventario.ver_sensivel`). Retencao (`src/manutencao.ts`): descartado sai em 30 dias (90 dias se veio da sonda, com `chave_sensor`); rascunho de sessao encerrada ha

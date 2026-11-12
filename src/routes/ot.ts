@@ -12,8 +12,7 @@ import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../
 import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
 import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, linhasDaPlanilha, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
-import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
+import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
@@ -454,37 +453,6 @@ async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, pro
   await trilha(c, 'ot.lote.criado', projectId, `Lote ${r.id} criado no site ${site}: ${r.itens} item(ns), ${r.com_erro} com erro`, { tipo: 'ot_lote', id: r.id });
   return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
 }
-
-// Planilha (multipart: `file` e `site_id`). O arquivo é lido em memória e descartado: nunca vai ao R2 nem à IA (P0-3).
-otApp.post('/lotes', async (c) => {
-  try {
-    const { db, user, projectId, sites } = await contexto(c);
-    const teto = LIMITES_PLANILHA.bytes + 64 * 1024;
-    if (Number(c.req.header('Content-Length') || 0) > teto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
-    // Corpo sem Content-Length (chunked) passaria pelo cabeçalho: a leitura para no teto, em vez de parseBody ler tudo na memória.
-    const bruto = await lerAteTeto(c.req.raw, teto);
-    if (!bruto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
-    const fd = await new Response(bruto, { headers: { 'Content-Type': c.req.header('Content-Type') ?? '' } }).formData().catch(() => null);
-    if (!fd) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
-    const corpo = { file: fd.get('file'), site_id: fd.get('site_id'), levantamento_id: fd.get('levantamento_id') };
-    const file = corpo['file'];
-    if (!(file instanceof File)) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
-    if (!daLista(sites, corpo['site_id'])) return refRuim(c, 'site_id');
-    const lida = await lerPlanilha(file.name, await file.arrayBuffer());
-    if ('erro' in lida) return c.json({ error: lida.erro }, 400);
-    const { itens, reconhecidas, ignoradas } = linhasDaPlanilha(lida.linhas);
-    if (!reconhecidas) return c.json({ error: 'Nenhuma coluna reconhecida no cabeçalho (ex.: nome, ip, mac, fabricante, modelo, tipo, funcao)' }, 400);
-    const site = corpo['site_id'] as string;
-    // Planilha ligada a uma sessão documental (spec descoberta operacional §2): do mesmo site e visível a quem envia.
-    let levantamentoId: string | null = null;
-    if (typeof corpo['levantamento_id'] === 'string' && corpo['levantamento_id']) {
-      const lev = await lerLevantamento(db, projectId, sites, corpo['levantamento_id']);
-      if (!lev || lev.tipo !== 'documento' || lev.site_id !== site) return c.json({ error: 'levantamento_id inválido' }, 400);
-      levantamentoId = lev.id;
-    }
-    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, site, 'planilha', itens, levantamentoId), projectId, site, { colunas_ignoradas: ignoradas });
-  } catch (e) { return erro500(c, 'Falha ao receber a planilha', e); }
-});
 
 otApp.post('/lotes/manual', async (c) => {
   try {

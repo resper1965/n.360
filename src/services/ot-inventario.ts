@@ -20,7 +20,7 @@ export const podeEditarOt = (u: AtorOt) => !naoEhPessoa(u) && ['org_admin', 'con
  * site, zona, ativo, fluxo, decisão de lote e base seguem de quem edita. Usada pelo middleware de ot.ts e pelo allow-list de auth.ts.
  */
 export const ESCRITAS_DO_TECNICO = new RegExp('^(/levantamentos(/[^/]+(?:/enviar|/achados|/achados/[^/]+|/depara/(planilha/(proposta|aplicar)|texto|rede))?)?'
-  + '|/sites/[^/]+/enviar|/lotes(/manual)?)$');
+  + '|/sites/[^/]+/enviar|/lotes/manual)$');
 
 /** Escrita do técnico: o POST/PUT da lista fechada acima, só nos sites vinculados (a rota confere). */
 export const podeCriarLote = (u: AtorOt) => podeEditarOt(u) || (!naoEhPessoa(u) && u.role === 'org_user');

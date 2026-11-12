@@ -1,11 +1,11 @@
 import { S } from '../state.js';
-import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
+import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
 import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, dataDoSqlite } from '../ot-comum.js';
 import { hojeSP, emDiasSP } from '../hoje.js';
 
-// Coleta do n.ot (N3; spec §7, P0-3, P0-5): planilha (multipart `file` + `site_id`) e entrada manual caem em lotes que outra pessoa
+// Coleta do n.ot (N3; spec §7, P0-3, P0-5): a entrada manual (e o que o Levantamento envia) cai em lotes que outra pessoa
 // revisa antes do inventário. A duplicata aparece como a API devolve (`possivel_duplicata`); quem não vê completo não recebe o alvo.
 
 const el = (id) => document.getElementById(id);
@@ -20,7 +20,6 @@ const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—
 
 let sites = [];
 let manuais = [];
-let documentos = [];
 let itensDoLote = [];
 
 const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo original não é guardado. Só as linhas reconhecidas entram no lote, que espera a revisão '
@@ -28,7 +27,7 @@ const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo orig
 
 let fixo = null; // site fixo da tela do site: recorta os lotes e tira o seletor de site
 
-export async function montarColeta(c, a, p, { siteFixo, semPrimario } = {}) {
+export async function montarColeta(c, a, p, { siteFixo } = {}) {
     fixo = siteFixo || null;
     let lotes;
     try {
@@ -38,57 +37,24 @@ export async function montarColeta(c, a, p, { siteFixo, semPrimario } = {}) {
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os lotes de aprovação do n.ot.', e); return; }
     if (S.otLote) { await montarLote(c, a, S.otLote); return; }
     const criar = podeCriarLote() && sites.length;
-    // Secundário: sem a lista de sessões, a planilha só não se liga a um documento.
-    if (criar) documentos = lista(await api('GET', `/api/v1/projects/${p.id}/ot/levantamentos`).catch(() => null), 'levantamentos').filter((l) => l.tipo === 'documento');
-    const siteLote = fixo || S.otSite || sites[0]?.id;
-    const campoSite = (id, extra) => (fixo ? `<input type="hidden" id="${id}" value="${escapeHTML(fixo)}">`
-        : `<div class="form-group"><label class="form-label" for="${id}">Site</label><select class="form-input" id="${id}"${extra}>${opcoes(sites.map((s) => [s.id, s.nome]), siteLote)}</select></div>`);
     if (criar) a.innerHTML = '<button class="btn" data-action="otEntradaManual">Entrada manual</button>';
-    const envio = criar ? `<div class="bloco mb-4"><h3 class="mb-3">Enviar planilha</h3>
-        <div class="d-flex gap-4 flex-wrap items-center">
-            ${campoSite('ot-lote-site', ' data-action-change="otLoteSite" data-arg-val')}
-            <div class="form-group"><label class="form-label" for="ot-lote-doc">Ligar a um documento (opcional)</label><select class="form-input" id="ot-lote-doc">${opcoesDoc(siteLote)}</select></div>
-            <div class="form-group"><label class="form-label" for="ot-lote-arquivo">Planilha (CSV ou XLSX, até 5 MB)</label><input class="form-input" type="file" id="ot-lote-arquivo" accept=".csv,.xlsx"></div>
-            <button class="btn${semPrimario ? '' : ' btn-primary'}" data-action="otEnviarPlanilha">Enviar planilha</button></div>
-        <p class="org-dica">Colunas reconhecidas pelo cabeçalho: nome, ip, mac, fabricante, modelo, tipo, funcao, protocolos, firmware, arciber, categoria, zona. As demais são ignoradas.</p></div>` : '';
     c.innerHTML = `<p class="org-header-intro" id="ot-coleta-privacidade">${escapeHTML(PRIVACIDADE)}</p>
-        ${!sites.length ? renderEmptyState({ titulo: 'Nenhum site disponível para o lote de aprovação', texto: 'O lote de aprovação é por site. Cadastre o site no Inventário ou peça a quem administra o n.ot o acesso ao seu site.' }) : envio}
+        ${!sites.length ? renderEmptyState({ titulo: 'Nenhum site disponível para o lote de aprovação', texto: 'O lote de aprovação é por site. Cadastre o site no Inventário ou peça a quem administra o n.ot o acesso ao seu site.' }) : ''}
         <h3 class="mb-3">Lotes</h3>
         ${renderDataTable(['Criado em', 'Site', 'Fonte', 'Situação', 'Itens', 'Com erro', 'Gravados', 'Ações'], lotes.map((l) => [
         escapeHTML(formatarData(l.created_at, { hora: true })), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(FONTE[l.fonte] || l.fonte), selo(STATUS, l.status),
         escapeHTML(String(l.itens ?? 0)), escapeHTML(String(l.com_erro ?? 0)), escapeHTML(String(l.gravados ?? 0)),
         `<button class="btn btn-sm" data-action="otAbrirLote" data-args='${args(l.id)}' aria-label="${escapeHTML(`Revisar lote de ${formatarData(l.created_at, { hora: true })}`)}">Revisar</button>`,
-    ]), { emptyMessage: 'Nenhum lote de aprovação.', emptyHint: criar ? 'Envie uma planilha ou registre ativos pela entrada manual.' : 'Os lotes aparecem aqui quando alguém envia ativos de um site.' })}`;
+    ]), { emptyMessage: 'Nenhum lote de aprovação.', emptyHint: criar ? 'Traga dados pela aba Levantamento ou registre ativos pela entrada manual.' : 'Os lotes aparecem aqui quando alguém envia ativos de um site.' })}`;
 }
-
-const opcoesDoc = (siteId) => `<option value="">Nenhum</option>${opcoes(documentos.filter((d) => d.site_id === siteId).map((d) => [d.id, d.documento_titulo || d.realizado_em]))}`;
-window.otLoteSite = (siteId) => { const x = el('ot-lote-doc'); if (x) x.innerHTML = opcoesDoc(siteId); };
 
 window.otAbrirLote = (id) => { S.otLote = id; window.render(); };
 window.otVoltarLotes = () => { S.otLote = null; window.render(); };
 
 const aposCriar = (r) => {
-    const ign = Array.isArray(r.colunas_ignoradas) && r.colunas_ignoradas.length ? ` Colunas ignoradas: ${r.colunas_ignoradas.join(', ')}.` : '';
-    showToast(`Lote criado: ${r.itens} item(ns), ${r.com_erro} com erro.${r.possiveis_duplicatas === undefined ? '' : ` ${r.possiveis_duplicatas} possível(is) duplicata(s).`}${ign}`, 'success');
+    showToast(`Lote criado: ${r.itens} item(ns), ${r.com_erro} com erro.${r.possiveis_duplicatas === undefined ? '' : ` ${r.possiveis_duplicatas} possível(is) duplicata(s).`}`, 'success');
     S.otLote = r.id;
     window.render();
-};
-
-window.otEnviarPlanilha = async () => {
-    const arquivo = el('ot-lote-arquivo')?.files?.[0];
-    if (!arquivo) return showToast('Escolha a planilha (CSV ou XLSX).', 'error');
-    const fd = new FormData();
-    fd.append('file', arquivo);
-    fd.append('site_id', el('ot-lote-site').value);
-    if (el('ot-lote-doc')?.value) fd.append('levantamento_id', el('ot-lote-doc').value);
-    let r, corpo;
-    try {
-        r = await fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/lotes`, { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) });
-        corpo = await r.json().catch(() => ({}));
-    } catch (e) { return showToast('Não foi possível enviar a planilha. Verifique a conexão e tente de novo.', 'error'); }
-    if (r.status === 401) return falhou(sessaoTerminada(corpo, '401 no envio da planilha do n.ot'), 'Sua sessão terminou.');
-    if (!r.ok) return falhou(Object.assign(new Error(corpo.error || ''), { status: r.status }), 'Não foi possível ler a planilha.');
-    aposCriar(corpo);
 };
 
 // Entrada manual: os itens ficam só na memória deste modal até o envio (e somem ao reabrir).

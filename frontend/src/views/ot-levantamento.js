@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 import { preencherCartoes } from './ot-sensores.js';
 
@@ -46,7 +46,7 @@ export async function montarLevantamento(c, a, p, { siteFixo } = {}) {
         sites = lista(s, 'sites'); levs = lista(l, 'levantamentos');
         if (fixo) { sites = sites.filter((x) => x.id === fixo); levs = levs.filter((x) => x.site_id === fixo); }
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os levantamentos do n.ot.', e); return; }
-    if (podeEditarOt() && sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoLevantamento">+ Novo levantamento</button>';
+    if (podeCriarLote() && sites.length) a.innerHTML = '<button class="btn" data-action="otTrazerDados">Trazer dados</button><button class="btn btn-primary" data-action="otNovoLevantamento">+ Novo levantamento</button>';
     c.innerHTML = `<div id="ot-cartoes-slot"></div><p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
         ${renderDataTable(['Tipo', 'Data', 'Quem ou documento', 'Site', 'Achados', 'Situação', 'Ações'], levs.map((l) => [
         escapeHTML(TIPO[l.tipo] || l.tipo), escapeHTML(formatarData(l.realizado_em)), quem(l), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(String(l.achados ?? 0)), situacao(l),
@@ -69,6 +69,26 @@ window.otNovoLevantamento = () => {
         <div id="lev-f-doc" hidden>${campo('lev-f-titulo', 'Título do documento', 'text', ' maxlength="200"')}${campo('lev-f-doc-data', 'Data do documento', 'date')}</div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otCriarLevantamento">Criar levantamento</button></div>`);
 };
+// "Trazer dados": escolhe o arquivo, abre um levantamento documental de hoje com o nome dele e segue o fluxo de "Importar arquivo".
+window.otTrazerDados = () => {
+    el('lev-trazer-arquivo')?.remove();
+    const input = document.createElement('input');
+    input.type = 'file'; input.id = 'lev-trazer-arquivo'; input.hidden = true; input.accept = ACEITA_ARQUIVO();
+    input.addEventListener('change', async () => { const f = input.files?.[0]; input.remove(); if (f) await trazerDados(f); });
+    document.body.appendChild(input);
+    input.click();
+};
+async function trazerDados(file) {
+    const site = fixo || S.otSite || sites[0]?.id;
+    try {
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: site, tipo: 'documento', realizado_em: hojeSP(), documento_titulo: file.name.slice(0, 200) });
+        S.otLevantamento = r.id;
+        atual = { id: r.id, site_id: site };
+        importacao = null;
+        window.render();
+    } catch (e) { return falhou(e, 'Não foi possível criar o levantamento.'); }
+    await lerArquivo(file);
+}
 window.otTipoLevantamento = (tipo) => { el('lev-f-pessoa').hidden = tipo === 'documento'; el('lev-f-doc').hidden = tipo !== 'documento'; };
 window.otCriarLevantamento = async () => {
     const v = (id) => el(id)?.value.trim() || '';
@@ -104,7 +124,7 @@ async function montarSessao(c, a, p, id) {
     a.innerHTML = '<button class="btn" data-action="otVoltarLevantamentos">Voltar aos levantamentos</button>'
         + (editar ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
         + (editar && aberto ? '<button class="btn" data-action="otNovoAchado">Registrar achado</button>' : '')
-        + (editar && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
+        + (podeCriarLote() && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
         + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar para aprovação</button>' : '');
 
     const doTipo = perguntas.filter((q) => Array.isArray(q.tipos_sessao) && q.tipos_sessao.includes(l.tipo));
@@ -408,6 +428,7 @@ async function enviarArquivo(enviar) {
 
 // O resumo de rede só vai a quem vê o inventário completo (a rota recusa os demais com 403); podeAprovar = podeVerCompleto no servidor.
 const ofereceRede = () => podeAprovarOt();
+const ACEITA_ARQUIVO = () => `.csv,.xlsx,.txt,.docx${ofereceRede() ? ',.json' : ''}`;
 
 window.otImportarArquivo = () => {
     importacao = null;
@@ -415,14 +436,14 @@ window.otImportarArquivo = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Importar arquivo</span></div>
         <p class="org-dica mb-3">O arquivo é lido e descartado; não fica guardado. IP, MAC e dados pessoais são mascarados antes da IA.</p>
         <div class="form-group"><label class="form-label" for="lev-imp-arquivo">${rede ? 'Planilha (CSV ou XLSX), documento (TXT ou DOCX) ou resumo de rede (JSON)' : 'Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)'}</label>
-        <input class="form-input" type="file" id="lev-imp-arquivo" accept=".csv,.xlsx,.txt,.docx${rede ? ',.json' : ''}"></div>
+        <input class="form-input" type="file" id="lev-imp-arquivo" accept="${ACEITA_ARQUIVO()}"></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otLerArquivo">Continuar</button></div>`);
     soltarAoFechar();
 };
 
 window.otLerArquivo = () => semRepetir('otLerArquivo', lerArquivo);
-async function lerArquivo() {
-    const file = el('lev-imp-arquivo')?.files?.[0];
+async function lerArquivo(escolhido) {
+    const file = escolhido || el('lev-imp-arquivo')?.files?.[0];
     if (!file) return showToast('Escolha o arquivo.', 'error');
     const ext = file.name.split('.').pop().toLowerCase();
     const fd = new FormData();

@@ -371,52 +371,13 @@ describe('coleta', () => {
         expect(texto()).toContain('Planilha');
     });
 
-    it('envia a planilha em multipart (file e site_id) e abre o lote criado', async () => {
-        servirOt({ ...COLETA, [`POST ${B}/lotes`]: { id: 'l2', itens: 3, com_erro: 0, possiveis_duplicatas: 1, status: 'em_revisao', colunas_ignoradas: ['obs'] } });
+    it('a Coleta não tem mais "Enviar planilha": só a entrada manual', async () => {
+        servirOt(COLETA);
         await abrir('coleta');
-        el('ot-lote-site').value = 's1';
-        const arq = new File(['nome,ip\nRTU,10.0.0.1\n'], 'ativos.csv', { type: 'text/csv' });
-        Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [arq] });
-        await window.otEnviarPlanilha();
-        const post = chamadas.find((x) => x.k === `POST ${B}/lotes`);
-        expect(post.opts.body).toBeInstanceOf(FormData);
-        expect(post.opts.body.get('site_id')).toBe('s1');
-        expect(post.opts.body.get('file').name).toBe('ativos.csv');
-        expect(post.opts.headers.Authorization).toBe('Bearer tok');
-        expect(post.opts.headers['Content-Type']).toBeUndefined();
-        expect(S.otLote).toBe('l2');
-    });
-
-    it('lote sem a contagem de duplicatas (quem vê mascarado): o aviso não afirma "0 duplicatas"', async () => {
-        servirOt({ ...COLETA, [`POST ${B}/lotes`]: { id: 'l4', itens: 2, com_erro: 0, status: 'em_revisao' } });
-        await abrir('coleta');
-        el('ot-lote-site').value = 's1';
-        Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [new File(['nome\nRTU\n'], 'a.csv', { type: 'text/csv' })] });
-        await window.otEnviarPlanilha();
-        const toasts = [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ');
-        expect(toasts).toContain('Lote criado: 2 item(ns)');
-        expect(toasts).not.toMatch(/duplicata/);
-    });
-
-    it('planilha com a sessão terminada (401) segue o tratamento de api(): reautentica por inatividade ou sai', async () => {
-        const arq = new File(['nome\nRTU\n'], 'ativos.csv', { type: 'text/csv' });
-        const enviar = async (corpo) => {
-            servirOt(COLETA, { [`POST ${B}/lotes`]: [401, corpo] });
-            await abrir('coleta');
-            Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [arq] });
-            await window.otEnviarPlanilha();
-        };
-        vi.spyOn(console, 'error').mockImplementation(() => {});
-        window.pedirReautenticacao = vi.fn();
-        window.doLogout = vi.fn();
-        await enviar({ error: 'Unauthorized', expired: 'inactivity' });
-        expect(window.pedirReautenticacao).toHaveBeenCalledTimes(1);
-        expect(window.doLogout).not.toHaveBeenCalled();
-        await enviar({ error: 'Unauthorized' });
-        expect(window.doLogout).toHaveBeenCalledTimes(1);
-        expect(document.body.textContent).toContain('Sua sessão terminou');
-        expect(S.otLote).toBeNull();
-        delete window.pedirReautenticacao; delete window.doLogout;
+        expect(texto()).not.toContain('Enviar planilha');
+        expect(el('ot-lote-arquivo')).toBeNull();
+        expect(window.otEnviarPlanilha).toBeUndefined();
+        expect([...document.querySelectorAll('[data-action]')].map((x) => x.dataset.action)).toContain('otEntradaManual');
     });
 
     it('entrada manual junta itens e manda o lote em JSON', async () => {
@@ -732,7 +693,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(el('c').textContent).toContain('rev-texto-unico');
         expect(el('c').querySelectorAll('#ot-rev-lotes tbody tr')).toHaveLength(1);
         expect(primarios()).toBe(1);
-        expect(el('ot-lote-site').type).toBe('hidden');
+        expect(el('ot-lote-site')).toBeNull();
         await ir({ site: 's1', modo: 'projeto', sub: 'base' });
         expect(el('ot-filtro-site')).toBeNull();
         expect(el('c').textContent).not.toContain('Cadastrar o primeiro site');

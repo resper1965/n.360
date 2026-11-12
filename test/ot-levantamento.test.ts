@@ -123,21 +123,6 @@ describe('achados: confronto sem oráculo e envio ao lote', () => {
     expect((await chamar(cons, 'POST', `${P}/levantamentos/${ids.lev2}/achados`, { dados: { nome: 'x' }, evidencia: 'y' })).status).toBe(400);
   });
 
-  it('planilha da Coleta ligada a uma sessão documental grava levantamento_id; sessão de outro tipo é recusada', async () => {
-    const doc = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-01', documento_titulo: 'Inventário 2023' });
-    const enviar = (lev: string) => {
-      const fd = new FormData();
-      fd.set('site_id', ids.s1); fd.set('levantamento_id', lev);
-      fd.set('file', new File(['nome;fabricante\nSwitch A;Fab'], 'inv.csv'));
-      return app.fetch(new Request(`http://localhost${P}/lotes`, { method: 'POST', headers: cons, body: fd }), workerEnv());
-    };
-    const r = await enviar(doc);
-    expect(r.status, await r.clone().text()).toBe(201);
-    const { id } = await r.json<{ id: string }>();
-    expect(await env.DB.prepare('SELECT levantamento_id FROM ot_lotes WHERE id = ?').bind(id).first()).toEqual({ levantamento_id: doc });
-    expect((await enviar(ids.lev1)).status).toBe(400); // lev1 é entrevista
-  });
-
   it('sessão documental não perde o título: documento_titulo null é 400', async () => {
     const doc = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-01', documento_titulo: 'Diagrama de rede' });
     expect((await chamar(cons, 'PUT', `${P}/levantamentos/${doc}`, { documento_titulo: null })).status).toBe(400);
