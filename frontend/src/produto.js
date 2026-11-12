@@ -1,4 +1,5 @@
 import { S } from './state.js';
+import { podeEditarOt } from './ot-comum.js';
 import { api } from './api.js';
 import { showToast, openModal, escapeHTML, renderEmptyState } from './ui.js';
 import { filtroValido } from './filtro-painel.js';
@@ -22,8 +23,8 @@ export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-asses
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
-/** O n.ot tem uma tela só (`views/ot.js`), em abas: catálogo, inventário, fluxos, coleta, saídas e acesso por site; o cadastro comum não entra no menu dele. */
-export const SO_OT = ['nav-ot'];
+/** O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`, Tarefa 5), e o cadastro comum não entra. `nav-ot` é a entrada do hub. */
+export const SO_OT = ['nav-ot', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -406,7 +407,7 @@ function linkDaBarra(doc, id) {
 }
 
 /** O item do menu está à mostra para o papel (o updateHeaderUser esconde por style.display). */
-const itemVisivel = (doc, id) => { const el = doc.getElementById(id); return !!el && el.style.display !== 'none'; };
+export const itemVisivel = (doc, id) => { const el = doc.getElementById(id); return !!el && el.style.display !== 'none'; };
 
 /**
  * Num módulo: "n.360" de volta ao início, "Conta e acessos (n.360)" na primeira tela da conta que o papel vê e, quando o
@@ -444,8 +445,13 @@ export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos 
 
 /** O item n.ot do menu: só com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
 export function atualizarItemOt(doc = document) {
+    const tem = !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
+    const dentro = tem && produtoAtual() === 'ot';
     const el = doc.getElementById('nav-ot');
-    if (el) el.hidden = !(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
+    if (el) el.hidden = !tem || dentro; // no n.ot o "Início" o substitui
+    for (const id of ['secao-ot-organizacao', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro; }
+    const ac = doc.getElementById('nav-ot-acessos');
+    if (ac) ac.hidden = !(dentro && podeEditarOt());
 }
 
 /**

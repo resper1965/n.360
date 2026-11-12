@@ -29,6 +29,14 @@ async function entrar(page) {
   await page.click('#login-submit');
 }
 
+// Navegação nova: menu (Início, Sites, Assessment, Relatórios, Acessos e sondas) e, dentro do site, modo + sub-aba.
+async function noSite(page, modo, sub) {
+  await page.locator('#nav-ot-sites').click();
+  await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
+  if (modo === 'operacao') await page.getByRole('tab', { name: 'Modo operação' }).click();
+  await page.getByRole('tab', { name: sub, exact: true }).click();
+}
+
 test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB.BR.01', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   await entrar(page);
@@ -38,9 +46,9 @@ test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB
   await item.click();
   await expect(page).toHaveURL(/\/ot$/);
   await expect(page).toHaveTitle('n.ot | ness. ARCiber');
-  // Sem lote esperando, a entrada é o Inventário; o catálogo fica na sua aba.
-  await expect(page.getByRole('tab', { name: 'Inventário' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: 'Catálogo RO-CB.BR.01' }).click();
+  // A entrada é o Início; o catálogo fica no item Assessment do menu.
+  await expect(page.locator('#content')).toContainText('Espera por você');
+  await page.locator('#nav-ot-assessment').click();
   await expect(page.locator('#content')).toContainText('4.1.1');
   await expect(page.locator('#content')).toContainText('18 meses');
   await expect(page.locator('#content')).toContainText('Sem prazo');
@@ -88,29 +96,25 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
   await entrar(page);
   await page.locator('#nav-ot').click();
   const conteudo = page.locator('#content');
-  // O consultor aprova e há um lote de outra pessoa em revisão: a entrada é a Coleta, e as abas dizem o que espera.
-  await expect(page.getByRole('tab', { name: 'Coleta · 1 em revisão' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tab', { name: 'Levantamento · 1 aberto' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Catálogo RO-CB.BR.01' }).click();
+  await page.locator('#nav-ot-assessment').click();
   await expect(conteudo).toContainText('4.1.1');
 
-  await page.getByRole('tab', { name: 'Inventário' }).click();
+  await noSite(page, 'projeto', 'Base');
   await expect(conteudo).toContainText('RTU-01');
   await expect(conteudo).toContainText('aa:bb:cc:••:••:••');
   await expect(page.locator('#header-actions .btn-primary')).toHaveText('+ Novo ativo');
 
-  await page.getByRole('tab', { name: 'Fluxos' }).click();
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 
-  await page.getByRole('tab', { name: 'Coleta' }).click();
+  await page.getByRole('tab', { name: 'Lote de aprovação' }).click();
   await expect(page.locator('#ot-coleta-privacidade')).toContainText('o arquivo original não é guardado');
   await expect(conteudo).toContainText('Em revisão');
 
-  await page.getByRole('tab', { name: 'Levantamento' }).click();
+  await page.getByRole('tab', { name: 'Levantamento', exact: true }).click();
   await expect(conteudo).toContainText('Entrevista');
   await expect(conteudo).toContainText('Operador · turno B');
 
-  await page.getByRole('tab', { name: 'Saídas' }).click();
+  await page.locator('#nav-ot-relatorios').click();
   await expect(conteudo).toContainText('Não atende');
   await expect(conteudo).toContainText('Sem evidência');
   const texto = (await conteudo.textContent()).replace(/Não atende/g, '');
@@ -152,7 +156,7 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
   await entrar(page);
   await page.locator('#nav-ot').click();
   const conteudo = page.locator('#content');
-  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await noSite(page, 'projeto', 'Levantamento');
   await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
   await expect(conteudo).toContainText('Roteiro');
 
@@ -183,7 +187,7 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
   await page.locator('#header-actions').getByRole('button', { name: 'Enviar ao lote' }).click();
   await expect(page.locator('.confirmar')).toContainText('1 ativo e 1 fluxo');
   await page.locator('.confirmar').getByRole('button', { name: 'Enviar ao lote' }).click();
-  await expect(page.getByRole('tab', { name: /^Coleta/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Lote de aprovação' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de');
   await expect(conteudo).toContainText('Notebook IHM');
   await expect(conteudo).toContainText('Fluxo: RTU-01 → Fora da empresa');
@@ -221,7 +225,7 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
   await entrar(page);
   await page.locator('#nav-ot').click();
   const conteudo = page.locator('#content');
-  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await noSite(page, 'projeto', 'Levantamento');
   await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
   await expect(conteudo.locator('tr', { hasText: 'CLP-07' }).locator('.badge', { hasText: 'Sugerido pela IA' })).toBeVisible();
 
@@ -271,7 +275,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
   await entrar(page);
   await page.locator('#nav-ot').click();
   const conteudo = page.locator('#content');
-  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await noSite(page, 'projeto', 'Levantamento');
   await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
 
   await page.getByRole('button', { name: 'Importar arquivo' }).click();
@@ -288,7 +292,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
   expect(enviados[0]).toContain('"formato":"n.ot-resumo-rede/1"');
 });
 
-// L5: o cartão "Agente de coleta" na aba Acessos e agente. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
+// L5: o cartão "Agente de coleta" em Acessos e sondas. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
 // que aparece uma vez no modal com o comando do Claude Code e some do DOM ao fechar. API mockada.
 const ENDPOINT = 'https://app.example/ot-coleta/mcp';
 async function rotasAgente(page, agente, extra = {}) {
@@ -313,7 +317,7 @@ test('agente de coleta: o gestor liga depois de confirmar o aviso do modelo', as
   const puts = await rotasAgente(page, { ligado: false, pode_ligar: true, pode_emitir: true, endpoint: ENDPOINT }, { [`GET ${B}/agente/chaves`]: () => [{ chaves: [] }] });
   await entrar(page);
   await page.locator('#nav-ot').click();
-  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
+  await page.locator('#nav-ot-acessos').click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Um agente externo (Claude Code, Cursor)');
   const sw = cartao.getByRole('switch', { name: 'Agente de coleta' });
@@ -340,7 +344,7 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   });
   await entrar(page);
   await page.locator('#nav-ot').click();
-  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
+  await page.locator('#nav-ot-acessos').click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Ligado');
   await expect(cartao.getByRole('switch')).toHaveCount(0);
@@ -361,7 +365,7 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   expect(posts).toHaveLength(1);
 });
 
-// Sonda com envio automático: a área "Sondas" na aba Acessos e agente (credencial uma vez) e o cartão de saúde no Levantamento. API mockada.
+// Sonda com envio automático: a área "Sondas" em Acessos e sondas (credencial uma vez) e o cartão de saúde em Saúde da coleta do site. API mockada.
 test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de saúde aparece', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   const sensores = [];
@@ -386,7 +390,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
   });
   await entrar(page);
   await page.locator('#nav-ot').click();
-  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
+  await page.locator('#nav-ot-acessos').click();
   const area = page.locator('#ot-sondas');
   await expect(area).toContainText('Nenhuma sonda neste site.');
   await area.getByRole('button', { name: 'Nova sonda em SE Norte' }).click();
@@ -403,14 +407,17 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
 
   // Recarregar: a credencial não volta.
   await page.reload();
-  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
+  await page.locator('#nav-ot-acessos').click();
   await expect(page.locator('#ot-sondas')).toContainText('Sonda do barramento');
   expect(await page.content()).not.toContain('ots_e2e_SEGREDO');
 
-  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await noSite(page, 'operacao', 'Saúde da coleta');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Saúde da coleta');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('1 de 1');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Último resumo há 2 h');
+
+  // Os pontos que a sonda trouxe seguem no topo do Levantamento (Modo projeto).
+  await noSite(page, 'projeto', 'Levantamento');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Pontos a esclarecer');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
 });
@@ -439,8 +446,7 @@ test('desvios: o gestor lista, trata com nota e aceita com prazo', async ({ page
   });
   await entrar(page);
   await page.locator('#nav-ot').click();
-  await expect(page.getByRole('tab', { name: 'Desvios · 2 abertos' })).toBeVisible();
-  await page.getByRole('tab', { name: /^Desvios/ }).click();
+  await noSite(page, 'operacao', 'Desvios');
   const conteudo = page.locator('#content');
   await expect(conteudo).toContainText('CLP-01');
   await expect(conteudo).toContainText('modbus:502');
@@ -458,4 +464,48 @@ test('desvios: o gestor lista, trata com nota e aceita com prazo', async ({ page
   await expect(conteudo).not.toContainText('CLP-02');
   expect(posts.map((p) => p[0])).toEqual(['tratar', 'aceitar']);
   expect(posts[0][1]).toEqual({ nota: 'Regra de firewall criada' });
+});
+
+// Fluidez E1: o Início mostra o que espera pela pessoa, e o botão da linha abre o site direto no lote.
+test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abre o site no lote', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  await page.route(`**${B}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (path === `${B}/lotes/l1`) return json({ lote: ABAS_OT[`${B}/lotes`].lotes[0], itens: [], nomes_pontas: {} });
+    if (path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  const conteudo = page.locator('#content');
+  await expect(conteudo).toContainText('Espera por você');
+  await expect(conteudo).toContainText('Lote de aprovação em SE Norte');
+  await page.getByRole('button', { name: 'Abrir lote' }).click();
+  await expect(page.getByRole('heading', { name: 'SE Norte' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Lote de aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(conteudo).toContainText('Lote de planilha · SE Norte'); // o lote l1 do mock, aberto por otIrParaLote
+  await expect(conteudo).toContainText('Em revisão');
+});
+
+// Deep link /ot/desvios/<id>: abre o site do desvio, em Modo operação, na sub-aba Desvios, com a linha marcada.
+test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a linha marcada', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const desvio = (id, ativo) => ({ id, site_id: 's1', site_nome: 'SE Norte', tipo: 'fluxo', situacao: 'aberto', protocolo: 'modbus', porta: 502, externo: false,
+    origem: { ativo, zona: 'Supervisão' }, destino: { ativo: 'Historiador', zona: 'DMZ' }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-08T10:00:00Z', ocorrencias: 3, aceito_ate: null, nota: null, achado_id: null });
+  await page.route(`**${B}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (path === `${B}/desvios`) return json({ desvios: [desvio('d0', 'CLP-00'), desvio('d1', 'CLP-01')] });
+    if (path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await expect(page.locator('#nav-ot')).toBeVisible();
+  await page.goto('/ot/desvios/d1');
+  await expect(page.getByRole('tab', { name: 'Modo operação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('tbody tr[aria-current="true"]')).toContainText('CLP-01');
+  await expect(page.locator('tbody tr[aria-current="true"]')).toHaveCount(1);
+  await expect(page).toHaveURL(/modo=operacao/);
 });

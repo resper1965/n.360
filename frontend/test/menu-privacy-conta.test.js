@@ -73,13 +73,13 @@ describe('n.privacy: Minhas aprovações e Trilha de auditoria no menu de conta'
     });
     it('seção sem item do papel some com o título (comercial)', async () => {
         await montarComConta('comercial', '/privacy');
-        for (const t of document.querySelectorAll('.sidebar-secao')) expect(t.dataset.semItem, t.textContent).toBe('1');
+        for (const t of document.querySelectorAll('#secoes-privacy .sidebar-secao')) expect(t.dataset.semItem, t.textContent).toBe('1');
         // consultor com projeto: as quatro seções à vista (sem projeto, Responder some: os três itens dela seguem o projeto)
         await montarComConta('consultor', '/privacy');
         S.activeProject = { id: 'p', modulos: ['privacy'] };
         window.updateActiveProjectWidget();
         window.updateHeaderUser();
-        for (const t of document.querySelectorAll('.sidebar-secao')) expect(t.dataset.semItem, t.textContent).toBe('');
+        for (const t of document.querySelectorAll('#secoes-privacy .sidebar-secao')) expect(t.dataset.semItem, t.textContent).toBe('');
         S.activeProject = null;
     });
 });

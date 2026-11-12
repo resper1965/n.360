@@ -32,12 +32,16 @@ let nomesPontas = {}; // `nomes_pontas` da sessão: id → nome das pontas dos f
 let ativosDoSite = []; // `ativos_do_site`: { id, nome } para escolher a ponta
 let perguntaDoAchado = null;
 
-export async function montarLevantamento(c, a, p) {
+let fixo = null; // site fixo da tela do site: recorta a lista e tira o seletor de site do formulário
+
+export async function montarLevantamento(c, a, p, { siteFixo } = {}) {
+    fixo = siteFixo || null;
     if (S.otLevantamento) { await montarSessao(c, a, p, S.otLevantamento); return; }
     let levs;
     try {
         const [s, l] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/levantamentos`)]);
         sites = lista(s, 'sites'); levs = lista(l, 'levantamentos');
+        if (fixo) { sites = sites.filter((x) => x.id === fixo); levs = levs.filter((x) => x.site_id === fixo); }
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os levantamentos do n.ot.', e); return; }
     if (podeEditarOt() && sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoLevantamento">+ Novo levantamento</button>';
     c.innerHTML = `<div id="ot-cartoes-slot"></div><p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
@@ -55,7 +59,7 @@ window.otVoltarLevantamentos = async () => { await esvaziarNotas(); S.otLevantam
 window.otNovoLevantamento = () => {
     const campo = (id, rotulo, tipo = 'text', extra = '') => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><input class="form-input" type="${tipo}" id="${id}"${extra}></div>`;
     openModal(`<div class="modal-header"><span class="modal-title">Novo levantamento</span></div>
-        <div class="form-group"><label class="form-label" for="lev-f-site">Site</label><select class="form-input" id="lev-f-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>
+        ${fixo ? `<input type="hidden" id="lev-f-site" value="${escapeHTML(fixo)}">` : `<div class="form-group"><label class="form-label" for="lev-f-site">Site</label><select class="form-input" id="lev-f-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>`}
         <div class="form-group"><label class="form-label" for="lev-f-tipo">Tipo</label><select class="form-input" id="lev-f-tipo" data-action-change="otTipoLevantamento" data-arg-val>${opcoes(Object.entries(TIPO), 'entrevista')}</select></div>
         ${campo('lev-f-data', 'Data', 'date', ` value="${hojeSP()}"`)}
         <div id="lev-f-pessoa">${campo('lev-f-funcao', 'Função (sem nome da pessoa)', 'text', ' maxlength="100"')}${campo('lev-f-turno', 'Turno', 'text', ' maxlength="50"')}</div>
@@ -351,14 +355,13 @@ window.otEnviarAchados = async () => {
     const fl = ids.filter((id) => achados.find((x) => x.id === id)?.entidade === 'fluxo').length;
     const at = ids.length - fl;
     const conta = [at && `${at} ${at === 1 ? 'ativo' : 'ativos'}`, fl && `${fl} ${fl === 1 ? 'fluxo' : 'fluxos'}`].filter(Boolean).join(' e ');
-    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} ao lote (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. O lote vai para a Coleta, onde outra pessoa aprova antes do inventário.`,
+    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} ao lote (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. O lote vai para o Lote de aprovação, onde outra pessoa aprova antes do inventário.`,
         { titulo: 'Enviar ao lote', rotulo: 'Enviar ao lote' })) return;
     await esvaziarNotas();
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
-        S.otLote = r.id; S.otLevantamento = null; S.otAba = 'coleta';
-        window.render();
+        await window.otTela('site', atual.site_id || S.otSite, 'projeto', { otSub: 'aprovacao', otLote: r.id });
     } catch (e) { falhou(e, 'Não foi possível enviar os achados ao lote.'); }
 };
 

@@ -8,7 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import html from '../login.html?raw';
-import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida, pedidoDoHub, TELAS_DOS_MODULOS, TELAS_DO_HUB } from '../src/produto.js';
+import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, atualizarItemOt, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida, pedidoDoHub, TELAS_DOS_MODULOS, TELAS_DO_HUB } from '../src/produto.js';
 import fonteRouter from '../src/router.js?raw';
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
@@ -98,6 +98,35 @@ describe('projetos do produto', () => {
 });
 
 describe('casca', () => {
+    it('casca ot: menu com Início, Sites e a seção Organização; fora do n.ot, nada disso aparece', () => {
+        montarApp();
+        const ids = ['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos'];
+        aplicarCasca('ot');
+        for (const id of ids) expect(el(id).dataset.foraDoProduto, id).toBeUndefined();
+        expect(el('secao-ot-organizacao').classList.contains('sidebar-secao')).toBe(true);
+        expect(el('nav-ot-sites').dataset.args).toBe('["sites"]');
+        for (const p of ['iso', 'privacy', 'n360']) {
+            aplicarCasca(p);
+            for (const id of ids) expect(el(id).dataset.foraDoProduto, `${p} ${id}`).toBe('1');
+        }
+    });
+    it('atualizarItemOt: no n.ot mostra os itens novos e esconde o nav-ot; Acessos só para quem edita', () => {
+        montarApp();
+        const antes = { p: S.activeProject, u: S.user };
+        S.activeProject = { id: 'p1', modulos: ['ot'] };
+        history.replaceState(null, '', '/ot');
+        S.user = { role: 'org_user' };
+        atualizarItemOt(document);
+        expect(el('nav-ot').hidden).toBe(true);
+        expect(el('nav-ot-inicio').hidden).toBe(false);
+        expect(el('secao-ot-organizacao').hidden).toBe(false);
+        expect(el('nav-ot-acessos').hidden).toBe(true);
+        S.user = { role: 'consultor' };
+        atualizarItemOt(document);
+        expect(el('nav-ot-acessos').hidden).toBe(false);
+        S.activeProject = antes.p; S.user = antes.u;
+        history.replaceState(null, '', '/');
+    });
     it('n.privacy: título, marca, texto de entrada e menu só com as telas do produto e o cadastro', () => {
         montarApp();
         aplicarCasca('privacy');

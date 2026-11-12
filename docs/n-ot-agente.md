@@ -4,7 +4,7 @@ Um agente de IA (Claude Code, Cursor) lê documentos técnicos de OT no computad
 
 ## Ligar (Gestor ARCiber)
 
-Só o Gestor ARCiber liga ou desliga. Na aba **Acessos e agente** do n.ot, no cartão **Agente de coleta**, ligue o interruptor. Desligado, todas as chaves do projeto deixam de valer. Desligar não revoga: ao religar, as chaves ainda não vencidas voltam a valer; revogue-as se não for essa a intenção.
+Só o Gestor ARCiber liga ou desliga. Em **Acessos e sondas** do n.ot, no cartão **Agente de coleta**, ligue o interruptor. Desligado, todas as chaves do projeto deixam de valer. Desligar não revoga: ao religar, as chaves ainda não vencidas voltam a valer; revogue-as se não for essa a intenção.
 
 ## Emitir a chave
 

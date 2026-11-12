@@ -8,6 +8,8 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
+import { montarSite, montarSites, resolverDesvio, SUBS } from '../src/views/ot-site.js';
+import { desenhar } from './ot-abrir.js';
 
 const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);
@@ -40,8 +42,7 @@ function servirOt(rotas, falhas = {}) {
 const INVENTARIO = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/zonas`]: { zonas: ZONAS }, [`GET ${B}/ativos`]: { ativos: ATIVOS } };
 
 async function abrir(aba) {
-    S.otAba = aba;
-    await window.renderOt(el('c'), el('h'), el('a'));
+    await desenhar(aba);
 }
 const pausa = () => new Promise((r) => setTimeout(r, 0));
 
@@ -55,24 +56,6 @@ beforeEach(() => {
     window.render = vi.fn();
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
-
-describe('abas da casca /ot', () => {
-    it('catálogo, inventário, fluxos, coleta, levantamento e saídas; acesso por site só para quem administra', async () => {
-        servirOt({ [`GET ${B}/requisitos`]: { requisitos: [] } });
-        await abrir('catalogo');
-        const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
-        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Levantamento', 'Desvios', 'Saídas', 'Acessos e agente']);
-        for (const role of ['client', 'org_user']) {
-            S.user = { id: 'u', role };
-            await abrir('catalogo');
-            expect(abas(), role).not.toContain('Acessos e agente');
-        }
-        S.otAba = 'acessos';
-        await window.renderOt(el('c'), el('h'), el('a'));
-        // Aba que o papel não tem cai na aba de entrada (Inventário, ou a Coleta para quem aprova e tem lote esperando).
-        expect(el('c').querySelector('[aria-selected="true"]').textContent).toContain('Inventário');
-    });
-});
 
 describe('inventário', () => {
     it('lista sites, zonas e ativos, com IP/MAC como a API devolve e todo texto escapado', async () => {
@@ -121,6 +104,7 @@ describe('inventário', () => {
 
     it('trocar de projeto zera os filtros de site e zona e o lote aberto: o projeto B não abre vazio pelo filtro do A', async () => {
         servirOt(INVENTARIO);
+        S.otProjeto = 'p9';
         await abrir('inventario');
         window.otFiltrarSite('s1');
         window.otFiltrarZona('z2');
@@ -129,6 +113,8 @@ describe('inventário', () => {
         S.activeProject = { id: 'p8', modulos: ['ot'] };
         servirOt({ [`GET ${B2}/sites`]: { sites: [{ ...SITE, id: 's8', nome: 'SE Sul' }] }, [`GET ${B2}/zonas`]: { zonas: [] },
             [`GET ${B2}/ativos`]: { ativos: [{ ...ATIVOS[0], id: 'a8', site_id: 's8', zona_id: null, nome: 'RTU-SUL' }] } });
+        await window.renderOt(el('c'), el('h'), el('a')); // a casca vê o projeto novo e zera o estado
+        expect([S.otSite, S.otZona, S.otLote]).toEqual([null, null, null]);
         await abrir('inventario');
         expect(chamadas.filter((x) => /\/(zonas|ativos)$/.test(x.k)).map((x) => x.url.search)).toEqual(['', '']);
         expect(texto()).toContain('RTU-SUL');
@@ -697,5 +683,107 @@ describe('step-up de TOTP e teto por hora', () => {
         await responder('Auditoria de campo do ONS');
         await p;
         expect(document.body.textContent).toContain('Limite por hora atingido');
+    });
+});
+
+describe('lista de sites e tela do site (Task 4)', () => {
+    const SITE2 = { id: 's2', nome: 'SE Sul', tipo: 'usina', criticidade: 'media', localizacao: null, status: 'ativo' };
+    const lev = (id, site_id, funcao) => ({ id, site_id, tipo: 'entrevista', realizado_em: '2026-11-01', funcao, turno: null, achados: 0, situacao: 'em_andamento' });
+    const des = (id, site_id) => ({ id, site_id, site_nome: site_id, tipo: 'ativo', situacao: 'tratado', origem: { ativo: `host-${id}` }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-02T10:00:00Z', ocorrencias: 1 });
+    const ROTAS = { [`GET ${B}/sites`]: { sites: [SITE, SITE2] },
+        [`GET ${B}/levantamentos`]: { levantamentos: [lev('l1', 's1', 'l1-texto-unico'), lev('l2', 's2', 'l2-texto-unico')] },
+        [`GET ${B}/lotes`]: { lotes: [{ id: 'k1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', created_at: '2026-11-01T10:00:00Z' }, { id: 'k2', site_id: 's2', fonte: 'manual', status: 'concluido', created_at: '2026-11-02T10:00:00Z' }] },
+        [`GET ${B}/desvios`]: { desvios: [des('d1', 's2'), des('d2', 's2')] }, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/fluxos`]: { fluxos: [] } };
+    const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
+    const primarios = () => el('c').querySelectorAll('.btn-primary').length + el('a').querySelectorAll('.btn-primary').length;
+    const ir = (o) => montarSite(el('c'), el('a'), S.activeProject, o);
+    beforeEach(() => { S.otSub = null; S.otDesvioFiltro = null; S.otLevantamento = null; });
+
+    it('lista de sites: Abrir leva ao site em modo projeto; cadastro de site fica aqui', async () => {
+        servirOt(ROTAS);
+        await montarSites(el('c'), el('a'), S.activeProject);
+        expect(el('c').textContent).toContain('SE Sul');
+        expect(el('xss')).toBeNull();
+        const abrirS2 = [...el('c').querySelectorAll('[data-action="otTela"]')].find((b) => b.getAttribute('aria-label') === 'Abrir SE Sul');
+        expect(JSON.parse(abrirS2.getAttribute('data-args'))).toEqual(['site', 's2', 'projeto']);
+        expect(acoes(el('a'))).toContain('otNovoSite');
+        window.otEditarSiteDaLista('s2');
+        expect(el('ot-s-nome').value).toBe('SE Sul');
+        expect(primarios()).toBe(1);
+    });
+
+    it('modo projeto: Levantamento, Lote de aprovação e Base; a lista só tem as linhas do site', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
+        expect(abas()).toEqual(expect.arrayContaining(['Modo projeto', 'Modo operação', 'Levantamento', 'Lote de aprovação', 'Base']));
+        expect(el('c').textContent).toContain('l1-texto-unico');
+        expect(el('c').textContent).not.toContain('l2-texto-unico');
+        window.otNovoLevantamento();
+        expect(el('lev-f-site').type).toBe('hidden');
+        expect(el('lev-f-site').value).toBe('s1');
+        expect(primarios()).toBe(1);
+    });
+
+    it('lote de aprovação e base: recorte por site, sem seletor de site e um só botão primário', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'projeto', sub: 'aprovacao' });
+        expect(el('c').textContent).toContain('SE Norte');
+        expect(el('c').querySelectorAll('tbody tr')).toHaveLength(1);
+        expect(el('ot-lote-site').type).toBe('hidden');
+        await ir({ site: 's1', modo: 'projeto', sub: 'base' });
+        expect(el('ot-filtro-site')).toBeNull();
+        expect(el('c').textContent).not.toContain('Cadastrar o primeiro site');
+        expect(acoes(el('a'))).toEqual(expect.arrayContaining(['otNovoAtivo', 'otNovoFluxo']));
+        expect(primarios()).toBe(1);
+        expect(chamadas.some((x) => x.k === `GET ${B}/ativos` && x.url.search === '?site_id=s1')).toBe(true);
+    });
+
+    it('modo operação: Saúde da coleta, Desvios e Inventário; Desvios com o site fixo no filtro', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'operacao', sub: 'desvios' });
+        expect(abas()).toEqual(expect.arrayContaining(['Saúde da coleta', 'Desvios', 'Inventário']));
+        expect(S.otDesvioFiltro).toEqual({ situacao: 'aberto', site_id: 's1', tipo: '' });
+        expect(el('des-f-site')).toBeNull();
+        expect(chamadas.some((x) => x.k === `GET ${B}/desvios` && x.url.search === '?situacao=aberto&site_id=s1')).toBe(true);
+        await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
+        expect(el('ot-sondas')).not.toBeNull();
+        await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });
+        expect(el('ot-filtro-site')).toBeNull();
+        expect(SUBS.operacao).toEqual(['saude', 'desvios', 'inventario']);
+    });
+
+    it('Saúde da coleta do site: só o cartão de saúde, sem pontos nem contagem de desvios do projeto', async () => {
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] } });
+        await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
+        await vi.waitFor(() => expect(el('c').textContent).toContain('Saúde da coleta'));
+        await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
+        expect(el('c').textContent).not.toContain('Pontos a esclarecer');
+        expect(el('c').textContent).not.toContain('desvio');
+        expect(chamadas.some((x) => x.k === `GET ${B}/sensores/pontos` || (x.k === `GET ${B}/desvios` && x.url.search.includes('contagem')))).toBe(false);
+    });
+
+    it('sub-aba de outro modo cai na primeira do modo; site desconhecido mostra o aviso', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'operacao', sub: 'base' });
+        expect(S.otSub).toBe('saude');
+        await ir({ site: 'sX', modo: 'projeto' });
+        expect(el('c').textContent).toContain('Site não encontrado');
+    });
+
+    it('resolverDesvio: acha o site do desvio sem filtro de situação; desvio ausente dá null', async () => {
+        servirOt(ROTAS);
+        expect(await resolverDesvio(S.activeProject, 'd1')).toEqual({ site_id: 's2' });
+        expect(chamadas[0].url.search).toBe('');
+        expect(await resolverDesvio(S.activeProject, 'zz')).toBeNull();
+    });
+
+    it('deep link: a linha do desvio fica marcada, em todas as situações', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's2', modo: 'operacao', sub: 'desvios', desvio: 'd2' });
+        expect(S.otDesvioFiltro.situacao).toBe('');
+        const linhas = el('c').querySelectorAll('tbody tr');
+        expect(linhas).toHaveLength(2);
+        expect(linhas[1].getAttribute('aria-current')).toBe('true');
+        expect(linhas[0].hasAttribute('aria-current')).toBe(false);
     });
 });

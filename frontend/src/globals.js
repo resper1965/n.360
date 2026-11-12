@@ -1234,8 +1234,8 @@ window.abrirAviso = async function abrirAviso(n) {
                 } else if (subview === 'soa') {
                     navigate('soa', { currentProject: proj });
                 } else if (subview === 'ot' && modulosVisiveis(proj).includes('ot')) {
-                    // ot_acesso_sensivel (src/services/ot-stepup.ts): a exportação abre Saídas; a revelação, o Inventário.
-                    S.otAba = /\bexportou\b/.test(message) ? 'saidas' : 'inventario';
+                    // ot_acesso_sensivel (src/services/ot-stepup.ts): a exportação abre Relatórios; a revelação, Sites (o aviso não traz o site).
+                    S.otPedido = { tela: /\bexportou\b/.test(message) ? 'relatorios' : 'sites' };
                     if (produtoAtual() === 'ot' || noHub) navigate('ot', { currentProject: proj, activeProject: proj });
                     else { S.avisoEmCurso = n; irPara(enderecoNoModulo('ot', 'ot', proj)); } // o n.ot reabre o aviso no boot (pedidoDoHub)
                 } else if (Object.hasOwn(TELA_DO_AVISO, subview || '')) {

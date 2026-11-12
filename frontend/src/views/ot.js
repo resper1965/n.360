@@ -1,15 +1,17 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes, renderStatusBadge,
+import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderMaisAcoes, renderStatusBadge,
     openModal, forceCloseModal, showToast, confirmar, pedirTexto, formatarData } from '../ui.js';
 import { podeEditarOt, podeAprovarOt, podeRevelar, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
     nomesDeAtivos, TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS } from '../ot-comum.js';
-import { montarColeta } from './ot-coleta.js';
 import { montarSaidas } from './ot-saidas.js';
-import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
+import { esvaziarNotas } from './ot-levantamento.js';
 import { cartaoAgente } from './ot-agente.js';
-import { montarDesvios } from './ot-desvios.js';
 import { areaSondas } from './ot-sensores.js';
+import { montarInicio } from './ot-inicio.js';
+import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
+import { itemVisivel, moduloPara, enderecoDoProduto, modulosVisiveis } from '../produto.js';
+import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
 // site (N2), coleta (N3, ot-coleta.js) e saídas (N4, ot-saidas.js), sobre as rotas de src/routes/ot.ts e ot-saidas.ts. Todo texto é
@@ -25,54 +27,66 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const ABAS = [['catalogo', 'Catálogo RO-CB.BR.01'], ['inventario', 'Inventário'], ['fluxos', 'Fluxos'], ['coleta', 'Coleta'], ['levantamento', 'Levantamento'], ['desvios', 'Desvios'], ['saidas', 'Saídas'],
-    ['acessos', 'Acessos e agente']];
-const abasDoPapel = () => ABAS.filter(([v]) => v !== 'acessos' || podeEditarOt());
+const TITULOS = { inicio: 'n.ot · Início', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', acessos: 'Acessos e sondas' };
+const MONTAR = { inicio: montarInicio, sites: montarSites, assessment: (c, a, p) => montarCatalogo(c, a, p), relatorios: montarSaidas, acessos: (c, a, p) => montarAcessos(c, a, p) };
 
 async function renderOt(c, h, a) {
-    h.innerHTML = 'n<span class="pn-ponto">.</span>ot';
     a.innerHTML = '';
-    if (!proj()) { c.innerHTML = renderSemProjeto(); return; }
-    // Filtros e lote são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
+    if (!proj()) { h.textContent = 'n.ot'; c.innerHTML = renderSemProjeto(); return; }
+    // Filtros, lote e subtela são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
+    let trocou = false;
     if (S.otProjeto !== proj().id) {
+        trocou = !!S.otProjeto; // sem projeto anterior é o primeiro desenho da página: o endereço vale
         await esvaziarNotas(); // notas digitadas no projeto anterior vão para ele, antes de a tela mudar
         S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null; nomesDeAtivos.clear();
+        S.otTela = null; S.otModo = null; S.otSub = null;
     }
-    // Contagens das abas e aba de entrada: o que espera a pessoa. Falha aqui só tira a contagem (cada aba carrega e mostra o próprio erro).
-    // Correm junto com o painel; só a primeira entrada (sem aba escolhida) espera por elas, porque decidem a aba.
-    const contagens = Promise.all([api('GET', `/api/v1/projects/${proj().id}/ot/lotes`).then((r) => lista(r, 'lotes')),
-        api('GET', `/api/v1/projects/${proj().id}/ot/levantamentos`).then((r) => lista(r, 'levantamentos')),
-        api('GET', `/api/v1/projects/${proj().id}/ot/desvios?situacao=aberto&contagem=1`).then((r) => r?.total ?? 0)].map((x) => x.catch(() => [])))
-        .then(([lotes, levs, nDesv]) => {
-            const emRevisao = lotes.filter((l) => l.status === 'em_revisao');
-            const abertos = levs.filter((l) => l.situacao !== 'encerrado').length;
-            // O consultoria_admin só aprova no projeto em que está designado, e a tela não sabe disso: ele entra pelo Inventário.
-            const aprova = podeAprovarOt() && S.user?.role !== 'consultoria_admin';
-            return { entrada: aprova && emRevisao.some((l) => l.criado_por !== S.user?.id) ? 'coleta' : 'inventario',
-                conta: { coleta: emRevisao.length && ` · ${emRevisao.length} em revisão`, levantamento: abertos && ` · ${abertos} ${abertos === 1 ? 'aberto' : 'abertos'}`,
-                    desvios: +nDesv && ` · ${nDesv} ${nDesv === 1 ? 'aberto' : 'abertos'}` } };
-        });
-    const abas = abasDoPapel();
-    const aba = abas.some(([v]) => v === S.otAba) ? S.otAba : (await contagens).entrada;
-    S.otAba = aba;
-    c.innerHTML = renderAbas(abas.map(([v, r]) => [v, escapeHTML(r)]), aba, 'otAba') + '<div id="ot-painel"><div class="loading"></div></div>';
-    const barra = c.querySelector('[role="tablist"]');
-    const rotulos = contagens.then(({ conta }) => {
-        if (!barra.isConnected) return; // outra tela já foi desenhada
-        for (const t of barra.querySelectorAll('[role="tab"]')) {
-            const v = JSON.parse(t.getAttribute('data-args'))[0];
-            if (conta[v]) t.querySelector('span').textContent = abas.find(([x]) => x === v)[1] + conta[v];
+    // Pedido de uma só vez (sino): vence o endereço velho e sobrevive à troca de projeto.
+    if (S.otPedido) { Object.assign(S, { otTela: S.otPedido.tela, otSite: null, otModo: 'projeto' }); S.otPedido = null; }
+    else if (trocou) { S.otTela = 'inicio'; S.otModo = 'projeto'; } // o endereço ainda é o do projeto anterior
+    let desvio = null;
+    if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
+        const e = lerEndereco();
+        Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: e.modo });
+        if (e.desvio) {
+            let r = await resolverDesvio(proj(), e.desvio);
+            // O link não traz o projeto: se não está no ativo, procura nos outros n.ot (um a um) e troca para o que o tem.
+            for (const o of r ? [] : (S.projects || []).filter((x) => x.id !== proj().id && modulosVisiveis(x).includes('ot'))) {
+                if (!(r = await resolverDesvio(o, e.desvio))) continue;
+                // os mesmos passos de changeActiveProject (project.js), sem o navigate: a casca segue neste desenho
+                S.activeProject = o; S.currentProject = o; S.otProjeto = o.id;
+                try { localStorage.setItem('niso_activeProject', JSON.stringify(o)); } catch (err) { /* sem storage */ }
+                window.updateActiveProjectWidget?.(); window.updateSidebarProjectSelector?.();
+                break;
+            }
+            if (r) { Object.assign(S, { otTela: 'site', otSite: r.site_id, otModo: 'operacao', otSub: 'desvios' }); desvio = e.desvio; }
+            else { showToast('Desvio não encontrado neste projeto', 'error'); Object.assign(S, { otTela: 'inicio', otSite: null }); }
         }
-    });
-    const painel = el('ot-painel');
-    const montar = { catalogo: montarCatalogo, inventario: montarInventario, fluxos: montarFluxos, coleta: montarColeta, levantamento: montarLevantamento, desvios: montarDesvios, saidas: montarSaidas, acessos: montarAcessos }[aba];
-    await Promise.all([montar(painel, a, proj()), rotulos]);
+    }
+    if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'inicio';
+    const tela = S.otTela;
+    escreverEndereco({ tela, site: S.otSite, modo: S.otModo || 'projeto' });
+    for (const t of ['inicio', 'sites', 'assessment', 'relatorios', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
+    h.textContent = TITULOS[tela];
+    c.innerHTML = '<div class="loading"></div>';
+    if (tela === 'site') {
+        await montarSite(c, a, proj(), { site: S.otSite, modo: S.otModo || 'projeto', sub: S.otSub, desvio });
+        const nome = c.querySelector('h2')?.textContent;
+        if (nome) h.textContent = nome;
+    } else await MONTAR[tela](c, a, proj());
 }
 
-window.otAba = async (v) => { S.otAba = v; S.otLote = null; S.otLevantamento = null; await esvaziarNotas(); window.render(); };
+/** Despacho do menu e dos botões. `extra` (salto de dentro de uma tela: lote, levantamento) vale DEPOIS do zerar, para não ser apagado. */
+window.otTela = async (tela, site = null, modo = 'projeto', extra = {}) => {
+    await esvaziarNotas();
+    Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modo, otSub: null, otZona: null, otLote: null, otLevantamento: null }, extra);
+    window.render();
+};
+// Abre o lote de um site vindo de fora (Início): sub-aba Lote de aprovação.
+window.otIrParaLote = (site, lote) => window.otTela('site', site, 'projeto', { otSub: 'aprovacao', otLote: lote });
 
 // ─── catálogo (N1) ──────────────────────────────────────────────────────────
-async function montarCatalogo(c, a, p) {
+export async function montarCatalogo(c, a, p) {
     let reqs;
     try {
         const r = await api('GET', `/api/v1/projects/${p.id}/ot/requisitos`);
@@ -84,7 +98,9 @@ async function montarCatalogo(c, a, p) {
         return;
     }
     c.innerHTML = `<p class="org-header-intro">ONS RO-CB.BR.01 Rev.00: ${escapeHTML(String(reqs.length))} requisitos. Prazo em meses após o início da vigência (09/07/2021).</p>`
-        + renderDataTable(['Código', 'Requisito', 'Prazo'], reqs.map((r) => [escapeHTML(r.codigo), escapeHTML(r.titulo), escapeHTML(prazo(r.prazo_meses))]));
+        + renderDataTable(['Código', 'Requisito', 'Prazo'], reqs.map((r) => [escapeHTML(r.codigo), escapeHTML(r.titulo), escapeHTML(prazo(r.prazo_meses))]))
+        // O hub só abre a governança se o projeto tem n.iso ou n.privacy (moduloPara); senão, só o texto.
+        + `<p class="org-dica">O Gestor e o suplente (4.2.1) vêm da governança do projeto${moduloPara('governance', p) ? `: <a href="${enderecoDoProduto('n360')}?tela=governance">abrir governança</a>` : ''}.</p>`;
 }
 
 // ─── inventário (N2) ────────────────────────────────────────────────────────
@@ -98,6 +114,11 @@ async function carregarInventario(p, { fluxos = false } = {}) {
     if (S.otSite && !D.sites.some((x) => x.id === S.otSite)) S.otSite = null;
 }
 
+// Site fixo (tela do site): os formulários levam o site num campo escondido, sem o seletor.
+let siteTravado = null;
+const campoSite = (id, rotulo, atual, extra = '') => (siteTravado ? `<input type="hidden" id="${id}" value="${escapeHTML(siteTravado)}">`
+    : `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}"${extra}>${opcoes(D.sites.map((s) => [s.id, s.nome]), atual)}</select></div>`);
+
 const filtroSite = () => `<div class="form-group"><label class="form-label" for="ot-filtro-site">Site</label>
     <select class="form-input" id="ot-filtro-site" data-action-change="otFiltrarSite" data-arg-val><option value="">Todos os sites</option>${opcoes(D.sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>`;
 
@@ -106,7 +127,8 @@ window.otFiltrarZona = (v) => { S.otZona = v || null; window.render(); };
 
 const linhaMais = (itens, nome) => renderMaisAcoes(itens, { nome });
 
-async function montarInventario(c, a, p) {
+export async function montarInventario(c, a, p, { siteFixo } = {}) {
+    siteTravado = siteFixo || null;
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o inventário do n.ot.', e); return; }
     const editar = podeEditarOt();
     if (!D.sites.length) {
@@ -117,7 +139,7 @@ async function montarInventario(c, a, p) {
         return;
     }
     if (editar) {
-        a.innerHTML = `<button class="btn" data-action="otNovoSite">+ Novo site</button><button class="btn" data-action="otNovaZona">+ Nova zona</button>`
+        a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}<button class="btn" data-action="otNovaZona">+ Nova zona</button>`
             + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="btn btn-primary" data-action="otNovoAtivo">+ Novo ativo</button>`;
     }
     const zonaVale = (x) => !S.otZona || (S.otZona === 'sem' ? !x.zona_id : x.zona_id === S.otZona);
@@ -146,15 +168,15 @@ async function montarInventario(c, a, p) {
         x.mac == null ? renderStatusBadge('warning', 'Falta MAC') : `<span class="f-mono">${escapeHTML(x.mac)}</span>`,
         x.no_arciber ? renderStatusBadge('info', `Sim${x.categoria_arciber ? ` · ${CATEGORIAS[x.categoria_arciber] || x.categoria_arciber}` : ''}`) : 'Não',
         ...acoesAtivo(x),
-    ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Cadastre o ativo aqui ou traga uma planilha pela aba Coleta.' : 'Os ativos entram pela aba Coleta, com a revisão de quem administra o n.ot.' });
+    ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Cadastre o ativo aqui ou traga uma planilha pelo Levantamento.' : 'Os ativos entram pelo Lote de aprovação do site, com a revisão de quem administra o n.ot.' });
     const mascarado = D.ativos.some((x) => x.mascarado);
 
-    c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${filtroSite()}
+    c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${siteFixo ? '' : filtroSite()}
         <div class="form-group"><label class="form-label" for="ot-filtro-zona">Zona</label>
             <select class="form-input" id="ot-filtro-zona" data-action-change="otFiltrarZona" data-arg-val><option value="">Todas as zonas</option>
             ${opcoes([...D.zonas.map((z) => [z.id, z.nome]), ['sem', 'Sem zona']], S.otZona)}</select></div></div>
-        <h3 class="mb-3">Sites</h3>${tabelaSites}
-        <h3 class="mt-6 mb-3">Zonas</h3>${tabelaZonas}
+        ${siteFixo ? '' : `<h3 class="mb-3">Sites</h3>${tabelaSites}`}
+        <h3 class="${siteFixo ? '' : 'mt-6 '}mb-3">Zonas</h3>${tabelaZonas}
         <h3 class="mt-6 mb-3">Ativos (${escapeHTML(String(ativos.length))})</h3>
         ${mascarado ? '<p class="org-dica mb-3">IP e MAC aparecem mascarados para o seu papel.</p>' : ''}${tabelaAtivos}`;
 }
@@ -162,7 +184,7 @@ async function montarInventario(c, a, p) {
 // sites
 window.otNovoSite = () => formSite({});
 window.otEditarSite = (id) => formSite(D.sites.find((s) => s.id === id) || {});
-function formSite(s) {
+export function formSite(s) {
     openModal(`<div class="modal-header"><span class="modal-title">${s.id ? 'Editar site' : 'Novo site'}</span></div>
         <div class="form-group"><label class="form-label" for="ot-s-nome">Nome</label><input class="form-input" id="ot-s-nome" maxlength="200" value="${escapeHTML(s.nome || '')}"></div>
         <div class="form-group"><label class="form-label" for="ot-s-tipo">Tipo</label><select class="form-input" id="ot-s-tipo">${opcoes(Object.entries(TIPOS_SITE), s.tipo || 'outro')}</select></div>
@@ -189,7 +211,7 @@ window.otNovaZona = () => formZona({ site_id: S.otSite });
 window.otEditarZona = (id) => formZona(D.zonas.find((z) => z.id === id) || {});
 function formZona(z) {
     openModal(`<div class="modal-header"><span class="modal-title">${z.id ? 'Editar zona' : 'Nova zona'}</span></div>
-        ${z.id ? '' : `<div class="form-group"><label class="form-label" for="ot-z-site">Site</label><select class="form-input" id="ot-z-site">${opcoes(D.sites.map((s) => [s.id, s.nome]), z.site_id)}</select></div>`}
+        ${z.id ? '' : campoSite('ot-z-site', 'Site', z.site_id)}
         <div class="form-group"><label class="form-label" for="ot-z-nome">Nome</label><input class="form-input" id="ot-z-nome" maxlength="200" value="${escapeHTML(z.nome || '')}"></div>
         <div class="form-group"><label class="form-label" for="ot-z-nivel">Nível Purdue</label><select class="form-input" id="ot-z-nivel">${opcoes([0, 1, 2, 3, 4, 5].map((n) => [n, `Nível ${n}`]), z.nivel_purdue ?? 2)}</select></div>
         <div class="form-group"><label class="form-label" for="ot-z-tipo">Tipo</label><select class="form-input" id="ot-z-tipo">${opcoes(Object.entries(TIPOS_ZONA), z.tipo || 'outra')}</select></div>
@@ -214,8 +236,7 @@ window.otEditarAtivo = (id) => formAtivo(D.ativos.find((x) => x.id === id) || {}
 function formAtivo(d) {
     const edicao = !!d.id;
     openModal(`<div class="modal-header"><span class="modal-title">${edicao ? 'Editar ativo' : 'Novo ativo'}</span></div>
-        ${edicao ? '' : `<div class="form-group"><label class="form-label" for="ot-f-site">Site</label>
-            <select class="form-input" id="ot-f-site" data-action-change="otZonasDoFormulario" data-arg-val>${opcoes(D.sites.map((s) => [s.id, s.nome]), d.site_id)}</select></div>`}
+        ${edicao ? '' : campoSite('ot-f-site', 'Site', d.site_id, ' data-action-change="otZonasDoFormulario" data-arg-val')}
         ${camposDoAtivo(d, { zonas: zonasDoSite(d.site_id), edicao })}
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAtivo" data-args='${args(d.id || '')}'>Salvar</button></div>`, 'modal-large');
 }
@@ -334,13 +355,15 @@ window.otUsarRascunho = () => {
 // ─── fluxos (N2): 4.1.2/4.1.3, fluxo externo só por VPN ──────────────────────
 const ponta = (ativoId, zonaId) => (ativoId ? `Ativo ${nomeDe(D.ativos, ativoId)}` : zonaId ? `Zona ${nomeDe(D.zonas, zonaId)}` : 'Fora do ARCiber');
 
-async function montarFluxos(c, a, p) {
+export async function montarFluxos(c, a, p, { siteFixo } = {}) {
+    siteTravado = siteFixo || null;
     try { await carregarInventario(p, { fluxos: true }); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os fluxos do n.ot.', e); return; }
     const editar = podeEditarOt();
     if (editar && D.sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoFluxo">+ Novo fluxo</button>';
-    if (!D.sites.length) { c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário', texto: 'Os fluxos ligam ativos e zonas de um site. Comece pela aba Inventário.' }); return; }
+    if (!D.sites.length) { c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário', texto: 'Os fluxos ligam ativos e zonas de um site.' })
+        + (editar ? '<p><button class="btn" data-action="otTela" data-args=\'["sites"]\'>Cadastrar site</button></p>' : ''); return; }
     const violados = D.fluxos.filter((f) => (f.violacoes || []).length);
-    c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${filtroSite()}</div>
+    c.innerHTML = `${siteFixo ? '' : `<div class="d-flex gap-4 flex-wrap mb-4">${filtroSite()}</div>`}
         <p class="org-header-intro">${violados.length ? `<span class="t-perigo">${escapeHTML(String(violados.length))} fluxo(s) externo(s) sem VPN.</span> ` : ''}A RO-CB.BR.01 (4.1.2 e 4.1.3) pede que o acesso externo ao ARCiber passe por VPN; o inventário registra o fluxo como ele é e marca a violação.</p>
         ${renderDataTable(['Origem', 'Destino', 'Protocolo e porta', 'Direção', 'Externo', 'VPN', 'Situação', ...(editar ? ['Ações'] : [])], D.fluxos.map((f) => [
         escapeHTML(ponta(f.origem_ativo_id, f.origem_zona_id)), escapeHTML(ponta(f.destino_ativo_id, f.destino_zona_id)),
@@ -355,7 +378,7 @@ const pontasOpcoes = () => `<option value="">Fora do ARCiber (externo)</option>`
     + opcoes([...D.zonas.map((z) => [`zona:${z.id}`, `Zona ${z.nome}`]), ...D.ativos.map((x) => [`ativo:${x.id}`, `Ativo ${x.nome}`])], '');
 window.otNovoFluxo = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Novo fluxo</span></div>
-        <div class="form-group"><label class="form-label" for="ot-fl-site">Site</label><select class="form-input" id="ot-fl-site">${opcoes(D.sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>
+        ${campoSite('ot-fl-site', 'Site', S.otSite)}
         <div class="form-group"><label class="form-label" for="ot-fl-origem">Origem</label><select class="form-input" id="ot-fl-origem">${pontasOpcoes()}</select></div>
         <div class="form-group"><label class="form-label" for="ot-fl-destino">Destino</label><select class="form-input" id="ot-fl-destino">${pontasOpcoes()}</select></div>
         <div class="form-group"><label class="form-label" for="ot-fl-protocolo">Protocolo</label><input class="form-input" id="ot-fl-protocolo" maxlength="50"></div>
@@ -389,7 +412,7 @@ window.otSalvarFluxo = async () => {
 
 // ─── acesso por site (técnicos, ot_site_acessos) ─────────────────────────────
 let tecnicos = [];
-async function montarAcessos(c, a, p) {
+export async function montarAcessos(c, a, p) {
     let acessos;
     try {
         const [s, ac] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/acessos`)]);
@@ -405,13 +428,13 @@ async function montarAcessos(c, a, p) {
         ${renderDataTable(['Site', 'Técnico', 'Concedido por', 'Desde', 'Ações'], acessos.map((x) => [
         escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(email(x.user_id)), escapeHTML(x.concedido_por || '—'), escapeHTML(formatarData(x.created_at)),
         linhaMais([{ rotulo: 'Revogar acesso', action: 'otRevogarAcesso', args: [x.site_id, x.user_id], perigo: true }], email(x.user_id)),
-    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site na aba Inventário antes de conceder acesso.' })}${agente}${sondas}`;
+    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site em Sites antes de conceder acesso.' })}${agente}${sondas}`;
 }
 window.otNovoAcesso = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Conceder acesso a um site</span></div>
         <div class="form-group"><label class="form-label" for="ot-ac-site">Site</label><select class="form-input" id="ot-ac-site">${opcoes(D.sites.map((s) => [s.id, s.nome]), '')}</select></div>
         ${tecnicos.length ? `<div class="form-group"><label class="form-label" for="ot-ac-user">Técnico</label><select class="form-input" id="ot-ac-user">${opcoes(tecnicos.map((u) => [u.id, u.email]), '')}</select></div>`
-        : renderEmptyState({ titulo: 'Nenhum técnico neste projeto.', texto: 'Crie a conta de usuário do cliente na tela Usuários e dê a ela o módulo n.ot.', compacto: true })}
+        : renderEmptyState({ titulo: 'Nenhum técnico neste projeto.', texto: 'Crie a conta de usuário do cliente na tela Usuários e dê a ela o módulo n.ot.', compacto: true })}${itemVisivel(document, 'nav-users') ? `<p><a class="btn" href="${enderecoDoProduto('n360')}?tela=users">Abrir Usuários (n.360)</a></p>` : ''}
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button>${tecnicos.length ? '<button class="btn btn-primary" data-action="otSalvarAcesso">Conceder</button>' : ''}</div>`);
 };
 window.otSalvarAcesso = async () => {

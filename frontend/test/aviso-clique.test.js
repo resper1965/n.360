@@ -79,15 +79,15 @@ describe('handleNotificationClick', () => {
       S.notifications = [{ id: 'n1', link: `/projects/${proj.id}/ot`, message, read: 0 }];
       await window.handleNotificationClick('n1');
     };
-    beforeEach(() => { S.otAba = 'catalogo'; });
+    beforeEach(() => { S.otPedido = null; });
 
-    it('no n.ot: abre a tela do n.ot no projeto do aviso, na aba Saídas (exportação) ou Inventário (revelação)', async () => {
+    it('no n.ot: abre a tela do n.ot no projeto do aviso, em Relatórios (exportação) ou Sites (revelação)', async () => {
       history.replaceState(null, '', '/ot');
       await clicarOt(EXPORTOU);
       expect(navigate).toHaveBeenCalledWith('ot', { currentProject: OT, activeProject: OT });
-      expect(S.otAba).toBe('saidas');
+      expect(S.otPedido).toEqual({ tela: 'relatorios' });
       await clicarOt(REVELOU);
-      expect(S.otAba).toBe('inventario');
+      expect(S.otPedido).toEqual({ tela: 'sites' });
     });
 
     it('no n.iso: vai à casca /ot com o projeto e o aviso guardados (o n.ot o reabre no boot)', async () => {

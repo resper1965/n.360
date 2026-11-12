@@ -140,11 +140,12 @@ window.otRevogarSonda = (id, nome) => semRepetir('otRevogarSonda', async () => {
 
 // ─── cartões no topo do Levantamento ────────────────────────────────────────────
 /** Preenche #ot-cartoes-slot depois de a lista ser desenhada. Sem sonda, ou sem ver o inventário completo, o espaço fica vazio. */
-export async function preencherCartoes(p, sites) {
+/** `soSaude` (tela do site): só o cartão de saúde, sem os cartões de pontos e desvios, que contam o projeto inteiro. */
+export async function preencherCartoes(p, sites, { soSaude = false } = {}) {
     const lidas = await lerSondas(p, sites);
     const sensores = (lidas?.por || []).flatMap((x) => x.sensores);
     if (!sensores.length) return;
-    const [pontos, desv] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sensores/pontos`).catch(() => null), // o cartão de saúde segue sem a contagem
+    const [pontos, desv] = soSaude ? [null, null] : await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sensores/pontos`).catch(() => null), // o cartão de saúde segue sem a contagem
         api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto&contagem=1`).catch(() => null)]); // e sem a linha de desvios
     const nDesvios = typeof desv?.total === 'number' ? desv.total : null;
     const slot = el('ot-cartoes-slot');
@@ -156,7 +157,7 @@ export async function preencherCartoes(p, sites) {
     slot.innerHTML = `<div class="d-flex gap-3 mb-4" id="ot-cartoes-coleta">
         <section class="card" aria-labelledby="ot-saude-titulo"><h3 id="ot-saude-titulo">Saúde da coleta</h3>
         <p>${renderStatusBadge(corSaude, `${emDia} de ${sensores.length}`)} <span>· Último resumo ${escapeHTML(ultimo ? haQuanto(ultimo) : 'nunca')}</span></p></section>
-        <section class="card" aria-labelledby="ot-pontos-titulo"><h3 id="ot-pontos-titulo">Pontos a esclarecer</h3>
+        ${soSaude ? '' : `<section class="card" aria-labelledby="ot-pontos-titulo"><h3 id="ot-pontos-titulo">Pontos a esclarecer</h3>
         ${pontos ? `<p>${n(pontos.ativos, 'ativo', 'ativos')} · ${n(pontos.fluxos, 'fluxo', 'fluxos')} <span class="badge selo-info">${seloDoAchado({ evidencia: EVIDENCIA_SENSOR })}</span></p>
-        <p class="org-dica">Rascunhos que a sonda trouxe e ninguém revisou.</p>` : '<p class="org-dica">Não foi possível contar os pontos agora.</p>'}${nDesvios === null ? '' : `<p>${n(nDesvios, 'desvio aberto', 'desvios abertos')}</p>`}</section></div>`;
+        <p class="org-dica">Rascunhos que a sonda trouxe e ninguém revisou.</p>` : '<p class="org-dica">Não foi possível contar os pontos agora.</p>'}${nDesvios === null ? '' : `<p>${n(nDesvios, 'desvio aberto', 'desvios abertos')}</p>`}</section>`}</div>`;
 }

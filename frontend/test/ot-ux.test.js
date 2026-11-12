@@ -9,6 +9,8 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
+import { desenhar } from './ot-abrir.js';
+import { montarDesvios } from '../src/views/ot-desvios.js';
 
 const B = '/api/v1/projects/p1/ot';
 const el = (id) => document.getElementById(id);
@@ -35,8 +37,8 @@ function servirOt(rotas, falhas = {}) {
         return k in rotas ? resposta(typeof rotas[k] === 'function' ? rotas[k](u, opts) : rotas[k]) : resposta({ error: `API route not found: ${k}` }, 404);
     }));
 }
-const redesenhar = () => window.renderOt(el('c'), el('h'), el('a'));
-async function abrir(aba) { S.otAba = aba; await redesenhar(); }
+const redesenhar = () => desenhar();
+async function abrir(aba) { await desenhar(aba); }
 const puts = () => chamadas.filter((x) => x.k === `PUT ${B}/levantamentos/l1`).map((x) => JSON.parse(x.opts.body));
 const sessao = async (achados = [ACH()], extra = {}, falhas = {}) => {
     servirOt({ [`GET ${B}/levantamentos/l1`]: { levantamento: LEV, achados }, [`GET ${B}/roteiro`]: ROTEIRO, [`PUT ${B}/levantamentos/l1`]: { ok: true },
@@ -52,7 +54,7 @@ beforeEach(async () => {
     S.token = 'tok';
     S.user = { id: 'u-consultor', role: 'consultor' };
     S.activeProject = { id: 'p1', modulos: ['ot'] };
-    S.otProjeto = 'p1'; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otAba = null;
+    S.otProjeto = 'p1'; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null;
     // O render de verdade redesenha a tela a partir da API: é ele que apagava as notas.
     window.render = vi.fn(() => redesenhar());
     const { initDelegation } = await import('../src/delegation.js');
@@ -171,36 +173,7 @@ describe('P1a: a sessão conduz a entrevista', () => {
 describe('P1b: entrada com próximo passo', () => {
     const LOTES = (xs) => ({ [`GET ${B}/lotes`]: { lotes: xs } });
     const lote = (id, status, criado_por = 'u-tec') => ({ id, site_id: 's1', fonte: 'planilha', status, criado_por, created_at: '2026-10-30 10:00:00', itens: 1, com_erro: 0, gravados: 0 });
-    const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
-    const ativa = () => el('c').querySelector('[role="tab"][aria-selected="true"]').textContent.trim();
     const BASE = { ...SITES, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] } };
-
-    it('as abas mostram quantos lotes esperam revisão e quantos levantamentos estão abertos', async () => {
-        servirOt({ ...BASE, ...LOTES([lote('x1', 'em_revisao'), lote('x2', 'em_revisao'), lote('x3', 'concluido')]),
-            [`GET ${B}/levantamentos`]: { levantamentos: [LEV, { ...LEV, id: 'l2', situacao: 'encerrado' }] } });
-        await abrir('inventario');
-        expect(abas()).toContain('Coleta · 2 em revisão');
-        expect(abas()).toContain('Levantamento · 1 aberto');
-    });
-
-    it('sem aba escolhida: quem aprova e tem lote de outra pessoa em revisão cai na Coleta; senão no Inventário', async () => {
-        servirOt({ ...BASE, ...LOTES([lote('x1', 'em_revisao')]), [`GET ${B}/levantamentos`]: { levantamentos: [] } });
-        S.otAba = null;
-        await redesenhar();
-        expect(ativa()).toMatch(/^Coleta/);
-        S.otAba = null;
-        S.user = { id: 'u-tec', role: 'org_user' };
-        await redesenhar();
-        expect(ativa()).toBe('Inventário');
-        S.otAba = null;
-        S.user = { id: 'u-tec', role: 'org_admin' };
-        await redesenhar();
-        expect(ativa()).toBe('Inventário');
-        S.user = { id: 'u-consultor', role: 'consultor' };
-        window.otAba('saidas');
-        await pausa();
-        expect(ativa()).toBe('Saídas');
-    });
 
     it('inventário vazio: o vazio traz a ação "Cadastrar o primeiro site", única principal da tela', async () => {
         servirOt({ ...BASE, [`GET ${B}/sites`]: { sites: [] } });
@@ -331,7 +304,7 @@ describe('rodada de correção 1: notas em fila, por sessão e por projeto', () 
         digitar('nota do projeto p1');
         S.activeProject = { id: 'p2', modulos: ['ot'] };
         servirOt({ [`PUT ${B}/levantamentos/l1`]: { ok: true } });
-        await redesenhar();
+        await window.renderOt(el('c'), el('h'), el('a')); // a casca vê o projeto novo
         expect(chamadas.filter((x) => x.k.startsWith('PUT')).map((x) => x.k)).toEqual([`PUT ${B}/levantamentos/l1`]);
         expect(puts()).toEqual([{ notas: 'nota do projeto p1' }]);
     });
@@ -394,32 +367,66 @@ describe('rodada de correção 1: notas em fila, por sessão e por projeto', () 
     });
 });
 
-describe('rodada de correção 1: abas', () => {
-    it('com aba escolhida, o painel carrega sem esperar as contagens, que chegam depois ao rótulo', async () => {
-        let soltarLotes;
-        chamadas = [];
-        vi.stubGlobal('fetch', vi.fn((url, opts = {}) => {
-            const u = new URL(url, 'http://localhost');
-            const k = `${opts.method || 'GET'} ${u.pathname}`;
-            chamadas.push({ k, url: u, opts });
-            if (k === `GET ${B}/lotes`) return new Promise((ok) => { soltarLotes = () => ok(resposta({ lotes: [{ id: 'x', status: 'em_revisao', criado_por: 'u-tec' }] })); });
-            const rotas = { ...SITES, [`GET ${B}/indicadores`]: {}, [`GET ${B}/conformidade`]: {}, [`GET ${B}/levantamentos`]: { levantamentos: [] } };
-            return Promise.resolve(k in rotas ? resposta(rotas[k]) : resposta({ error: 'x' }, 404));
-        }));
-        S.otAba = 'saidas';
-        const r = redesenhar();
-        await pausa(); await pausa();
-        expect(chamadas.map((x) => x.k)).toContain(`GET ${B}/indicadores`);
-        soltarLotes();
-        await r;
-        expect([...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim())).toContain('Coleta · 1 em revisão');
-    });
+describe('E1 T6: saídas diretas no lugar de texto sem link', () => {
+    const ACESSOS = { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }] }, [`GET ${B}/acessos`]: { acessos: [] }, 'GET /api/v1/users': [] };
+    const abrirModal = async (usersVisivel) => {
+        document.body.insertAdjacentHTML('beforeend', `<a id="nav-users" style="display:${usersVisivel ? '' : 'none'}"></a>`);
+        servirOt(ACESSOS);
+        await abrir('acessos');
+        window.otNovoAcesso();
+    };
+    afterEach(() => document.getElementById('nav-users')?.remove());
 
-    it('consultoria_admin (designação desconhecida na tela) entra pelo Inventário mesmo com lote em revisão', async () => {
-        S.user = { id: 'ca', role: 'consultoria_admin' };
-        servirOt({ ...SITES, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/levantamentos`]: { levantamentos: [] },
-            [`GET ${B}/lotes`]: { lotes: [{ id: 'x', status: 'em_revisao', criado_por: 'u-tec' }] } });
-        await redesenhar();
-        expect(el('c').querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Inventário');
+    it('modal sem técnico: link para Usuários quando nav-users está visível', async () => {
+        await abrirModal(true);
+        expect(document.querySelector('#modal-content a.btn[href$="?tela=users"]')).not.toBeNull();
+    });
+    it('modal sem técnico: sem o link quando nav-users está escondido', async () => {
+        await abrirModal(false);
+        expect(document.querySelector('#modal-content a[href$="?tela=users"]')).toBeNull();
+        expect(el('modal-content').textContent).toContain('tela Usuários');
+    });
+    it('Fluxos sem site: botão Cadastrar site leva à tela de sites', async () => {
+        servirOt({ ...SITES, [`GET ${B}/sites`]: { sites: [] }, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/fluxos`]: { fluxos: [] } });
+        await abrir('fluxos');
+        const b = document.querySelector('#c button.btn[data-action="otTela"]');
+        expect(b.textContent).toBe('Cadastrar site');
+        expect(JSON.parse(b.dataset.args)).toEqual(['sites']);
+    });
+    it('Assessment: linha da governança com link só quando o hub abre a tela', async () => {
+        const REQ = { [`GET ${B}/requisitos`]: { requisitos: [{ codigo: '4.2.1', titulo: 'x', prazo_meses: 3 }] } };
+        servirOt(REQ); S.activeProject = { id: 'p1', modulos: ['ot'] };
+        await abrir('catalogo');
+        expect(el('c').textContent).toContain('4.2.1');
+        expect(document.querySelector('#c a[href$="?tela=governance"]')).toBeNull();
+        S.activeProject = { id: 'p1', modulos: ['ot', 'iso'] };
+        await abrir('catalogo');
+        expect(document.querySelector('#c a[href$="?tela=governance"]')).not.toBeNull();
+    });
+    const desvios = async (sensores, falha) => {
+        servirOt({ [`GET ${B}/sites`]: { sites: [] }, [`GET ${B}/desvios`]: { desvios: [] }, [`GET ${B}/sites/s1/sensores`]: { sensores } },
+            falha ? { [`GET ${B}/sites/s1/sensores`]: [500, { error: 'x' }] } : {});
+        S.user = { id: 'u', role: 'consultor' };
+        await montarDesvios(el('c'), el('a'), S.activeProject, { siteFixo: 's1' });
+    };
+    beforeEach(() => { S.otDesvioFiltro = null; });
+    it('Desvios vazio sem sonda: aviso e botão para Acessos', async () => {
+        await desvios([]);
+        expect(el('c').textContent).toContain('Sem vigilância de rede neste site');
+        expect(JSON.parse(document.querySelector('#c button[data-action="otTela"]').dataset.args)).toEqual(['acessos']);
+    });
+    it('Desvios vazio com sonda ou com falha: texto neutro', async () => {
+        await desvios([{ id: 'k1' }]);
+        expect(el('c').textContent).toContain('Nenhum desvio aberto');
+        await desvios([], true);
+        expect(el('c').textContent).toContain('Nenhum desvio aberto');
+        expect(el('c').textContent).not.toContain('Sem vigilância');
+    });
+    it('Desvios vazio com filtro diferente de aberto: "neste recorte" e sem chamar sensores', async () => {
+        S.otDesvioFiltro = { situacao: 'tratado', site_id: '', tipo: '' };
+        await desvios([]);
+        expect(el('c').textContent).toContain('Nenhum desvio neste recorte.');
+        expect(chamadas.some((x) => x.k.endsWith('/sensores'))).toBe(false);
+        S.otDesvioFiltro = null;
     });
 });
