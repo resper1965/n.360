@@ -22,6 +22,7 @@ describe('ot-fase: fase do site e condições da base', () => {
   beforeEach(async () => { await resetData(); await seedTwoProjects(); await run(`INSERT INTO ot_sites (id, project_id, nome) VALUES (?, ?, 'SE A')`, S, P); });
 
   it('migração 0110: site existente vira em_levantamento', async () => {
+    await run(`DROP TABLE IF EXISTS ot_sites_old`);
     await run(`CREATE TABLE ot_sites_old AS SELECT id, project_id, nome FROM ot_sites`);
     await run(`DROP TABLE IF EXISTS ot_sites_mig`);
     await run(`CREATE TABLE ot_sites_mig (id TEXT, project_id TEXT, nome TEXT)`);
@@ -115,6 +116,13 @@ describe('ot-fase: fase do site e condições da base', () => {
       await tresZonas(); await pedirBase(env.DB, ator, P, S);
       await levantamento(); await achado('a1');
       expect(await aprovarBase(env.DB, ator, P, S)).toEqual({ ok: false, status: 409, error: 'As condições da base mudaram desde o pedido' });
+      expect(await fase()).toBe('base_em_aprovacao');
+    });
+    it('um rascunho inserido logo antes do UPDATE também barra (condições no WHERE, sem checagem prévia)', async () => {
+      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await levantamento(); await achado('a2');
+      const r = await aprovarBase(env.DB, ator, P, S);
+      expect(r).toMatchObject({ ok: false, status: 409 });
       expect(await fase()).toBe('base_em_aprovacao');
     });
     it('409 fora de base_em_aprovacao; 404 para outro projeto', async () => {

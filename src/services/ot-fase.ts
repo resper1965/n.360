@@ -73,12 +73,19 @@ export async function pedirBase(db: D1Database, ator: Ator, projectId: string, s
   return transitar(db, projectId, siteId, 'em_levantamento', `fase = 'base_em_aprovacao', base_pedida_em = CURRENT_TIMESTAMP, base_pedida_por = ?`, [ator.id], 'O site não está em levantamento');
 }
 
+/** Atômico: as condições da base vão no WHERE do UPDATE, então um rascunho ou lote que chegue depois do pedido barra a aprovação. */
 export async function aprovarBase(db: D1Database, ator: Ator, projectId: string, siteId: string): Promise<Resultado> {
-  const s = await situacaoDoSite(db, projectId, siteId);
-  if (!s) return { ok: false, status: 404, error: 'Site não encontrado' };
-  if (s.fase !== 'base_em_aprovacao') return { ok: false, status: 409, error: 'A base não está em aprovação' };
-  if (faltaParaBase(s)) return { ok: false, status: 409, error: 'As condições da base mudaram desde o pedido' };
-  return transitar(db, projectId, siteId, 'base_em_aprovacao', `fase = 'em_operacao', base_aprovada_em = CURRENT_TIMESTAMP, base_aprovada_por = ?`, [ator.id], 'A base não está em aprovação');
+  const r = await db.prepare(`UPDATE ot_sites SET fase = 'em_operacao', base_aprovada_em = CURRENT_TIMESTAMP, base_aprovada_por = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND project_id = ? AND status = 'ativo' AND fase = 'base_em_aprovacao'
+    AND NOT EXISTS (SELECT 1 FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = 'rascunho')
+    AND NOT EXISTS (SELECT 1 FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao')
+    AND id IN (${sitesComZonas411('site_id = ?')})`)
+    .bind(ator.id, siteId, projectId, projectId, siteId, projectId, siteId, projectId, siteId).run();
+  if (r.meta.changes) return { ok: true };
+  const site = await db.prepare(`SELECT fase FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`).bind(siteId, projectId).first<{ fase: Fase }>();
+  if (!site) return { ok: false, status: 404, error: 'Site não encontrado' };
+  return { ok: false, status: 409, error: site.fase === 'base_em_aprovacao' ? 'As condições da base mudaram desde o pedido' : 'A base não está em aprovação' };
 }
 
 export async function devolverBase(db: D1Database, _ator: Ator, projectId: string, siteId: string): Promise<Resultado> {

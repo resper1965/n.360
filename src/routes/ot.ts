@@ -4,13 +4,13 @@ import { erro500, genId, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
   otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
-import { contarAchados } from '../services/ot-fase';
+import { aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
@@ -936,6 +936,46 @@ otApp.delete('/sensores/:id', async (c) => {
     await trilha(c, 'ot.sensor.revogado', projectId, `Sonda ${s.id} revogada com ${cs.meta.changes} credenciais`, { tipo: 'ot_sensor', id: s.id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao revogar a sonda', e); }
+});
+
+// ─── base do site (spec fluidez §3 e §6) ────────────────────────────────────
+otApp.get('/sites/:id/situacao', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const s = daLista(sites, c.req.param('id')) ? await situacaoDoSite(db, projectId, c.req.param('id')) : null;
+    return s ? c.json(s) : NAO_ENCONTRADO(c, 'Site');
+  } catch (e) { return erro500(c, 'Falha ao ler a situação do site', e); }
+});
+
+/** Pedir, aprovar e devolver a base: mesmo desfecho (404/409 do serviço) e trilha só com ids. */
+async function decidirBase(c: C, acao: 'pedida' | 'aprovada' | 'devolvida', justificativa = '') {
+  const { db, user, projectId, sites } = await contexto(c);
+  const id = c.req.param('id')!;
+  if (!daLista(sites, id)) return NAO_ENCONTRADO(c, 'Site');
+  const fn = { pedida: pedirBase, aprovada: aprovarBase, devolvida: devolverBase }[acao];
+  const r = await fn(db, user, projectId, id);
+  if (!r.ok) return c.json({ error: r.error }, r.status);
+  await trilha(c, `ot.site.base_${acao}`, projectId, `Base do site ${id} ${acao}`, { tipo: 'ot_site', id }, justificativa);
+  return c.json({ ok: true });
+}
+otApp.post('/sites/:id/base/pedir', async (c) => {
+  try { return await decidirBase(c, 'pedida'); } catch (e) { return erro500(c, 'Falha ao pedir a base', e); }
+});
+otApp.post('/sites/:id/base/aprovar', async (c) => {
+  try {
+    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
+    const v = await validateBody(c, otBaseAprovarSchema);
+    if (!v.success) return v.response;
+    return await decidirBase(c, 'aprovada');
+  } catch (e) { return erro500(c, 'Falha ao aprovar a base', e); }
+});
+otApp.post('/sites/:id/base/devolver', async (c) => {
+  try {
+    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
+    const v = await validateBody(c, otBaseDevolverSchema);
+    if (!v.success) return v.response;
+    return await decidirBase(c, 'devolvida', v.data.motivo);
+  } catch (e) { return erro500(c, 'Falha ao devolver a base', e); }
 });
 
 // ─── desvios (spec n-ot-desvio) ─────────────────────────────────────────────
