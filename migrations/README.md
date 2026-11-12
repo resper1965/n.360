@@ -778,6 +778,11 @@ $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
 
+## 0112 — assessment do n.ot (2026-11-12)
+
+Tabelas novas `ot_avaliacoes` (avaliação por requisito da RO-CB.BR.01, CHECK exige justificativa fora de `atende`) e `ot_requisito_evidencias` (evidência ligada ao requisito). Aditiva. Spec `2026-11-11-n-ot-fluidez-design` §5 e §6. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('ot_avaliacoes','ot_requisito_evidencias')` (2 linhas). Produção só com o "sim" do dono e `npm run db:backup` antes.
+
 ## 0111 — obra no site do n.ot (2026-11-12)
 
 Cinco colunas em `ot_sites` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner): `obra_ate`, `obra_justificativa`, `obra_renovada` (0/1), `obra_aberta_em/_por`. Aditiva; site existente fica sem obra. Spec `2026-11-11-n-ot-fluidez-design` §4 e §6. Conferência depois:
