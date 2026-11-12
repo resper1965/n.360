@@ -748,7 +748,7 @@ test('assessment: o consultor preenche um item de política e o gestor o vê "A 
     if (req.method() === 'PUT' && path === `${B}/assessment/4.2.1`) {
       const corpo = req.postDataJSON();
       envios.push(['PUT', corpo]);
-      avaliacao = { ...corpo, confirmado: false, responsavel_nome: null };
+      avaliacao = { ...corpo, confirmado: false, responsavel_nome: null, updated_at: '2026-11-12 13:00:00.123' };
       return json({ ok: true });
     }
     if (req.method() === 'POST' && path === `${B}/assessment/4.2.1/confirmar`) {
@@ -788,7 +788,7 @@ test('assessment: o consultor preenche um item de política e o gestor o vê "A 
   await expect(conteudo).toContainText('Nada espera por você');
   await page.locator('#ass-meus').uncheck();
   await expect(conteudo.locator('.badge', { hasText: 'A confirmar' })).toHaveCount(0);
-  expect(envios[1]).toEqual(['confirmar', {}]);
+  expect(envios[1]).toEqual(['confirmar', { updated_at: '2026-11-12 13:00:00.123' }]);
 });
 
 // Fluidez E5: o relatório de conformidade abre a partir de Relatórios e tem o botão de imprimir.

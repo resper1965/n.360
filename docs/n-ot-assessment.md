@@ -16,7 +16,7 @@ O item 5.1.1 (tratamento de exceções) fica fora deste ciclo e aparece como "N�
 1. Em **Assessment**, clique em **Abrir** no item.
 2. Escolha a **Situação**: Atende, Parcial, Não atende ou Não se aplica.
 3. Escreva a **Justificativa**. Ela é obrigatória, salvo em "Atende". Não cite IP, MAC nem nome de ativo: o texto vai para o relatório.
-4. Se quiser, escolha o **Responsável** e a **Próxima revisão**.
+4. Se quiser, escolha o **Responsável** e a **Próxima revisão** (de hoje em diante).
 5. Clique em **Gravar**. O item passa a mostrar **A confirmar**.
 
 Editar um item já confirmado tira a confirmação: o Gestor precisa confirmar de novo.
@@ -25,7 +25,7 @@ Abaixo do formulário, **Subsídio do levantamento** mostra as respostas do rote
 
 ## Ligar evidências
 
-No mesmo item, em **Evidências**, escolha o arquivo e clique em **Anexar arquivo**. O arquivo entra nas evidências do projeto e fica ligado ao item. **Remover** só desliga o arquivo do item; ele continua no projeto.
+No mesmo item, em **Evidências**, escolha o arquivo e clique em **Anexar arquivo**. O arquivo entra nas evidências do projeto e fica ligado ao item. **Remover** só desliga o arquivo do item; ele continua no projeto. Remover uma evidência tira a confirmação do Gestor; anexar não tira.
 
 Uma evidência com validade vencida, ou uma próxima revisão que já passou, marca o item como **Revisar**.
 
@@ -33,7 +33,9 @@ Uma evidência com validade vencida, ou uma próxima revisão que já passou, ma
 
 1. Marque **Só o que espera por mim**: aparecem os itens avaliados e ainda não confirmados. O Início também os lista.
 2. Abra o item, leia a avaliação e as evidências e clique em **Confirmar**.
-3. A tela registra quem confirmou e quando. A próxima revisão passa a ser daqui a 12 meses.
+3. A tela registra quem confirmou e quando. A próxima revisão fica a data que o consultor gravou; se ele deixou em branco, passa a ser daqui a 12 meses.
+
+A confirmação vale para o que você viu. Se alguém mudou a avaliação depois que você abriu o item, o servidor recusa: recarregue, revise e confirme de novo.
 
 Só o Gestor ARCiber do projeto confirma; o servidor confere de novo.
 
@@ -43,4 +45,4 @@ Só o Gestor ARCiber do projeto confirma; o servidor confere de novo.
 2. Clique em **Relatório de conformidade**.
 3. Clique em **Imprimir / Salvar PDF** e escolha a impressora ou "Salvar como PDF".
 
-O relatório traz os sites e a fase de cada um e, por item, a situação, o prazo ONS, a justificativa ou o resumo do inventário, as evidências, o responsável, quem confirmou e a próxima revisão. Ele **nunca traz IP, MAC nem nome de ativo**: o servidor mascara o texto livre. Cada geração fica registrada na trilha de auditoria.
+O relatório traz os sites e a fase de cada um e, por item, a situação, o prazo ONS, a justificativa ou o resumo do inventário, as evidências, o responsável, quem confirmou e a próxima revisão. IP e MAC são mascarados; não cite nome de ativo (a tela avisa). O nome dos arquivos de evidência também sai mascarado na tela do Assessment. Cada geração fica registrada na trilha de auditoria.

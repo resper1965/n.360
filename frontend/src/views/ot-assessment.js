@@ -9,11 +9,10 @@ import { moduloPara, enderecoDoProduto } from '../produto.js';
 
 const el = (id) => document.getElementById(id);
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
-const base = () => `/api/v1/projects/${S.activeProject.id}/ot/assessment`;
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const RESPOSTA = { sim: 'Sim', nao: 'Não' };
 const NAO_AVALIADO = ['neutral', 'Não avaliado'];
-let dados = { itens: [], resumo: {} };
+let dados = { itens: [], resumo: {}, restrito: false };
 let responsaveis = [];
 let filtro = null; // null | 'meus' (espera por mim) | 'revisar' (evidência vencida ou revisão passada); o Início passa por S.otAssFiltro
 let raiz = null; // o contêiner que montarAssessment recebeu
@@ -26,11 +25,11 @@ const esperaPorMim = (i) => i.tipo === 'politica' && (ehGestor() ? i.avaliacao &
 const achar = (codigo) => dados.itens.find((i) => i.codigo === codigo);
 
 export async function montarAssessment(c, a, p) {
-    raiz = c; filtro = S.otAssFiltro || null; S.otAssFiltro = null; dados = { itens: [], resumo: {} }; responsaveis = [];
+    raiz = c; filtro = S.otAssFiltro || null; S.otAssFiltro = null; dados = { itens: [], resumo: {}, restrito: false }; responsaveis = [];
     try {
         const [r, us] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/assessment`),
             api('GET', '/api/v1/users').then((x) => (Array.isArray(x) ? x : []), () => [])]);
-        dados = { itens: lista(r, 'itens'), resumo: (r && r.resumo) || {} };
+        dados = { itens: lista(r, 'itens'), resumo: (r && r.resumo) || {}, restrito: !!r?.restrito };
         responsaveis = us.filter((u) => u.client_project_id === p.id);
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o Assessment da RO-CB.BR.01.', e); return; }
     pintar(c);
@@ -64,7 +63,9 @@ window.otAssFiltrar = (caixa) => { filtro = caixa.checked ? (caixa.id === 'ass-r
 window.otAssAbrir = (codigo) => {
     const i = achar(codigo);
     if (!i) return;
-    const cab = `<div class="modal-header"><span class="modal-title">${escapeHTML(i.codigo)} · ${escapeHTML(i.titulo)}</span></div><p>${selo(situacaoDe(i))}</p>`;
+    // restrito: o servidor só viu os sites desta pessoa, então o pior caso é o dos sites dela, não o da organização
+    const rotulo = i.tipo === 'tecnico' ? `${dados.restrito ? 'Situação nos seus sites' : 'Situação na organização'}: ` : '';
+    const cab = `<div class="modal-header"><span class="modal-title">${escapeHTML(i.codigo)} · ${escapeHTML(i.titulo)}</span></div><p>${rotulo}${selo(situacaoDe(i))}</p>`;
     openModal(cab + (i.tipo === 'tecnico' ? corpoTecnico(i) : i.tipo === 'excecao' ? `<p class="org-dica">${escapeHTML(i.evidencia || 'Não avaliado neste ciclo')}</p>` : corpoPolitica(i)));
 };
 
@@ -84,7 +85,7 @@ function corpoPolitica(i) {
     const resp = responsaveis.map((u) => [u.id, u.name || u.email]);
     if (av.responsavel_id && !resp.some(([v]) => v === av.responsavel_id)) resp.push([av.responsavel_id, av.responsavel_nome || av.responsavel_id]);
     const form = editar ? `<div class="form-group"><label class="form-label" for="ass-sit">Situação</label><select class="form-input" id="ass-sit">${opcoes(Object.entries(AVALIACAO).map(([v, [, r]]) => [v, r]), av.situacao)}</select></div>
-        <div class="form-group"><label class="form-label" for="ass-just">Justificativa</label><textarea class="form-input" id="ass-just" maxlength="500" aria-describedby="ass-just-dica">${escapeHTML(av.justificativa || '')}</textarea>
+        <div class="form-group"><label class="form-label" for="ass-just">Justificativa</label><textarea class="form-input" id="ass-just" maxlength="2000" aria-describedby="ass-just-dica">${escapeHTML(av.justificativa || '')}</textarea>
             <p class="org-dica" id="ass-just-dica">Não cite IP, MAC nem nome de ativo: este texto vai para o relatório.</p></div>
         <div class="form-group"><label class="form-label" for="ass-resp">Responsável</label><select class="form-input" id="ass-resp">${opcoes([['', 'Sem responsável'], ...resp], av.responsavel_id)}</select></div>
         <div class="form-group"><label class="form-label" for="ass-rev">Próxima revisão</label><input class="form-input" type="date" id="ass-rev" value="${escapeHTML(av.proxima_revisao || '')}"></div>
@@ -105,7 +106,7 @@ const CAMPOS = ['ass-sit', 'ass-just', 'ass-resp', 'ass-rev'];
 async function recarregar(codigo) {
     const rascunho = codigo ? CAMPOS.map((id) => [id, el(id)?.value]) : [];
     const r = await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/assessment`);
-    dados = { itens: lista(r, 'itens'), resumo: (r && r.resumo) || {} };
+    dados = { itens: lista(r, 'itens'), resumo: (r && r.resumo) || {}, restrito: !!r?.restrito };
     pintar();
     if (codigo) { window.otAssAbrir(codigo); for (const [id, v] of rascunho) if (v !== undefined && el(id)) el(id).value = v; }
 }
@@ -122,7 +123,7 @@ window.otAssGravar = async (codigo) => {
 window.otAssConfirmar = async (codigo) => {
     if (!(await confirmar(`Confirmar a avaliação do item ${codigo}?`, { rotulo: 'Confirmar' }))) return;
     try {
-        await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/assessment/${encodeURIComponent(codigo)}/confirmar`, {});
+        await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/assessment/${encodeURIComponent(codigo)}/confirmar`, { updated_at: achar(codigo)?.avaliacao?.updated_at });
         showToast('Avaliação confirmada.', 'success');
         closeModal(); await recarregar();
     } catch (e) { falhou(e, 'Não foi possível confirmar a avaliação.'); }

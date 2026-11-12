@@ -6,7 +6,7 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoEvidenciaSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
@@ -749,7 +749,7 @@ const respostaAvaliacao = (c: C, r: { ok: true } | { ok: false; status: 400 | 40
 otApp.get('/assessment', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
-    return c.json(await montarAssessment(db, projectId, JSON.parse(sites), await podeVerCompleto(db, user, projectId)));
+    return c.json(await montarAssessment(db, projectId, JSON.parse(sites)));
   } catch (e) { return erro500(c, 'Falha ao montar o assessment', e); }
 });
 
@@ -769,8 +769,10 @@ otApp.post('/assessment/:codigo/confirmar', async (c) => {
   try {
     const { db, user, projectId } = await contexto(c);
     if (!ehGestorArciber(c, projectId)) return c.json({ error: 'Só o Gestor ARCiber confirma a avaliação' }, 403);
+    const v = await validateBody(c, otAvaliacaoConfirmarSchema);
+    if (!v.success) return v.response;
     const codigo = c.req.param('codigo');
-    const r = await confirmarAvaliacao(db, user, projectId, codigo);
+    const r = await confirmarAvaliacao(db, user, projectId, codigo, v.data.updated_at);
     if (r.ok) await trilha(c, 'ot.assessment.confirmado', projectId, `Item ${codigo} confirmado pelo Gestor`);
     return respostaAvaliacao(c, r);
   } catch (e) { return erro500(c, 'Falha ao confirmar a avaliação', e); }

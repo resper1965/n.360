@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { normalizarIp, normalizarMac, ENDERECO_EM_TEXTO } from '../services/ot-cifra';
 import { temPii } from '../services/rascunhos-privacy';
+import { hojeEmSaoPaulo } from '../services/hoje';
 
 // Corpos do inventário do n.ot. Todos `.strict()` (modelo de ameaças P1-3/P0-8): `project_id`, `status`, `verificado_por`,
 // `ultima_verificacao_em`, `ip_cifrado`, `ip_hash` e afins no corpo são recusados; o servidor é quem os escreve.
@@ -170,6 +171,9 @@ export const otAvaliacaoSchema = z.object({
   situacao: z.enum(['atende', 'parcial', 'nao_atende', 'nao_se_aplica']),
   justificativa: opcional(livreSemPii(2000)),
   responsavel_id: opcional(id),
-  proxima_revisao: opcional(data),
+  proxima_revisao: opcional(data.refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v, 'Data inexistente')
+    .refine((v) => v >= hojeEmSaoPaulo(), 'A próxima revisão não pode ser antes de hoje')),
 }).strict();
+/** Confirmar vale só para a versão que o Gestor viu: o `updated_at` lido na tela. */
+export const otAvaliacaoConfirmarSchema = z.object({ updated_at: z.string().trim().min(1).max(40) }).strict();
 export const otAvaliacaoEvidenciaSchema = z.object({ evidencia_id: id }).strict();

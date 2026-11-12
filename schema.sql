@@ -2265,7 +2265,6 @@ CREATE TABLE IF NOT EXISTS ot_avaliacoes (
     UNIQUE (project_id, requisito_id),
     CHECK (situacao = 'atende' OR length(trim(coalesce(justificativa, ''))) >= 3)
 );
-CREATE INDEX IF NOT EXISTS idx_ot_avaliacoes_projeto ON ot_avaliacoes(project_id);
 CREATE TABLE IF NOT EXISTS ot_requisito_evidencias (
     evidencia_id TEXT NOT NULL REFERENCES evidence(id) ON DELETE CASCADE,
     requisito_id TEXT NOT NULL REFERENCES ot_requisitos(id),

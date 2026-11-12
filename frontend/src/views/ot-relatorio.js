@@ -3,7 +3,7 @@ import { escapeHTML, renderDataTable, renderStatusBadge, formatarData, falhaDeCa
 import { SITUACAO, AVALIACAO, FASE, dataDoSqlite } from '../ot-comum.js';
 
 // n.ot, relatório de conformidade da RO-CB.BR.01 (spec fluidez §5) sobre GET /ot/relatorio/conformidade. Página para imprimir ou salvar
-// em PDF: o @media print esconde o resto da aplicação. O servidor já tirou IP, MAC e nome de ativo; aqui só se desenha e escapa.
+// em PDF: o @media print esconde o resto da aplicação. O servidor já mascarou IP e MAC; aqui só se desenha e escapa.
 
 const ROTULO = { ...SITUACAO, ...AVALIACAO, nao_avaliado: ['neutral', 'Não avaliado'] };
 const selo = (s) => renderStatusBadge(...(ROTULO[s] || ROTULO.nao_avaliado));
@@ -37,7 +37,7 @@ export async function montarRelatorio(c, a, p) {
         <h3 class="mt-6 mb-3">Itens</h3>
         ${renderDataTable(['Código', 'Requisito', 'Situação', 'Prazo ONS', 'Justificativa ou inventário', 'Evidências', 'Responsável', 'Confirmado por', 'Próxima revisão'], (r.itens || []).map(linha),
         { emptyMessage: 'Catálogo da RO-CB.BR.01 ainda não carregado.' })}
-        <p class="org-dica">Itens técnicos vêm do inventário, por site, com contagens; o relatório não traz IP, MAC nem nome de ativo.</p></div>`;
+        <p class="org-dica">Itens técnicos vêm do inventário, por site, com contagens; IP e MAC são mascarados no texto livre.</p></div>`;
 }
 
 window.otImprimirRelatorio = () => window.print();

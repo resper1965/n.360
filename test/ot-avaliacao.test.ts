@@ -82,6 +82,9 @@ async function chamar(h: H, metodo: string, caminho: string, corpo?: unknown) {
 // +12 meses: o mesmo dia do ano seguinte, em São Paulo (hoje nunca é 29/02 nos testes que rodam em 2026)
 const daquiAUmAno = () => { const h = hojeEmSaoPaulo(); return `${Number(h.slice(0, 4)) + 1}${h.slice(4)}`; };
 const item = async (h: H, codigo: string) => ((await (await chamar(h, 'GET', `${U}/assessment`)).json()) as any).itens.find((i: any) => i.codigo === codigo);
+// confirma o que o Gestor viu: manda o updated_at da avaliação lida agora (ou o dado, para simular tela velha)
+const conf = async (h: H, codigo: string, updated_at?: string) =>
+  chamar(h, 'POST', `${U}/assessment/${codigo}/confirmar`, { updated_at: updated_at ?? (await item(cons, codigo))?.avaliacao?.updated_at ?? '2000-01-01 00:00:00' });
 const evid = (id: string, proj: string, valido: string | null = null) => run(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by, valido_ate) VALUES (?, ?, ?, 'k', 'h', 'u', ?)`, id, proj, `${id}.pdf`, valido);
 
 describe('ot-avaliacao: assessment', () => {
@@ -131,11 +134,11 @@ describe('ot-avaliacao: assessment', () => {
     const antes = (await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action LIKE 'ot.assessment.%'`).first<any>()).n;
     const corpo = { situacao: 'atende' };
     expect((await chamar(tecnico, 'PUT', `${U}/assessment/4.4.1`, corpo)).status).toBe(403);
-    expect((await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`)).status).toBe(404); // sem avaliação
+    expect((await conf(gestor, '4.4.1')).status).toBe(404); // sem avaliação
     await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, corpo);
-    expect((await chamar(cons, 'POST', `${U}/assessment/4.4.1/confirmar`)).status).toBe(403);
-    expect((await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`)).status).toBe(200);
-    expect((await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`)).status).toBe(409);
+    expect((await conf(cons, '4.4.1')).status).toBe(403);
+    expect((await conf(gestor, '4.4.1')).status).toBe(200);
+    expect((await conf(gestor, '4.4.1')).status).toBe(409);
     const a = (await item(cons, '4.4.1')).avaliacao;
     expect(a).toMatchObject({ confirmado: true, confirmado_por_nome: 'Gestor', proxima_revisao: daquiAUmAno() });
     await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'nao_se_aplica', justificativa: 'Sem firmware' });
@@ -146,7 +149,7 @@ describe('ot-avaliacao: assessment', () => {
 
   it('evidência: vencida põe revisar; ligar não tira a confirmação; de outro projeto 404', async () => {
     await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'atende' });
-    await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`);
+    await conf(gestor, '4.4.1');
     await evid('e-ok', 'proj-a', diaMaisSP(30)); await evid('e-old', 'proj-a', diaMaisSP(-1)); await evid('e-b', 'proj-b');
     expect((await chamar(cons, 'POST', `${U}/assessment/4.4.1/evidencias`, { evidencia_id: 'e-b' })).status).toBe(404);
     expect((await chamar(cons, 'POST', `${U}/assessment/4.4.1/evidencias`, { evidencia_id: 'e-ok' })).status).toBe(200);
@@ -157,8 +160,32 @@ describe('ot-avaliacao: assessment', () => {
     expect(i.avaliacao.confirmado).toBe(true);
     expect(i.evidencias.map((e: any) => [e.id, e.vencida]).sort()).toEqual([['e-ok', false], ['e-old', true]]);
     expect((await chamar(cons, 'DELETE', `${U}/assessment/4.4.1/evidencias/e-old`)).status).toBe(200);
+    expect((await item(cons, '4.4.1')).avaliacao.confirmado).toBe(false); // tirar evidência desconfirma
     expect((await chamar(cons, 'DELETE', `${U}/assessment/4.4.1/evidencias/e-old`)).status).toBe(404);
+    await conf(gestor, '4.4.1');
+    expect((await chamar(cons, 'DELETE', `${U}/assessment/4.4.1/evidencias/e-old`)).status).toBe(404);
+    expect((await item(cons, '4.4.1')).avaliacao.confirmado).toBe(true); // nada apagado, nada desconfirmado
     expect((await item(cons, '4.4.1')).revisar).toBe(false);
+  });
+
+  it('confirmar com updated_at velho dá 409 e não confirma; com o atual, confirma', async () => {
+    await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'atende' });
+    expect((await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`, {})).status).toBe(400);
+    const r = await conf(gestor, '4.4.1', '2000-01-01 00:00:00');
+    expect(r.status).toBe(409);
+    expect(((await r.json()) as any).error).toMatch(/mudou/);
+    expect((await item(cons, '4.4.1')).avaliacao.confirmado).toBe(false);
+    expect((await conf(gestor, '4.4.1')).status).toBe(200);
+  });
+
+  it('próxima revisão: dia inexistente ou antes de hoje (SP) dá 400; hoje e o dia digitado ficam ao confirmar', async () => {
+    const put = (proxima_revisao: string) => chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'atende', proxima_revisao });
+    expect((await put('2027-02-31')).status).toBe(400);
+    expect((await put(diaMaisSP(-1))).status).toBe(400);
+    expect((await put(hojeEmSaoPaulo())).status).toBe(200);
+    expect((await put(diaMaisSP(40))).status).toBe(200);
+    await conf(gestor, '4.4.1');
+    expect((await item(cons, '4.4.1')).avaliacao.proxima_revisao).toBe(diaMaisSP(40));
   });
 
   it('subsídio: a resposta do roteiro aparece no item da norma (lista separada por vírgula)', async () => {
@@ -172,8 +199,9 @@ describe('ot-avaliacao: assessment', () => {
 
   it('resumo e isolamento entre projetos', async () => {
     await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'atende' });
-    await chamar(cons, 'PUT', `${U}/assessment/4.4.2`, { situacao: 'parcial', justificativa: 'Em andamento', proxima_revisao: diaMaisSP(-2) });
-    await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`);
+    await chamar(cons, 'PUT', `${U}/assessment/4.4.2`, { situacao: 'parcial', justificativa: 'Em andamento' });
+    await run(`UPDATE ot_avaliacoes SET proxima_revisao = ? WHERE justificativa = 'Em andamento'`, diaMaisSP(-2)); // revisão que já passou
+    await conf(gestor, '4.4.1');
     const r: any = await (await chamar(cons, 'GET', `${U}/assessment`)).json();
     const total = r.itens.length;
     expect(r.resumo).toMatchObject({ atende: 1, parcial: 1, nao_se_aplica: 0, revisar: 1, a_confirmar: 1 });
@@ -190,7 +218,7 @@ describe('ot-avaliacao: assessment', () => {
     await run(`INSERT INTO ot_ativos (id, project_id, site_id, nome, zona_id, ip_hash, mac_hash) VALUES ('a1', ?, 's1', 'RTU-Segredo-07 10.0.0.7', 'z1', 'h1', 'h2')`, P);
     await run(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_zona_id, externo, via_vpn) VALUES ('f1', ?, 's1', 'a1', 'z1', 1, 0)`, P);
     await chamar(cons, 'PUT', `${U}/assessment/4.4.1`, { situacao: 'parcial', justificativa: 'Falta política escrita', responsavel_id: 'u-g' });
-    await chamar(gestor, 'POST', `${U}/assessment/4.4.1/confirmar`);
+    await conf(gestor, '4.4.1');
     await evid('e-ok', 'proj-a', diaMaisSP(30));
     await chamar(cons, 'POST', `${U}/assessment/4.4.1/evidencias`, { evidencia_id: 'e-ok' });
     // a API já recusa IP/MAC na justificativa (livre); o relatório mascara mesmo assim o que chegou ao banco por outro caminho
@@ -199,6 +227,7 @@ describe('ot-avaliacao: assessment', () => {
       SELECT 'av-ip', ?, id, 'parcial', 'RTU 10.0.0.7 aa:bb:cc:dd:ee:ff', 'u' FROM ot_requisitos WHERE codigo = '4.4.2'`, P);
     await run(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES ('e-ip', ?, 'print 192.168.1.20.png', 'k', 'h', 'u')`, P);
     await chamar(cons, 'POST', `${U}/assessment/4.4.2/evidencias`, { evidencia_id: 'e-ip' });
+    expect((await item(cons, '4.4.2')).evidencias[0].file_name).toBe('print [omitido].png'); // a tela também mascara
 
     const r = await chamar(cons, 'GET', `${U}/relatorio/conformidade`);
     expect(r.status).toBe(200);
@@ -237,5 +266,7 @@ describe('ot-avaliacao: assessment', () => {
     const j: any = await r.json();
     expect(j.sites.map((s: any) => s.nome)).toEqual(['SE Sul']);
     for (const i of j.itens.filter((x: any) => x.tipo === 'tecnico')) expect(i.por_site.map((s: any) => s.site_nome)).toEqual(['SE Sul']);
+    expect(((await (await chamar(tecnico, 'GET', `${U}/assessment`)).json()) as any).restrito).toBe(true);
+    expect(((await (await chamar(cons, 'GET', `${U}/assessment`)).json()) as any).restrito).toBe(false);
   });
 });

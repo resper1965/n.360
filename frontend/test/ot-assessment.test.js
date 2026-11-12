@@ -60,6 +60,10 @@ describe('tela Assessment', () => {
         expect(m.textContent).toContain('Calculado pelo inventário; não editável');
         expect(m.textContent).toContain('1 de 1 sem VPN');
         expect(m.querySelector('#ass-sit')).toBeNull();
+        expect(m.textContent).toContain('Situação na organização');
+        await abrir('org_user', { [`GET ${B}`]: { ...ITENS, restrito: true } });
+        window.otAssAbrir('4.1.1');
+        expect(el('modal-content').textContent).toContain('Situação nos seus sites');
         window.otAssIrSite('s1');
         expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'base' });
     });
@@ -74,6 +78,7 @@ describe('tela Assessment', () => {
         await abrir('consultor', { 'PUT /api/v1/projects/p9/ot/assessment/4.2.2': { ok: true } });
         window.otAssAbrir('4.2.2');
         expect(document.querySelectorAll('.btn-primary').length).toBe(1);
+        expect(el('ass-just').maxLength).toBe(2000); // o mesmo teto do otAvaliacaoSchema
         expect([...el('ass-resp').options].map((o) => o.value)).toEqual(['', 'u2']);
         el('ass-sit').value = 'parcial'; el('ass-just').value = ' Em curso '; el('ass-resp').value = 'u2'; el('ass-rev').value = '2027-02-01';
         await window.otAssGravar('4.2.2');
