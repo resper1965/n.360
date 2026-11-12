@@ -798,4 +798,27 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(linhas.find((tr) => tr.textContent.includes('IHM-02')).textContent).not.toContain('não verificado');
         expect(el('c').querySelector('[title="Entrou sem lote de aprovação"]')).not.toBeNull();
     });
+
+    it('lote aberto (Gestor): o cartão perde o primário e o único é "Aprovar lote"', async () => {
+        const lote = { id: 'k1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', created_at: '2026-10-30 10:00:00' };
+        const item = { id: 'i1', linha: 2, decisao: 'pendente', motivo: null, erros: [], possivel_duplicata: false, dados: { nome: 'Item 2', tipo_dispositivo: 'RTU', no_arciber: false, firmware_nao_aplicavel: false, protocolos_portas: [], ip: '10.0.0.5', mac: null, mascarado: false } };
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('aguardar_base'), [`GET ${B}/lotes/k1`]: { lote, itens: [item] } });
+        S.otLote = 'k1';
+        await ir({ site: 's1', modo: 'projeto', sub: 'aprovacao' });
+        expect(primarios()).toBe(1);
+        expect(el('a').querySelector('.btn-primary').getAttribute('data-action')).toBe('otAprovarLote');
+        expect(el('c').querySelector('.card').textContent).toContain('Aprovar a base');
+        S.otLote = null;
+    });
+
+    it('levantamento aberto: o cartão perde o primário e o único é o envio do levantamento', async () => {
+        const lev = { id: 'l1', site_id: 's1', tipo: 'entrevista', realizado_em: '2026-11-01', funcao: 'Operador', turno: 'B', notas: '', roteiro: {}, situacao: 'aberto', achados: 1 };
+        const ach = { id: 'a1', levantamento_id: 'l1', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', lote_id: null, evidencia: 'e', erros: [], dados: { nome: 'N', mascarado: true } };
+        servirOt({ ...ROTAS, [`GET ${B}/levantamentos/l1`]: { levantamento: lev, achados: [ach] }, [`GET ${B}/roteiro`]: { perguntas: [] } });
+        S.otLevantamento = 'l1';
+        await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
+        expect(primarios()).toBe(1);
+        expect(el('a').querySelector('.btn-primary').getAttribute('data-action')).toBe('otEnviarAchados');
+        expect(el('c').querySelector('.card .btn')).not.toBeNull();
+    });
 });

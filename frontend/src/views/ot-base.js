@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, confirmar, pedirTexto, showToast, formatarData } from '../ui.js';
-import { podeEditarOt, ehGestor, mensagemDeErro, dataDoSqlite } from '../ot-comum.js';
+import { podeEditarOt, ehGestor, classePrimario, mensagemDeErro, dataDoSqlite } from '../ot-comum.js';
 
 // n.ot, cabeçalho do site (spec 2026-11-12 E3): régua Levantar → Revisar e aprovar → Base aprovada e o cartão "Próximo passo", que
 // leva o único .btn-primary da tela. Lê GET .../sites/:id/situacao; pedir, aprovar e devolver a base são POSTs do Gestor/equipe.
@@ -9,11 +9,12 @@ import { podeEditarOt, ehGestor, mensagemDeErro, dataDoSqlite } from '../ot-comu
 const ETAPAS = ['Levantar', 'Revisar e aprovar', 'Base aprovada'];
 const ETAPA_DO_PASSO = { comecar: 0, revisar: 1, aguardar_lote: 1, pedir_base: 1, aguardar_base: 1, em_operacao: 2 };
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
-const botao = (rotulo, acao, ...a) => `<button class="btn btn-primary" data-action="${acao}" data-args='${args(...a)}'>${escapeHTML(rotulo)}</button>`;
+const mkBotao = (sem) => (rotulo, acao, ...a) => `<button class="${classePrimario(sem)}" data-action="${acao}" data-args='${args(...a)}'>${escapeHTML(rotulo)}</button>`;
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
 /** Texto e ação do cartão para cada `proximo_passo`. Pura. `site` é o id; `gestor` é quem aprova a base. */
-export function proximoPasso(sit, site, { gestor, editar }) {
+export function proximoPasso(sit, site, { gestor, editar, semPrimario }) {
+    const botao = mkBotao(semPrimario); // com lote ou levantamento aberto, o primário é o da tela de dentro
     switch (sit.proximo_passo) {
         case 'comecar': return { texto: 'Comece o levantamento', acao: editar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
         case 'revisar': {
@@ -67,5 +68,6 @@ window.otAprovarBase = async (site) => {
 window.otDevolverBase = async (site) => {
     const motivo = await pedirTexto('Diga o que precisa ser corrigido (3 a 500 caracteres; sem IP ou MAC).', { titulo: 'Devolver a base', rotulo: 'Devolver' });
     if (motivo === null) return;
-    await enviar(() => api('POST', `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(site)}/base/devolver`, { motivo }), 'Base devolvida.', 'Não foi possível devolver a base.');
+    if (motivo.trim().length < 3) { showToast('Escreva o motivo da devolução (ao menos 3 caracteres).', 'error'); return; }
+    await enviar(() => api('POST', `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(site)}/base/devolver`, { motivo: motivo.trim() }), 'Base devolvida.', 'Não foi possível devolver a base.');
 };

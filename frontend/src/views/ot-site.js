@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes } from '../ui.js';
-import { podeEditarOt, lista, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
+import { podeEditarOt, ehGestor, lista, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
 import { montarInventario, montarFluxos, formSite } from './ot.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
 import { montarRevisao } from './ot-revisao.js';
@@ -78,10 +78,11 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
         if (desvio) S.otDesvioFiltro = { situacao: '', site_id: site, tipo: '' }; // o desvio do link pode estar em qualquer situação
         else if (!f || f.site_id !== site) S.otDesvioFiltro = { situacao: 'aberto', site_id: site, tipo: '' };
     }
+    const detalhe = !!(S.otLote || S.otLevantamento);
     a.innerHTML = '';
-    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site)}${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
+    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site, { gestor: ehGestor(), editar: podeEditarOt(), semPrimario: detalhe })}${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
     const painel = c.querySelector('#ot-site-painel');
-    const o = { siteFixo: site, semPrimario: true }; // o único primário é o do cartão Próximo passo
+    const o = { siteFixo: site, semPrimario: !detalhe }; // um só primário: o do cartão, ou o da tela de dentro quando há lote ou levantamento aberto
     if (sub === 'levantamento') await montarLevantamento(painel, a, p, o);
     else if (sub === 'aprovacao') await montarRevisao(painel, a, p, o);
     else if (sub === 'base') await montarBase(painel, a, p, o);

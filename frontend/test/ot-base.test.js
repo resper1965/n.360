@@ -86,6 +86,19 @@ describe('cabeçalho do site', () => {
         expect(document.body.textContent).toContain('Base não está em aprovação');
     });
 
+    it('devolver com motivo curto ou vazio avisa e não chama a API', async () => {
+        const f = vi.fn(async () => resposta({ ok: true }));
+        vi.stubGlobal('fetch', f);
+        window.render = vi.fn();
+        const p = window.otDevolverBase('s1');
+        await vi.waitFor(() => expect(document.querySelector('.confirmar input')).not.toBeNull());
+        document.querySelector('.confirmar input').value = ' a ';
+        document.querySelector('[data-confirmar="sim"]').click();
+        await p;
+        expect(f).not.toHaveBeenCalled();
+        expect(document.body.textContent).toContain('ao menos 3 caracteres');
+    });
+
     it('pedir aprovação confirma e faz o POST', async () => {
         const f = vi.fn(async () => resposta({ ok: true }));
         vi.stubGlobal('fetch', f);

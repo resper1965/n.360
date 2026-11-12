@@ -55,15 +55,16 @@ export async function montarInicio(c, a, p) {
     const v = (r, k) => (r.status === 'fulfilled' ? lista(r.value, k) : []);
     const sitesL = v(rS, 'sites');
     const sites = Object.fromEntries(sitesL.map((s) => [s.id, s.nome]));
-    // sondas: uma chamada por site; quem não vê o inventário (403) ou falha só fica sem sondas
-    const rSo = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(s.id)}/sensores`)));
+    // sondas, fila de revisão e situação: uma chamada por site, as três levas em paralelo. A que falha deixa o site sem o dado
+    // (403 sem inventário; a fila acende o aviso de carga parcial; a situação vira "—").
+    const id = (s) => encodeURIComponent(s.id);
+    const [rSo, rQ, rSit] = await Promise.all([
+        Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${id(s)}/sensores`))),
+        Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${id(s)}&situacao=rascunho&contagem=1`))),
+        Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${id(s)}/situacao`)))]);
     const sondas = sitesL.flatMap((s, i) => (rSo[i].status === 'fulfilled' ? lista(rSo[i].value, 'sensores').map((x) => ({ ...x, site_id: s.id })) : []));
-    // fila de revisão: uma chamada por site; a que falha deixa o site sem contagem e acende o aviso de carga parcial
-    const rQ = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${encodeURIComponent(s.id)}&situacao=rascunho&contagem=1`)));
     const rascunhosPorSite = {};
     sitesL.forEach((s, i) => { if (rQ[i].status === 'fulfilled') rascunhosPorSite[s.id] = rQ[i].value?.total ?? 0; });
-    // situação (fase e próximo passo) de cada site; a que falha deixa a linha com "—"
-    const rSit = await Promise.allSettled(sitesL.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(s.id)}/situacao`)));
     const situacoes = {};
     sitesL.forEach((s, i) => { if (rSit[i].status === 'fulfilled') situacoes[s.id] = rSit[i].value; });
     const desvios = v(rD, 'desvios');
