@@ -11,7 +11,7 @@ export type Situacao = 'nao_atende' | 'evidencia_no_inventario' | 'sem_evidencia
 const VIGENCIA = '2021-07-09'; // RO-CB.BR.01 Rev.00
 const NO_SITE = 'site_id IN (SELECT value FROM json_each(?))';
 
-const prazoEm = (meses: number) => { const d = new Date(`${VIGENCIA}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + meses); return d.toISOString().slice(0, 10); };
+export const prazoEm = (meses: number) => { const d = new Date(`${VIGENCIA}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + meses); return d.toISOString().slice(0, 10); };
 
 export interface ItemTecnico { situacao: Situacao; evidencia: string; numeros?: Record<string, number> }
 interface Contagens {

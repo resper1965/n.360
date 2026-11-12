@@ -1,0 +1,141 @@
+// Assessment da RO-CB.BR.01 (spec 2026-11-11 fluidez §5): os itens técnicos vêm do inventário (por site e pior caso da organização),
+// os de política são autoavaliação do cliente, confirmada pelo Gestor ARCiber; o 5.1.1 (exceções) fica fora deste ciclo.
+import { conformidadePorSite, ITENS_TECNICOS, prazoEm, type ItemTecnico } from './ot-conformidade';
+import { diaMaisSP, hojeEmSaoPaulo } from './hoje';
+import { TETO_LEITURA_OT } from './ot-inventario';
+
+const FRAMEWORK = 'ONS-RO-CB.BR.01';
+const EXCECAO = '5.1.1';
+type Ator = { id: string };
+type Falha = { ok: false; status: 400 | 404 | 409; error: string };
+type Resultado = { ok: true } | Falha;
+const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
+const tecnico = (codigo: string) => (ITENS_TECNICOS as readonly string[]).includes(codigo);
+
+export interface DadosAvaliacao { situacao: 'atende' | 'parcial' | 'nao_atende' | 'nao_se_aplica'; justificativa?: string | null; responsavel_id?: string | null; proxima_revisao?: string | null }
+
+// Da pior para a melhor; só sites que contam entram (levantamento e base ainda não aprovada não definem a organização).
+const PIOR = ['nao_atende', 'sem_evidencia', 'evidencia_no_inventario'] as const;
+const CONTAM = ['em_operacao', 'em_obra', 'base_em_aprovacao'];
+
+export async function montarAssessment(db: D1Database, projectId: string, sites: string[], _completo: boolean) {
+  const hoje = hojeEmSaoPaulo();
+  const lista = JSON.stringify(sites);
+  const [reqs, sitesR, avs, evs, perg, levs] = await db.batch([
+    db.prepare(`SELECT id, codigo, titulo, categoria, prazo_meses FROM ot_requisitos WHERE framework = ? LIMIT ${TETO_LEITURA_OT}`).bind(FRAMEWORK),
+    db.prepare(`SELECT id, nome, fase FROM ot_sites WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lista),
+    db.prepare(`SELECT a.requisito_id, a.situacao, a.justificativa, a.responsavel_id, r.name AS responsavel_nome, a.proxima_revisao, a.confirmado_por,
+        c.name AS confirmado_por_nome, a.confirmado_em FROM ot_avaliacoes a LEFT JOIN users r ON r.id = a.responsavel_id LEFT JOIN users c ON c.id = a.confirmado_por
+      WHERE a.project_id = ? LIMIT ${TETO_LEITURA_OT}`).bind(projectId),
+    db.prepare(`SELECT l.requisito_id, e.id, e.file_name, e.valido_ate FROM ot_requisito_evidencias l JOIN evidence e ON e.id = l.evidencia_id AND e.project_id = l.project_id
+      WHERE l.project_id = ? ORDER BY e.file_name LIMIT ${TETO_LEITURA_OT}`).bind(projectId),
+    db.prepare('SELECT id, texto, item_norma FROM ot_roteiro_perguntas ORDER BY ordem'),
+    db.prepare(`SELECT l.id, s.nome AS site_nome, l.realizado_em, l.roteiro FROM ot_levantamentos l JOIN ot_sites s ON s.id = l.site_id AND s.project_id = l.project_id
+      WHERE l.project_id = ? AND l.status = 'ativo' AND l.site_id IN (SELECT value FROM json_each(?)) ORDER BY l.realizado_em DESC LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lista),
+  ]);
+  const porSite = await conformidadePorSite(db, projectId, sites);
+  const siteRows = sitesR.results as { id: string; nome: string; fase: string }[];
+  const aval = new Map((avs.results as any[]).map((a) => [a.requisito_id, a]));
+
+  const evid = new Map<string, any[]>();
+  for (const e of evs.results as any[]) {
+    (evid.get(e.requisito_id) ?? evid.set(e.requisito_id, []).get(e.requisito_id)!).push({ id: e.id, file_name: e.file_name, valido_ate: e.valido_ate, vencida: !!e.valido_ate && e.valido_ate < hoje });
+  }
+  // item_norma é uma lista ("4.1.3, 4.5.1.5"); a resposta mora no JSON `roteiro` do levantamento, por id da pergunta.
+  const subsidio = new Map<string, any[]>();
+  for (const l of levs.results as { id: string; site_nome: string; realizado_em: string; roteiro: string }[]) {
+    const roteiro = JSON.parse(l.roteiro) as Record<string, { resposta: string }>;
+    for (const p of perg.results as { id: string; texto: string; item_norma: string }[]) {
+      const r = roteiro[p.id]?.resposta;
+      if (!r || r === 'nao_perguntado') continue;
+      for (const cod of p.item_norma.split(',').map((x) => x.trim())) {
+        const q = subsidio.get(cod) ?? subsidio.set(cod, []).get(cod)!;
+        q.push({ levantamento_id: l.id, site_nome: l.site_nome, pergunta: p.texto, resposta: r, realizado_em: l.realizado_em });
+      }
+    }
+  }
+
+  const itens = (reqs.results as { id: string; codigo: string; titulo: string; categoria: string | null; prazo_meses: number | null }[])
+    .sort((x, y) => x.codigo.localeCompare(y.codigo, undefined, { numeric: true }))
+    .map((r) => {
+      const base = { codigo: r.codigo, titulo: r.titulo, categoria: r.categoria, prazo: r.prazo_meses ? prazoEm(r.prazo_meses) : null };
+      if (tecnico(r.codigo)) {
+        const por_site = siteRows.map((s) => ({ site_id: s.id, site_nome: s.nome, fase: s.fase, ...(porSite[s.id][r.codigo] as ItemTecnico) }));
+        const contam = por_site.filter((s) => CONTAM.includes(s.fase));
+        const situacao_org = contam.length ? PIOR.find((p) => contam.some((s) => s.situacao === p))! : 'nao_avaliado';
+        return { ...base, tipo: 'tecnico' as const, por_site, situacao_org };
+      }
+      if (r.codigo === EXCECAO) return { ...base, tipo: 'excecao' as const, situacao: 'nao_avaliado', evidencia: 'Não avaliado neste ciclo' };
+      const a = aval.get(r.id);
+      const evidencias = evid.get(r.id) ?? [];
+      return {
+        ...base, tipo: 'politica' as const,
+        avaliacao: a ? { situacao: a.situacao as DadosAvaliacao['situacao'], justificativa: a.justificativa as string | null, responsavel_id: a.responsavel_id as string | null,
+          responsavel_nome: a.responsavel_nome as string | null, proxima_revisao: a.proxima_revisao as string | null, confirmado: !!a.confirmado_em,
+          confirmado_por_nome: a.confirmado_por_nome as string | null, confirmado_em: a.confirmado_em as string | null } : null,
+        evidencias,
+        subsidio: (subsidio.get(r.codigo) ?? []).slice(0, 10),
+        revisar: evidencias.some((e) => e.vencida) || (!!a?.proxima_revisao && a.proxima_revisao < hoje),
+      };
+    });
+
+  const resumo = { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 0, revisar: 0, a_confirmar: 0 };
+  for (const i of itens) {
+    if (i.tipo === 'tecnico') resumo[i.situacao_org === 'nao_atende' ? 'nao_atende' : 'nao_avaliado']++; // o inventário nunca afirma "atende"
+    else if (i.tipo === 'excecao') resumo.nao_avaliado++;
+    else {
+      resumo[i.avaliacao?.situacao ?? 'nao_avaliado']++;
+      if (i.revisar) resumo.revisar++;
+      if (i.avaliacao && !i.avaliacao.confirmado) resumo.a_confirmar++;
+    }
+  }
+  return { itens, resumo };
+}
+
+async function requisito(db: D1Database, codigo: string) {
+  return db.prepare('SELECT id FROM ot_requisitos WHERE framework = ? AND codigo = ?').bind(FRAMEWORK, codigo).first<{ id: string }>();
+}
+
+/** Responsável: conta ativa do projeto (cliente do projeto ou consultor na governança). */
+const RESPONSAVEL_VALIDO = `SELECT 1 FROM users WHERE id = ? AND COALESCE(ativo, 1) <> 0 AND (client_project_id = ?
+  OR (role = 'consultor' AND lower(email) IN (SELECT lower(email) FROM project_governance WHERE project_id = ? AND role_category = 'consultor')))`;
+
+export async function salvarAvaliacao(db: D1Database, ator: Ator, projectId: string, codigo: string, d: DadosAvaliacao): Promise<Resultado> {
+  const rq = await requisito(db, codigo);
+  if (!rq) return falha(404, 'Requisito não encontrado');
+  if (tecnico(codigo) || codigo === EXCECAO) return falha(400, 'Este item não tem autoavaliação: o técnico vem do inventário e o 5.1.1 fica fora deste ciclo');
+  if (d.situacao !== 'atende' && (d.justificativa ?? '').trim().length < 3) return falha(400, 'Justificativa obrigatória quando o item não atende por inteiro');
+  if (d.responsavel_id && !await db.prepare(RESPONSAVEL_VALIDO).bind(d.responsavel_id, projectId, projectId).first()) return falha(400, 'Referência inválida: responsavel_id');
+  await db.prepare(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, justificativa, responsavel_id, proxima_revisao, atualizado_por)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (project_id, requisito_id) DO UPDATE SET situacao = excluded.situacao, justificativa = excluded.justificativa,
+    responsavel_id = excluded.responsavel_id, proxima_revisao = excluded.proxima_revisao, confirmado_por = NULL, confirmado_em = NULL,
+    atualizado_por = excluded.atualizado_por, updated_at = CURRENT_TIMESTAMP`)
+    .bind(crypto.randomUUID(), projectId, rq.id, d.situacao, d.justificativa ?? null, d.responsavel_id ?? null, d.proxima_revisao ?? null, ator.id).run();
+  return { ok: true };
+}
+
+export async function confirmarAvaliacao(db: D1Database, ator: Ator, projectId: string, codigo: string): Promise<Resultado> {
+  const rq = await requisito(db, codigo);
+  if (!rq) return falha(404, 'Requisito não encontrado');
+  const r = await db.prepare(`UPDATE ot_avaliacoes SET confirmado_por = ?, confirmado_em = CURRENT_TIMESTAMP, proxima_revisao = coalesce(proxima_revisao, ?)
+    WHERE project_id = ? AND requisito_id = ? AND confirmado_em IS NULL`).bind(ator.id, diaMaisSP(365), projectId, rq.id).run();
+  if (r.meta.changes) return { ok: true };
+  const existe = await db.prepare('SELECT 1 FROM ot_avaliacoes WHERE project_id = ? AND requisito_id = ?').bind(projectId, rq.id).first();
+  return existe ? falha(409, 'A avaliação já está confirmada') : falha(404, 'Avaliação não encontrada');
+}
+
+export async function ligarEvidencia(db: D1Database, projectId: string, codigo: string, evidenciaId: string): Promise<Resultado> {
+  const rq = await requisito(db, codigo);
+  if (!rq) return falha(404, 'Requisito não encontrado');
+  if (tecnico(codigo) || codigo === EXCECAO) return falha(400, 'Este item não recebe evidência anexada');
+  if (!await db.prepare('SELECT 1 FROM evidence WHERE id = ? AND project_id = ?').bind(evidenciaId, projectId).first()) return falha(404, 'Evidência não encontrada');
+  await db.prepare('INSERT OR IGNORE INTO ot_requisito_evidencias (evidencia_id, requisito_id, project_id) VALUES (?, ?, ?)').bind(evidenciaId, rq.id, projectId).run();
+  return { ok: true };
+}
+
+export async function desligarEvidencia(db: D1Database, projectId: string, codigo: string, evidenciaId: string): Promise<Resultado> {
+  const rq = await requisito(db, codigo);
+  if (!rq) return falha(404, 'Requisito não encontrado');
+  const r = await db.prepare('DELETE FROM ot_requisito_evidencias WHERE evidencia_id = ? AND requisito_id = ? AND project_id = ?').bind(evidenciaId, rq.id, projectId).run();
+  return r.meta.changes ? { ok: true } : falha(404, 'Evidência não ligada a este item');
+}

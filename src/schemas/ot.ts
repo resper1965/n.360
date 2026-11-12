@@ -164,3 +164,12 @@ export const otDesvioAceitarSchema = z.object({
     .refine((v) => v >= diaUtc(new Date()) && v <= diaUtc(new Date(Date.now() + PRAZO_MAX_ACEITE_DIAS * 86_400_000)),
       `Prazo de hoje até ${PRAZO_MAX_ACEITE_DIAS} dias`),
 }).strict();
+
+/** Assessment da RO-CB.BR.01: autoavaliação de um item de política (a justificativa exigida fora do "atende" é conferida no serviço e pelo CHECK). */
+export const otAvaliacaoSchema = z.object({
+  situacao: z.enum(['atende', 'parcial', 'nao_atende', 'nao_se_aplica']),
+  justificativa: opcional(livreSemPii(2000)),
+  responsavel_id: opcional(id),
+  proxima_revisao: opcional(data),
+}).strict();
+export const otAvaliacaoEvidenciaSchema = z.object({ evidencia_id: id }).strict();
