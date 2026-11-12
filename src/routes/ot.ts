@@ -10,6 +10,7 @@ import {
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
+import { contarAchados } from '../services/ot-fase';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
@@ -634,9 +635,8 @@ otApp.get('/achados', async (c) => {
     if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
     if (c.req.query('contagem') === '1') {
       // só a contagem: não decifra nada, logo sem trilha de IP/MAC
-      const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
-        WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ?`).bind(projectId, site, situacao).first<{ n: number }>();
-      return c.json({ total: n?.n ?? 0 });
+      const total = await contarAchados(db, projectId, site, situacao);
+      return c.json({ total });
     }
     const completo = await podeVerCompleto(db, user, projectId);
     const { results } = await db.prepare(`SELECT a.*, ${DESFECHO_SQL}, l.tipo AS levantamento_tipo, l.realizado_em AS levantamento_realizado_em

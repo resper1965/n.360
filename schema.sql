@@ -2288,6 +2288,11 @@ CREATE TABLE IF NOT EXISTS ot_sites (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     faixas_internas TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(faixas_internas) AND json_type(faixas_internas) = 'array'),
+    fase TEXT NOT NULL DEFAULT 'em_levantamento' CHECK (fase IN ('em_levantamento', 'base_em_aprovacao', 'em_operacao', 'em_obra')),
+    base_pedida_em DATETIME,
+    base_pedida_por TEXT,
+    base_aprovada_em DATETIME,
+    base_aprovada_por TEXT,
     UNIQUE (id, project_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ot_sites_projeto ON ot_sites(project_id);

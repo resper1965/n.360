@@ -778,6 +778,11 @@ $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
 
+## 0110 — fase do site no n.ot (2026-11-12)
+
+Cinco colunas em `ot_sites` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner): `fase` (`em_levantamento` por padrão, CHECK com `base_em_aprovacao`, `em_operacao`, `em_obra`), `base_pedida_em/_por` e `base_aprovada_em/_por`. Aditiva; todo site existente nasce `em_levantamento`. Spec `2026-11-11-n-ot-fluidez-design` §6. Conferência depois:
+`SELECT name FROM pragma_table_info('ot_sites') WHERE name IN ('fase','base_pedida_em','base_pedida_por','base_aprovada_em','base_aprovada_por')` (5 linhas). Produção só com o "sim" do dono e `npm run db:backup` antes.
+
 ## 0108 — desvios do n.ot (2026-11-09)
 
 Cria `ot_desvios` (fluxo ou ativo fora do esperado; situação, prazo de aceite, `UNIQUE (project_id, tipo, chave_sensor)`, mesmo CHECK de IP/MAC cifrado dos achados) e 2 índices. Aditiva e repetível. Conferência depois:
