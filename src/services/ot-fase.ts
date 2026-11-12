@@ -5,7 +5,7 @@ export type Fase = 'em_levantamento' | 'base_em_aprovacao' | 'em_operacao' | 'em
 export type ProximoPasso = 'comecar' | 'revisar' | 'aguardar_lote' | 'pedir_base' | 'aguardar_base' | 'em_operacao';
 export interface SituacaoSite {
   fase: Fase; base_pedida_em: string | null; base_aprovada_em: string | null;
-  rascunhos: number; lotes_em_revisao: number; zonas_4_1_1: boolean; tem_conteudo: boolean;
+  rascunhos: number; rascunhos_bloqueiam: number; lotes_em_revisao: number; zonas_4_1_1: boolean; tem_conteudo: boolean;
   proximo_passo: ProximoPasso; lote_em_revisao_id: string | null;
 }
 type Ator = { id: string };
@@ -15,10 +15,13 @@ type Resultado = { ok: true } | { ok: false; status: 404 | 409; error: string };
 export const sitesComZonas411 = (filtro: string) => `SELECT site_id FROM ot_zonas WHERE project_id = ? AND status = 'ativo' AND ${filtro}
   AND nivel_purdue IN (2, 3, 4) GROUP BY site_id HAVING count(DISTINCT nivel_purdue) = 3`;
 
+/** Rascunho da sonda (`chave_sensor`, gravada só por `gravarPlano`) não trava a base: a sonda gera rascunho novo todo dia. */
+const SEM_SONDA = ' AND a.chave_sensor IS NULL';
+
 /** Achados de um site numa situação, nos levantamentos ativos: a fila de `GET /ot/achados?contagem=1` e o `rascunhos` da fase. */
-export async function contarAchados(db: D1Database, projectId: string, siteId: string, situacao: 'rascunho' | 'enviado'): Promise<number> {
+export async function contarAchados(db: D1Database, projectId: string, siteId: string, situacao: 'rascunho' | 'enviado', semSonda = false): Promise<number> {
   const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
-    WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ?`).bind(projectId, siteId, situacao).first<{ n: number }>();
+    WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ?${semSonda ? SEM_SONDA : ''}`).bind(projectId, siteId, situacao).first<{ n: number }>();
   return n?.n ?? 0;
 }
 
@@ -26,8 +29,9 @@ export async function situacaoDoSite(db: D1Database, projectId: string, siteId: 
   const site = await db.prepare(`SELECT fase, base_pedida_em, base_aprovada_em FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`)
     .bind(siteId, projectId).first<{ fase: Fase; base_pedida_em: string | null; base_aprovada_em: string | null }>();
   if (!site) return null;
-  const [rascunhos, lotes, zonas, conteudo] = await Promise.all([
+  const [rascunhos, rascunhos_bloqueiam, lotes, zonas, conteudo] = await Promise.all([
     contarAchados(db, projectId, siteId, 'rascunho'),
+    contarAchados(db, projectId, siteId, 'rascunho', true),
     db.prepare(`SELECT count(*) AS n, (SELECT id FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao' ORDER BY created_at, id LIMIT 1) AS primeiro
       FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao'`).bind(projectId, siteId, projectId, siteId).first<{ n: number; primeiro: string | null }>(),
     db.prepare(sitesComZonas411('site_id = ?')).bind(projectId, siteId).first(),
@@ -41,15 +45,15 @@ export async function situacaoDoSite(db: D1Database, projectId: string, siteId: 
     site.fase === 'em_operacao' || site.fase === 'em_obra' ? 'em_operacao'
       : site.fase === 'base_em_aprovacao' ? 'aguardar_base'
         : !tem_conteudo && !zonas_4_1_1 ? 'comecar'
-          : rascunhos > 0 ? 'revisar'
+          : rascunhos_bloqueiam > 0 ? 'revisar'
             : lotes_em_revisao > 0 ? 'aguardar_lote'
               : zonas_4_1_1 ? 'pedir_base' : 'revisar';
-  return { ...site, rascunhos, lotes_em_revisao, zonas_4_1_1, tem_conteudo, proximo_passo, lote_em_revisao_id: lotes?.primeiro ?? null };
+  return { ...site, rascunhos, rascunhos_bloqueiam, lotes_em_revisao, zonas_4_1_1, tem_conteudo, proximo_passo, lote_em_revisao_id: lotes?.primeiro ?? null };
 }
 
 /** A primeira condição da base que falha, em texto para a tela; null se todas valem. */
 function faltaParaBase(s: SituacaoSite): string | null {
-  if (s.rascunhos > 0) return `Há ${s.rascunhos} achado(s) em rascunho para revisar`;
+  if (s.rascunhos_bloqueiam > 0) return `Há ${s.rascunhos_bloqueiam} achado(s) em rascunho para revisar`;
   if (s.lotes_em_revisao > 0) return `Há ${s.lotes_em_revisao} lote(s) de aprovação em revisão`;
   if (!s.zonas_4_1_1) return 'Faltam zonas nos níveis Purdue 2, 3 e 4';
   return null;
@@ -78,7 +82,7 @@ export async function aprovarBase(db: D1Database, ator: Ator, projectId: string,
   const r = await db.prepare(`UPDATE ot_sites SET fase = 'em_operacao', base_aprovada_em = CURRENT_TIMESTAMP, base_aprovada_por = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND project_id = ? AND status = 'ativo' AND fase = 'base_em_aprovacao'
     AND NOT EXISTS (SELECT 1 FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
-      WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = 'rascunho')
+      WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = 'rascunho'${SEM_SONDA})
     AND NOT EXISTS (SELECT 1 FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao')
     AND id IN (${sitesComZonas411('site_id = ?')})`)
     .bind(ator.id, siteId, projectId, projectId, siteId, projectId, siteId, projectId, siteId).run();

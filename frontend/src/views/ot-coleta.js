@@ -22,8 +22,8 @@ let sites = [];
 let manuais = [];
 let itensDoLote = [];
 
-const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo original não é guardado. Só as linhas reconhecidas entram no lote, que espera a revisão '
-    + 'de outra pessoa (o Gestor ARCiber ou o consultor) antes de chegar ao inventário. Lote não concluído expira em 7 dias.';
+const PRIVACIDADE = 'Todo lote espera a revisão de outra pessoa (o Gestor ARCiber ou o consultor) antes de chegar ao inventário, e lote não concluído expira em 7 dias. '
+    + 'Para trazer planilha ou texto, use "Trazer dados" no Levantamento.';
 
 let fixo = null; // site fixo da tela do site: recorta os lotes e tira o seletor de site
 

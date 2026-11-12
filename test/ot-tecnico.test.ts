@@ -95,10 +95,8 @@ describe('técnico: levantamento e dados nos sites concedidos', () => {
     // texto: o arquivo de teste é CSV, que o leitor de documento recusa com 400 (passou da permissão e da trava de site)
     expect((await multipart(tec, `${P}/levantamentos/${docOutro}/depara/texto`, {})).status).toBe(404);
     expect((await multipart(tec, `${P}/levantamentos/${doc}/depara/texto`, {})).status).toBe(400);
-    // rede: liberada no middleware, mas a rota (A1) só aceita quem vê o inventário completo; técnico segue 403 com a mensagem da rota
-    const rede = await chamar(tec, 'POST', `${P}/levantamentos/${doc}/depara/rede`, {});
-    expect(rede.status).toBe(403);
-    expect(await rede.text()).toContain('exige ver o inventário completo');
+    // rede: fora da lista do técnico (só quem vê o inventário completo)
+    expect((await chamar(tec, 'POST', `${P}/levantamentos/${doc}/depara/rede`, {})).status).toBe(403);
   });
 
   it('lote manual segue permitido ao técnico', async () => {

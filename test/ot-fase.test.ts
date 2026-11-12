@@ -125,6 +125,25 @@ describe('ot-fase: fase do site e condições da base', () => {
       expect(r).toMatchObject({ ok: false, status: 409 });
       expect(await fase()).toBe('base_em_aprovacao');
     });
+    it('409 se entrou lote em revisão depois do pedido', async () => {
+      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await lote('l1');
+      expect(await aprovarBase(env.DB, ator, P, S)).toEqual({ ok: false, status: 409, error: 'As condições da base mudaram desde o pedido' });
+      expect(await fase()).toBe('base_em_aprovacao');
+    });
+    it('rascunho da sonda (chave_sensor) não trava pedir nem aprovar; o do consultor trava', async () => {
+      await tresZonas(); await levantamento();
+      await run(`INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por, chave_sensor) VALUES ('sonda1', ?, 'lv1', 'u', 'k1')`, P);
+      const s = (await situacaoDoSite(env.DB, P, S))!;
+      expect([s.rascunhos, s.rascunhos_bloqueiam, s.proximo_passo]).toEqual([1, 0, 'pedir_base']);
+      await achado('a-consultor');
+      expect(await pedirBase(env.DB, ator, P, S)).toMatchObject({ ok: false, status: 409 });
+      await run(`DELETE FROM ot_achados WHERE id = 'a-consultor'`);
+      expect(await pedirBase(env.DB, ator, P, S)).toEqual({ ok: true });
+      await run(`INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por, chave_sensor) VALUES ('sonda2', ?, 'lv1', 'u', 'k2')`, P);
+      expect(await aprovarBase(env.DB, ator, P, S)).toEqual({ ok: true });
+      expect(await fase()).toBe('em_operacao');
+    });
     it('409 fora de base_em_aprovacao; 404 para outro projeto', async () => {
       expect(await aprovarBase(env.DB, ator, P, S)).toMatchObject({ ok: false, status: 409 });
       expect(await aprovarBase(env.DB, ator, 'proj-b', S)).toMatchObject({ ok: false, status: 404 });

@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, confirmar, pedirTexto, showToast, formatarData } from '../ui.js';
-import { podeEditarOt, ehGestor, classePrimario, mensagemDeErro, dataDoSqlite } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, ehGestor, classePrimario, mensagemDeErro, dataDoSqlite } from '../ot-comum.js';
 
 // n.ot, cabeçalho do site (spec 2026-11-12 E3): régua Levantar → Revisar e aprovar → Base aprovada e o cartão "Próximo passo", que
 // leva o único .btn-primary da tela. Lê GET .../sites/:id/situacao; pedir, aprovar e devolver a base são POSTs do Gestor/equipe.
@@ -13,10 +13,10 @@ const mkBotao = (sem) => (rotulo, acao, ...a) => `<button class="${classePrimari
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
 /** Texto e ação do cartão para cada `proximo_passo`. Pura. `site` é o id; `gestor` é quem aprova a base. */
-export function proximoPasso(sit, site, { gestor, editar, semPrimario }) {
+export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPrimario }) {
     const botao = mkBotao(semPrimario); // com lote ou levantamento aberto, o primário é o da tela de dentro
     switch (sit.proximo_passo) {
-        case 'comecar': return { texto: 'Comece o levantamento', acao: editar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
+        case 'comecar': return { texto: 'Comece o levantamento', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
         case 'revisar': {
             const n = sit.rascunhos || 0;
             return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Abrir Revisão e aprovação', 'otSiteSub', 'aprovacao') }
@@ -33,7 +33,7 @@ export function proximoPasso(sit, site, { gestor, editar, semPrimario }) {
 }
 
 /** Régua + cartão. `sit` é o corpo de /situacao, ou null quando a leitura falhou. */
-export function cabecalhoDoSite(sit, site, papeis = { gestor: ehGestor(), editar: podeEditarOt() }) {
+export function cabecalhoDoSite(sit, site, papeis = { gestor: ehGestor(), editar: podeEditarOt(), criar: podeCriarLote() }) {
     if (!sit) return '<section class="card mb-4"><p class="org-dica" role="alert">Não foi possível carregar a situação do site.</p></section>';
     const atual = ETAPA_DO_PASSO[sit.proximo_passo] ?? 0;
     const desde = sit.base_aprovada_em ? formatarData(dataDoSqlite(sit.base_aprovada_em)) : '';

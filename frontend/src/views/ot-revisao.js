@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, falhaDeCarga, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, rotaDoFluxo, classePrimario } from '../ot-comum.js';
+import { podeCriarLote, mensagemDeErro, lista, rotaDoFluxo, classePrimario } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 
 // n.ot, "Revisão e aprovação" do site (spec 2026-11-11 fluidez E2): fila de achados em rascunho de todos os levantamentos do site,
@@ -26,7 +26,7 @@ const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const opt = (pares, atual) => pares.map(([v, r]) => `<option value="${v}"${v === atual ? ' selected' : ''}>${escapeHTML(r)}</option>`).join('');
 
 function desenharFila() {
-    const editar = podeEditarOt();
+    const editar = podeCriarLote();
     const xs = visiveis();
     const alvo = el('ot-rev-fila');
     if (!fila.length) {

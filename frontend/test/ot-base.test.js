@@ -18,6 +18,12 @@ describe('cabeçalho do site', () => {
     beforeEach(() => { S.user = { id: 'u1', role: 'org_admin' }; S.activeProject = { id: 'p9' }; });
     afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = ''; });
 
+    it('o técnico (criar sem editar) tem "Novo levantamento" em comecar; o cliente, não', () => {
+        const sit = { proximo_passo: 'comecar' };
+        expect(proximoPasso(sit, 's1', { gestor: false, editar: false, criar: true }).acao).toContain('otNovoLevantamentoDoSite');
+        expect(proximoPasso(sit, 's1', { gestor: false, editar: false, criar: false }).acao).toBe('');
+    });
+
     it.each([
         ['comecar', {}, 'Comece o levantamento', 'otNovoLevantamentoDoSite'],
         ['revisar', { rascunhos: 3 }, 'Revise 3 achados', 'otSiteSub'],

@@ -125,11 +125,11 @@ async function montarSessao(c, a, p, id) {
     achados = lista(r, 'achados');
     nomesPontas = r.nomes_pontas || {};
     ativosDoSite = lista(r, 'ativos_do_site');
-    const editar = podeEditarOt();
+    const editar = podeCriarLote(); // o técnico faz tudo, menos Reabrir
     const aberto = l.situacao !== 'encerrado';
     const rascunhos = achados.filter((x) => x.situacao === 'rascunho');
     a.innerHTML = '<button class="btn" data-action="otVoltarLevantamentos">Voltar aos levantamentos</button>'
-        + (editar ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
+        + ((aberto ? editar : podeEditarOt()) ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
         + (editar && aberto ? '<button class="btn" data-action="otNovoAchado">Registrar achado</button>' : '')
         + (podeCriarLote() && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
         + (editar && rascunhos.length ? `<button class="${classePrimario(semPri)}" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar para aprovação</button>` : '');

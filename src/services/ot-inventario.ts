@@ -19,7 +19,7 @@ export const podeEditarOt = (u: AtorOt) => !naoEhPessoa(u) && ['org_admin', 'con
  * pelo de-para e o lote manual. Cada rota confere o site concedido (`daLista`/`lerLevantamento`, P0-4). Fora daqui o técnico só lê:
  * site, zona, ativo, fluxo, decisão de lote e base seguem de quem edita. Usada pelo middleware de ot.ts e pelo allow-list de auth.ts.
  */
-export const ESCRITAS_DO_TECNICO = new RegExp('^(/levantamentos(/[^/]+(?:/enviar|/achados|/achados/[^/]+|/depara/(planilha/(proposta|aplicar)|texto|rede))?)?'
+export const ESCRITAS_DO_TECNICO = new RegExp('^(/levantamentos(/[^/]+(?:/enviar|/achados|/achados/[^/]+|/depara/(planilha/(proposta|aplicar)|texto))?)?'
   + '|/sites/[^/]+/enviar|/lotes/manual)$');
 
 /** Escrita do técnico: o POST/PUT da lista fechada acima, só nos sites vinculados (a rota confere). */

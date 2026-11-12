@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes } from '../ui.js';
-import { podeEditarOt, ehGestor, lista, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, ehGestor, lista, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
 import { montarInventario, montarFluxos, formSite } from './ot.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
 import { montarRevisao } from './ot-revisao.js';
@@ -80,7 +80,7 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     }
     const detalhe = !!(S.otLote || S.otLevantamento);
     a.innerHTML = '';
-    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site, { gestor: ehGestor(), editar: podeEditarOt(), semPrimario: detalhe })}${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
+    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site, { gestor: ehGestor(), editar: podeEditarOt(), criar: podeCriarLote(), semPrimario: detalhe })}${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
     const painel = c.querySelector('#ot-site-painel');
     const o = { siteFixo: site, semPrimario: !detalhe }; // um só primário: o do cartão, ou o da tela de dentro quando há lote ou levantamento aberto
     if (sub === 'levantamento') await montarLevantamento(painel, a, p, o);

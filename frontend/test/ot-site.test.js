@@ -363,10 +363,10 @@ describe('coleta', () => {
     const COLETA = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/lotes`]: { lotes: [{ ...LOTE, itens: 2, com_erro: 1, gravados: 0 }] },
         [`GET ${B}/lotes/l1`]: { lote: LOTE, itens: [ITEM('i1', 2, { possivel_duplicata: true }), ITEM('i2', 3, { erros: [{ campo: 'mac', motivo: 'MAC inválido' }] })] } };
 
-    it('diz que o arquivo original não é guardado e lista os lotes', async () => {
+    it('aponta "Trazer dados" e lista os lotes', async () => {
         servirOt(COLETA);
         await abrir('coleta');
-        expect(el('ot-coleta-privacidade').textContent).toContain('arquivo original não é guardado');
+        expect(el('ot-coleta-privacidade').textContent).toContain('Trazer dados');
         expect(texto()).toContain('Em revisão');
         expect(texto()).toContain('Planilha');
     });

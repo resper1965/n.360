@@ -212,8 +212,22 @@ describe('aba Levantamento', () => {
         expect(S.otLevantamento).toBe('l2');
     });
 
-    it('quem não edita o inventário não vê os botões de registrar, responder ou enviar', async () => {
+    it('o técnico vê registrar, notas, roteiro, encerrar e enviar, mas não reabrir', async () => {
         S.user = { id: 'u', role: 'org_user' };
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [LEV] }, ...SITES });
+        await abrir('levantamento');
+        await detalhe();
+        for (const acao of ['otNovoAchado', 'otEnviarAchados', 'otResponderRoteiro', 'otDescartarAchado', 'otEncerrarLevantamento']) {
+            expect(document.querySelector(`[data-action="${acao}"]`), acao).not.toBeNull();
+        }
+        expect(el('lev-notas').readOnly).toBe(false);
+        expect(el('ach-sel-a1')).not.toBeNull();
+        await detalhe([ACH()], { [`GET ${B}/levantamentos/l1`]: { levantamento: { ...LEV, situacao: 'encerrado' }, achados: [ACH()] } });
+        expect(document.querySelector('[data-action="otEncerrarLevantamento"]')).toBeNull();
+    });
+
+    it('o cliente não vê os botões de registrar, responder ou enviar', async () => {
+        S.user = { id: 'u', role: 'client' };
         servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [LEV] }, ...SITES });
         await abrir('levantamento');
         await detalhe();

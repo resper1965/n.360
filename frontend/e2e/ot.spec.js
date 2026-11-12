@@ -111,7 +111,7 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guard
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 
   await page.getByRole('tab', { name: 'Revisão e aprovação' }).click();
-  await expect(page.locator('#ot-coleta-privacidade')).toContainText('o arquivo original não é guardado');
+  await expect(page.locator('#ot-coleta-privacidade')).toContainText('Trazer dados');
   await expect(conteudo).toContainText('Em revisão');
 
   await page.getByRole('tab', { name: 'Levantamento', exact: true }).click();
@@ -625,7 +625,7 @@ test('base: o consultor pede a aprovação e o gestor aprova; o site abre no Mod
     if (req.method() === 'POST' && /\/sites\/s1\/base\/(pedir|aprovar)$/.test(path)) {
       const acao = path.split('/').pop();
       posts.push([acao, req.postDataJSON()]);
-      if (acao === 'pedir') Object.assign(sit, { fase: 'base_aprovada_pendente', proximo_passo: 'aguardar_base' });
+      if (acao === 'pedir') Object.assign(sit, { fase: 'base_em_aprovacao', proximo_passo: 'aguardar_base' });
       else Object.assign(sit, { fase: 'em_operacao', proximo_passo: 'em_operacao', base_aprovada_em: '2026-11-12 10:00:00' });
       return json({ ok: true });
     }
