@@ -117,11 +117,10 @@ describe('de-para de planilha', () => {
     expect((await r.json<{ perfil_id: string }>()).perfil_id).toBe(perfis[0].id);
   });
 
-  it('recusas: sessão de entrevista, técnico, chave de API, PDF, campo repetido, campo de banco, índice fora, perfil com IP', async () => {
+  it('recusas: sessão de entrevista, chave de API, PDF, campo repetido, campo de banco, índice fora, perfil com IP', async () => {
     expect((await proposta(cons, CSV, ids.ent)).status).toBe(409);
     expect((await aplicar(cons, { mapeamento: MAPA }, CSV, ids.ent)).status).toBe(409);
     expect((await proposta(cons, CSV, 'nao-existe')).status).toBe(404);
-    expect((await proposta(tec)).status).toBe(403);
     expect((await proposta({ 'X-API-Key': CHAVE })).status).toBe(403);
     expect((await chamar({ 'X-API-Key': CHAVE }, 'GET', `${P}/depara/perfis`)).status).toBe(403);
     expect((await proposta(cons, CSV, ids.doc, 'inv.pdf')).status).toBe(400);

@@ -11,7 +11,7 @@ import {
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
-import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
@@ -37,11 +37,11 @@ otApp.use('*', async (c, next) => {
 });
 
 // Escrita: só quem cadastra o inventário (org_user e client já param no allow-list de auth.ts; isto é a segunda trava). Criar lote
-// de coleta é a exceção do técnico (org_user), com o site conferido na rota.
-const CRIAR_LOTE = /\/ot\/lotes(\/manual)?$/;
+// de coleta e as escritas de levantamento são a exceção do técnico (org_user): ESCRITAS_DO_TECNICO, com o site conferido na rota.
 otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
   const u = c.get('user');
-  if (!(c.req.method === 'POST' && CRIAR_LOTE.test(c.req.path) ? podeCriarLote(u) : podeEditarOt(u))) {
+  const doTecnico = (c.req.method === 'POST' || c.req.method === 'PUT') && ESCRITAS_DO_TECNICO.test(c.req.path.replace(/^.*?\/ot(?=\/)/, ''));
+  if (!(doTecnico ? podeCriarLote(u) : podeEditarOt(u))) {
     return c.json({ error: 'Forbidden: seu papel não altera o inventário do n.ot' }, 403);
   }
   await next();

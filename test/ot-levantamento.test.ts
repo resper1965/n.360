@@ -44,9 +44,7 @@ describe('levantamento: acesso e texto livre', () => {
     expect(perguntas.length).toBe(15);
     expect(perguntas[0].ordem).toBe(1);
   });
-
-  it('técnico e cliente não criam sessão; técnico só lê sessões dos sites dele', async () => {
-    expect((await chamar(tec, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-01' })).status).toBe(403);
+  it('cliente não cria sessão (o técnico cria: test/ot-tecnico); técnico só lê sessões dos sites dele', async () => {
     expect((await chamar(cli, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-01' })).status).toBe(403);
     const lista = await (await chamar(tec, 'GET', `${P}/levantamentos`)).json<{ levantamentos: { id: string }[] }>();
     expect(lista.levantamentos.map((l) => l.id)).toEqual([ids.lev1]);
@@ -232,7 +230,7 @@ describe('fila de revisão do site e envio de vários levantamentos', () => {
     const ruim = await enviar(cons, f.site, [f.a1, f.a3]);
     expect(ruim.status).toBe(400);
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_achados WHERE id IN (?, ?) AND situacao = 'rascunho'`).bind(f.a1, f.a3).first()).toEqual({ n: 2 });
-    expect((await enviar(tec, f.site, [f.a1])).status).toBe(403);
+    expect((await enviar(tec, f.site, [f.a1])).status).toBe(404); // técnico sem acesso ao site: 404 (E3)
     expect((await enviar(cons, 'site-de-b', [f.a1])).status).toBe(404);
     const r = await enviar(cons, f.site, [f.a1, f.a2]);
     expect(r.status, await r.clone().text()).toBe(201);

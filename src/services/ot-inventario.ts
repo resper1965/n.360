@@ -14,7 +14,15 @@ const naoEhPessoa = (u: AtorOt) => u.agente === true || u.id.startsWith('apikey:
 /** Quem cadastra e altera o inventário: Gestor ARCiber (org_admin) e a equipe. Técnico (org_user) e client, não (P1-2: o técnico cria lote, na N3). */
 export const podeEditarOt = (u: AtorOt) => !naoEhPessoa(u) && ['org_admin', 'consultor', 'consultant', 'consultoria_admin', 'platform_admin'].includes(u.role);
 
-/** Criar lote de coleta (spec §5): quem edita o inventário e o técnico (org_user), este só nos sites vinculados (a rota confere). */
+/**
+ * Lista fechada das escritas do técnico (org_user), relativas a `/ot` (E3): abrir levantamento, registrar e enviar achados, trazer dados
+ * pelo de-para e o lote manual. Cada rota confere o site concedido (`daLista`/`lerLevantamento`, P0-4). Fora daqui o técnico só lê:
+ * site, zona, ativo, fluxo, decisão de lote e base seguem de quem edita. Usada pelo middleware de ot.ts e pelo allow-list de auth.ts.
+ */
+export const ESCRITAS_DO_TECNICO = new RegExp('^(/levantamentos(/[^/]+(?:/enviar|/achados|/achados/[^/]+|/depara/(planilha/(proposta|aplicar)|texto|rede))?)?'
+  + '|/sites/[^/]+/enviar|/lotes(/manual)?)$');
+
+/** Escrita do técnico: o POST/PUT da lista fechada acima, só nos sites vinculados (a rota confere). */
 export const podeCriarLote = (u: AtorOt) => podeEditarOt(u) || (!naoEhPessoa(u) && u.role === 'org_user');
 
 /**

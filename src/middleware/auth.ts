@@ -8,6 +8,7 @@ import { politicaDoProjeto, avaliarPolitica, type PoliticaTenant } from '../poli
 import { resolverAgente, acaoDestrutiva } from './agente';
 import { logAudit } from '../helpers';
 import { alvoDaExclusao } from '../trilha-exclusao';
+import { ESCRITAS_DO_TECNICO } from '../services/ot-inventario';
 import { equipeDeOrgSuspensa, orgDaEquipeAChecar, ORG_SUSPENSA } from '../services/organizacao';
 
 /** De quanto em quanto tempo a marca de atividade da sessão é reescrita. */
@@ -406,8 +407,8 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
       // Decisão do PRÓPRIO pedido de aprovação/ciência (o handler exige ser destinatário e a senha).
       // Criar pedido continua bloqueado para estes papéis.
       { methods: ['POST'], test: p => /^\/api\/v1\/pedidos\/[^/]+\/(aprovar|recusar)$/.test(p) },
-      // n.ot: o técnico (org_user) cria lote de coleta, só isto (modelo de ameaças P1-2); o site e o papel a rota confere.
-      { methods: ['POST'], test: p => /^\/api\/v1\/projects\/[^/]+\/ot\/lotes(\/manual)?$/.test(p) },
+      // n.ot: o técnico (org_user) escreve só a lista fechada ESCRITAS_DO_TECNICO (modelo de ameaças P1-2, E3); o site e o papel a rota confere.
+      { methods: ['POST', 'PUT'], test: p => /^\/api\/v1\/projects\/[^/]+\/ot(\/.*)$/.test(p) && ESCRITAS_DO_TECNICO.test(p.replace(/^.*?\/ot(?=\/)/, '')) },
     ];
     const isAllowed = allowedWrites.some(a => a.methods.includes(method) && a.test(path));
     if (!isAllowed) {
