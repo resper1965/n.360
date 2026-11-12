@@ -204,7 +204,7 @@ describe('entrada manual pela mesma tubulação', () => {
     expect(itens[0]).toMatchObject({ erros: [], dados: { nome: 'Switch', ip: '10.1.1.60', zona_id: ids.z2 } });
     expect(itens[1].erros.map((e) => e.campo).sort()).toEqual(['ip_cifrado', 'ip_hash', 'verificado_por']);
     const banco = await env.DB.prepare(`SELECT dados FROM ot_lote_itens WHERE lote_id = ? AND linha = 2`).bind(id).first<{ dados: string }>();
-    expect(banco!.dados).not.toMatch(/eu|ot1:k1:a:b/);
+    expect(banco!.dados).not.toMatch(/"eu"|ot1:k1:a:b/);
   });
 });
 

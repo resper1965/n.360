@@ -26,6 +26,9 @@ export interface DadosAvaliacao { situacao: 'atende' | 'parcial' | 'nao_atende' 
 const PIOR = ['nao_atende', 'sem_evidencia', 'evidencia_no_inventario'] as const;
 const CONTAM = ['em_operacao', 'em_obra', 'base_em_aprovacao'];
 
+type LinhaAvaliacao = { requisito_id: string; situacao: DadosAvaliacao['situacao']; justificativa: string | null; responsavel_id: string | null; responsavel_nome: string | null;
+  proxima_revisao: string | null; confirmado_por: string | null; confirmado_por_nome: string | null; confirmado_em: string | null; updated_at: string };
+
 export async function montarAssessment(db: D1Database, projectId: string, sites: string[]) {
   const hoje = hojeEmSaoPaulo();
   const lista = JSON.stringify(sites);
@@ -45,10 +48,10 @@ export async function montarAssessment(db: D1Database, projectId: string, sites:
   const porSite = await conformidadePorSite(db, projectId, sites);
   const siteRows = sitesR.results as { id: string; nome: string; fase: string }[];
   const codigos = new Set((reqs.results as { codigo: string }[]).map((r) => r.codigo));
-  const aval = new Map((avs.results as any[]).map((a) => [a.requisito_id, a]));
+  const aval = new Map((avs.results as LinhaAvaliacao[]).map((a) => [a.requisito_id, a]));
 
   const evid = new Map<string, any[]>();
-  for (const e of evs.results as any[]) {
+  for (const e of evs.results as { requisito_id: string; id: string; file_name: string | null; valido_ate: string | null }[]) {
     (evid.get(e.requisito_id) ?? evid.set(e.requisito_id, []).get(e.requisito_id)!).push({ id: e.id, file_name: semRede(e.file_name, codigos), valido_ate: e.valido_ate, vencida: !!e.valido_ate && e.valido_ate < hoje });
   }
   // item_norma é uma lista ("4.1.3, 4.5.1.5"); a resposta mora no JSON `roteiro` do levantamento, por id da pergunta.
