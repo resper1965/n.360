@@ -4,15 +4,15 @@ import { erro500, genId, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
   otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
-import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, linhasDaPlanilha, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
-import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
+import { aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
+import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
@@ -36,11 +36,11 @@ otApp.use('*', async (c, next) => {
 });
 
 // Escrita: só quem cadastra o inventário (org_user e client já param no allow-list de auth.ts; isto é a segunda trava). Criar lote
-// de coleta é a exceção do técnico (org_user), com o site conferido na rota.
-const CRIAR_LOTE = /\/ot\/lotes(\/manual)?$/;
+// de coleta e as escritas de levantamento são a exceção do técnico (org_user): ESCRITAS_DO_TECNICO, com o site conferido na rota.
 otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
   const u = c.get('user');
-  if (!(c.req.method === 'POST' && CRIAR_LOTE.test(c.req.path) ? podeCriarLote(u) : podeEditarOt(u))) {
+  const doTecnico = (c.req.method === 'POST' || c.req.method === 'PUT') && ESCRITAS_DO_TECNICO.test(c.req.path.replace(/^.*?\/ot(?=\/)/, ''));
+  if (!(doTecnico ? podeCriarLote(u) : podeEditarOt(u))) {
     return c.json({ error: 'Forbidden: seu papel não altera o inventário do n.ot' }, 403);
   }
   await next();
@@ -454,37 +454,6 @@ async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, pro
   return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
 }
 
-// Planilha (multipart: `file` e `site_id`). O arquivo é lido em memória e descartado: nunca vai ao R2 nem à IA (P0-3).
-otApp.post('/lotes', async (c) => {
-  try {
-    const { db, user, projectId, sites } = await contexto(c);
-    const teto = LIMITES_PLANILHA.bytes + 64 * 1024;
-    if (Number(c.req.header('Content-Length') || 0) > teto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
-    // Corpo sem Content-Length (chunked) passaria pelo cabeçalho: a leitura para no teto, em vez de parseBody ler tudo na memória.
-    const bruto = await lerAteTeto(c.req.raw, teto);
-    if (!bruto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
-    const fd = await new Response(bruto, { headers: { 'Content-Type': c.req.header('Content-Type') ?? '' } }).formData().catch(() => null);
-    if (!fd) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
-    const corpo = { file: fd.get('file'), site_id: fd.get('site_id'), levantamento_id: fd.get('levantamento_id') };
-    const file = corpo['file'];
-    if (!(file instanceof File)) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
-    if (!daLista(sites, corpo['site_id'])) return refRuim(c, 'site_id');
-    const lida = await lerPlanilha(file.name, await file.arrayBuffer());
-    if ('erro' in lida) return c.json({ error: lida.erro }, 400);
-    const { itens, reconhecidas, ignoradas } = linhasDaPlanilha(lida.linhas);
-    if (!reconhecidas) return c.json({ error: 'Nenhuma coluna reconhecida no cabeçalho (ex.: nome, ip, mac, fabricante, modelo, tipo, funcao)' }, 400);
-    const site = corpo['site_id'] as string;
-    // Planilha ligada a uma sessão documental (spec descoberta operacional §2): do mesmo site e visível a quem envia.
-    let levantamentoId: string | null = null;
-    if (typeof corpo['levantamento_id'] === 'string' && corpo['levantamento_id']) {
-      const lev = await lerLevantamento(db, projectId, sites, corpo['levantamento_id']);
-      if (!lev || lev.tipo !== 'documento' || lev.site_id !== site) return c.json({ error: 'levantamento_id inválido' }, 400);
-      levantamentoId = lev.id;
-    }
-    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, site, 'planilha', itens, levantamentoId), projectId, site, { colunas_ignoradas: ignoradas });
-  } catch (e) { return erro500(c, 'Falha ao receber a planilha', e); }
-});
-
 otApp.post('/lotes/manual', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
@@ -634,9 +603,8 @@ otApp.get('/achados', async (c) => {
     if (!daLista(sites, site)) return NAO_ENCONTRADO(c, 'Site');
     if (c.req.query('contagem') === '1') {
       // só a contagem: não decifra nada, logo sem trilha de IP/MAC
-      const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
-        WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = ?`).bind(projectId, site, situacao).first<{ n: number }>();
-      return c.json({ total: n?.n ?? 0 });
+      const total = await contarAchados(db, projectId, site, situacao);
+      return c.json({ total });
     }
     const completo = await podeVerCompleto(db, user, projectId);
     const { results } = await db.prepare(`SELECT a.*, ${DESFECHO_SQL}, l.tipo AS levantamento_tipo, l.realizado_em AS levantamento_realizado_em
@@ -672,6 +640,10 @@ otApp.put('/levantamentos/:id', async (c) => {
     if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
     const v = await validateBody(c, otLevantamentoAtualizarSchema);
     if (!v.success) return v.response;
+    // Técnico (org_user): só notas, respostas do roteiro e encerrar; reabrir e mexer em função/turno/documento é de quem edita.
+    if (!podeEditarOt(c.get('user')) && Object.entries(v.data).some(([k, x]) => !(k === 'notas' || k === 'roteiro' || (k === 'situacao' && x === 'encerrado')))) {
+      return c.json({ error: 'Forbidden: o técnico só registra notas, respostas e encerra o levantamento' }, 403);
+    }
     if (lev.tipo === 'documento' && 'documento_titulo' in v.data && !v.data.documento_titulo) return c.json({ error: 'Documento exige o título' }, 400);
     if (await roteiroRuim(db, v.data.roteiro)) return refRuim(c, 'roteiro');
     // Colunas só das chaves do esquema `.strict()` (como em atualizar()); valores sempre por bind.
@@ -936,6 +908,46 @@ otApp.delete('/sensores/:id', async (c) => {
     await trilha(c, 'ot.sensor.revogado', projectId, `Sonda ${s.id} revogada com ${cs.meta.changes} credenciais`, { tipo: 'ot_sensor', id: s.id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao revogar a sonda', e); }
+});
+
+// ─── base do site (spec fluidez §3 e §6) ────────────────────────────────────
+otApp.get('/sites/:id/situacao', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const s = daLista(sites, c.req.param('id')) ? await situacaoDoSite(db, projectId, c.req.param('id')) : null;
+    return s ? c.json(s) : NAO_ENCONTRADO(c, 'Site');
+  } catch (e) { return erro500(c, 'Falha ao ler a situação do site', e); }
+});
+
+/** Pedir, aprovar e devolver a base: mesmo desfecho (404/409 do serviço) e trilha só com ids. */
+async function decidirBase(c: C, acao: 'pedida' | 'aprovada' | 'devolvida', justificativa = '') {
+  const { db, user, projectId, sites } = await contexto(c);
+  const id = c.req.param('id')!;
+  if (!daLista(sites, id)) return NAO_ENCONTRADO(c, 'Site');
+  const fn = { pedida: pedirBase, aprovada: aprovarBase, devolvida: devolverBase }[acao];
+  const r = await fn(db, user, projectId, id);
+  if (!r.ok) return c.json({ error: r.error }, r.status);
+  await trilha(c, `ot.site.base_${acao}`, projectId, `Base do site ${id} ${acao}`, { tipo: 'ot_site', id }, justificativa);
+  return c.json({ ok: true });
+}
+otApp.post('/sites/:id/base/pedir', async (c) => {
+  try { return await decidirBase(c, 'pedida'); } catch (e) { return erro500(c, 'Falha ao pedir a base', e); }
+});
+otApp.post('/sites/:id/base/aprovar', async (c) => {
+  try {
+    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
+    const v = await validateBody(c, otBaseAprovarSchema);
+    if (!v.success) return v.response;
+    return await decidirBase(c, 'aprovada');
+  } catch (e) { return erro500(c, 'Falha ao aprovar a base', e); }
+});
+otApp.post('/sites/:id/base/devolver', async (c) => {
+  try {
+    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
+    const v = await validateBody(c, otBaseDevolverSchema);
+    if (!v.success) return v.response;
+    return await decidirBase(c, 'devolvida', v.data.motivo);
+  } catch (e) { return erro500(c, 'Falha ao devolver a base', e); }
 });
 
 // ─── desvios (spec n-ot-desvio) ─────────────────────────────────────────────

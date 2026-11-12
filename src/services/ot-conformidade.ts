@@ -2,6 +2,7 @@
 // afirma sem evidência"): o inventário só prova a FALTA de algo que ele mesmo registra (fluxo externo sem VPN, site sem as zonas,
 // verificação vencida). Ausência de violação no cadastro não prova o item; e nada aqui diz "atende": no máximo, "o inventário
 // registra o que o item pede". Item que o inventário não cobre fica `sem_evidencia`. Tudo filtrado pelos sites permitidos (P0-4).
+import { sitesComZonas411 } from './ot-fase';
 import { FLUXO_VISIVEL } from './ot-inventario';
 
 /** Cargo do Gestor ARCiber em `project_governance` (spec §3): a mesma regra no 4.2.1 e no aviso do step-up (ot-stepup.ts). */
@@ -16,8 +17,7 @@ export async function conformidadeOt(db: D1Database, projectId: string, sites: s
   const nSites = (JSON.parse(sites) as string[]).length;
   const [requisitos, zonas, fluxos, ativos, gestor] = await db.batch([
     db.prepare(`SELECT codigo, titulo, prazo_meses FROM ot_requisitos WHERE framework = 'ONS-RO-CB.BR.01'`),
-    db.prepare(`SELECT count(*) AS n FROM (SELECT site_id FROM ot_zonas WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE} AND nivel_purdue IN (2, 3, 4)
-      GROUP BY site_id HAVING count(DISTINCT nivel_purdue) = 3)`).bind(projectId, sites),
+    db.prepare(`SELECT count(*) AS n FROM (${sitesComZonas411(NO_SITE)})`).bind(projectId, sites),
     db.prepare(`SELECT count(*) AS externos, coalesce(sum(f.via_vpn = 0), 0) AS sem_vpn FROM ot_fluxos f WHERE ${FLUXO_VISIVEL} AND f.externo = 1`).bind(projectId, sites, sites, sites),
     db.prepare(`SELECT count(*) AS arciber, coalesce(sum(ultima_verificacao_em IS NULL OR verificado_por IS NULL), 0) AS sem_verificacao,
         coalesce(sum(ultima_verificacao_em < datetime('now', '-24 months')), 0) AS vencidos, coalesce(sum(zona_id IS NULL), 0) AS sem_zona

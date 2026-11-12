@@ -12,6 +12,11 @@ export const dataDoSqlite = (s) => (s == null ? null : new Date(/^\d{4}-\d{2}-\d
 
 const papel = () => S.user?.role || '';
 
+/** Classe do botão principal da tela: a tela do site tem um só primário (o cartão Próximo passo), as sub-abas pedem `semPrimario`. */
+export const classePrimario = (sem) => (sem ? 'btn' : 'btn btn-primary');
+/** O Gestor ARCiber (org_admin) aprova e devolve a base; o servidor confere de novo (`ehGestorArciber`). */
+export const ehGestor = () => papel() === 'org_admin';
+
 /** Cadastra e altera o inventário, exporta e pede rascunho à IA: Gestor ARCiber (org_admin) e a equipe. */
 export const podeEditarOt = () => ['org_admin', 'consultor', 'consultant', 'consultoria_admin', 'platform_admin'].includes(papel());
 /** Cria lote de coleta: quem edita e o técnico (org_user), este só nos sites concedidos. */

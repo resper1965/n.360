@@ -33,6 +33,16 @@ const montar = () => montarRevisao(el('c'), el('a'), S.activeProject, { siteFixo
 const marcar = (id) => { const x = el(`rev-sel-${id}`); x.checked = true; window.otRevMarcar(id, x); };
 
 describe('montarRevisao', () => {
+    it('o técnico vê marcar e enviar; o cliente, não', async () => {
+        S.user = { id: 'u2', role: 'org_user' };
+        await montar();
+        expect(el('rev-sel-a1')).not.toBeNull();
+        expect(el('c').textContent).toContain('Enviar para aprovação');
+        S.user = { id: 'u3', role: 'client' };
+        await montar();
+        expect(el('rev-sel-a1')).toBeNull();
+        expect(el('c').textContent).not.toContain('Enviar para aprovação');
+    });
     it('lista os achados de dois levantamentos, escapados, e pede a fila do site em rascunho', async () => {
         await montar();
         const q = chamadas.find((x) => x.k === `GET ${B}/achados`).url.search;
@@ -97,7 +107,7 @@ describe('montarRevisao', () => {
         expect(n).toBeTruthy(); expect(n.classList.contains('btn-primary')).toBe(false);
         expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(0);
     });
-    it('um só .btn-primary na tela, mesmo com o envio de planilha dos lotes', async () => {
+    it('um só .btn-primary na tela, mesmo com a Coleta dos lotes', async () => {
         await montar();
         expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(1);
     });

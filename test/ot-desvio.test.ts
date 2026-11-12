@@ -49,7 +49,7 @@ async function cenario() {
   const k = ++nCenario;
   const site = `s${k}`, sensor = `sen${k}`, cred = 'ots_' + String(k).padStart(64, '0');
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES (?, 'proj-a', ?)`).bind(site, `SE ${k}`),
+    env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase) VALUES (?, 'proj-a', ?, 'em_operacao')`).bind(site, `SE ${k}`),
     env.DB.prepare(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES (?, 'proj-a', ?, 'Nível 1', 1)`).bind(`z${k}`, site),
     env.DB.prepare(`INSERT INTO ot_sensores (id, project_id, site_id, nome, faixa_origem, criado_por) VALUES (?, 'proj-a', ?, ?, '203.0.113.0/24', 'teste')`)
       .bind(sensor, site, `SE ${sensor}`),
@@ -148,6 +148,12 @@ describe('detecção pelo envio da sonda', () => {
     expect(t.results).toEqual([{ actor: `sensor:${c.sensor}`, details: `3 desvio(s) aberto(s) no site ${c.site}` }]);
   });
 
+  it('site em_levantamento: o resumo não cria desvio (sem base aprovada não há o que comparar)', async () => {
+    const c = await cenario();
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'em_levantamento' WHERE id = ?`).bind(c.site).run();
+    await c.enviar();
+    expect(await c.desvios()).toEqual([]);
+  });
   it('o mesmo resumo de novo: ocorrências 2 e nenhum webhook', async () => {
     const c = await cenario();
     await c.enviar();

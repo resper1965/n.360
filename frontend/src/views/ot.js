@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderMaisAcoes, renderStatusBadge,
     openModal, forceCloseModal, showToast, confirmar, pedirTexto, formatarData } from '../ui.js';
 import { podeEditarOt, podeAprovarOt, podeRevelar, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
-    nomesDeAtivos, TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS } from '../ot-comum.js';
+    nomesDeAtivos, TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS, classePrimario } from '../ot-comum.js';
 import { montarSaidas } from './ot-saidas.js';
 import { esvaziarNotas } from './ot-levantamento.js';
 import { cartaoAgente } from './ot-agente.js';
@@ -70,13 +70,15 @@ async function renderOt(c, h, a) {
     h.textContent = TITULOS[tela];
     c.innerHTML = '<div class="loading"></div>';
     if (tela === 'site') {
-        await montarSite(c, a, proj(), { site: S.otSite, modo: S.otModo || 'projeto', sub: S.otSub, desvio });
+        await montarSite(c, a, proj(), { site: S.otSite, modo: S.otModo, sub: S.otSub, desvio });
+        escreverEndereco({ tela, site: S.otSite, modo: S.otModo || 'projeto' }); // o modo pode ter vindo da fase do site
         const nome = c.querySelector('h2')?.textContent;
         if (nome) h.textContent = nome;
     } else await MONTAR[tela](c, a, proj());
 }
 
 /** Despacho do menu e dos botões. `extra` (salto de dentro de uma tela: lote, levantamento) vale DEPOIS do zerar, para não ser apagado. */
+// `modo` nulo no site: a fase decide (montarSite)
 window.otTela = async (tela, site = null, modo = 'projeto', extra = {}) => {
     await esvaziarNotas();
     Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modo, otSub: null, otZona: null, otLote: null, otLevantamento: null }, extra);
@@ -127,7 +129,7 @@ window.otFiltrarZona = (v) => { S.otZona = v || null; window.render(); };
 
 const linhaMais = (itens, nome) => renderMaisAcoes(itens, { nome });
 
-export async function montarInventario(c, a, p, { siteFixo } = {}) {
+export async function montarInventario(c, a, p, { siteFixo, semPrimario } = {}) {
     siteTravado = siteFixo || null;
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o inventário do n.ot.', e); return; }
     const editar = podeEditarOt();
@@ -140,7 +142,7 @@ export async function montarInventario(c, a, p, { siteFixo } = {}) {
     }
     if (editar) {
         a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}<button class="btn" data-action="otNovaZona">+ Nova zona</button>`
-            + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="btn btn-primary" data-action="otNovoAtivo">+ Novo ativo</button>`;
+            + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="${classePrimario(semPrimario)}" data-action="otNovoAtivo">+ Novo ativo</button>`;
     }
     const zonaVale = (x) => !S.otZona || (S.otZona === 'sem' ? !x.zona_id : x.zona_id === S.otZona);
     const ativos = D.ativos.filter(zonaVale);
@@ -161,7 +163,7 @@ export async function montarInventario(c, a, p, { siteFixo } = {}) {
         return [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otEditarAtivo" data-args='${args(x.id)}' aria-label="${escapeHTML(`Editar ${x.nome}`)}">Editar</button>${mais('ativos', x, extra)}</div>`];
     };
     const tabelaAtivos = renderDataTable(['Ativo', 'Site', 'Zona', 'Tipo', 'Fabricante e modelo', 'IP', 'MAC', 'ARCiber', ...(editar ? ['Ações'] : [])], ativos.map((x) => [
-        `<strong>${escapeHTML(x.nome)}</strong>`, escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(x.zona_id ? nomeDe(D.zonas, x.zona_id) : 'Sem zona'),
+        `<strong>${escapeHTML(x.nome)}</strong>${!x.ultima_verificacao_em || !x.verificado_por ? ` <span title="Entrou sem lote de aprovação">${renderStatusBadge('warning', 'não verificado (4.3.1)')}</span>` : ''}`, escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(x.zona_id ? nomeDe(D.zonas, x.zona_id) : 'Sem zona'),
         escapeHTML(x.tipo_dispositivo || '—'), escapeHTML([x.fabricante, x.modelo].filter(Boolean).join(' ') || '—'),
         // Decisão do dono: IP ou MAC basta para o 4.3.1, mas o que falta fica à vista para a coleta em campo.
         x.ip == null ? renderStatusBadge('warning', 'Falta IP') : `<span class="f-mono">${escapeHTML(x.ip)}</span>`,
@@ -355,11 +357,11 @@ window.otUsarRascunho = () => {
 // ─── fluxos (N2): 4.1.2/4.1.3, fluxo externo só por VPN ──────────────────────
 const ponta = (ativoId, zonaId) => (ativoId ? `Ativo ${nomeDe(D.ativos, ativoId)}` : zonaId ? `Zona ${nomeDe(D.zonas, zonaId)}` : 'Fora do ARCiber');
 
-export async function montarFluxos(c, a, p, { siteFixo } = {}) {
+export async function montarFluxos(c, a, p, { siteFixo, semPrimario } = {}) {
     siteTravado = siteFixo || null;
     try { await carregarInventario(p, { fluxos: true }); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os fluxos do n.ot.', e); return; }
     const editar = podeEditarOt();
-    if (editar && D.sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoFluxo">+ Novo fluxo</button>';
+    if (editar && D.sites.length) a.innerHTML = `<button class="${classePrimario(semPrimario)}" data-action="otNovoFluxo">+ Novo fluxo</button>`;
     if (!D.sites.length) { c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário', texto: 'Os fluxos ligam ativos e zonas de um site.' })
         + (editar ? '<p><button class="btn" data-action="otTela" data-args=\'["sites"]\'>Cadastrar site</button></p>' : ''); return; }
     const violados = D.fluxos.filter((f) => (f.violacoes || []).length);

@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir, classePrimario } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 import { preencherCartoes } from './ot-sensores.js';
 
@@ -37,8 +37,9 @@ let perguntaDoAchado = null;
 
 let fixo = null; // site fixo da tela do site: recorta a lista e tira o seletor de site do formulário
 
-export async function montarLevantamento(c, a, p, { siteFixo } = {}) {
-    fixo = siteFixo || null;
+let semPri = false;
+export async function montarLevantamento(c, a, p, { siteFixo, semPrimario } = {}) {
+    fixo = siteFixo || null; semPri = !!semPrimario;
     if (S.otLevantamento) { await montarSessao(c, a, p, S.otLevantamento); return; }
     let levs;
     try {
@@ -46,7 +47,7 @@ export async function montarLevantamento(c, a, p, { siteFixo } = {}) {
         sites = lista(s, 'sites'); levs = lista(l, 'levantamentos');
         if (fixo) { sites = sites.filter((x) => x.id === fixo); levs = levs.filter((x) => x.site_id === fixo); }
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os levantamentos do n.ot.', e); return; }
-    if (podeEditarOt() && sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoLevantamento">+ Novo levantamento</button>';
+    if (podeCriarLote() && sites.length) a.innerHTML = '<button class="btn" data-action="otTrazerDados">Trazer dados</button>' + `<button class="${classePrimario(semPri)}" data-action="otNovoLevantamento">+ Novo levantamento</button>`;
     c.innerHTML = `<div id="ot-cartoes-slot"></div><p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
         ${renderDataTable(['Tipo', 'Data', 'Quem ou documento', 'Site', 'Achados', 'Situação', 'Ações'], levs.map((l) => [
         escapeHTML(TIPO[l.tipo] || l.tipo), escapeHTML(formatarData(l.realizado_em)), quem(l), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(String(l.achados ?? 0)), situacao(l),
@@ -69,6 +70,32 @@ window.otNovoLevantamento = () => {
         <div id="lev-f-doc" hidden>${campo('lev-f-titulo', 'Título do documento', 'text', ' maxlength="200"')}${campo('lev-f-doc-data', 'Data do documento', 'date')}</div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otCriarLevantamento">Criar levantamento</button></div>`);
 };
+// "Trazer dados": escolhe o arquivo, abre um levantamento documental de hoje com o nome dele e segue o fluxo de "Importar arquivo".
+window.otTrazerDados = () => {
+    el('lev-trazer-arquivo')?.remove();
+    const input = document.createElement('input');
+    input.type = 'file'; input.id = 'lev-trazer-arquivo'; input.hidden = true; input.accept = ACEITA_ARQUIVO();
+    input.addEventListener('change', async () => { const f = input.files?.[0]; input.remove(); if (f) await trazerDados(f); });
+    document.body.appendChild(input);
+    input.click();
+};
+const CONFIRMA_IA = ['A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar para aprovação.', { titulo: 'Ler documento', rotulo: 'Ler com a IA' }];
+async function trazerDados(file) {
+    // Valida e confirma ANTES de criar: cancelar aqui não deixa levantamento vazio.
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!ACEITA_ARQUIVO().split(',').includes(`.${ext}`)) return showToast(`Use ${ofereceRede() ? 'CSV, XLSX, TXT, DOCX ou JSON' : 'CSV, XLSX, TXT ou DOCX'}.`, 'error');
+    if (file.size > 5 * 1024 * 1024) return showToast('Arquivo acima de 5 MB.', 'error');
+    if ((ext === 'txt' || ext === 'docx') && !await confirmar(...CONFIRMA_IA)) return;
+    const site = fixo || S.otSite || sites[0]?.id;
+    try {
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: site, tipo: 'documento', realizado_em: hojeSP(), documento_titulo: file.name.slice(0, 200) });
+        S.otLevantamento = r.id;
+        atual = { id: r.id, site_id: site };
+        importacao = null;
+        window.render();
+    } catch (e) { return falhou(e, 'Não foi possível criar o levantamento.'); }
+    await lerArquivo(file, true);
+}
 window.otTipoLevantamento = (tipo) => { el('lev-f-pessoa').hidden = tipo === 'documento'; el('lev-f-doc').hidden = tipo !== 'documento'; };
 window.otCriarLevantamento = async () => {
     const v = (id) => el(id)?.value.trim() || '';
@@ -98,14 +125,14 @@ async function montarSessao(c, a, p, id) {
     achados = lista(r, 'achados');
     nomesPontas = r.nomes_pontas || {};
     ativosDoSite = lista(r, 'ativos_do_site');
-    const editar = podeEditarOt();
+    const editar = podeCriarLote(); // o técnico faz tudo, menos Reabrir
     const aberto = l.situacao !== 'encerrado';
     const rascunhos = achados.filter((x) => x.situacao === 'rascunho');
     a.innerHTML = '<button class="btn" data-action="otVoltarLevantamentos">Voltar aos levantamentos</button>'
-        + (editar ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
+        + ((aberto ? editar : podeEditarOt()) ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
         + (editar && aberto ? '<button class="btn" data-action="otNovoAchado">Registrar achado</button>' : '')
-        + (editar && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
-        + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar para aprovação</button>' : '');
+        + (podeCriarLote() && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
+        + (editar && rascunhos.length ? `<button class="${classePrimario(semPri)}" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar para aprovação</button>` : '');
 
     const doTipo = perguntas.filter((q) => Array.isArray(q.tipos_sessao) && q.tipos_sessao.includes(l.tipo));
     const roteiro = !doTipo.length ? '' : `<h3 class="mb-3">Roteiro</h3>
@@ -408,6 +435,7 @@ async function enviarArquivo(enviar) {
 
 // O resumo de rede só vai a quem vê o inventário completo (a rota recusa os demais com 403); podeAprovar = podeVerCompleto no servidor.
 const ofereceRede = () => podeAprovarOt();
+const ACEITA_ARQUIVO = () => `.csv,.xlsx,.txt,.docx${ofereceRede() ? ',.json' : ''}`;
 
 window.otImportarArquivo = () => {
     importacao = null;
@@ -415,20 +443,20 @@ window.otImportarArquivo = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Importar arquivo</span></div>
         <p class="org-dica mb-3">O arquivo é lido e descartado; não fica guardado. IP, MAC e dados pessoais são mascarados antes da IA.</p>
         <div class="form-group"><label class="form-label" for="lev-imp-arquivo">${rede ? 'Planilha (CSV ou XLSX), documento (TXT ou DOCX) ou resumo de rede (JSON)' : 'Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)'}</label>
-        <input class="form-input" type="file" id="lev-imp-arquivo" accept=".csv,.xlsx,.txt,.docx${rede ? ',.json' : ''}"></div>
+        <input class="form-input" type="file" id="lev-imp-arquivo" accept="${ACEITA_ARQUIVO()}"></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otLerArquivo">Continuar</button></div>`);
     soltarAoFechar();
 };
 
 window.otLerArquivo = () => semRepetir('otLerArquivo', lerArquivo);
-async function lerArquivo() {
-    const file = el('lev-imp-arquivo')?.files?.[0];
+async function lerArquivo(escolhido, jaConfirmou = false) {
+    const file = escolhido || el('lev-imp-arquivo')?.files?.[0];
     if (!file) return showToast('Escolha o arquivo.', 'error');
     const ext = file.name.split('.').pop().toLowerCase();
     const fd = new FormData();
     fd.append('file', file);
     if (ext === 'txt' || ext === 'docx') {
-        if (!await confirmar('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar para aprovação.', { titulo: 'Ler documento', rotulo: 'Ler com a IA' })) return;
+        if (!jaConfirmou && !await confirmar(...CONFIRMA_IA)) return;
         try {
             const r = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/texto`,
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));

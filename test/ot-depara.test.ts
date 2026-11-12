@@ -117,11 +117,10 @@ describe('de-para de planilha', () => {
     expect((await r.json<{ perfil_id: string }>()).perfil_id).toBe(perfis[0].id);
   });
 
-  it('recusas: sessão de entrevista, técnico, chave de API, PDF, campo repetido, campo de banco, índice fora, perfil com IP', async () => {
+  it('recusas: sessão de entrevista, chave de API, PDF, campo repetido, campo de banco, índice fora, perfil com IP', async () => {
     expect((await proposta(cons, CSV, ids.ent)).status).toBe(409);
     expect((await aplicar(cons, { mapeamento: MAPA }, CSV, ids.ent)).status).toBe(409);
     expect((await proposta(cons, CSV, 'nao-existe')).status).toBe(404);
-    expect((await proposta(tec)).status).toBe(403);
     expect((await proposta({ 'X-API-Key': CHAVE })).status).toBe(403);
     expect((await chamar({ 'X-API-Key': CHAVE }, 'GET', `${P}/depara/perfis`)).status).toBe(403);
     expect((await proposta(cons, CSV, ids.doc, 'inv.pdf')).status).toBe(400);
@@ -133,6 +132,26 @@ describe('de-para de planilha', () => {
     expect(vazio.status).toBe(400);
     expect(await vazio.json()).toEqual({ error: 'Escolha ao menos uma coluna' });
     expect((await aplicar(cons, { mapeamento: MAPA, perfil_nome: 'Lista do 10.1.9.9' })).status).toBe(400);
+  });
+
+  it('planilha acima dos tetos ou ilegível: 400 e nenhum lote nem item gravado (teto de linhas em ot-planilha, aqui pela rota)', async () => {
+    const conta = async () => (await env.DB.prepare(`SELECT (SELECT count(*) FROM ot_lotes) + (SELECT count(*) FROM ot_lote_itens) + (SELECT count(*) FROM ot_achados) AS n`).first<{ n: number }>())!.n;
+    const n0 = await conta();
+    const CAB = 'nome;ip;mac';
+    for (const [nome, conteudo] of [['g.csv', [CAB, ...Array(5001).fill('X;;')].join('\n')], ['x.xlsx', 'não é zip']] as const) {
+      expect((await proposta(cons, conteudo, ids.doc, nome)).status, nome).toBe(400);
+    }
+    expect(await conta()).toBe(n0);
+  });
+
+  it('corpo sem Content-Length (chunked) acima do teto: 413, lido só até o teto', async () => {
+    const pedaco = new Uint8Array(1024 * 1024).fill(97);
+    let enviados = 0;
+    const corpo = new ReadableStream<Uint8Array>({ pull(ctl) { if (enviados++ < 8) ctl.enqueue(pedaco); else ctl.close(); } });
+    const r = await app.fetch(new Request(`http://localhost${P}/levantamentos/${ids.doc}/depara/planilha/proposta`,
+      { method: 'POST', headers: { ...cons, 'Content-Type': 'multipart/form-data; boundary=x' }, body: corpo }), { ...workerEnv(), ...ENV_EXTRA });
+    expect(r.status).toBe(413);
+    expect(enviados, 'leu o corpo inteiro').toBeLessThan(8);
   });
 
   it('11ª proposta com IA na hora: 429 teto_por_hora', async () => {

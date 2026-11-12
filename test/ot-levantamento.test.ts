@@ -44,9 +44,7 @@ describe('levantamento: acesso e texto livre', () => {
     expect(perguntas.length).toBe(15);
     expect(perguntas[0].ordem).toBe(1);
   });
-
-  it('técnico e cliente não criam sessão; técnico só lê sessões dos sites dele', async () => {
-    expect((await chamar(tec, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-01' })).status).toBe(403);
+  it('cliente não cria sessão (o técnico cria: test/ot-tecnico); técnico só lê sessões dos sites dele', async () => {
     expect((await chamar(cli, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-01' })).status).toBe(403);
     const lista = await (await chamar(tec, 'GET', `${P}/levantamentos`)).json<{ levantamentos: { id: string }[] }>();
     expect(lista.levantamentos.map((l) => l.id)).toEqual([ids.lev1]);
@@ -123,21 +121,6 @@ describe('achados: confronto sem oráculo e envio ao lote', () => {
     await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 2000)
       INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, criado_por) SELECT 'massa-'||i, 'proj-a', ?, '{}', 'x', 'u' FROM n`).bind(ids.lev2).run();
     expect((await chamar(cons, 'POST', `${P}/levantamentos/${ids.lev2}/achados`, { dados: { nome: 'x' }, evidencia: 'y' })).status).toBe(400);
-  });
-
-  it('planilha da Coleta ligada a uma sessão documental grava levantamento_id; sessão de outro tipo é recusada', async () => {
-    const doc = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-01', documento_titulo: 'Inventário 2023' });
-    const enviar = (lev: string) => {
-      const fd = new FormData();
-      fd.set('site_id', ids.s1); fd.set('levantamento_id', lev);
-      fd.set('file', new File(['nome;fabricante\nSwitch A;Fab'], 'inv.csv'));
-      return app.fetch(new Request(`http://localhost${P}/lotes`, { method: 'POST', headers: cons, body: fd }), workerEnv());
-    };
-    const r = await enviar(doc);
-    expect(r.status, await r.clone().text()).toBe(201);
-    const { id } = await r.json<{ id: string }>();
-    expect(await env.DB.prepare('SELECT levantamento_id FROM ot_lotes WHERE id = ?').bind(id).first()).toEqual({ levantamento_id: doc });
-    expect((await enviar(ids.lev1)).status).toBe(400); // lev1 é entrevista
   });
 
   it('sessão documental não perde o título: documento_titulo null é 400', async () => {
@@ -232,7 +215,7 @@ describe('fila de revisão do site e envio de vários levantamentos', () => {
     const ruim = await enviar(cons, f.site, [f.a1, f.a3]);
     expect(ruim.status).toBe(400);
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_achados WHERE id IN (?, ?) AND situacao = 'rascunho'`).bind(f.a1, f.a3).first()).toEqual({ n: 2 });
-    expect((await enviar(tec, f.site, [f.a1])).status).toBe(403);
+    expect((await enviar(tec, f.site, [f.a1])).status).toBe(404); // técnico sem acesso ao site: 404 (E3)
     expect((await enviar(cons, 'site-de-b', [f.a1])).status).toBe(404);
     const r = await enviar(cons, f.site, [f.a1, f.a2]);
     expect(r.status, await r.clone().text()).toBe(201);

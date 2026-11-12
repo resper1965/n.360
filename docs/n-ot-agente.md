@@ -53,6 +53,10 @@ No mesmo cartão, revogue a chave (Gestor ou consultoria designada). Vale na pr�
 
 Os arquivos passam pelo modelo do agente antes de chegar ao n.ot, **sem a máscara do n.ot**. Use só documentos que podem sair para esse modelo e prefira chaves curtas.
 
+## Onde o técnico traz dados
+
+Quem tem acesso ao site, inclusive o técnico, usa **Sites** > o site > **Modo projeto** > **Levantamento** > **Trazer dados**: escolhe a planilha ou o documento, o n.ot abre um levantamento documental de hoje e segue o de-para. O JSON do sensor só quem aprova importa. O técnico não pede a aprovação da base; isso é da equipe.
+
 ## Onde se revisa e se aprova
 
 O agente só grava achados em rascunho. Em **Sites** > o site > **Modo projeto** > **Revisão e aprovação** a pessoa vê a fila de rascunhos do site (com a origem "Agente"), marca os que valem e usa **Enviar para aprovação (N)**. O Lote de aprovação é decidido item a item por quem não o criou: **Recusar** com motivo, ou **Aprovar lote** / **Aprovar os restantes**. Só então o item entra no inventário. O agente não envia para aprovação nem aprova.

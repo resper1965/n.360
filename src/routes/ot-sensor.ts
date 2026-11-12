@@ -132,7 +132,9 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
       .catch((e) => console.error('ot.sensor.resumo: falha na trilha', e));
     // Desvio sobre o plano de ANTES do filtro de novidade (o que está em rascunho ainda não está aprovado). Falha só vai ao log.
     try {
-      await (deps.detectarDesvios ?? detectarDesvios)(env, ctx, { projectId: sensor.projectId, siteId: sensor.siteId, sensorId: sensor.id, plano, agora });
+      // sem base aprovada não há o que comparar (spec fluidez §4). E4: rodar também em em_obra, mas em silêncio (spec §4).
+      const fase = await db.prepare(`SELECT fase FROM ot_sites WHERE id = ? AND project_id = ?`).bind(sensor.siteId, sensor.projectId).first<{ fase: string }>();
+      if (fase?.fase === 'em_operacao') await (deps.detectarDesvios ?? detectarDesvios)(env, ctx, { projectId: sensor.projectId, siteId: sensor.siteId, sensorId: sensor.id, plano, agora });
     } catch (e) { console.error('ot.desvio', e); }
     return json({ recebido: true, envio_id: envioId }, 200);
   } catch (e) {

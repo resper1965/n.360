@@ -363,60 +363,21 @@ describe('coleta', () => {
     const COLETA = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/lotes`]: { lotes: [{ ...LOTE, itens: 2, com_erro: 1, gravados: 0 }] },
         [`GET ${B}/lotes/l1`]: { lote: LOTE, itens: [ITEM('i1', 2, { possivel_duplicata: true }), ITEM('i2', 3, { erros: [{ campo: 'mac', motivo: 'MAC inválido' }] })] } };
 
-    it('diz que o arquivo original não é guardado e lista os lotes', async () => {
+    it('aponta "Trazer dados" e lista os lotes', async () => {
         servirOt(COLETA);
         await abrir('coleta');
-        expect(el('ot-coleta-privacidade').textContent).toContain('arquivo original não é guardado');
+        expect(el('ot-coleta-privacidade').textContent).toContain('Trazer dados');
         expect(texto()).toContain('Em revisão');
         expect(texto()).toContain('Planilha');
     });
 
-    it('envia a planilha em multipart (file e site_id) e abre o lote criado', async () => {
-        servirOt({ ...COLETA, [`POST ${B}/lotes`]: { id: 'l2', itens: 3, com_erro: 0, possiveis_duplicatas: 1, status: 'em_revisao', colunas_ignoradas: ['obs'] } });
+    it('a Coleta não tem mais "Enviar planilha": só a entrada manual', async () => {
+        servirOt(COLETA);
         await abrir('coleta');
-        el('ot-lote-site').value = 's1';
-        const arq = new File(['nome,ip\nRTU,10.0.0.1\n'], 'ativos.csv', { type: 'text/csv' });
-        Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [arq] });
-        await window.otEnviarPlanilha();
-        const post = chamadas.find((x) => x.k === `POST ${B}/lotes`);
-        expect(post.opts.body).toBeInstanceOf(FormData);
-        expect(post.opts.body.get('site_id')).toBe('s1');
-        expect(post.opts.body.get('file').name).toBe('ativos.csv');
-        expect(post.opts.headers.Authorization).toBe('Bearer tok');
-        expect(post.opts.headers['Content-Type']).toBeUndefined();
-        expect(S.otLote).toBe('l2');
-    });
-
-    it('lote sem a contagem de duplicatas (quem vê mascarado): o aviso não afirma "0 duplicatas"', async () => {
-        servirOt({ ...COLETA, [`POST ${B}/lotes`]: { id: 'l4', itens: 2, com_erro: 0, status: 'em_revisao' } });
-        await abrir('coleta');
-        el('ot-lote-site').value = 's1';
-        Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [new File(['nome\nRTU\n'], 'a.csv', { type: 'text/csv' })] });
-        await window.otEnviarPlanilha();
-        const toasts = [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ');
-        expect(toasts).toContain('Lote criado: 2 item(ns)');
-        expect(toasts).not.toMatch(/duplicata/);
-    });
-
-    it('planilha com a sessão terminada (401) segue o tratamento de api(): reautentica por inatividade ou sai', async () => {
-        const arq = new File(['nome\nRTU\n'], 'ativos.csv', { type: 'text/csv' });
-        const enviar = async (corpo) => {
-            servirOt(COLETA, { [`POST ${B}/lotes`]: [401, corpo] });
-            await abrir('coleta');
-            Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [arq] });
-            await window.otEnviarPlanilha();
-        };
-        vi.spyOn(console, 'error').mockImplementation(() => {});
-        window.pedirReautenticacao = vi.fn();
-        window.doLogout = vi.fn();
-        await enviar({ error: 'Unauthorized', expired: 'inactivity' });
-        expect(window.pedirReautenticacao).toHaveBeenCalledTimes(1);
-        expect(window.doLogout).not.toHaveBeenCalled();
-        await enviar({ error: 'Unauthorized' });
-        expect(window.doLogout).toHaveBeenCalledTimes(1);
-        expect(document.body.textContent).toContain('Sua sessão terminou');
-        expect(S.otLote).toBeNull();
-        delete window.pedirReautenticacao; delete window.doLogout;
+        expect(texto()).not.toContain('Enviar planilha');
+        expect(el('ot-lote-arquivo')).toBeNull();
+        expect(window.otEnviarPlanilha).toBeUndefined();
+        expect([...document.querySelectorAll('[data-action]')].map((x) => x.dataset.action)).toContain('otEntradaManual');
     });
 
     it('entrada manual junta itens e manda o lote em JSON', async () => {
@@ -690,7 +651,8 @@ describe('lista de sites e tela do site (Task 4)', () => {
     const SITE2 = { id: 's2', nome: 'SE Sul', tipo: 'usina', criticidade: 'media', localizacao: null, status: 'ativo' };
     const lev = (id, site_id, funcao) => ({ id, site_id, tipo: 'entrevista', realizado_em: '2026-11-01', funcao, turno: null, achados: 0, situacao: 'em_andamento' });
     const des = (id, site_id) => ({ id, site_id, site_nome: site_id, tipo: 'ativo', situacao: 'tratado', origem: { ativo: `host-${id}` }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-02T10:00:00Z', ocorrencias: 1 });
-    const ROTAS = { [`GET ${B}/sites`]: { sites: [SITE, SITE2] },
+    const sit = (proximo_passo, extra = {}) => ({ fase: 'em_levantamento', base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 0, zonas_4_1_1: true, tem_conteudo: true, proximo_passo, lote_em_revisao_id: null, ...extra });
+    const ROTAS = { [`GET ${B}/sites`]: { sites: [SITE, SITE2] }, [`GET ${B}/sites/s1/situacao`]: sit('comecar'), [`GET ${B}/sites/s2/situacao`]: sit('comecar'),
         [`GET ${B}/levantamentos`]: { levantamentos: [lev('l1', 's1', 'l1-texto-unico'), lev('l2', 's2', 'l2-texto-unico')] },
         [`GET ${B}/lotes`]: { lotes: [{ id: 'k1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', created_at: '2026-11-01T10:00:00Z' }, { id: 'k2', site_id: 's2', fonte: 'manual', status: 'concluido', created_at: '2026-11-02T10:00:00Z' }] },
         [`GET ${B}/achados`]: { achados: [{ id: 'x1', entidade: 'ativo', situacao: 'rascunho', origem: 'consultor', dados: { nome: 'rev-texto-unico' }, evidencia: 'e', levantamento_id: 'l1', levantamento_tipo: 'entrevista', levantamento_realizado_em: '2026-11-01', desfecho: null }] },
@@ -706,7 +668,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(el('c').textContent).toContain('SE Sul');
         expect(el('xss')).toBeNull();
         const abrirS2 = [...el('c').querySelectorAll('[data-action="otTela"]')].find((b) => b.getAttribute('aria-label') === 'Abrir SE Sul');
-        expect(JSON.parse(abrirS2.getAttribute('data-args'))).toEqual(['site', 's2', 'projeto']);
+        expect(JSON.parse(abrirS2.getAttribute('data-args'))).toEqual(['site', 's2', null]);
         expect(acoes(el('a'))).toContain('otNovoSite');
         window.otEditarSiteDaLista('s2');
         expect(el('ot-s-nome').value).toBe('SE Sul');
@@ -722,7 +684,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         window.otNovoLevantamento();
         expect(el('lev-f-site').type).toBe('hidden');
         expect(el('lev-f-site').value).toBe('s1');
-        expect(primarios()).toBe(1);
+        expect(primarios()).toBe(1); // o do cartão Próximo passo
     });
 
     it('lote de aprovação e base: recorte por site, sem seletor de site e um só botão primário', async () => {
@@ -732,7 +694,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(el('c').textContent).toContain('rev-texto-unico');
         expect(el('c').querySelectorAll('#ot-rev-lotes tbody tr')).toHaveLength(1);
         expect(primarios()).toBe(1);
-        expect(el('ot-lote-site').type).toBe('hidden');
+        expect(el('ot-lote-site')).toBeNull();
         await ir({ site: 's1', modo: 'projeto', sub: 'base' });
         expect(el('ot-filtro-site')).toBeNull();
         expect(el('c').textContent).not.toContain('Cadastrar o primeiro site');
@@ -756,7 +718,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     });
 
     it('Saúde da coleta do site: só o cartão de saúde, sem pontos nem contagem de desvios do projeto', async () => {
-        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] } });
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { base_aprovada_em: '2026-11-10 12:00:00' }), [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] } });
         await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
         await vi.waitFor(() => expect(el('c').textContent).toContain('Saúde da coleta'));
         await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
@@ -788,5 +750,75 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(linhas).toHaveLength(2);
         expect(linhas[1].getAttribute('aria-current')).toBe('true');
         expect(linhas[0].hasAttribute('aria-current')).toBe(false);
+    });
+
+    it('próximo passo: o cartão tem o único primário em todas as sub-abas, com régua e etapa atual', async () => {
+        servirOt(ROTAS);
+        for (const [modo, subs] of Object.entries(SUBS)) {
+            for (const sub of subs) {
+                await ir({ site: 's1', modo, sub });
+                expect(primarios(), `${modo}/${sub}`).toBe(1);
+            }
+        }
+        await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
+        expect(el('c').querySelector('[aria-current="step"]').textContent).toContain('Levantar');
+        expect(el('c').textContent).toContain('Comece o levantamento');
+        expect(el('c').querySelector('.card .btn-primary').getAttribute('data-action')).toBe('otNovoLevantamentoDoSite');
+    });
+
+    it('modo inicial pela fase: em_operacao abre em Modo operação; sem modo e sem operação, em Modo projeto', async () => {
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }) });
+        await ir({ site: 's1', modo: null });
+        expect(S.otModo).toBe('operacao');
+        expect(el('c').textContent).toContain('Em operação desde 10/11/2026');
+        expect(el('c').textContent).not.toContain('ainda não tem base aprovada');
+        await ir({ site: 's2', modo: null });
+        expect(S.otModo).toBe('projeto');
+    });
+
+    it('modo operação num site sem base aprovada avisa que desvios não são calculados', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });
+        expect(el('c').textContent).toContain('Este site ainda não tem base aprovada: desvios não são calculados.');
+    });
+
+    it('situação que falha: o cartão avisa e a tela segue', async () => {
+        servirOt(ROTAS, { [`GET ${B}/sites/s1/situacao`]: [500, { error: 'x' }] });
+        await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
+        expect(el('c').textContent).toContain('Não foi possível carregar a situação do site.');
+        expect(el('c').textContent).toContain('l1-texto-unico');
+    });
+
+    it('inventário: ativo sem verificação ganha o selo 4.3.1; verificado não', async () => {
+        const v = { ultima_verificacao_em: '2026-11-01 10:00:00', verificado_por: 'u1' };
+        servirOt({ ...ROTAS, [`GET ${B}/ativos`]: { ativos: [{ ...ativo('a1', 'RTU-01', null), site_id: 's1' }, { ...ativo('a2', 'IHM-02', null), site_id: 's1', ...v }] } });
+        await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });
+        const linhas = [...el('c').querySelectorAll('tbody tr')].filter((tr) => /RTU-01|IHM-02/.test(tr.textContent));
+        expect(linhas.find((tr) => tr.textContent.includes('RTU-01')).textContent).toContain('não verificado (4.3.1)');
+        expect(linhas.find((tr) => tr.textContent.includes('IHM-02')).textContent).not.toContain('não verificado');
+        expect(el('c').querySelector('[title="Entrou sem lote de aprovação"]')).not.toBeNull();
+    });
+
+    it('lote aberto (Gestor): o cartão perde o primário e o único é "Aprovar lote"', async () => {
+        const lote = { id: 'k1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', created_at: '2026-10-30 10:00:00' };
+        const item = { id: 'i1', linha: 2, decisao: 'pendente', motivo: null, erros: [], possivel_duplicata: false, dados: { nome: 'Item 2', tipo_dispositivo: 'RTU', no_arciber: false, firmware_nao_aplicavel: false, protocolos_portas: [], ip: '10.0.0.5', mac: null, mascarado: false } };
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('aguardar_base'), [`GET ${B}/lotes/k1`]: { lote, itens: [item] } });
+        S.otLote = 'k1';
+        await ir({ site: 's1', modo: 'projeto', sub: 'aprovacao' });
+        expect(primarios()).toBe(1);
+        expect(el('a').querySelector('.btn-primary').getAttribute('data-action')).toBe('otAprovarLote');
+        expect(el('c').querySelector('.card').textContent).toContain('Aprovar a base');
+        S.otLote = null;
+    });
+
+    it('levantamento aberto: o cartão perde o primário e o único é o envio do levantamento', async () => {
+        const lev = { id: 'l1', site_id: 's1', tipo: 'entrevista', realizado_em: '2026-11-01', funcao: 'Operador', turno: 'B', notas: '', roteiro: {}, situacao: 'aberto', achados: 1 };
+        const ach = { id: 'a1', levantamento_id: 'l1', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', lote_id: null, evidencia: 'e', erros: [], dados: { nome: 'N', mascarado: true } };
+        servirOt({ ...ROTAS, [`GET ${B}/levantamentos/l1`]: { levantamento: lev, achados: [ach] }, [`GET ${B}/roteiro`]: { perguntas: [] } });
+        S.otLevantamento = 'l1';
+        await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
+        expect(primarios()).toBe(1);
+        expect(el('a').querySelector('.btn-primary').getAttribute('data-action')).toBe('otEnviarAchados');
+        expect(el('c').querySelector('.card .btn')).not.toBeNull();
     });
 });

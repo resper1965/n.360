@@ -66,6 +66,7 @@ test('pessoa sem o n.ot (projeto com ele): o item não aparece', async ({ page }
 const B = '/api/v1/projects/proj-e2e/ot';
 const ABAS_OT = {
   [`${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte', tipo: 'subestacao', criticidade: 'alta', localizacao: null, status: 'ativo' }] },
+  [`${B}/sites/s1/situacao`]: { fase: 'em_levantamento', base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 1, zonas_4_1_1: false, tem_conteudo: true, proximo_passo: 'revisar', lote_em_revisao_id: null },
   [`${B}/zonas`]: { zonas: [{ id: 'z2', site_id: 's1', nome: 'Supervisão', nivel_purdue: 2, tipo: 'supervisao', descricao: null, status: 'ativo' }] },
   [`${B}/ativos`]: { ativos: [{ id: 'a1', project_id: 'proj-e2e', site_id: 's1', zona_id: 'z2', nome: 'RTU-01', no_arciber: true, categoria_arciber: 'centro_operacao',
     tipo_dispositivo: 'RTU', fabricante: 'ACME', modelo: 'X1', funcao: 'Telecontrole', firmware_so_versao: '1.2', firmware_nao_aplicavel: false, status: 'ativo',
@@ -102,12 +103,15 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guard
   await noSite(page, 'projeto', 'Base');
   await expect(conteudo).toContainText('RTU-01');
   await expect(conteudo).toContainText('aa:bb:cc:••:••:••');
-  await expect(page.locator('#header-actions .btn-primary')).toHaveText('+ Novo ativo');
+  // o único primário da tela é o do cartão Próximo passo; a sub-aba Base fica com os botões comuns
+  await expect(page.locator('#content .btn-primary, #header-actions .btn-primary')).toHaveCount(1);
+  await expect(page.locator('#content .card .btn-primary')).toHaveText('Abrir Base');
+  await expect(page.locator('#header-actions').getByRole('button', { name: '+ Novo ativo' })).toBeVisible();
 
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 
   await page.getByRole('tab', { name: 'Revisão e aprovação' }).click();
-  await expect(page.locator('#ot-coleta-privacidade')).toContainText('o arquivo original não é guardado');
+  await expect(page.locator('#ot-coleta-privacidade')).toContainText('Trazer dados');
   await expect(conteudo).toContainText('Em revisão');
 
   await page.getByRole('tab', { name: 'Levantamento', exact: true }).click();
@@ -606,4 +610,64 @@ test('decisão: o gestor recusa um item com motivo, aprova o restante e o levant
   await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
   await expect(conteudo).toContainText('Recusado: Equipamento pessoal, fora do escopo');
   await expect(conteudo).toContainText('No inventário');
+});
+
+// Fluidez E3: a base do site. O consultor pede a aprovação; o Gestor aprova com a declaração e o site passa a "Em operação".
+test('base: o consultor pede a aprovação e o gestor aprova; o site abre no Modo operação', async ({ page }) => {
+  let papel = 'consultor';
+  const sit = { ...ABAS_OT[`${B}/sites/s1/situacao`], lotes_em_revisao: 0, zonas_4_1_1: true, proximo_passo: 'pedir_base' };
+  const posts = [];
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (req.method() === 'POST' && /\/sites\/s1\/base\/(pedir|aprovar)$/.test(path)) {
+      const acao = path.split('/').pop();
+      posts.push([acao, req.postDataJSON()]);
+      if (acao === 'pedir') Object.assign(sit, { fase: 'base_em_aprovacao', proximo_passo: 'aguardar_base' });
+      else Object.assign(sit, { fase: 'em_operacao', proximo_passo: 'em_operacao', base_aprovada_em: '2026-11-12 10:00:00' });
+      return json({ ok: true });
+    }
+    if (path === `${B}/sites/s1/situacao`) return json(sit);
+    if (path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await page.locator('#nav-ot-sites').click();
+  await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
+  const conteudo = page.locator('#content');
+  await expect(conteudo).toContainText('Tudo aprovado: peça a aprovação da base');
+  await page.getByRole('button', { name: 'Pedir aprovação da base' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Pedir aprovação' }).click();
+  await expect(conteudo).toContainText('Aguardando o Gestor aprovar a base');
+  expect(posts).toEqual([['pedir', {}]]);
+  // o Gestor entra com a mesma API e aprova
+  papel = 'org_admin';
+  await page.route('**/api/v1/auth/me', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { ...USER, role: papel, modulos: ['iso', 'ot'] } }) }));
+  await page.reload(); // a URL já é a do site
+  await page.getByRole('button', { name: 'Aprovar a base' }).click();
+  await expect(page.getByRole('alertdialog')).toContainText('Confirmo que este inventário representa o site.');
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Aprovar a base' }).click();
+  await expect(conteudo).toContainText('Em operação');
+  await expect(page.getByRole('tab', { name: 'Modo operação' })).toHaveAttribute('aria-selected', 'true');
+  expect(posts[1]).toEqual(['aprovar', { declaracao: true }]);
+});
+
+// O técnico (org_user) no site concedido: traz dados e abre levantamento, mas não pede a aprovação da base.
+test('técnico: vê "Trazer dados" e "Novo levantamento" e não vê "Pedir aprovação da base"', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_user');
+  await page.route(`**${B}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === `${B}/sites/s1/situacao`) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...ABAS_OT[path], lotes_em_revisao: 0, zonas_4_1_1: true, proximo_passo: 'pedir_base' }) });
+    if (path in ABAS_OT) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ABAS_OT[path]) });
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await noSite(page, 'projeto', 'Levantamento');
+  await expect(page.getByRole('button', { name: 'Trazer dados' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Novo levantamento' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pedir aprovação da base' })).toHaveCount(0);
 });

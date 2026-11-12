@@ -9,6 +9,7 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
 import { desenhar } from './ot-abrir.js';
+import { hojeSP } from '../src/hoje.js';
 
 const B = '/api/v1/projects/p1/ot';
 const el = (id) => document.getElementById(id);
@@ -211,11 +212,24 @@ describe('aba Levantamento', () => {
         expect(S.otLevantamento).toBe('l2');
     });
 
-    it('quem não edita o inventário não vê os botões de criar, registrar, responder ou enviar', async () => {
+    it('o técnico vê registrar, notas, roteiro, encerrar e enviar, mas não reabrir', async () => {
         S.user = { id: 'u', role: 'org_user' };
         servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [LEV] }, ...SITES });
         await abrir('levantamento');
-        expect(document.querySelector('[data-action="otNovoLevantamento"]')).toBeNull();
+        await detalhe();
+        for (const acao of ['otNovoAchado', 'otEnviarAchados', 'otResponderRoteiro', 'otDescartarAchado', 'otEncerrarLevantamento']) {
+            expect(document.querySelector(`[data-action="${acao}"]`), acao).not.toBeNull();
+        }
+        expect(el('lev-notas').readOnly).toBe(false);
+        expect(el('ach-sel-a1')).not.toBeNull();
+        await detalhe([ACH()], { [`GET ${B}/levantamentos/l1`]: { levantamento: { ...LEV, situacao: 'encerrado' }, achados: [ACH()] } });
+        expect(document.querySelector('[data-action="otEncerrarLevantamento"]')).toBeNull();
+    });
+
+    it('o cliente não vê os botões de registrar, responder ou enviar', async () => {
+        S.user = { id: 'u', role: 'client' };
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [LEV] }, ...SITES });
+        await abrir('levantamento');
         await detalhe();
         for (const acao of ['otNovoAchado', 'otEnviarAchados', 'otResponderRoteiro', 'otSalvarNotas', 'otDescartarAchado', 'otEncerrarLevantamento']) {
             expect(document.querySelector(`[data-action="${acao}"]`), acao).toBeNull();
@@ -253,15 +267,12 @@ describe('importar arquivo no levantamento de documento', () => {
         perfil: { id: 'pf1', nome: 'Export <i id="xss3">SCADA</i>', fonte: 'SCADA' }, aviso: 'Revise as colunas.', linhas: 12 };
     const fdDe = (k) => chamadas.find((x) => x.k === k).opts.body;
 
-    it('botão só em documento aberto para quem edita', async () => {
+    it('botão só em documento aberto para quem pode criar lote', async () => {
         await abrirDoc();
         expect(document.querySelector('[data-action="otImportarArquivo"]')).not.toBeNull();
         await abrirDoc({}, { ...DOC, situacao: 'encerrado' });
         expect(document.querySelector('[data-action="otImportarArquivo"]')).toBeNull();
         await abrirDoc({}, LEV);
-        expect(document.querySelector('[data-action="otImportarArquivo"]')).toBeNull();
-        S.user = { id: 'u', role: 'org_user' };
-        await abrirDoc();
         expect(document.querySelector('[data-action="otImportarArquivo"]')).toBeNull();
     });
 
@@ -496,23 +507,78 @@ describe('importar arquivo no levantamento de documento', () => {
     });
 });
 
-describe('lote ligado a um documento', () => {
-    it('a planilha pode ser ligada a um levantamento documento do site escolhido', async () => {
-        servirOt({ ...SITES, [`GET ${B}/lotes`]: { lotes: [] }, [`GET ${B}/levantamentos`]: { levantamentos: [LEV,
-            { ...LEV, id: 'd1', tipo: 'documento', documento_titulo: 'Inventário 2023' }, { ...LEV, id: 'd2', site_id: 's2', tipo: 'documento', documento_titulo: 'Do outro site' }] },
-        [`POST ${B}/lotes`]: { id: 'lote-1', itens: 1, com_erro: 0 } });
-        await abrir('coleta');
-        const ops = () => [...el('ot-lote-doc').options].map((o) => o.value);
-        expect(ops()).toEqual(['', 'd1']);
-        window.otLoteSite('s2');
-        expect(ops()).toEqual(['', 'd2']);
-        el('ot-lote-site').value = 's1';
-        window.otLoteSite('s1');
-        el('ot-lote-doc').value = 'd1';
-        Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [new File(['nome\nx'], 'a.csv')] });
-        await window.otEnviarPlanilha();
-        const fd = chamadas.find((x) => x.k === `POST ${B}/lotes`).opts.body;
-        expect(fd.get('levantamento_id')).toBe('d1');
+describe('Trazer dados', () => {
+    const acoes = () => [...document.querySelectorAll('[data-action]')].map((x) => x.dataset.action);
+    const P = `${B}/levantamentos/l9/depara`;
+    const trazer = async (nome, rotas = {}) => {
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES, [`POST ${B}/levantamentos`]: { id: 'l9' }, ...rotas });
+        await abrir('levantamento');
+        window.otTrazerDados();
+        const input = el('lev-trazer-arquivo');
+        const f = new File(['nome,ip\nRTU,10.0.0.1\n'], nome);
+        Object.defineProperty(input, 'files', { value: [f] });
+        input.dispatchEvent(new Event('change'));
+        await vi.waitFor(() => expect(el('modal-content').textContent).not.toBe(''));
+        return { input, f };
+    };
+
+    it('cria o levantamento documental de hoje com o nome do arquivo e abre o mapeamento da planilha', async () => {
+        const PROPOSTA = { cabecalho: ['nome', 'ip'], mapeamento: { 0: 'nome', 1: 'ip' }, origem: 'cabecalho', linhas: 1 };
+        const { f } = await trazer('inventario-2023.csv', { [`POST ${P}/planilha/proposta`]: PROPOSTA });
+        expect(corpo(`POST ${B}/levantamentos`)).toEqual({ site_id: 's1', tipo: 'documento', realizado_em: hojeSP(), documento_titulo: 'inventario-2023.csv' });
+        expect(S.otLevantamento).toBe('l9');
+        expect(chamadas.find((x) => x.k === `POST ${P}/planilha/proposta`).opts.body.get('file')).toBe(f);
+        expect(el('modal-content').textContent).toContain('Importar planilha');
+    });
+
+    it('extensão fora da lista ou arquivo acima de 5 MB: aviso e nenhum levantamento criado', async () => {
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES, [`POST ${B}/levantamentos`]: { id: 'l9' } });
+        await abrir('levantamento');
+        for (const f of [new File(['x'], 'a.pdf'), Object.defineProperty(new File(['x'], 'g.csv'), 'size', { value: 6 * 1024 * 1024 })]) {
+            window.otTrazerDados();
+            const input = el('lev-trazer-arquivo');
+            Object.defineProperty(input, 'files', { value: [f] });
+            input.dispatchEvent(new Event('change'));
+            await new Promise((r) => setTimeout(r, 0));
+        }
+        expect(chamadas.some((x) => x.k === `POST ${B}/levantamentos`)).toBe(false);
+        expect(S.otLevantamento).toBeNull();
+    });
+
+    it('cancelar a confirmação da IA (txt/docx) não cria levantamento', async () => {
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES, [`POST ${B}/levantamentos`]: { id: 'l9' } });
+        await abrir('levantamento');
+        window.otTrazerDados();
+        const input = el('lev-trazer-arquivo');
+        Object.defineProperty(input, 'files', { value: [new File(['x'], 'ata.txt')] });
+        input.dispatchEvent(new Event('change'));
+        await new Promise((r) => setTimeout(r, 0));
+        expect(document.querySelector('.confirmar').textContent).toContain('A IA vai ler o texto mascarado');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(chamadas.some((x) => x.k === `POST ${B}/levantamentos`)).toBe(false);
+    });
+
+    it('o seletor aceita planilha e documento, e o resumo do sensor (json) só para quem aprova', async () => {
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES });
+        await abrir('levantamento');
+        window.otTrazerDados();
+        expect(el('lev-trazer-arquivo').accept).toBe('.csv,.xlsx,.txt,.docx,.json');
+        S.user = { id: 'u', role: 'org_user' };
+        window.otTrazerDados();
+        expect(el('lev-trazer-arquivo').accept).toBe('.csv,.xlsx,.txt,.docx');
+    });
+
+    it('o técnico vê "Novo levantamento" e "Trazer dados"; o cliente, nenhum', async () => {
+        S.user = { id: 'u', role: 'org_user' };
+        servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES });
+        await abrir('levantamento');
+        expect(acoes()).toEqual(expect.arrayContaining(['otNovoLevantamento', 'otTrazerDados']));
+        expect(el('a').querySelectorAll('.btn-primary')).toHaveLength(1);
+        S.user = { id: 'u', role: 'client' };
+        await abrir('levantamento');
+        expect(acoes()).not.toContain('otTrazerDados');
+        expect(acoes()).not.toContain('otNovoLevantamento');
     });
 });
 

@@ -48,6 +48,7 @@ describe('montarInicio', () => {
         [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE <b>Norte</b>', ativos: 4 }] },
         [`GET ${B}/achados`]: { total: 3 },
         [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z', nome: 'S-1', saude: 'parada' }] },
+        [`GET ${B}/sites/s1/situacao`]: { fase: 'base_em_aprovacao', proximo_passo: 'aguardar_base', rascunhos: 0 },
         [`GET ${B}/conformidade`]: { resumo: { nao_atende: 1, evidencia_no_inventario: 2, sem_evidencia: 3 } },
     };
     let urls;
@@ -135,7 +136,23 @@ describe('montarInicio', () => {
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
         const cels = [...c.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
-        expect(cels[0][2]).toBe('parada');
+        expect(cels[0][4]).toBe('parada');
+    });
+    it('colunas Fase e Próximo passo; o Gestor vê a base aguardando e o botão leva ao site', async () => {
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        const cels = [...c.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
+        expect(cels[0].slice(1, 3)).toEqual(['Base em aprovação', 'Aguardar a base']);
+        const li = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('Base de SE <b>Norte</b> aguardando sua aprovação'));
+        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['site', 's1', 'projeto']);
+    });
+    it('consultor não vê a base aguardando; situação que falha deixa "—"', async () => {
+        S.user = { id: 'u1', role: 'consultor' };
+        delete rotas[`GET ${B}/sites/s1/situacao`];
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).not.toContain('aguardando sua aprovação');
+        expect([...c.querySelectorAll('tbody tr')][0].children[1].textContent).toBe('—');
     });
     it('consultoria_admin não vê lote para aprovar', async () => {
         S.user = { id: 'u1', role: 'consultoria_admin' };

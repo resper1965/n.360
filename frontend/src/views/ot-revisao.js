@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, falhaDeCarga, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, rotaDoFluxo } from '../ot-comum.js';
+import { podeCriarLote, mensagemDeErro, lista, rotaDoFluxo, classePrimario } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 
 // n.ot, "Revisão e aprovação" do site (spec 2026-11-11 fluidez E2): fila de achados em rascunho de todos os levantamentos do site,
@@ -26,7 +26,7 @@ const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const opt = (pares, atual) => pares.map(([v, r]) => `<option value="${v}"${v === atual ? ' selected' : ''}>${escapeHTML(r)}</option>`).join('');
 
 function desenharFila() {
-    const editar = podeEditarOt();
+    const editar = podeCriarLote();
     const xs = visiveis();
     const alvo = el('ot-rev-fila');
     if (!fila.length) {
@@ -46,17 +46,19 @@ function desenharFila() {
     alvo.innerHTML = `<div class="d-flex gap-4 flex-wrap items-center mb-3">
         <label class="form-label" for="rev-f-origem">Origem</label><select class="form-input" id="rev-f-origem" data-action-change="otRevFiltro" data-args='${args('origem')}' data-arg-val><option value="">Todas</option>${opt(Object.entries(ORIGEM), filtro.origem)}</select>
         <label class="form-label" for="rev-f-tipo">Tipo</label><select class="form-input" id="rev-f-tipo" data-action-change="otRevFiltro" data-args='${args('tipo')}' data-arg-val><option value="">Todos</option>${opt([['ativo', 'Ativo'], ['fluxo', 'Fluxo']], filtro.tipo)}</select>
-        ${editar ? `<button class="btn btn-primary" data-action="otRevEnviar"${n ? '' : ' disabled'}>Enviar para aprovação (${n})</button>` : ''}</div>
+        ${editar ? `<button class="${classePrimario(semPri)}" data-action="otRevEnviar"${n ? '' : ' disabled'}>Enviar para aprovação (${n})</button>` : ''}</div>
         ${renderDataTable([...(editar ? ['Marcar'] : []), 'Achado', 'Tipo', 'Origem', 'Levantamento', ...(editar ? ['Ações'] : [])], linhas, { emptyMessage: 'Nenhum achado com esses filtros.' })}`;
 }
 
+let semPri = false;
 export async function montarRevisao(c, a, p, o = {}) {
+    semPri = !!o.semPrimario;
     filtro = { origem: '', tipo: '' }; sel = new Set(); // entrada pela casca recomeça; descartar/editar recarregam por `carregar`
     return carregar(c, a, p, o);
 }
-async function carregar(c, a, p, { siteFixo } = {}) {
+async function carregar(c, a, p, { siteFixo, semPrimario } = {}) {
     ctx = { c, a, p, site: siteFixo };
-    if (S.otLote) { await montarColeta(c, a, p, { siteFixo }); return; } // lote aberto: só o detalhe do lote
+    if (S.otLote) { await montarColeta(c, a, p, { siteFixo, semPrimario }); return; } // lote aberto: só o detalhe do lote
     try {
         const r = await api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${encodeURIComponent(siteFixo)}&situacao=rascunho`);
         fila = lista(r, 'achados'); nomes = r.nomes_pontas || {};
@@ -65,10 +67,10 @@ async function carregar(c, a, p, { siteFixo } = {}) {
     c.innerHTML = '<h3 class="mb-3">Fila de revisão</h3><div id="ot-rev-fila"></div><h3 class="mt-6 mb-3">Lotes de aprovação</h3><div id="ot-rev-lotes"></div>';
     desenharFila();
     const lotes = el('ot-rev-lotes');
-    await montarColeta(lotes, a, p, { siteFixo, semPrimario: true }); // um só primário por tela: o da fila
+    await montarColeta(lotes, a, p, { siteFixo, semPrimario });
 }
 
-const redesenhar = () => carregar(ctx.c, ctx.a, ctx.p, { siteFixo: ctx.site });
+const redesenhar = () => carregar(ctx.c, ctx.a, ctx.p, { siteFixo: ctx.site, semPrimario: semPri });
 window.otRevFiltro = (campo, v) => { filtro = { ...filtro, [campo]: v }; desenharFila(); };
 window.otRevMarcar = (id, caixa) => { sel[caixa.checked ? 'add' : 'delete'](id); desenharFila(); };
 window.otRevNovoLevantamento = (site) => window.otTela('site', site, 'projeto', { otSub: 'levantamento' });
