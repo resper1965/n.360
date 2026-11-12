@@ -14,7 +14,7 @@ const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const alvo = (site, modo, lote) => ({ tela: 'site', site, modo, ...(lote ? { lote } : {}) });
 
 /** Linhas de "Espera por você" para o papel de quem olha. Pura: recebe os dados já lidos. `sites` mapeia id → nome. */
-export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rascunhosPorSite = {}, sondas = [], sites = {}, situacoes = {} }, { id, podeAprovar, podeEditar, gestor }) {
+export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rascunhosPorSite = {}, sondas = [], sites = {}, situacoes = {}, assessment = null }, { id, podeAprovar, podeEditar, gestor }) {
     const nome = (s) => sites[s] || 'site';
     const out = [];
     if (podeAprovar) {
@@ -49,19 +49,30 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rasc
             if (sit === 'parada' || sit === 'atrasada') out.push({ tipo: 'sonda', texto: `Sonda ${s.nome} ${sit} em ${nome(s.site_id)}`, acao: alvo(s.site_id, 'operacao') });
         }
     }
+    // assessment: mesma regra do "Só o que espera por mim" da tela (ot-assessment.js). O Gestor confirma e revisa; quem edita preenche.
+    const ass = (texto, filtro) => out.push({ tipo: 'assessment', texto, acao: { tela: 'assessment', filtro } });
+    if (assessment && gestor) {
+        const { a_confirmar: conf = 0, revisar: rev = 0 } = assessment.resumo || {};
+        if (conf > 0) ass(`${plural(conf, 'item do assessment', 'itens do assessment')} para confirmar`, 'meus');
+        if (rev > 0) ass(`${plural(rev, 'item do assessment', 'itens do assessment')} para revisar`, 'revisar');
+    } else if (assessment && podeEditar) {
+        const n = (assessment.itens || []).filter((i) => i.tipo === 'politica' && !i.avaliacao).length;
+        if (n > 0) ass(`${plural(n, 'item do assessment', 'itens do assessment')} sem preencher`, 'meus');
+    }
     for (const l of lotes.filter((x) => x.status === 'rejeitado' && x.criado_por === id)) out.push({ tipo: 'recusado', texto: `Seu lote em ${nome(l.site_id)} foi recusado`, acao: alvo(l.site_id, 'projeto', l.id) });
     return out;
 }
 
 const botao = (rotulo, aria, acao, ...a) => `<button class="btn btn-sm" data-action="${acao}" data-args='${args(...a)}' aria-label="${escapeHTML(aria)}">${rotulo}</button>`;
-const abrir = (a) => (a.lote ? botao('Abrir', 'Abrir lote', 'otIrParaLote', a.site, a.lote)
+const abrir = (a) => (a.tela === 'assessment' ? botao('Abrir', 'Abrir assessment', 'otTela', 'assessment', null, 'projeto', { otAssFiltro: a.filtro })
+    : a.lote ? botao('Abrir', 'Abrir lote', 'otIrParaLote', a.site, a.lote)
     : a.site ? botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.modo, ...(a.extra ? [a.extra] : [])) : botao('Abrir', 'Abrir sites', 'otTela', 'sites'));
 
 export async function montarInicio(c, a, p) {
     const [rL, rD, rS, rC, rA] = await Promise.allSettled([
         api('GET', `/api/v1/projects/${p.id}/ot/lotes`),
         api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aberto`), api('GET', `/api/v1/projects/${p.id}/ot/sites`),
-        api('GET', `/api/v1/projects/${p.id}/ot/conformidade`),
+        api('GET', `/api/v1/projects/${p.id}/ot/assessment`),
         ehGestor() ? api('GET', `/api/v1/projects/${p.id}/ot/desvios?situacao=aceito`) : Promise.resolve({ desvios: [] })]); // só o Gestor vê os aceites vencendo
     const v = (r, k) => (r.status === 'fulfilled' ? lista(r.value, k) : []);
     const sitesL = v(rS, 'sites');
@@ -79,10 +90,11 @@ export async function montarInicio(c, a, p) {
     const situacoes = {};
     sitesL.forEach((s, i) => { if (rSit[i].status === 'fulfilled') situacoes[s.id] = rSit[i].value; });
     const desvios = v(rD, 'desvios');
-    const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, aceitos: v(rA, 'desvios'), rascunhosPorSite, sondas, sites, situacoes },
+    const assessment = rC.status === 'fulfilled' ? { resumo: rC.value?.resumo || {}, itens: lista(rC.value, 'itens') } : null;
+    const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, aceitos: v(rA, 'desvios'), rascunhosPorSite, sondas, sites, situacoes, assessment },
         { id: S.user?.id, podeAprovar: podeAprovarOt() && S.user?.role !== 'consultoria_admin', podeEditar: podeEditarOt(), gestor: ehGestor() });
 
-    const falhou = [rL, rD, ...rQ].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';
+    const falhou = [rL, rD, rC, ...rQ].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';
     const espera = pend.length
         ? `<ul class="empty-list">${pend.map((x) => `<li><span>${escapeHTML(x.texto)}</span>${abrir(x.acao)}</li>`).join('')}</ul>${falhou}`
         : falhou || '<p class="org-dica">Nada esperando por você agora.</p>';
@@ -95,9 +107,10 @@ export async function montarInicio(c, a, p) {
             escapeHTML(FASE[situacoes[s.id]?.fase] || '—'), escapeHTML(PASSO[situacoes[s.id]?.proximo_passo] || '—'),
             escapeHTML(String(abertos[s.id] || 0)), escapeHTML(pior(s.id) || (sondas.some((x) => x.site_id === s.id) ? 'em dia' : '—')), botao('Abrir', `Abrir ${s.nome}`, 'otTela', 'site', s.id, null)]))
         : renderEmptyState({ titulo: 'Cadastre o primeiro site', texto: 'O site é onde o inventário e os levantamentos acontecem.', acao: podeEditarOt() ? `<button class="btn btn-primary" data-action="otTela" data-args='${args('sites')}'>Cadastrar site</button>` : '' });
-    const r = rC.status === 'fulfilled' ? rC.value.resumo || {} : null;
+    const r = assessment?.resumo;
+    const n = (k) => escapeHTML(String(r[k] ?? 0));
     const postura = r
-        ? `<p>Não atende: ${escapeHTML(String(r.nao_atende ?? 0))} · Evidência no inventário: ${escapeHTML(String(r.evidencia_no_inventario ?? 0))} · Sem evidência: ${escapeHTML(String(r.sem_evidencia ?? 0))}</p>
+        ? `<p>Atende: ${n('atende')} · Parcial: ${n('parcial')} · Não atende: ${n('nao_atende')} · Não se aplica: ${n('nao_se_aplica')} · Não avaliado: ${n('nao_avaliado')} · ${n('a_confirmar')} a confirmar</p>
         ${botao('Ver assessment', 'Ver assessment da RO-CB.BR.01', 'otTela', 'assessment')}`
         : '<p class="org-dica">Não foi possível carregar a postura agora.</p>';
     c.innerHTML = `<section class="card mb-4"><h3 class="mb-3">Espera por você</h3>${espera}</section>

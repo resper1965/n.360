@@ -15,7 +15,7 @@ const RESPOSTA = { sim: 'Sim', nao: 'Não' };
 const NAO_AVALIADO = ['neutral', 'Não avaliado'];
 let dados = { itens: [], resumo: {} };
 let responsaveis = [];
-let soMeus = false;
+let filtro = null; // null | 'meus' (espera por mim) | 'revisar' (evidência vencida ou revisão passada); o Início passa por S.otAssFiltro
 let raiz = null; // o contêiner que montarAssessment recebeu
 
 const selo = (par) => renderStatusBadge(par[0], par[1]);
@@ -26,7 +26,7 @@ const esperaPorMim = (i) => i.tipo === 'politica' && (ehGestor() ? i.avaliacao &
 const achar = (codigo) => dados.itens.find((i) => i.codigo === codigo);
 
 export async function montarAssessment(c, a, p) {
-    raiz = c; soMeus = false; dados = { itens: [], resumo: {} }; responsaveis = [];
+    raiz = c; filtro = S.otAssFiltro || null; S.otAssFiltro = null; dados = { itens: [], resumo: {} }; responsaveis = [];
     try {
         const [r, us] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/assessment`),
             api('GET', '/api/v1/users').then((x) => (Array.isArray(x) ? x : []), () => [])]);
@@ -39,14 +39,15 @@ export async function montarAssessment(c, a, p) {
 function pintar(c = raiz) {
     const r = dados.resumo;
     const cont = (rot, n) => `<span class="org-dica">${rot}: <strong>${escapeHTML(String(n ?? 0))}</strong></span>`;
-    const itens = soMeus ? dados.itens.filter(esperaPorMim) : dados.itens;
+    const itens = filtro === 'meus' ? dados.itens.filter(esperaPorMim) : filtro === 'revisar' ? dados.itens.filter((i) => i.revisar) : dados.itens;
     const porCategoria = new Map();
     for (const i of itens) { const k = i.categoria || 'Sem categoria'; if (!porCategoria.has(k)) porCategoria.set(k, []); porCategoria.get(k).push(i); }
     const grupos = [...porCategoria].map(([cat, xs]) => `<h3>${escapeHTML(cat)}</h3>${renderDataTable(['Código', 'Requisito', 'Situação', 'Prazo ONS', 'Responsável', 'Próxima revisão', ''], xs.map(linha))}`).join('');
     c.innerHTML = `<p class="org-header-intro">Autoavaliação da RO-CB.BR.01 Rev.00. Itens técnicos vêm do inventário; os de política são avaliados por quem edita e confirmados pelo Gestor.</p>
         <div class="d-flex gap-3">${cont('Atende', r.atende)}${cont('Parcial', r.parcial)}${cont('Não atende', r.nao_atende)}${cont('Não se aplica', r.nao_se_aplica)}${cont('Não avaliado', r.nao_avaliado)}${cont('A confirmar', r.a_confirmar)}${cont('Revisar', r.revisar)}</div>
-        <div class="form-group"><label><input type="checkbox" id="ass-meus" data-action-change="otAssFiltrar" data-arg-el${soMeus ? ' checked' : ''}> Só o que espera por mim</label></div>
-        ${itens.length ? grupos : renderEmptyState({ titulo: soMeus ? 'Nada espera por você' : 'Catálogo da RO-CB.BR.01 ainda não carregado', texto: soMeus ? 'Desmarque o filtro para ver todos os itens.' : 'O catálogo é carregado pela migração do n.ot. Fale com o suporte da ness.' })}
+        <div class="form-group"><label><input type="checkbox" id="ass-meus" data-action-change="otAssFiltrar" data-arg-el${filtro === 'meus' ? ' checked' : ''}> Só o que espera por mim</label>
+            <label><input type="checkbox" id="ass-revisar" data-action-change="otAssFiltrar" data-arg-el${filtro === 'revisar' ? ' checked' : ''}> Só o que precisa de revisão</label></div>
+        ${itens.length ? grupos : renderEmptyState({ titulo: filtro ? 'Nada espera por você' : 'Catálogo da RO-CB.BR.01 ainda não carregado', texto: filtro ? 'Desmarque o filtro para ver todos os itens.' : 'O catálogo é carregado pela migração do n.ot. Fale com o suporte da ness.' })}
         <p class="org-dica">O Gestor e o suplente (4.2.1) vêm da governança do projeto${moduloPara('governance', S.activeProject) ? `: <a href="${enderecoDoProduto('n360')}?tela=governance">abrir governança</a>` : ''}.</p>`;
 }
 
@@ -58,7 +59,7 @@ function linha(i) {
         `<button class="btn btn-sm" data-action="otAssAbrir" data-args='${args(i.codigo)}' aria-label="${escapeHTML(`Abrir ${i.codigo}`)}">Abrir</button>`];
 }
 
-window.otAssFiltrar = (caixa) => { soMeus = !!caixa.checked; pintar(); };
+window.otAssFiltrar = (caixa) => { filtro = caixa.checked ? (caixa.id === 'ass-revisar' ? 'revisar' : 'meus') : null; pintar(); };
 
 window.otAssAbrir = (codigo) => {
     const i = achar(codigo);

@@ -119,6 +119,21 @@ describe('tela Assessment', () => {
         window.otAssFiltrar({ checked: false });
     });
 
+    it('filtro passado pelo Início (S.otAssFiltro) vale uma vez: "revisar" mostra só o que precisa de revisão', async () => {
+        S.otAssFiltro = 'revisar';
+        await abrir('org_admin');
+        expect(S.otAssFiltro).toBeNull();
+        expect([...el('c').querySelectorAll('tbody tr')].map((r) => r.cells[0].textContent)).toEqual(['4.2.1']);
+        expect(el('ass-revisar').checked).toBe(true);
+        window.otAssFiltrar({ id: 'ass-revisar', checked: false });
+        expect(el('c').querySelectorAll('tbody tr').length).toBe(4);
+        S.otAssFiltro = 'meus';
+        await abrir('consultor');
+        expect(el('ass-meus').checked).toBe(true);
+        await abrir();
+        expect(el('ass-meus').checked).toBe(false);
+    });
+
     it('anexar e remover mantêm o que foi digitado no formulário', async () => {
         await abrir('consultor', { 'POST /api/v1/projects/p9/evidence/upload': { ok: true, id: 'ev9' }, [`POST ${B}/4.2.1/evidencias`]: { ok: true } });
         window.otAssAbrir('4.2.1');

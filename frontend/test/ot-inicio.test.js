@@ -59,6 +59,15 @@ describe('pendenciasDoPapel', () => {
             { id: 'u1', podeAprovar: false, podeEditar: false, gestor: true });
         expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte venceu em ${dm(velho)}`, `Aceite de desvio venceu em ${dm(velho)} (SE Norte)`]);
     });
+    it('assessment: Gestor vê a confirmar e revisar; consultor vê sem preencher; cada linha leva ao Assessment com o filtro', () => {
+        const assessment = { resumo: { a_confirmar: 2, revisar: 1 }, itens: [{ tipo: 'politica', avaliacao: null }, { tipo: 'politica', avaliacao: { situacao: 'atende' } }, { tipo: 'tecnico' }] };
+        const g = pendenciasDoPapel({ ...base, assessment }, { id: 'u1', podeAprovar: false, podeEditar: true, gestor: true });
+        expect(g.map((x) => x.texto)).toEqual(['2 itens do assessment para confirmar', '1 item do assessment para revisar']);
+        expect(g.map((x) => x.acao)).toEqual([{ tela: 'assessment', filtro: 'meus' }, { tela: 'assessment', filtro: 'revisar' }]);
+        const c = pendenciasDoPapel({ ...base, assessment }, { id: 'u1', podeAprovar: false, podeEditar: true, gestor: false });
+        expect(c).toEqual([{ tipo: 'assessment', texto: '1 item do assessment sem preencher', acao: { tela: 'assessment', filtro: 'meus' } }]);
+        expect(pendenciasDoPapel({ ...base, assessment: { resumo: { a_confirmar: 0, revisar: 0 }, itens: [] } }, { id: 'u1', podeAprovar: true, podeEditar: true, gestor: true })).toEqual([]);
+    });
     it('nada pendente devolve lista vazia', () => {
         expect(pendenciasDoPapel(base, { id: 'u1', podeAprovar: true, podeEditar: true })).toEqual([]);
     });
@@ -73,7 +82,7 @@ describe('montarInicio', () => {
         [`GET ${B}/achados`]: { total: 3 },
         [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z', nome: 'S-1', saude: 'parada' }] },
         [`GET ${B}/sites/s1/situacao`]: { fase: 'base_em_aprovacao', proximo_passo: 'aguardar_base', rascunhos: 0 },
-        [`GET ${B}/conformidade`]: { resumo: { nao_atende: 1, evidencia_no_inventario: 2, sem_evidencia: 3 } },
+        [`GET ${B}/assessment`]: { resumo: { atende: 1, parcial: 2, nao_atende: 3, nao_se_aplica: 0, nao_avaliado: 4, revisar: 1, a_confirmar: 2 }, itens: [] },
     };
     let urls;
     let rotas;
@@ -101,6 +110,25 @@ describe('montarInicio', () => {
         expect(c.textContent).toContain('3 achados em rascunho em SE <b>Norte</b>'); // contagem da fila de revisão do site
         expect(c.querySelector('.btn-primary')).toBeNull();
         expect(c.querySelector('[data-action="otTela"][data-args*="assessment"]')).not.toBeNull();
+    });
+    it('postura vem do resumo do assessment; o Gestor abre o Assessment já filtrado', async () => {
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(urls.some((u) => u.includes('/conformidade'))).toBe(false);
+        const postura = [...c.querySelectorAll('section')][2].textContent;
+        for (const x of ['Atende: 1', 'Parcial: 2', 'Não atende: 3', 'Não avaliado: 4', '2 a confirmar']) expect(postura).toContain(x);
+        const li = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('2 itens do assessment para confirmar'));
+        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['assessment', null, 'projeto', { otAssFiltro: 'meus' }]);
+        const rev = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('1 item do assessment para revisar'));
+        expect(JSON.parse(rev.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['assessment', null, 'projeto', { otAssFiltro: 'revisar' }]);
+    });
+    it('assessment que falha: aviso de carga parcial e postura indisponível', async () => {
+        delete rotas[`GET ${B}/assessment`]; rotas[`GET ${B}/lotes`] = { lotes: [] }; rotas[`GET ${B}/desvios`] = { desvios: [] };
+        const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
+        expect(c.textContent).toContain('Não foi possível carregar a postura agora.');
+        expect(c.textContent).toContain('Sites');
     });
     it('a contagem vem da fila do site (uma chamada por site), sem linha à parte da sonda; o botão do lote usa otIrParaLote', async () => {
         const c = document.getElementById('c');
