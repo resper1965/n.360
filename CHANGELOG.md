@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: relatório legível na impressão e item técnico sem base aprovada
+- **Impressão do relatório de conformidade:** o `@media print` força texto preto em fundo branco. O navegador não imprime fundo, e no tema escuro o texto claro ficava quase invisível no PDF.
+- **Item técnico sem site com base aprovada** aparece como "Aguardando base aprovada" (Assessment e relatório), não "Não avaliado": o site em levantamento já mostra a sua situação, mas ainda não define a da organização.
+
 ### n.ot: E5, assessment da RO-CB.BR.01 e relatório de conformidade (migração 0112)
 - **Assessment** (`ot_avaliacoes` e `ot_requisito_evidencias`, migração 0112, aditiva): itens técnicos vêm do inventário, por site, e não se editam; itens de política são autoavaliados por quem edita o n.ot (situação, justificativa, responsável e próxima revisão) e **confirmados pelo Gestor ARCiber**. Editar tira a confirmação. A justificativa é obrigatória, salvo em "atende". Ao confirmar, a próxima revisão fica a data que o consultor gravou; só se ela estiver vazia, vira daqui a 12 meses. A próxima revisão gravada é um dia que existe, de hoje em diante. A confirmação vale só para o que o Gestor viu: se a avaliação mudou depois que ele abriu o item, o servidor recusa e pede para recarregar.
 - **Evidências:** o arquivo sobe para as evidências do projeto e fica ligado ao item; remover só desliga, o arquivo continua no projeto, e tira a confirmação do Gestor (ligar não tira). Evidência vencida ou revisão passada marca o item como "Revisar".

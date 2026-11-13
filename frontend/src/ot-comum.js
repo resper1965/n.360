@@ -143,6 +143,8 @@ export const FASE = { em_levantamento: 'Em levantamento', base_em_aprovacao: 'Ba
 export const AVALIACAO = { atende: ['success', 'Atende'], parcial: ['warning', 'Parcial'], nao_atende: ['danger', 'Não atende'], nao_se_aplica: ['neutral', 'Não se aplica'] };
 
 /** Situação de um item da RO-CB.BR.01 calculada do inventário: só três, e nenhuma afirma que o item é cumprido. */
+/** Item técnico sem site que conte (nenhuma base aprovada ainda): o inventário não define a organização. */
+export const AGUARDANDO_BASE = ['neutral', 'Aguardando base aprovada'];
 export const SITUACAO = {
     nao_atende: ['danger', 'Não atende'],
     evidencia_no_inventario: ['info', 'Evidência no inventário'],

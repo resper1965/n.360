@@ -44,6 +44,14 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('tela Assessment', () => {
+    it('item técnico sem site com base aprovada diz "Aguardando base aprovada", não "Não avaliado"', async () => {
+        const tec = { codigo: '4.1.1', titulo: 'Zonas', categoria: 'Rede', prazo: null, tipo: 'tecnico', situacao_org: 'nao_avaliado',
+            por_site: [{ site_id: 's1', site_nome: 'SE Norte', fase: 'em_levantamento', situacao: 'nao_atende', evidencia: 'sem zonas' }] };
+        await abrir('consultor', { [`GET ${B}`]: { resumo: {}, itens: [tec] } });
+        const linha = [...el('c').querySelectorAll('tr')].find((tr) => tr.textContent.includes('4.1.1'));
+        expect(linha.textContent).toContain('Aguardando base aprovada');
+        expect(linha.textContent).not.toContain('Não avaliado');
+    });
     it('agrupa por categoria, mostra selos, prazo em dd/mm/aaaa e escapa o que vem da API', async () => {
         await abrir();
         const t = el('c').textContent;

@@ -36,6 +36,20 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('Relatórios: relatório de conformidade e indicadores clicáveis', () => {
+    it('impressão força texto escuro em fundo branco; técnico sem base aprovada diz "Aguardando base aprovada"', async () => {
+        const tec = { codigo: '4.1.2', titulo: 'Internet', categoria: 'Rede', prazo: null, tipo: 'tecnico', situacao: 'nao_avaliado',
+            por_site: [{ site_nome: 'SE Norte', situacao: 'sem_evidencia', evidencia: 'nada' }] };
+        servir({ [`GET ${B}/indicadores`]: IND, [`GET ${B}/conformidade`]: { resumo: {}, itens: [] }, [`GET ${B}/sites`]: SITES, [`GET ${B}/relatorio/conformidade`]: { ...REL, itens: [tec] } });
+        await montarSaidas(el('c'), el('a'), S.activeProject);
+        await window.otRelatorioConformidade();
+        await pausa();
+        const linha = [...el('c').querySelectorAll('tr')].find((tr) => tr.textContent.includes('4.1.2'));
+        expect(linha.textContent).toContain('Aguardando base aprovada');
+        expect(linha.textContent).not.toContain('Não avaliado');
+        const css = el('c').querySelector('style').textContent;
+        expect(css).toMatch(/#ot-relatorio \*[^}]*color: black/);
+        expect(css).toMatch(/#ot-relatorio \*[^}]*background: white/);
+    });
     it('o botão abre o relatório com projeto, data, sites e itens; Imprimir chama window.print', async () => {
         await montarSaidas(el('c'), el('a'), S.activeProject);
         expect(document.querySelectorAll('.btn-primary')).toHaveLength(1);
