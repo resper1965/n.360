@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, closeModal, showToast, confirmar, falhaDeCarga, renderEmptyState, formatarData } from '../ui.js';
-import { mensagemDeErro, podeEditarOt, ehGestor, lista, opcoes, SITUACAO, AVALIACAO } from '../ot-comum.js';
+import { mensagemDeErro, podeEditarOt, ehGestor, lista, opcoes, SITUACAO, AVALIACAO, AGUARDANDO_BASE } from '../ot-comum.js';
 import { moduloPara, enderecoDoProduto } from '../produto.js';
 
 // n.ot, tela Assessment (RO-CB.BR.01) sobre /ot/assessment (src/routes/ot.ts). Item técnico: só leitura, calculado do inventário.
@@ -19,7 +19,7 @@ let raiz = null; // o contêiner que montarAssessment recebeu
 
 const selo = (par) => renderStatusBadge(par[0], par[1]);
 const situacaoDe = (i) => (i.tipo === 'politica' ? (i.avaliacao ? AVALIACAO[i.avaliacao.situacao] : null)
-    : i.tipo === 'tecnico' ? SITUACAO[i.situacao_org] : null) || NAO_AVALIADO;
+    : i.tipo === 'tecnico' ? SITUACAO[i.situacao_org] || AGUARDANDO_BASE : null) || NAO_AVALIADO;
 // Espera por mim: o Gestor confirma o que foi avaliado; quem edita preenche o que está em branco.
 const esperaPorMim = (i) => i.tipo === 'politica' && (ehGestor() ? i.avaliacao && !i.avaliacao.confirmado : !i.avaliacao);
 const achar = (codigo) => dados.itens.find((i) => i.codigo === codigo);

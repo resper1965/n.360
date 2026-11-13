@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, formatarData, falhaDeCarga } from '../ui.js';
-import { SITUACAO, AVALIACAO, FASE, dataDoSqlite } from '../ot-comum.js';
+import { SITUACAO, AVALIACAO, AGUARDANDO_BASE, FASE, dataDoSqlite } from '../ot-comum.js';
 
 // n.ot, relatório de conformidade da RO-CB.BR.01 (spec fluidez §5) sobre GET /ot/relatorio/conformidade. Página para imprimir ou salvar
 // em PDF: o @media print esconde o resto da aplicação. O servidor já mascarou IP e MAC; aqui só se desenha e escapa.
@@ -10,7 +10,9 @@ const selo = (s) => renderStatusBadge(...(ROTULO[s] || ROTULO.nao_avaliado));
 const dia = (v) => escapeHTML(formatarData(v));
 const instante = (v) => escapeHTML(formatarData(dataDoSqlite(v), { hora: true }));
 const IMPRESSAO = `<style>@media print { body * { visibility: hidden; } #ot-relatorio, #ot-relatorio * { visibility: visible; }
-    #ot-relatorio { position: absolute; left: 0; top: 0; width: 100%; } .ot-rel-acoes { display: none !important; } }</style>`;
+    #ot-relatorio { position: absolute; left: 0; top: 0; width: 100%; } .ot-rel-acoes { display: none !important; }
+    /* o navegador não imprime fundo: no tema escuro o texto claro sumiria no papel */
+    #ot-relatorio, #ot-relatorio * { color: black !important; background: white !important; border-color: gray !important; } }</style>`;
 
 function detalhe(i) {
     if (i.tipo === 'tecnico') return (i.por_site || []).map((s) => `${escapeHTML(s.site_nome)}: ${selo(s.situacao)} ${escapeHTML(s.evidencia || '')}`).join('<br>') || '—';
@@ -19,7 +21,7 @@ function detalhe(i) {
 function linha(i) {
     const evs = (i.evidencias || []).map((e) => `${escapeHTML(e.file_name)}${e.valido_ate ? ` (válida até ${dia(e.valido_ate)})` : ''}${e.vencida ? ' — vencida' : ''}`).join('<br>');
     const conf = i.confirmado_em ? `${escapeHTML(i.confirmado_por_nome || '—')} em ${instante(i.confirmado_em)}` : '—';
-    return [escapeHTML(i.codigo), escapeHTML(i.titulo), selo(i.situacao), i.prazo ? dia(i.prazo) : 'Sem prazo', detalhe(i), evs || '—',
+    return [escapeHTML(i.codigo), escapeHTML(i.titulo), (i.tipo === 'tecnico' && i.situacao === 'nao_avaliado' ? renderStatusBadge(...AGUARDANDO_BASE) : selo(i.situacao)), i.prazo ? dia(i.prazo) : 'Sem prazo', detalhe(i), evs || '—',
         escapeHTML(i.responsavel_nome || '—'), conf, i.proxima_revisao ? dia(i.proxima_revisao) : '—'];
 }
 
