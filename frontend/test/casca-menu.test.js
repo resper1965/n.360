@@ -58,9 +58,9 @@ const ESTRUTURA_ISO = [
     '[Comercial] true',
     'group-sales (aberto): nav-comercial=Comercial, nav-leads=Leads, nav-assessments=Levantamentos, nav-proposals=Propostas, nav-catalogo=Catálogo, nav-config=Configuração comercial',
     '[Implementação] false',
-    'group-impl: nav-project=Jornada, nav-certification=Prontidão, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Governança',
+    'group-impl: nav-project=Jornada, nav-certification=Prontidão, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Papéis e comitê',
     '[Operacional] false',
-    'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-areas=Áreas, nav-documentos=Políticas e normas, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
+    'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Pessoas e parceiros, nav-areas=Áreas, nav-documentos=Políticas e normas, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
     '[Privacidade] false',
     'group-privacy: nav-ropa=Tratamentos (RoPA), nav-dpia=RIPD',
     '[Inteligência] false',
@@ -164,7 +164,7 @@ describe('n.privacy: menu em seções fixas (legado de 19/10/2026, revisto em 11
             'nav-encarregado': 'Painel', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
             'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'RIPD', 'nav-lia': 'LIA',
             'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários', 'nav-documentos-arquivo': 'Arquivos', 'nav-titular': 'Solicitações',
-            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
+            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas e normas',
             'nav-evidence': 'Evidências', 'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-importacao': 'Importar programa', 'nav-ai': 'Assistente',
         });
         for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {
@@ -190,8 +190,18 @@ describe('n.privacy: menu em seções fixas (legado de 19/10/2026, revisto em 11
             montarApp();
             aplicarCasca(produto);
             expect([texto('nav-governance'), texto('nav-partes'), texto('nav-ropa'), texto('nav-dpia'), texto('nav-requisitos'), texto('nav-meus')], produto)
-                .toEqual(['Governança', 'Partes', 'Tratamentos (RoPA)', 'RIPD', 'Requisitos', 'Minhas aprovações']);
+                .toEqual(['Papéis e comitê', 'Pessoas e parceiros', 'Tratamentos (RoPA)', 'RIPD', 'Requisitos', 'Minhas aprovações']);
         }
+    });
+    it('n.privacy: políticas com o mesmo nome do n.iso, e Pessoas separado de Parceiros', () => {
+        montarApp();
+        aplicarCasca('privacy');
+        const rotulo = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
+        expect(rotulo('nav-documentos')).toBe('Políticas e normas');
+        expect(rotulo('nav-governance')).toBe('Papéis e comitê');
+        expect(rotulo('nav-partes')).toBe('Pessoas');
+        expect(rotulo('nav-terceiros')).toBe('Fornecedores');
+        expect(rotulo('nav-sistemas')).toBe('Ativos');
     });
     it('rótulo de item numa linha só: o CSS não deixa o texto quebrar', () => {
         expect(css).toMatch(/\.sidebar-nav-text\s*\{[^}]*white-space:\s*nowrap/);
@@ -241,7 +251,7 @@ describe('barra lateral acessível nos três produtos', () => {
         montarApp();
         expect(el('sidebar-dica').getAttribute('aria-hidden')).toBe('true');
     });
-    it('Partes e Governança com ícones diferentes', () => {
+    it('Pessoas e parceiros e Papéis e comitê com ícones diferentes', () => {
         montarApp();
         const desenho = (id) => el(id).querySelector('svg').innerHTML;
         expect(desenho('nav-governance')).not.toBe(desenho('nav-partes'));

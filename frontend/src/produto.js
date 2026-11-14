@@ -232,8 +232,7 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 // o n.iso e o n.360 ficam com os deles; os ids nav-* e as rotas não mudam.
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Painel', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
-    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
-    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos', 'nav-documentos-arquivo': 'Arquivos', 'nav-documentos': 'Políticas',
+    'nav-titular': 'Solicitações', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
 };
 
 /**
