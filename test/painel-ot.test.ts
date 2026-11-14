@@ -68,6 +68,17 @@ describe('blocoOt', () => {
     expect(await textos(consultoriaAdmin)).toEqual(['2 sondas paradas']);
   });
 
+  it('desvio aberto em site com obra ativa (obra_ate) não entra no item, como na tela; o número do topo segue contando', async () => {
+    // s3 (em_obra) e s2 (base_em_aprovacao com obra_ate) em obra; s1 em operação
+    await env.DB.batch([env.DB.prepare(`UPDATE ot_sites SET obra_ate = '2026-12-30' WHERE id = 's2'`),
+      env.DB.prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, primeira_vez, ultima_vez, situacao) VALUES ('d6', 'proj-a', 's3', 'fluxo', 'k6', '{}', '2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z', 'aberto')`)]);
+    try {
+      const b = await blocoOt(env.DB, 'proj-a', gestor, DIA, AGORA);
+      expect(b.itens.map((i) => i.texto)).toContain('1 desvio aberto'); // d1 (s1); d2 está em s2, em obra
+      expect(b.numeros[1]).toEqual(['3', 'desvios abertos']);
+    } finally { await env.DB.batch([env.DB.prepare(`UPDATE ot_sites SET obra_ate = NULL WHERE id = 's2'`), env.DB.prepare(`DELETE FROM ot_desvios WHERE id = 'd6'`)]); }
+  });
+
   it('o aprovador não vê o lote que ele mesmo criou', async () => {
     await env.DB.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, status, criado_por) VALUES ('l2', 'proj-a', 's2', 'manual', 'em_revisao', 'u-g')`).run();
     try {

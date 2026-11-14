@@ -28,6 +28,8 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
       WHERE project_id = ?1 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?2)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
     db.prepare(`SELECT
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aberto') AS desvios,
+        (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aberto'
+          AND site_id NOT IN (SELECT id FROM ot_sites WHERE project_id = ?1 AND obra_ate IS NOT NULL)) AS desvios_fora_de_obra,
         (SELECT count(*) FROM ot_lotes WHERE project_id = ?1 AND ${NO_SITE} AND status = 'em_revisao' AND criado_por IS NOT ?5) AS lotes,
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aceito' AND substr(aceito_ate, 1, 10) <= ?3) AS aceites,
         (SELECT count(*) FROM ot_avaliacoes WHERE project_id = ?1 AND proxima_revisao IS NOT NULL AND proxima_revisao < ?4) AS revisoes`)
@@ -39,7 +41,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
       .bind(projectId, agora.toISOString()),
   ]);
   const lista = sts.results as { id: string; nome: string; fase: string; obra_ate: string | null }[];
-  const c = cont.results[0] as { desvios: number; lotes: number; aceites: number; revisoes: number };
+  const c = cont.results[0] as { desvios: number; desvios_fora_de_obra: number; lotes: number; aceites: number; revisoes: number };
   const cs = creds.results as (Cred & { sensor_id: string })[];
   const paradas = (sondas.results as { id: string; site_id: string; created_at: string; ultimo_envio: string | null }[])
     .filter((s) => situacaoSensor(s.ultimo_envio ?? s.created_at, cs.filter((k) => k.sensor_id === s.id), agora) === 'parada');
@@ -52,7 +54,8 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const itens: ItemFazer[] = [
     ...(edita ? item('atraso', paradas.length, 'sonda parada', 'sondas paradas', exemplos([...new Set(paradas.map((s) => nome(s.site_id)))]), 'Ver as sondas', 'acessos') : []),
     ...(gestor ? item('atraso', c.revisoes, 'requisito com revisão vencida', 'requisitos com revisão vencida', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment') : []),
-    ...(aprova ? item('semana', c.desvios, 'desvio aberto', 'desvios abertos', 'O sensor viu o que não está na base aprovada', 'Ver os desvios', 'sites') : []),
+    // a tela tira os desvios de site com obra ativa (situacao.obra = obra_ate preenchida); o número do topo segue contando todos
+    ...(aprova ? item('semana', c.desvios_fora_de_obra, 'desvio aberto', 'desvios abertos', 'O sensor viu o que não está na base aprovada', 'Ver os desvios', 'sites') : []),
     ...(aprova ? item('semana', c.lotes, 'lote aguardando revisão', 'lotes aguardando revisão', 'Coleta enviada, esperando quem aprova', 'Revisar os lotes', 'sites') : []),
     ...(gestor ? item('semana', emAprovacao.length, 'base aguardando aprovação', 'bases aguardando aprovação', exemplos(emAprovacao.map((s) => s.nome)), 'Abrir os sites', 'sites') : []),
     ...(gestor ? item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', 'sites') : []),
