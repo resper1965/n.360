@@ -5,6 +5,7 @@ import { resposta } from './servir-api.js';
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
 import { S } from '../src/state.js';
+import { emDiasSP } from '../src/hoje.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
 import { desenhar } from './ot-abrir.js';
@@ -94,8 +95,7 @@ describe('aba Desvios', () => {
         await abrir('desvios', { [`POST ${B}/desvios/d1/aceitar`]: { ok: true } });
         window.otAceitarDesvio('d1');
         expect(el('modal-content').textContent).toContain('Não substitui a exceção formal 5.1.1');
-        const max = new Date(Date.now() + 90 * 86400000);
-        expect(el('des-ate').max).toBe(new Date(max.getTime() - max.getTimezoneOffset() * 60000).toISOString().slice(0, 10));
+        expect(el('des-ate').max).toBe(emDiasSP(90));
         await window.otSalvarAceite('d1');
         el('des-just').value = 'Janela de manutenção';
         await window.otSalvarAceite('d1');

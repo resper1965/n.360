@@ -201,7 +201,7 @@ describe('início do n.360', () => {
         expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toEqual(['Abrir o n.iso', 'Abrir o n.privacy']);
         // Cada linha diz o que o módulo é: a escolha entre os dois não depende de conhecer o nome.
         expect([...el('c').querySelectorAll('.pn-m .pn-m-desc')].map((p) => p.textContent))
-            .toEqual(['ISO 27001 e 27701: controles, riscos e auditoria', 'LGPD: tratamentos, titulares, incidentes e terceiros']);
+            .toEqual(['ISO 27001 e 27701: controles, riscos e auditoria', 'LGPD: tratamentos, titulares, incidentes e fornecedores']);
         expect(el('c').textContent).toContain('O que fazer agora, nos dois módulos');
         const nomes = [...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'));
         expect(new Set(nomes).size).toBe(nomes.length);
@@ -286,6 +286,15 @@ describe('início do n.360', () => {
         window.painelVista('carteira');
         await abrir('n360');
         expect(el('c').querySelector('.pn-carteira')).not.toBeNull();
+    });
+
+    it('"Abrir" com módulo que a pessoa não tem (ot) cai no primeiro módulo visível do projeto', () => {
+        S.user = { id: 'u3', role: 'consultor', modulos: ['iso', 'privacy'] };
+        S.projects = [{ id: 'p7', client_name: 'Com OT', modulos: ['ot', 'iso', 'privacy'] }];
+        window.painelAbrirProjeto('p7', 'ot');
+        expect(S.activeProject.id).toBe('p7');
+        expect(irPara).toHaveBeenLastCalledWith('/iso');
+        expect(irPara).not.toHaveBeenCalledWith('/ot');
     });
 
     it('cliente com um projeto: sem alternância e sem carteira', async () => {
