@@ -95,7 +95,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo (de novo se errado, sem
   perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) abre o n.ot na aba Saidas
   (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
-  o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
+  o painel e a carteira trazem o n.ot so a quem tem o modulo e nao e papel de cliente na carteira (`src/services/painel-ot.ts`: contagem e nome de site, nunca IP, MAC nem nome de ativo; chave de API e agente nunca recebem). Avisos de prazo do n.ot: fontes `ot_aceite` e `ot_obra` (so o Gestor ARCiber, D-7 e D0) e `ot_revisao`, todas com o modulo no projeto (`src/services/avisos-prazo.ts`); a exportacao de portabilidade omite as linhas `ot_*` de `avisos_prazo`.
   Coleta (N3, migration 0092): `POST …/ot/lotes/manual` (JSON; a planilha entra pelo de-para do levantamento, o multipart `POST …/ot/lotes` saiu na E3) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
   no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
   aprovar/rejeitar e de quem `podeVerCompleto` e nunca de quem criou o lote; a aprovacao grava `verificado_por` e
