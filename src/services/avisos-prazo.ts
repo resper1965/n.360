@@ -116,7 +116,7 @@ const FONTES: Record<Fonte, string> = {
       LEFT JOIN partes pa ON pa.id = d.dono_parte_id AND pa.project_id = d.project_id
     WHERE e.status = 'ativa'`,
   avaliacao_terceiro: `SELECT a.id AS item_id, a.project_id, date(substr(a.valido_ate, 1, 10)) AS vence_em,
-      'Avaliação do terceiro ' || pa.nome || CASE WHEN COALESCE(n.q, 0) > 0 THEN ' (' || n.q || CASE WHEN n.q = 1 THEN ' tratamento' ELSE ' tratamentos' END || ')' ELSE '' END AS titulo,
+      'Avaliação do fornecedor ' || pa.nome || CASE WHEN COALESCE(n.q, 0) > 0 THEN ' (' || n.q || CASE WHEN n.q = 1 THEN ' tratamento' ELSE ' tratamentos' END || ')' ELSE '' END AS titulo,
       NULL AS responsavel
     FROM avaliacoes_terceiro a JOIN partes pa ON pa.id = a.parte_id JOIN projects p ON p.id = a.project_id
       LEFT JOIN (SELECT parte_id, count(DISTINCT alvo_id) AS q FROM parte_vinculos WHERE alvo_tipo = 'tratamento' GROUP BY parte_id) n ON n.parte_id = pa.id
@@ -225,7 +225,7 @@ export type ResultadoAvisos = { avisos_criados: number; emails_enviados: number;
 
 const ROTULO: Record<Fonte, string> = {
   capa: 'CAPA', checklist: 'Passo da trilha', auditoria: 'Auditoria', certificado: 'Certificado',
-  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência', documento_arquivo: 'Documento', encaminhamento_titular: 'Encaminhamento',
+  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de fornecedor', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência', documento_arquivo: 'Documento', encaminhamento_titular: 'Encaminhamento',
 };
 
 /** Tela de cada fonte no clique do sino (frontend/src/globals.js, handleNotificationClick). */

@@ -94,7 +94,7 @@ function saude(s, geradoEm) {
         <p class="pn-frase">${e(sd.frase)}</p><p class="pn-apoio">${e(sd.apoio)}</p>
         <details class="pn-regra"><summary>Calculado às ${e(hora(geradoEm))} a partir do cadastro do projeto. Como esta frase é montada</summary>
             <p>A frase sai da mesma lista de "O que fazer". <b>Atrasado</b>: algum prazo vencido (pedido do titular, comunicação de incidente,
-            ação corretiva, avaliação de terceiro); a frase nomeia o mais grave. <b>Atenção</b>: nada vencido, mas algo vence em até 7 dias ou há
+            ação corretiva, avaliação de fornecedor); a frase nomeia o mais grave. <b>Atenção</b>: nada vencido, mas algo vence em até 7 dias ou há
             pendência exigida. <b>Em dia</b>: nenhuma das duas; a frase diz o próximo prazo. <b>Começando</b>: o projeto ainda não tem o cadastro
             mínimo, e projeto vazio nunca é dado como em dia. <b>Sua vez</b>: há pedido de aprovação ou ciência para você.</p></details></section>`;
 }

@@ -537,7 +537,7 @@ window.revisarHomologacao = async function (projectId, parteId, id) {
         <p>${window.renderStatusBadge(rotulo, tom)} ${escapeHTML(`${h.percentual}% respondido (${h.respondidas} de ${h.total})`)}${h.enviada_em ? ` · enviado em ${dataBr(h.enviada_em)}` : ''}</p>
         <table class="data-table" id="tc-hm-respostas"><thead><tr><th>Tema</th><th>Pergunta</th><th>Resposta</th><th>Justificativa</th></tr></thead><tbody>${linhas}</tbody></table>
         ${h.status === 'respondida' ? `<h4 style="margin:1.25rem 0 0.5rem">Concluir</h4>
-            <p style="color:var(--text-dim)">Concluir grava a avaliação do terceiro (método questionário) com o resultado e a validade abaixo.</p>
+            <p style="color:var(--text-dim)">Concluir grava a avaliação do fornecedor (método questionário) com o resultado e a validade abaixo.</p>
             <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-res">Resultado</label><select class="form-input" id="tc-hm-res">${Object.entries(RESULTADOS).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-val">Vale até</label><input class="form-input" id="tc-hm-val" type="date"></div>

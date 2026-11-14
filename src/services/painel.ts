@@ -156,7 +156,7 @@ const SQL_UNIAO_DOCUMENTOS_ARQUIVO = `SELECT 'Documentos (revisão)' AS tipo, no
 
 // ─── n.privacy ──────────────────────────────────────────────────────────────────────────────────────────
 
-const TIPOS_PRIVACY = ['Pedidos do titular', 'Comunicações de incidente', 'Terceiros', 'Evidências', 'Documentos (revisão)', 'Ações das atividades'];
+const TIPOS_PRIVACY = ['Pedidos do titular', 'Comunicações de incidente', 'Fornecedores', 'Evidências', 'Documentos (revisão)', 'Ações das atividades'];
 const UNIAO_PRIVACY = [
   `SELECT 'Pedidos do titular' AS tipo, protocolo AS rotulo, substr(prazo_em, 1, 10) AS data FROM titular_pedidos
     WHERE project_id = ?1 AND status IN ('recebido', 'em_andamento') AND prazo_em IS NOT NULL`,
@@ -165,7 +165,7 @@ const UNIAO_PRIVACY = [
   `SELECT 'Comunicações de incidente', protocolo || ' (titulares)', substr(prazo_titular_em, 1, 10) FROM incidentes
     WHERE project_id = ?1 AND status <> 'encerrado' AND COALESCE(risco_titular, '') <> 'sem_risco' AND comunicacao_titular_em IS NULL AND prazo_titular_em IS NOT NULL`,
   // A avaliação que vale é a mais recente (a mesma regra de `situacaoDe`): reprovada não tem validade.
-  `SELECT 'Terceiros', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
+  `SELECT 'Fornecedores', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
       WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) AS data
     FROM partes p WHERE p.project_id = ?1 AND ${SQL_EH_FORNECEDOR}`,
   SQL_UNIAO_EVIDENCIAS,
@@ -235,7 +235,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     tema('LIA exigidas', { feito: exigidas.filter((l) => l.lia === 'concluida').length, andamento: exigidas.filter((l) => l.lia === 'rascunho').length, falta: exigidas.filter((l) => !l.lia).length },
       'concluídas / em rascunho / não iniciadas'),
     tema('Ciclo de vida documentado', um(ciclo), 'as seis etapas registradas / parte das etapas / nenhuma etapa'),
-    tema('Terceiros', { feito: Math.max(0, te.total - te.sem_tipo - te.pendentes - te.vencidos - te.reprovados), andamento: te.sem_tipo + te.pendentes, falta: te.vencidos + te.reprovados },
+    tema('Fornecedores', { feito: Math.max(0, te.total - te.sem_tipo - te.pendentes - te.vencidos - te.reprovados), andamento: te.sem_tipo + te.pendentes, falta: te.vencidos + te.reprovados },
       'avaliação vigente / sem tipo ou nunca avaliados / vencidos ou reprovados'),
     tema('Pedidos do titular (90 dias)', um(pedidos90), 'respondidos ou encerrados / em andamento no prazo / atrasados'),
     tema('Incidentes (12 meses)', um(incidentes12), 'encerrados / abertos com comunicação em dia / comunicação atrasada'),
@@ -270,14 +270,14 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     numeros: [
       [`${contaAtiv.feito} de ${totalAtiv}`, 'atividades aprovadas'],
       [String(visao.pedidos_titular.atrasados), 'pedidos atrasados'],
-      lg.carregada ? [`${lg.cobertos ?? 0} de ${lg.total ?? 0}`, 'artigos da LGPD cobertos'] : [String(te.vencidos), 'terceiros vencidos'],
+      lg.carregada ? [`${lg.cobertos ?? 0} de ${lg.total ?? 0}`, 'artigos da LGPD cobertos'] : [String(te.vencidos), 'fornecedores vencidos'],
       [pct(an.gaps_ok ?? 0, an.gaps ?? 0), 'de gaps concluídos'],
       [pct(an.riscos_ok ?? 0, an.riscos ?? 0), 'de riscos concluídos'],
     ] as [string, string][],
     passos: [
       { texto: 'Indicar o encarregado', contexto: 'A LGPD exige a indicação (art. 41)', feito: encarregados.length > 0, acao: 'Indicar', tela: 'encarregado' },
       { texto: 'Trazer as atividades de tratamento', contexto: 'Importe o programa que já existe ou cadastre a primeira', feito: !comecando, acao: 'Abrir os tratamentos', tela: 'ropa' },
-      { texto: 'Cadastrar os terceiros', contexto: 'Fornecedores que recebem dados pessoais', feito: te.total > 0, acao: 'Cadastrar terceiros', tela: 'terceiros' },
+      { texto: 'Cadastrar os fornecedores', contexto: 'Fornecedores que recebem dados pessoais', feito: te.total > 0, acao: 'Cadastrar fornecedores', tela: 'terceiros' },
     ] as Passo[],
     // Os números dos selos do menu (`selos-menu.js`): a mesma visão, sem segunda chamada.
     selos: { pedidos_titular: visao.pedidos_titular, terceiros: visao.terceiros, incidentes: visao.incidentes },
@@ -519,7 +519,7 @@ export function situacaoNaCarteira(x: {
   const outros = x.acoes_vencidas + (priv ? x.terceiros_vencidos : 0);
   if (outros > 0) {
     return { tom: 'atraso', situacao: plural(outros, 'prazo vencido', 'prazos vencidos'), modulo: x.acoes_vencidas || !priv ? primeiro : 'privacy',
-      urgente: [x.acoes_vencidas ? plural(x.acoes_vencidas, 'ação vencida', 'ações vencidas') : '', priv && x.terceiros_vencidos ? plural(x.terceiros_vencidos, 'terceiro vencido', 'terceiros vencidos') : '']
+      urgente: [x.acoes_vencidas ? plural(x.acoes_vencidas, 'ação vencida', 'ações vencidas') : '', priv && x.terceiros_vencidos ? plural(x.terceiros_vencidos, 'fornecedor vencido', 'fornecedores vencidos') : '']
         .filter(Boolean).join(' e ') };
   }
   if (x.tratamentos === 0 && x.controles === 0) return { tom: 'plano', situacao: 'Começando', urgente: 'Nada cadastrado ainda', modulo: primeiro };

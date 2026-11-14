@@ -28,7 +28,7 @@ describe('fonte avaliacao_terceiro', () => {
   it('vence em 7 dias, hoje ou já venceu entra com o marco certo; longe não', async () => {
     await db().batch([aval('t1', '2026-10-14'), aval('t2', '2026-10-07')]);
     expect(Object.fromEntries((await daFonte()).map((i) => [i.titulo, i.marco]))).toEqual({
-      'Avaliação do terceiro Nuvem Grande': 'D-7', 'Avaliação do terceiro Fornecedor Médio': 'D0',
+      'Avaliação do fornecedor Nuvem Grande': 'D-7', 'Avaliação do fornecedor Fornecedor Médio': 'D0',
     });
     await db().batch([aval('t2', '2026-10-01', 'aprovado', '2026-08-01 10:00:00')]); // anterior à vigente: não conta
     expect((await daFonte()).map((i) => i.marco).sort()).toEqual(['D-7', 'D0']);
@@ -48,7 +48,7 @@ describe('fonte avaliacao_terceiro', () => {
       db().prepare(`UPDATE partes SET terceiro_tipo = 'critico' WHERE id IN ('t1', 't2')`),
       comTipo('t1', 'medio'), comTipo('t2', 'critico'),
     ]);
-    expect((await daFonte()).map((i) => i.titulo)).toEqual(['Avaliação do terceiro Fornecedor Médio']);
+    expect((await daFonte()).map((i) => i.titulo)).toEqual(['Avaliação do fornecedor Fornecedor Médio']);
   });
 
   it('reprovada não gera aviso de vencimento; terceiro inativo também não', async () => {
@@ -63,8 +63,8 @@ describe('fonte avaliacao_terceiro', () => {
       db().prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('v1', 'p1', 't1', 'operador', 'tratamento', 'r1'), ('v2', 'p1', 't1', 'terceiro', 'tratamento', 'r2'), ('v3', 'p1', 't2', 'operador', 'tratamento', 'r1')`),
     ]);
     const t = Object.fromEntries((await daFonte()).map((i) => [i.item_id.split('-')[1], i.titulo]));
-    expect(t.t1).toBe('Avaliação do terceiro Nuvem Grande (2 tratamentos)');
-    expect(t.t2).toBe('Avaliação do terceiro Fornecedor Médio (1 tratamento)');
+    expect(t.t1).toBe('Avaliação do fornecedor Nuvem Grande (2 tratamentos)');
+    expect(t.t2).toBe('Avaliação do fornecedor Fornecedor Médio (1 tratamento)');
   });
 
   it('sem responsável (a parte não tem dono): o aviso vai aos consultores', async () => {
@@ -73,9 +73,9 @@ describe('fonte avaliacao_terceiro', () => {
   });
 
   it('o título do sino', () => {
-    const item = { fonte: 'avaliacao_terceiro' as const, titulo: 'Avaliação do terceiro Nuvem Grande' };
-    expect(tituloDoAviso({ ...item, marco: 'D-7' })).toBe('Avaliação do terceiro Nuvem Grande vence em 7 dias');
-    expect(tituloDoAviso({ ...item, marco: 'D0' })).toBe('Avaliação do terceiro Nuvem Grande vence hoje');
-    expect(tituloDoAviso({ ...item, marco: 'atraso-2026-W41' })).toBe('Avaliação do terceiro Nuvem Grande com prazo vencido');
+    const item = { fonte: 'avaliacao_terceiro' as const, titulo: 'Avaliação do fornecedor Nuvem Grande' };
+    expect(tituloDoAviso({ ...item, marco: 'D-7' })).toBe('Avaliação do fornecedor Nuvem Grande vence em 7 dias');
+    expect(tituloDoAviso({ ...item, marco: 'D0' })).toBe('Avaliação do fornecedor Nuvem Grande vence hoje');
+    expect(tituloDoAviso({ ...item, marco: 'atraso-2026-W41' })).toBe('Avaliação do fornecedor Nuvem Grande com prazo vencido');
   });
 });

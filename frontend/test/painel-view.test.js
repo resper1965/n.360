@@ -20,7 +20,7 @@ const ITENS = [
 ];
 const BLOCO = (extra = {}) => ({
     saude: { tom: 'atraso', rotulo: 'Atrasado' , frase: '2 pedidos do titular atrasados.', apoio: '' },
-    numeros: [['1 de 3', 'atividades aprovadas'], ['2', 'pedidos atrasados'], ['0', 'terceiros vencidos']],
+    numeros: [['1 de 3', 'atividades aprovadas'], ['2', 'pedidos atrasados'], ['0', 'fornecedores vencidos']],
     comecando: false, fazer: ITENS,
     cobertura: [{ tema: 'Atividades (RoPA)', feito: 1, andamento: 1, falta: 1, conta: 'aprovadas / ... / ...' }, { tema: 'LIA exigidas', feito: 0, andamento: 0, falta: 0, conta: 'x' }],
     vencimentos: [{ tipo: 'Pedidos do titular', vencidos: 2, itens: [{ dias: 3, rotulo: 'PT-3' }, { dias: 40, rotulo: 'PT-<i>4</i>' }] }],
