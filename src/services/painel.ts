@@ -617,7 +617,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
       modulos, pedidos_atrasados: c?.pedidos_atrasados ?? 0, comunicacoes_atrasadas: c?.comunicacoes_atrasadas ?? 0, acoes_vencidas: c?.acoes_vencidas ?? 0,
       terceiros_vencidos: tt.get(p.id)?.[0]?.n ?? 0, vence_7_dias: prox.filter((x) => x.data <= em7).length, tratamentos: c?.tratamentos ?? 0, controles: c?.controles ?? 0,
       proximo: prox[0] ? { data: prox[0].data, rotulo: prox[0].rotulo } : null,
-      // shortcut: a carteira conta o projeto inteiro, sem o corte por site do técnico; quando org_user tiver carteira de vários projetos, aplicar sitesPermitidos.
+      // shortcut: a carteira conta o projeto inteiro, sem o corte por site; por isso a rota tira o `ot` de quem tem papel de cliente (inclusive o técnico por site). Se a carteira passar a servir cliente, aplicar sitesPermitidos.
       ...(modulos.includes('ot') ? { sites: oo.get(p.id)?.[0]?.sites ?? 0, desvios_abertos: oo.get(p.id)?.[0]?.desvios_abertos ?? 0,
         lotes_revisao: oo.get(p.id)?.[0]?.lotes_revisao ?? 0, sondas_paradas: paradas(p.id) } : {}),
     });

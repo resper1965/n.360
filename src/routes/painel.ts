@@ -51,7 +51,8 @@ export const carteiraApp = new Hono<{ Bindings: Bindings; Variables: Variables }
 carteiraApp.get('/', async (c) => {
   try {
     const user = c.get('user');
-    const semOt = user?.agente === true || !!user?.id?.startsWith('apikey:');
+    // a tela só mostra a carteira à equipe; o cliente e o técnico por site não recebem o n.ot (a contagem é do projeto inteiro)
+    const semOt = user?.agente === true || !!user?.id?.startsWith('apikey:') || ehPapelCliente(user);
     const projetos = await carteira(c.env.DB, projetosVisiveis(user), (await modulosDaPessoa(c.env.DB, user)).filter((m) => !(semOt && m === 'ot')));
     return c.json({ gerado_em: new Date().toISOString(), projetos });
   } catch (e) {

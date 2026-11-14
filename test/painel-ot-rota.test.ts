@@ -9,13 +9,14 @@ import { situacaoNaCarteira } from '../src/services/painel';
 type H = Record<string, string>;
 const AGENTE = { userId: 'cons:cons-ag@ness.lat', email: 'cons-ag@ness.lat', projectId: 'proj-a', concessaoId: 'c-ag' };
 const chamar = (h: H, caminho: string, extra: Record<string, unknown> = {}) => app.fetch(new Request('http://localhost' + caminho, { headers: h }), { ...(workerEnv() as any), ...extra });
-let gestor: H, semOt: H, cons: H;
+let gestor: H, semOt: H, cons: H, tecnico: H;
 
 beforeAll(async () => {
   await applySchema(); await seedTwoProjects(); await habilitarOt('proj-a');
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES
-      ('u-g', 'g@cliente.teste', 'x', 'Gestor', 'org_admin', 'proj-a'), ('u-s', 's@cliente.teste', 'x', 'Sem OT', 'org_admin', 'proj-a')`),
+      ('u-g', 'g@cliente.teste', 'x', 'Gestor', 'org_admin', 'proj-a'), ('u-s', 's@cliente.teste', 'x', 'Sem OT', 'org_admin', 'proj-a'),
+      ('u-t', 't@cliente.teste', 'x', 'Tecnico', 'org_user', 'proj-a')`),
     env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase) VALUES ('s1', 'proj-a', 'SE Norte', 'em_operacao')`),
     env.DB.prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, primeira_vez, ultima_vez) VALUES
       ('d1', 'proj-a', 's1', 'fluxo', 'k1', '{}', '2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z')`),
@@ -26,11 +27,13 @@ beforeAll(async () => {
   await concederModulos(['u-g'], ['iso', 'ot']);
   await concederModulos([AGENTE.userId], ['iso', 'ot']);
   await concederModulos(['u-s'], ['iso']);
+  await concederModulos(['u-t'], ['iso', 'ot']);
   await designarConsultor('c@ness.lat', 'proj-a');
   const c = await env.DB.prepare(`SELECT id FROM users WHERE email = 'c@ness.lat'`).first<{ id: string }>();
   await concederModulos([c!.id], ['iso', 'ot']);
   gestor = await sessionFor({ id: 'u-g', email: 'g@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
   semOt = await sessionFor({ id: 'u-s', email: 's@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
+  tecnico = await sessionFor({ id: 'u-t', email: 't@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
   cons = await sessionFor({ id: c!.id, email: 'c@ness.lat', role: 'consultor' });
 });
 
@@ -83,9 +86,25 @@ describe('agente MCP no painel (P0-2)', () => {
     expect(d.modulos.ot).toBeUndefined();
     expect(JSON.stringify(d)).not.toContain('desvio');
   });
+
+  it('chave de API no painel geral, sem ?modulo, não traz modulos.ot', async () => {
+    const r = await chamar({ 'X-API-Key': 'chave-painel-ot' }, '/api/v1/projects/proj-a/painel');
+    expect(r.status).toBe(200);
+    const d = await r.json() as any;
+    expect(d.modulos.ot).toBeUndefined();
+    expect(JSON.stringify(d)).not.toContain('desvio');
+  });
 });
 
 describe('carteira com o n.ot', () => {
+  it('papel de cliente (técnico org_user) não recebe nada do n.ot na carteira; o consultor continua vendo', async () => {
+    const t = await (await chamar(tecnico, '/api/v1/carteira')).json() as any;
+    expect(JSON.stringify(t)).not.toContain('desvio');
+    expect(JSON.stringify(t)).not.toContain('"modulo_urgente":"ot"');
+    const c = await (await chamar(cons, '/api/v1/carteira')).json() as any;
+    expect(c.projetos.find((p: any) => p.id === 'proj-a').situacao).toBe('1 desvio aberto');
+  });
+
   it('função pura: desvio aberto e sonda parada pedem atenção e apontam para o n.ot', () => {
     const base = { modulos: ['ot'] as any, pedidos_atrasados: 0, comunicacoes_atrasadas: 0, acoes_vencidas: 0, terceiros_vencidos: 0, vence_7_dias: 0,
       tratamentos: 0, controles: 0, proximo: null };
