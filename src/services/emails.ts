@@ -131,7 +131,7 @@ export function emailCiencia(d: { titulo: string; nome: string | null; link: str
 
 const TIPO_PEDIDO: Record<string, string> = {
   dpia: 'RIPD (DPIA)', politica: 'Política', documento: 'Documento', excecao: 'Exceção a documento',
-  tratamento: 'Tratamento (RoPA)', avaliacao_terceiro: 'Avaliação de terceiro',
+  tratamento: 'Tratamento (RoPA)', avaliacao_terceiro: 'Avaliação de fornecedor',
 };
 const PAPEL_PEDIDO: Record<string, string> = { ciso: 'Líder SGSI', ceo: 'Direção (CEO)' };
 
