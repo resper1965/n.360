@@ -154,13 +154,13 @@ const FONTES: Record<Fonte, string> = {
   // O título leva só o nome do site ou o código do requisito: nunca ativo, IP ou MAC.
   // aceito_ate é gravado como 'AAAA-MM-DDT23:59:59.999Z' e obra_ate como 'AAAA-MM-DD': o dia vale como está.
   ot_aceite: `SELECT d.id AS item_id, d.project_id, date(substr(d.aceito_ate, 1, 10)) AS vence_em, 'Aceite de desvio no site ' || s.nome AS titulo, NULL AS responsavel
-    FROM ot_desvios d JOIN ot_sites s ON s.id = d.site_id AND s.project_id = d.project_id JOIN projects p ON p.id = d.project_id
-    WHERE d.situacao = 'aceito' AND d.aceito_ate IS NOT NULL`,
+    FROM ot_desvios d JOIN ot_sites s ON s.id = d.site_id AND s.project_id = d.project_id JOIN projects p ON p.id = d.project_id JOIN projeto_modulos pm ON pm.project_id = p.id AND pm.modulo = 'ot'
+    WHERE d.situacao = 'aceito' AND d.aceito_ate IS NOT NULL AND s.status = 'ativo'`,
   ot_obra: `SELECT s.id AS item_id, s.project_id, date(substr(s.obra_ate, 1, 10)) AS vence_em, 'Obra do site ' || s.nome AS titulo, NULL AS responsavel
-    FROM ot_sites s JOIN projects p ON p.id = s.project_id
-    WHERE s.status = 'ativo' AND s.fase = 'em_obra' AND s.obra_ate IS NOT NULL`,
+    FROM ot_sites s JOIN projects p ON p.id = s.project_id JOIN projeto_modulos pm ON pm.project_id = p.id AND pm.modulo = 'ot'
+    WHERE s.status = 'ativo' AND s.fase IN ('em_obra', 'base_em_aprovacao') AND s.obra_ate IS NOT NULL`,
   ot_revisao: `SELECT a.id AS item_id, a.project_id, date(substr(a.proxima_revisao, 1, 10)) AS vence_em, 'Revisão do requisito ' || r.codigo AS titulo, NULL AS responsavel
-    FROM ot_avaliacoes a JOIN ot_requisitos r ON r.id = a.requisito_id JOIN projects p ON p.id = a.project_id
+    FROM ot_avaliacoes a JOIN ot_requisitos r ON r.id = a.requisito_id JOIN projects p ON p.id = a.project_id JOIN projeto_modulos pm ON pm.project_id = p.id AND pm.modulo = 'ot'
     WHERE a.proxima_revisao IS NOT NULL`,
 };
 

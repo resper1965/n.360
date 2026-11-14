@@ -52,6 +52,13 @@ describe('blocoOt', () => {
     expect(b.numeros).toEqual([['1 de 3', 'sites em operação'], ['2', 'desvios abertos']]);
   });
 
+  it('obra em base_em_aprovacao também conta como obra a vencer', async () => {
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'base_em_aprovacao' WHERE id = 's3'`).run();
+    const t = (await blocoOt(env.DB, 'proj-a', consultor, DIA, AGORA)).itens.map((i) => i.texto);
+    await env.DB.prepare(`UPDATE ot_sites SET fase = 'em_obra' WHERE id = 's3'`).run();
+    expect(t).toContain('1 obra vence em até 7 dias');
+  });
+
   it('Gestor ARCiber vê também o aceite a vencer', async () => {
     const b = await blocoOt(env.DB, 'proj-a', gestor, DIA, AGORA);
     expect(b.itens.map((i) => i.texto)).toContain('1 aceite de desvio vence em até 7 dias');

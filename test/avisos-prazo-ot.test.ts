@@ -37,6 +37,21 @@ describe('fontes do n.ot', () => {
     expect(ot).toHaveLength(3);
   });
 
+  it('obra em base_em_aprovacao gera o aviso; aceite em site removido não gera', async () => {
+    await db().batch([
+      db().prepare(`UPDATE ot_sites SET fase = 'base_em_aprovacao' WHERE id = 's2'`),
+      db().prepare(`UPDATE ot_sites SET status = 'removido' WHERE id = 's1'`),
+    ]);
+    const ot = (await itensDoDia(db(), HOJE)).itens.filter((i) => i.fonte.startsWith('ot_')).map((i) => [i.fonte, i.item_id, i.marco]);
+    expect(ot).toContainEqual(['ot_obra', 's2', 'D-7']);
+    expect(ot.some(([f]) => f === 'ot_aceite')).toBe(false);
+  });
+
+  it('projeto sem o módulo ot não gera item ot_*, mesmo com a pessoa tendo o módulo', async () => {
+    await db().prepare(`DELETE FROM projeto_modulos WHERE project_id = 'p1' AND modulo = 'ot'`).run();
+    expect((await itensDoDia(db(), HOJE)).itens.filter((i) => i.fonte.startsWith('ot_'))).toEqual([]);
+  });
+
   it('aceite e obra não têm marco de atraso', async () => {
     const { itens } = await itensDoDia(db(), '2026-11-25');
     expect(itens.filter((i) => i.fonte === 'ot_aceite' || i.fonte === 'ot_obra')).toEqual([]);

@@ -39,7 +39,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
     .filter((s) => situacaoSensor(s.ultimo_envio ?? s.created_at, cs.filter((k) => k.sensor_id === s.id), agora) === 'parada');
   const nome = (id: string) => lista.find((s) => s.id === id)?.nome ?? '';
   const emAprovacao = lista.filter((s) => s.fase === 'base_em_aprovacao');
-  const obras = lista.filter((s) => s.fase === 'em_obra' && s.obra_ate && s.obra_ate <= em7);
+  const obras = lista.filter((s) => (s.fase === 'em_obra' || s.fase === 'base_em_aprovacao') && s.obra_ate && s.obra_ate <= em7);
 
   const item = (grupo: ItemFazer['grupo'], q: number, um: string, varios: string, contexto: string, acao: string, aba: string): ItemFazer[] =>
     q > 0 ? [{ grupo, quando: grupo === 'atraso' ? 'Agora' : 'Nesta semana', texto: plural(q, um, varios), contexto, acao, tela: 'ot', aba, modulo: 'ot' }] : [];
