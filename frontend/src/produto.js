@@ -439,7 +439,7 @@ export function atualizarLinkCruzado(doc = document) {
 }
 
 /** O que cada módulo é, numa linha: no início do n.360, a escolha não depende de conhecer o nome. */
-export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e terceiros', ot: 'ARCiber: requisitos da RO-CB.BR.01 do ONS' };
+export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e fornecedores', ot: 'ARCiber: requisitos da RO-CB.BR.01 do ONS' };
 
 /** O item n.ot do menu: só com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
 export function atualizarItemOt(doc = document) {

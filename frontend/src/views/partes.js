@@ -86,7 +86,7 @@ window.openNovaParteModal = function (projectId, tipo = 'pessoa') {
     const privacy = produtoAtual() === 'privacy';
     const tipoEscolhido = TIPOS[tipo] ? tipo : 'pessoa';
     openModal(`
-        <div class="modal-header"><span class="modal-title">${tipoEscolhido === 'organizacao' ? 'Novo terceiro (organização)' : privacy ? 'Nova pessoa' : 'Nova parte'}</span></div>
+        <div class="modal-header"><span class="modal-title">${tipoEscolhido === 'organizacao' ? 'Novo fornecedor (organização)' : privacy ? 'Nova pessoa' : 'Nova parte'}</span></div>
         ${privacy ? `<input type="hidden" id="parte-tipo" value="${tipoEscolhido}">` : `<div class="form-group"><label class="form-label" for="parte-tipo">Tipo</label>
             <select class="form-input" id="parte-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === tipoEscolhido ? 'selected' : ''}>${r}</option>`).join('')}</select></div>`}
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-nome" maxlength="200"></div>
