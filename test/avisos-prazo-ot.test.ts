@@ -17,7 +17,8 @@ beforeEach(async () => {
   await db().prepare(`INSERT INTO ot_requisitos (id, framework, codigo, titulo, versao) VALUES ('rq1', 'F', '9.1', 't', 'v')`).run();
   await db().batch([
     db().prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES
-      ('u-g', 'g@cliente.teste', 'x', 'Gestor', 'org_admin', 'p1'), ('u-o', 'o@cliente.teste', 'x', 'Outro', 'org_admin', 'p1')`),
+      ('u-g', 'g@cliente.teste', 'x', 'Gestor', 'org_admin', 'p1'), ('u-o', 'o@cliente.teste', 'x', 'Outro', 'org_admin', 'p1'),
+      ('u-t', 't@cliente.teste', 'x', 'Técnico', 'org_user', 'p1'), ('u-n', 'n@cliente.teste', 'x', 'Sem módulo', 'org_user', 'p1')`),
     db().prepare(`INSERT INTO ot_sites (id, project_id, nome, fase, obra_ate) VALUES ('s1', 'p1', 'SE Norte', 'em_operacao', NULL), ('s2', 'p1', 'SE Sul', 'em_obra', '2026-11-21')`),
     db().prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, primeira_vez, ultima_vez, situacao, aceito_ate) VALUES
       ('d1', 'p1', 's1', 'fluxo', 'k1', '{}', '2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z', 'aceito', '2026-11-21T23:59:59.999Z'),
@@ -58,22 +59,24 @@ describe('fontes do n.ot', () => {
     expect(itens.find((i) => i.fonte === 'ot_revisao')?.marco).toMatch(/^atraso-/);
   });
 
-  it('aceite e obra vão só ao Gestor ARCiber com o módulo; a revisão, a quem tem o n.ot', async () => {
+  it('aceite e obra vão só ao Gestor ARCiber com o módulo; a revisão, a todos que têm o n.ot no projeto', async () => {
     const c = await db().prepare(`SELECT id FROM users WHERE email = 'c@ness.lat'`).first<{ id: string }>();
-    await concederModulos([c!.id], ['ot']);
+    await concederModulos([c!.id, 'u-t'], ['ot']);
     await avisosDePrazo(workerEnv(), HOJE);
     const g = await sinos('u-g');
-    expect(g.map((s) => s.type)).toEqual(['prazo_ot_aceite', 'prazo_ot_obra']);
+    expect(g.map((s) => s.type)).toEqual(['prazo_ot_aceite', 'prazo_ot_obra', 'prazo_ot_revisao']);
     expect(g.every((s) => s.link === '/projects/p1/ot')).toBe(true);
     expect(await sinos('u-o')).toEqual([]);
     expect((await sinos(c!.id)).map((s) => s.type)).toEqual(['prazo_ot_revisao']);
+    expect((await sinos('u-t')).map((s) => s.type)).toEqual(['prazo_ot_revisao']);
+    expect(await sinos('u-n')).toEqual([]);
   });
 
   it('idempotente, e o texto não leva endereço nem nome de ativo', async () => {
     await avisosDePrazo(workerEnv(), HOJE);
     await avisosDePrazo(workerEnv(), HOJE);
     const g = await sinos('u-g');
-    expect(g).toHaveLength(2);
+    expect(g).toHaveLength(3);
     const texto = JSON.stringify(g);
     expect(texto).not.toMatch(/\b\d{1,3}(\.\d{1,3}){3}\b/);
     expect(texto).toContain('SE Sul');

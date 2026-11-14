@@ -320,7 +320,9 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
       const comModulo: Pessoa[] = [];
       for (const p of pessoas) if (!recusaDaPessoa(faixa, await modulosDe(p))) comModulo.push(p);
       // Aceite e obra do n.ot: só o Gestor ARCiber (org_admin do projeto). `pessoasDoProjeto` já prende o cliente ao client_project_id.
-      const destinos = SO_GESTOR.has(item.fonte) ? comModulo.filter((p) => p.role === 'org_admin') : escolherDestinatarios(comModulo, item.responsavel);
+      // A revisão do assessment vai a todos que têm o n.ot e alcançam o projeto (spec da onda 0); o texto leva só o código do requisito.
+      const destinos = SO_GESTOR.has(item.fonte) ? comModulo.filter((p) => p.role === 'org_admin')
+        : item.fonte === 'ot_revisao' ? comModulo : escolherDestinatarios(comModulo, item.responsavel);
       if (!destinos.length) { r.sem_destinatario++; continue; }
       // Atraso na mesma semana do vencimento só sai se o D0 não saiu (a rotina não rodou no dia).
       const guardaD0 = atraso && semanaIso(item.vence_em) === semanaIso(hoje) ? 1 : 0;
