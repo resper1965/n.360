@@ -27,7 +27,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 // departamentos (Áreas, views/areas.js); as organizações ficam em Fornecedores. No n.iso, partes dos dois tipos; as áreas têm tela própria.
 async function renderPartes(c, h, a) {
     const privacy = produtoAtual() === 'privacy';
-    h.textContent = tituloDaTela('nav-partes', privacy ? 'Pessoas' : 'Partes');
+    h.textContent = tituloDaTela('nav-partes', privacy ? 'Pessoas' : 'Pessoas e parceiros');
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';

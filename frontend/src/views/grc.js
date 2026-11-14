@@ -505,7 +505,7 @@ window.__grcCloseExecAudit = function (id) {
         const highDilCount = vendors.filter(v => v.diligence_level === 'High' || v.diligence_level === 'Critical').length;
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total Fornecedores', value: totalVendors, color: 'var(--text)', subtext: 'Terceiros mapeados' },
+            { label: 'Total Fornecedores', value: totalVendors, color: 'var(--text)', subtext: 'Fornecedores mapeados' },
             // Sem fornecedor não há postura a medir: "—", nunca "0/100" em vermelho.
             { label: 'Índice de confiança médio', value: avaliados.length ? `${avgScore}/100` : '—', color: !avaliados.length ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
             { label: 'DPAs Assinados', value: dpaSignedCount, color: 'var(--text)', subtext: 'Proteção de dados' },

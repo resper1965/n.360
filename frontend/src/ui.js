@@ -268,7 +268,7 @@ export function renderPageHeader(title, subtitle = '', actionsHtml = '') {
 
 /**
  * O título da tela É o rótulo do item de menu que a abre (lido do próprio menu, que a casca do módulo já ajustou:
- * "Pessoas" no n.privacy, "Partes" no n.iso). Fora do shell (teste, menu ausente) vale o padrão.
+ * "Pessoas" no n.privacy, "Pessoas e parceiros" no n.iso). Fora do shell (teste, menu ausente) vale o padrão.
  */
 export function tituloDaTela(navId, padrao) {
     const t = typeof document !== 'undefined' && document.querySelector(`#${navId} .sidebar-nav-text`);

@@ -228,8 +228,7 @@ export function abrirGrupo(grupo, doc = document) {
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
 
-// Rótulos do n.privacy, uma linha cada (os do legado de 19/10/2026, revistos em 11/11/2026: Painel, RIPD, Arquivos e Políticas). Só aqui:
-// o n.iso e o n.360 ficam com os deles; os ids nav-* e as rotas não mudam.
+// Rótulos do n.privacy (revistos em 11/11/2026): o mapa guarda só o que difere por módulo; o n.iso mostra "Pessoas e parceiros".
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Painel', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
     'nav-titular': 'Solicitações', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',

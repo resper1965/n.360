@@ -226,8 +226,24 @@ describe('início do n.360', () => {
         expect(el('c').querySelectorAll('.pn-m .pn-m-desc')).toHaveLength(2);
     });
 
-    it('projeto com o n.ot: o painel o ignora (sem linha nem bloco) e não quebra', async () => {
+    it('projeto com o n.ot: a linha aparece só quando o servidor mandou o bloco', async () => {
         S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy', 'ot'] };
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy', 'ot'] }; S.projects = [S.activeProject];
+        const ot = { saude: { tom: 'semana', rotulo: 'Atenção', frase: '2 desvios abertos.', apoio: '' }, numeros: [['1 de 3', 'sites em operação'], ['2', 'desvios abertos']],
+            comecando: false, cobertura: [], vencimentos: [], riscos: [], passos: [],
+            fazer: [{ grupo: 'semana', quando: 'Nesta semana', texto: '2 desvios abertos', contexto: '', acao: 'Ver os desvios', tela: 'ot', aba: 'sites', modulo: 'ot' }] };
+        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO(), ot } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
+        await abrir('n360');
+        expect([...el('c').querySelectorAll('.pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy', 'n.ot']);
+        expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toContain('Abrir o n.ot');
+        window.painelAbrir('ot', 'sites', null);
+        expect(S.otTela).toBe('sites');
+        window.abrirModulo('ot');
+        expect(irPara).toHaveBeenCalledWith('/ot');
+    });
+
+    it('sem bloco do n.ot na resposta: nenhuma linha do n.ot, nem "não habilitado"', async () => {
+        S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy'] };
         S.activeProject = { id: 'p9', modulos: ['iso', 'privacy', 'ot'] }; S.projects = [S.activeProject];
         servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO() } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
         await abrir('n360');
