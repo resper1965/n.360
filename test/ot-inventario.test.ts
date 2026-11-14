@@ -362,6 +362,36 @@ describe('C1: exportação de portabilidade não leva o inventário OT (P0-2, P0
     await semOt(await chamar({ 'X-API-Key': CHAVE }, 'GET', '/api/v1/projects/proj-a/export'));
   });
 
+  it('avisos do n.ot (avisos_prazo com fonte ot_*) não saem na exportação: consultor, chave de API e agente', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO avisos_prazo (id, project_id, fonte, item_id, marco, user_id, vence_em, titulo) VALUES
+        ('av-ot', 'proj-a', 'ot_obra', 'sx', 'D-7', 'u-tec', '2026-12-01', 'Obra do site Subestacao Secreta'),
+        ('av-capa', 'proj-a', 'capa', 'cx', 'D-7', 'u-tec', '2026-12-01', 'Prazo de CAPA visivel')`),
+    ]);
+    const CHAVE = 'chave-ot-export-avisos';
+    await env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-exp-av', 'proj-a', ?, 'leitura', 'read', 'Active')`).bind(await sha256Hex(CHAVE)).run();
+    const AGENTE = { userId: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', projectId: 'proj-a', concessaoId: 'c-inv' };
+    const respostas = [
+      await chamar(cons, 'GET', '/api/v1/projects/proj-a/export'),
+      await chamar({ 'X-API-Key': CHAVE }, 'GET', '/api/v1/projects/proj-a/export'),
+      await chamar({}, 'GET', '/api/v1/projects/proj-a/export', undefined, { AGENTE }),
+    ];
+    try {
+      for (const r of respostas) {
+        const texto = await r.text();
+        if (r.status !== 200) { expect([401, 403], `status ${r.status}: ${texto.slice(0, 120)}`).toContain(r.status); continue; }
+        expect(texto).not.toContain('Subestacao Secreta');
+        expect(texto).not.toContain('"ot_obra"');
+        expect(texto).toContain('Prazo de CAPA visivel');
+      }
+      expect(respostas[0].status, 'o consultor tem de alcançar a rota').toBe(200);
+      expect(respostas[1].status, 'a chave de API tem de alcançar a rota').toBe(200);
+    } finally {
+      await env.DB.prepare(`DELETE FROM avisos_prazo WHERE id IN ('av-ot', 'av-capa')`).run();
+    }
+    console.log('status export (consultor, chave, agente):', respostas.map((r) => r.status).join(','));
+  });
+
   it('tabela ot_* futura com project_id também fica fora por padrão', async () => {
     const { tabelasExportaveis } = await import('../src/portabilidade');
     await env.DB.prepare('CREATE TABLE ot_tabela_futura (id TEXT PRIMARY KEY, project_id TEXT)').run();

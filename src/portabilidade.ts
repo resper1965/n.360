@@ -200,9 +200,11 @@ export async function exportarProjeto(env: Bindings, projectId: string, comRastr
     // Nome de tabela vem de `sqlite_master`, não do chamador; o `project_id` vai
     // por bind. Interpolar o nome é inevitável (SQLite não aceita bind de
     // identificador) e seguro por essa procedência.
-    const { results } = await env.DB.prepare(
+    const { results: todas } = await env.DB.prepare(
       `SELECT * FROM "${t}" WHERE project_id = ? ORDER BY rowid`
     ).bind(projectId).all();
+    // n.ot (P0-2): o título do aviso de prazo leva nome de site; `notifications` não tem project_id e nem entra aqui.
+    const results = t === 'avisos_prazo' ? todas?.filter((l) => !String(l.fonte).startsWith('ot_')) : todas;
     dados[t] = comRastro ? semSegredos(t, results ?? []) : semRastroDePessoa(semSegredos(t, results ?? []));
     contagem[t] = dados[t].length;
     total += dados[t].length;
