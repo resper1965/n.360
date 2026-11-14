@@ -582,12 +582,13 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
     ...(modulosDaPessoa.includes('ot') ? [
       b(`SELECT s.project_id,
            count(*) AS sites,
-           (SELECT count(*) FROM ot_desvios d WHERE d.project_id = s.project_id AND d.situacao = 'aberto') AS desvios_abertos,
-           (SELECT count(*) FROM ot_lotes l WHERE l.project_id = s.project_id AND l.status = 'em_revisao') AS lotes_revisao
+           sum((SELECT count(*) FROM ot_desvios d WHERE d.site_id = s.id AND d.situacao = 'aberto')) AS desvios_abertos,
+           sum((SELECT count(*) FROM ot_lotes l WHERE l.site_id = s.id AND l.status = 'em_revisao')) AS lotes_revisao
          FROM ot_sites s WHERE s.project_id ${escopo} AND s.status = 'ativo' GROUP BY s.project_id`),
       b(`SELECT s.id, s.project_id, s.created_at,
            (SELECT created_at FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1) AS ultimo_envio
-         FROM ot_sensores s WHERE s.project_id ${escopo} AND s.situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`),
+         FROM ot_sensores s WHERE s.project_id ${escopo} AND s.situacao = 'ativa'
+           AND s.site_id IN (SELECT id FROM ot_sites WHERE project_id = s.project_id AND status = 'ativo') LIMIT ${TETO_LEITURA_OT}`),
       b(`SELECT sensor_id, project_id, expira_em, situacao FROM ot_sensor_credenciais WHERE project_id ${escopo} AND situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`),
     ] : [b('SELECT 1 WHERE 0'), b('SELECT 1 WHERE 0'), b('SELECT 1 WHERE 0')]),
   ]);

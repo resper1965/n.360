@@ -7,7 +7,8 @@ import { situacaoNaCarteira } from '../src/services/painel';
 
 // n.ot no painel e na carteira (onda 0): rota contra o D1 real.
 type H = Record<string, string>;
-const chamar = (h: H, caminho: string) => app.fetch(new Request('http://localhost' + caminho, { headers: h }), workerEnv() as any);
+const AGENTE = { userId: 'cons:cons-ag@ness.lat', email: 'cons-ag@ness.lat', projectId: 'proj-a', concessaoId: 'c-ag' };
+const chamar = (h: H, caminho: string, extra: Record<string, unknown> = {}) => app.fetch(new Request('http://localhost' + caminho, { headers: h }), { ...(workerEnv() as any), ...extra });
 let gestor: H, semOt: H, cons: H;
 
 beforeAll(async () => {
@@ -20,7 +21,10 @@ beforeAll(async () => {
       ('d1', 'proj-a', 's1', 'fluxo', 'k1', '{}', '2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z')`),
   ]);
   await env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-p', 'proj-a', ?, 'painel', 'write', 'Active')`).bind(await sha256Hex('chave-painel-ot')).run();
+  await designarConsultor(AGENTE.email, 'proj-a');
+  await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-ag', ?, 'proj-a', datetime('now', '+30 days'))`).bind(AGENTE.userId).run();
   await concederModulos(['u-g'], ['iso', 'ot']);
+  await concederModulos([AGENTE.userId], ['iso', 'ot']);
   await concederModulos(['u-s'], ['iso']);
   await designarConsultor('c@ness.lat', 'proj-a');
   const c = await env.DB.prepare(`SELECT id FROM users WHERE email = 'c@ness.lat'`).first<{ id: string }>();
@@ -61,7 +65,23 @@ describe('painel com o n.ot', () => {
     // mesmo arranjo de test/ot-modulo.test.ts: chave real no cabeçalho X-API-Key (principal `apikey:<id>`)
     const r = await chamar({ 'X-API-Key': 'chave-painel-ot' }, '/api/v1/projects/proj-a/painel?modulo=ot');
     expect(r.status).toBe(403);
-    expect((await chamar({ 'X-API-Key': 'chave-painel-ot' }, '/api/v1/carteira')).status).not.toBe(500);
+    const cart = await chamar({ 'X-API-Key': 'chave-painel-ot' }, '/api/v1/carteira');
+    expect(cart.status).toBe(200);
+    const corpo = JSON.stringify(await cart.json());
+    expect(corpo).not.toContain('desvio');
+    expect(corpo).not.toContain('"modulo_urgente":"ot"');
+  });
+});
+
+describe('agente MCP no painel (P0-2)', () => {
+  it('?modulo=ot dá 403 e o painel geral não traz modulos.ot', async () => {
+    const r = await chamar({}, '/api/v1/projects/proj-a/painel?modulo=ot', { AGENTE });
+    expect(r.status).toBe(403);
+    const g = await chamar({}, '/api/v1/projects/proj-a/painel', { AGENTE });
+    expect(g.status).toBe(200);
+    const d = await g.json() as any;
+    expect(d.modulos.ot).toBeUndefined();
+    expect(JSON.stringify(d)).not.toContain('desvio');
   });
 });
 
@@ -74,6 +94,17 @@ describe('carteira com o n.ot', () => {
     expect(situacaoNaCarteira({ ...base, sites: 1, desvios_abertos: 2 })).toMatchObject({ tom: 'semana', modulo: 'ot', situacao: '2 desvios abertos' });
     expect(situacaoNaCarteira({ ...base, sites: 1 })).toMatchObject({ tom: 'ok', situacao: 'Em dia' });
     expect(situacaoNaCarteira({ ...base, sites: 0 })).toMatchObject({ situacao: 'Começando' });
+  });
+
+  it('desvio aberto em site removido não conta na carteira', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase, status) VALUES ('s-rem', 'proj-a', 'SE Removida', 'em_operacao', 'removido')`),
+      env.DB.prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, primeira_vez, ultima_vez) VALUES
+        ('d-rem', 'proj-a', 's-rem', 'fluxo', 'krem', '{}', '2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z')`),
+    ]);
+    const d = await (await chamar(cons, '/api/v1/carteira')).json() as any;
+    expect(d.projetos.find((p: any) => p.id === 'proj-a').situacao).toBe('1 desvio aberto');
+    await env.DB.batch([env.DB.prepare(`DELETE FROM ot_desvios WHERE id = 'd-rem'`), env.DB.prepare(`DELETE FROM ot_sites WHERE id = 's-rem'`)]);
   });
 
   it('rota: o consultor com o módulo vê o desvio; quem não tem o módulo não vê', async () => {
