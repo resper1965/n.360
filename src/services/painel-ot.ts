@@ -1,4 +1,5 @@
-import { sitesPermitidos, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
+import { ehConsultor } from '../helpers';
+import { podeEditarOt, sitesPermitidos, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
 import { situacaoSensor, type Cred } from './ot-sensor';
 import type { ItemFazer, Passo, Proximo } from './painel';
 
@@ -16,16 +17,21 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const sites = await sitesPermitidos(db, ator, projectId);
   const em7 = new Date(Date.parse(dia) + 7 * DIA_MS).toISOString().slice(0, 10);
   const gestor = ator.role === 'org_admin' && ator.client_project_id === projectId;
+  // Mesmo critério da tela do módulo (ot-inicio.js, pendenciasDoPapel). Aprova: org_admin e consultor; a tela tira o consultoria_admin
+  // (o servidor, em podeAprovar, o aceita no projeto designado: divergência registrada, vale a tela). Agente e chave de API nunca.
+  const pessoa = ator.agente !== true && !ator.id.startsWith('apikey:');
+  const aprova = pessoa && (ator.role === 'org_admin' || ehConsultor(ator));
+  const edita = podeEditarOt(ator);
   const NO_SITE = 'site_id IN (SELECT value FROM json_each(?2))';
   const [sts, cont, sondas, creds] = await db.batch([
     db.prepare(`SELECT id, nome, fase, substr(obra_ate, 1, 10) AS obra_ate FROM ot_sites
       WHERE project_id = ?1 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?2)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
     db.prepare(`SELECT
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aberto') AS desvios,
-        (SELECT count(*) FROM ot_lotes WHERE project_id = ?1 AND ${NO_SITE} AND status = 'em_revisao') AS lotes,
+        (SELECT count(*) FROM ot_lotes WHERE project_id = ?1 AND ${NO_SITE} AND status = 'em_revisao' AND criado_por IS NOT ?5) AS lotes,
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aceito' AND substr(aceito_ate, 1, 10) <= ?3) AS aceites,
         (SELECT count(*) FROM ot_avaliacoes WHERE project_id = ?1 AND proxima_revisao IS NOT NULL AND proxima_revisao < ?4) AS revisoes`)
-      .bind(projectId, sites, em7, dia),
+      .bind(projectId, sites, em7, dia, ator.id),
     db.prepare(`SELECT s.id, s.site_id, s.created_at,
         (SELECT created_at FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1) AS ultimo_envio
       FROM ot_sensores s WHERE s.project_id = ?1 AND s.situacao = 'ativa' AND s.${NO_SITE} LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
@@ -44,12 +50,12 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const item = (grupo: ItemFazer['grupo'], q: number, um: string, varios: string, contexto: string, acao: string, aba: string): ItemFazer[] =>
     q > 0 ? [{ grupo, quando: grupo === 'atraso' ? 'Agora' : 'Nesta semana', texto: plural(q, um, varios), contexto, acao, tela: 'ot', aba, modulo: 'ot' }] : [];
   const itens: ItemFazer[] = [
-    ...item('atraso', paradas.length, 'sonda parada', 'sondas paradas', exemplos([...new Set(paradas.map((s) => nome(s.site_id)))]), 'Ver as sondas', 'acessos'),
-    ...item('atraso', c.revisoes, 'requisito com revisão vencida', 'requisitos com revisão vencida', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment'),
-    ...item('semana', c.desvios, 'desvio aberto', 'desvios abertos', 'O sensor viu o que não está na base aprovada', 'Ver os desvios', 'sites'),
-    ...item('semana', c.lotes, 'lote aguardando revisão', 'lotes aguardando revisão', 'Coleta enviada, esperando quem aprova', 'Revisar os lotes', 'sites'),
-    ...item('semana', emAprovacao.length, 'base aguardando aprovação', 'bases aguardando aprovação', exemplos(emAprovacao.map((s) => s.nome)), 'Abrir os sites', 'sites'),
-    ...item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', 'sites'),
+    ...(edita ? item('atraso', paradas.length, 'sonda parada', 'sondas paradas', exemplos([...new Set(paradas.map((s) => nome(s.site_id)))]), 'Ver as sondas', 'acessos') : []),
+    ...(gestor ? item('atraso', c.revisoes, 'requisito com revisão vencida', 'requisitos com revisão vencida', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment') : []),
+    ...(aprova ? item('semana', c.desvios, 'desvio aberto', 'desvios abertos', 'O sensor viu o que não está na base aprovada', 'Ver os desvios', 'sites') : []),
+    ...(aprova ? item('semana', c.lotes, 'lote aguardando revisão', 'lotes aguardando revisão', 'Coleta enviada, esperando quem aprova', 'Revisar os lotes', 'sites') : []),
+    ...(gestor ? item('semana', emAprovacao.length, 'base aguardando aprovação', 'bases aguardando aprovação', exemplos(emAprovacao.map((s) => s.nome)), 'Abrir os sites', 'sites') : []),
+    ...(gestor ? item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', 'sites') : []),
     ...(gestor ? item('semana', c.aceites, 'aceite de desvio vence em até 7 dias', 'aceites de desvio vencem em até 7 dias', 'Depois do prazo, o desvio reabre', 'Ver os desvios', 'sites') : []),
   ];
   const comecando = lista.length === 0;

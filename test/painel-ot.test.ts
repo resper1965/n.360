@@ -9,6 +9,7 @@ const AGORA = new Date('2026-11-14T15:00:00Z');
 const gestor = { id: 'u-g', email: 'g@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' };
 const tecnico = { id: 'u-t', email: 't@cliente.teste', role: 'org_user', client_project_id: 'proj-a' };
 const consultor = { id: 'u-c', email: 'c@ness.lat', role: 'consultor' };
+const consultoriaAdmin = { id: 'u-ca', email: 'ca@ness.lat', role: 'consultoria_admin' };
 const gestorDeOutro = { id: 'u-x', email: 'x@outro.teste', role: 'org_admin', client_project_id: 'proj-b' };
 const textos = async (ator: typeof gestor, projeto = 'proj-a') => (await blocoOt(env.DB, projeto, ator, DIA, AGORA)).itens.map((i) => i.texto);
 
@@ -42,37 +43,44 @@ describe('blocoOt', () => {
     expect(b.passos[0]).toMatchObject({ feito: false, tela: 'ot' });
   });
 
-  it('equipe vê todas as pendências, sem o aceite a vencer (é do Gestor)', async () => {
+  it('consultor vê o que a tela dele mostra (sondas, desvios, lotes), sem base, obra, revisão nem aceite (são do Gestor)', async () => {
     const b = await blocoOt(env.DB, 'proj-a', consultor, DIA, AGORA);
     const textos = b.itens.map((i) => i.texto);
-    expect(textos).toEqual(expect.arrayContaining(['2 sondas paradas', '1 requisito com revisão vencida', '2 desvios abertos', '1 lote aguardando revisão',
-      '1 base aguardando aprovação', '1 obra vence em até 7 dias']));
-    expect(textos.join(' ')).not.toContain('aceite');
+    expect(textos).toEqual(['2 sondas paradas', '2 desvios abertos', '1 lote aguardando revisão']);
     expect(b.itens.every((i) => i.modulo === 'ot' && i.tela === 'ot')).toBe(true);
     expect(b.numeros).toEqual([['1 de 3', 'sites em operação'], ['2', 'desvios abertos']]);
   });
 
   it('obra em base_em_aprovacao também conta como obra a vencer', async () => {
     await env.DB.prepare(`UPDATE ot_sites SET fase = 'base_em_aprovacao' WHERE id = 's3'`).run();
-    const t = (await blocoOt(env.DB, 'proj-a', consultor, DIA, AGORA)).itens.map((i) => i.texto);
+    const t = (await blocoOt(env.DB, 'proj-a', gestor, DIA, AGORA)).itens.map((i) => i.texto);
     await env.DB.prepare(`UPDATE ot_sites SET fase = 'em_obra' WHERE id = 's3'`).run();
     expect(t).toContain('1 obra vence em até 7 dias');
   });
 
-  it('Gestor ARCiber vê também o aceite a vencer', async () => {
+  it('Gestor ARCiber vê tudo, inclusive o aceite a vencer', async () => {
     const b = await blocoOt(env.DB, 'proj-a', gestor, DIA, AGORA);
-    expect(b.itens.map((i) => i.texto)).toContain('1 aceite de desvio vence em até 7 dias');
+    expect(b.itens.map((i) => i.texto)).toEqual(expect.arrayContaining(['2 sondas paradas', '1 requisito com revisão vencida', '2 desvios abertos',
+      '1 lote aguardando revisão', '1 base aguardando aprovação', '1 obra vence em até 7 dias', '1 aceite de desvio vence em até 7 dias']));
+  });
+
+  it('consultoria_admin segue a tela: sondas (edita), sem lote nem desvio (a tela o tira de quem aprova)', async () => {
+    expect(await textos(consultoriaAdmin)).toEqual(['2 sondas paradas']);
+  });
+
+  it('o aprovador não vê o lote que ele mesmo criou', async () => {
+    await env.DB.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, status, criado_por) VALUES ('l2', 'proj-a', 's2', 'manual', 'em_revisao', 'u-g')`).run();
+    try {
+      expect(await textos(gestor)).toContain('1 lote aguardando revisão'); // só o l1; o l2 é dele
+      expect(await textos(consultor)).toContain('2 lotes aguardando revisão');
+    } finally { await env.DB.prepare(`DELETE FROM ot_lotes WHERE id = 'l2'`).run(); }
   });
 
   it('técnico só conta os sites concedidos', async () => {
     const b = await blocoOt(env.DB, 'proj-a', tecnico, DIA, AGORA);
     const textos = b.itens.map((i) => i.texto);
-    expect(textos).toContain('1 desvio aberto');
-    expect(textos.join(' ')).not.toContain('lote');
-    expect(textos.join(' ')).not.toContain('base');
-    // a sonda do site s2 (sem credencial, parada) está fora do alcance: só a do s1 conta
-    expect(textos).toContain('1 sonda parada');
-    expect(textos.join(' ')).not.toContain('SE Sul');
+    // o técnico não edita nem aprova: sem lote, desvio, base, obra nem revisão; sonda é de quem edita
+    expect(textos).toEqual([]);
     expect(b.numeros[0]).toEqual(['1 de 1', 'sites em operação']);
   });
 
