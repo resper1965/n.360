@@ -217,13 +217,13 @@ function telaDoN360(d, proj) {
     // Para o cliente, a decisão vem antes das linhas dos módulos: é a ação dele.
     if (d.visao === 'cliente') return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))], [])}${linhas}`;
     // A mesma ordem da frase do servidor: o n.privacy primeiro em cada grupo (o prazo dele é legal).
-    const blocos = ['privacy', 'iso'].map((m) => d.modulos && d.modulos[m]).filter(Boolean);
+    const blocos = ['privacy', 'iso', 'ot'].map((m) => d.modulos && d.modulos[m]).filter(Boolean);
     const juntos = ['atraso', 'semana', 'plano'].flatMap((g) => blocos.flatMap((b) => (Array.isArray(b.fazer) ? b.fazer : []).filter((i) => i.grupo === g)));
     const mostrados = juntos.slice(0, 8);
     const resto = juntos.length - mostrados.length;
     const esquerda = blocos.every((b) => b.comecando)
         ? quadro('pn-passos-t', 'Primeiros passos', `<p class="pn-vazio-tx">Comece por um dos módulos acima: cada um abre com os primeiros passos dele.</p>`)
-        : quadro('pn-fazer', 'O que fazer agora, nos dois módulos', `${listaFazer(mostrados, true)}${resto > 0 ? `<p class="pn-meta">E mais ${resto}. Abra o módulo para a lista inteira.</p>` : ''}`);
+        : quadro('pn-fazer', `O que fazer agora, nos ${blocos.length > 2 ? 'seus' : 'dois'} módulos`, `${listaFazer(mostrados, true)}${resto > 0 ? `<p class="pn-meta">E mais ${resto}. Abra o módulo para a lista inteira.</p>` : ''}`);
     return `${topo}${linhas}${colunas([esquerda], ['<div id="inicio-ponto-de-partida"></div>'])}`;
 }
 
@@ -372,8 +372,8 @@ window.painelAbrir = function (tela, aba, filtro) {
     }
     // As faixas são as do painel do n.privacy desenhado agora (encarregado.js as guarda); em outra entrada, a tela das atividades.
     if (filtro === 'acoes_vencidas' && proj && S.view === 'encarregado' && typeof window.abrirFaixaPrazo === 'function' && window.abrirFaixaPrazo(proj.id, 'vencidas')) return;
-    // Item do n.ot: a aba é a tela de dentro do módulo (views/ot.js lê S.otTela).
-    if (tela === 'ot' && ['sites', 'assessment', 'acessos'].includes(aba)) S.otTela = aba;
+    // O hub navega por recarga: a aba do n.ot vai no endereço (?ot=, lido por ot-navegacao.js), não em S.otTela.
+    if (tela === 'ot') { irPara(['sites', 'assessment', 'acessos'].includes(aba) ? `${enderecoDoProduto('ot')}?ot=${aba}` : enderecoDoProduto('ot')); return; }
     if (aba === 'pedidos' || aba === 'incidentes' || aba === 'consentimentos') S.titularAba = aba;
     const filtroPainel = filtro ? filtroValido(tela, aba, filtro) : null;
     if (typeof window.navigate === 'function') { if (filtroPainel) window.navigate(tela, { filtroPainel }); else window.navigate(tela); }

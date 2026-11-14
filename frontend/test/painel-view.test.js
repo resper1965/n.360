@@ -236,8 +236,12 @@ describe('início do n.360', () => {
         await abrir('n360');
         expect([...el('c').querySelectorAll('.pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy', 'n.ot']);
         expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toContain('Abrir o n.ot');
+        expect(el('c').textContent).toContain('O que fazer agora, nos seus módulos');
+        expect([...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'))).toContain('Ver os desvios: 2 desvios abertos (n.ot)');
         window.painelAbrir('ot', 'sites', null);
-        expect(S.otTela).toBe('sites');
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
+        window.painelAbrir('ot', '<script>', null);
+        expect(irPara).toHaveBeenLastCalledWith('/ot');
         window.abrirModulo('ot');
         expect(irPara).toHaveBeenCalledWith('/ot');
     });

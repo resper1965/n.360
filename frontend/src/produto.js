@@ -35,7 +35,7 @@ export const SO_N360 = Object.values(TELAS_DA_CONTA);
  * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
  * trilha). Segurança do projeto mora em Conta e acessos, então também é só do n.360. Tela fora daqui leva ao módulo (router).
  */
-// nav-ot: no hub, a entrada do n.ot (o painel do n.360 ainda não tem bloco dele); só com projeto e pessoa com o módulo (atualizarItemOt).
+// nav-ot: no hub, a entrada do n.ot (o painel do n.360 mostra a linha dele quando o servidor manda o bloco); só com projeto e pessoa com o módulo (atualizarItemOt).
 export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', 'nav-ot', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
 export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
 // Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
