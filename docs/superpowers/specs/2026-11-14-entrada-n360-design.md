@@ -1,6 +1,7 @@
 # Entrada do n.360: ver os projetos sem entrar em nenhum
 
-Data: 14/11/2026. Situação: **proposta, aguardando a revisão do dono**. Onda própria da spec guarda-chuva
+Data: 14/11/2026. Situação: **caminho A aprovado pelo dono em 14/11/2026** (o Início como lugar de escolher onde trabalhar); as três
+confirmações do fim ficam com a opção recomendada, a rever na revisão do plano. Onda própria da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md`, logo depois da onda 0 (a carteira já terá o n.ot). Sem migration.
 
 ## O pedido do dono
