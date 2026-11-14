@@ -84,6 +84,12 @@ Cada uma é independente o bastante para ter spec, plano e PRs próprios. Nenhum
 - Avisos de prazo do n.ot (aceite de desvio a vencer, obra a vencer, revisão do assessment) no mesmo mecanismo, com a faixa `ot`.
 - Corrigir o texto da senha provisória.
 
+### Entrada do n.360 (média, sem migration)
+
+Pedido do dono em 14/11/2026: ver a situação dos projetos sem entrar em nenhum. O Início vira a lista dos projetos, sem projeto
+escolhido, com a situação de cada um aberta no lugar e a entrada no módulo como ato explícito. Spec:
+`2026-11-14-entrada-n360-design.md`. Vem logo depois da onda 0.
+
 ### Onda 1: organização direta (média)
 
 - `organizations` ganha o tipo (`consultoria` ou `direta`).
