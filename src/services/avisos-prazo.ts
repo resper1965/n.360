@@ -329,7 +329,7 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
       const faixa: Faixa = tela === '/ropa' ? 'privacy' : FAIXA_DA_FONTE[item.fonte];
       const comModulo: Pessoa[] = [];
       for (const p of pessoas) if (!recusaDaPessoa(faixa, await modulosDe(p))) comModulo.push(p);
-      // Aceite e obra do n.ot: só o Gestor ARCiber (org_admin do projeto). `pessoasDoProjeto` já prende o cliente ao client_project_id.
+      // Aceite e obra do n.ot: só o Gestor ARCiber (org_admin do projeto ou o admin direto designado no cargo). `pessoasDoProjeto` já prende o cliente ao client_project_id.
       // A revisão do assessment vai a todos que têm o n.ot e alcançam o projeto (spec da onda 0); o texto leva só o código do requisito.
       const destinos = SO_GESTOR.has(item.fonte) ? await filtrarGestores(db, item.project_id, comModulo)
         : item.fonte === 'ot_revisao' ? comModulo : escolherDestinatarios(comModulo, item.responsavel);

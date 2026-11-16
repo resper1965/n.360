@@ -17,7 +17,7 @@ const exemplos = (nomes: string[]) => nomes.slice(0, 3).join(', ') + (nomes.leng
 export async function blocoOt(db: D1Database, projectId: string, ator: AtorPainelOt, dia: string, agora: Date) {
   const sites = await sitesPermitidos(db, ator, projectId);
   const em7 = new Date(Date.parse(dia) + 7 * DIA_MS).toISOString().slice(0, 10);
-    // Mesmo critério da tela do módulo (ot-inicio.js, pendenciasDoPapel). Aprova: org_admin e consultor; a tela tira o consultoria_admin
+  // Mesmo critério da tela do módulo (ot-inicio.js, pendenciasDoPapel). Gestor: org_admin do projeto ou o admin direto designado Gestor ARCiber. Aprova: org_admin, consultor e admin direto; a tela tira o consultoria_admin
   // (o servidor, em podeAprovar, o aceita no projeto designado: divergência registrada, vale a tela). Agente e chave de API nunca.
   const pessoa = ator.agente !== true && !ator.id.startsWith('apikey:');
   const gestor = (ator.role === 'org_admin' && ator.client_project_id === projectId) || (pessoa && await gestorArciberDireto(db, ator, projectId));

@@ -115,6 +115,20 @@ describe('n.ot: Gestor ARCiber na organização direta', () => {
     expect((await chamar('PUT', '/api/v1/projects/p-d/ot/agente', S.cris, { ligado: true })).status).toBe(403);
     expect((await chamar('PUT', '/api/v1/projects/p-c/ot/agente', S.cris, { ligado: true })).status).toBe(403);
   });
+  const GATED: [string, string, unknown][] = [
+    ['POST', '/assessment/4.1.1/confirmar', {}], ['POST', '/sites/x/base/aprovar', {}], ['POST', '/sites/x/base/devolver', {}],
+    ['POST', '/sites/x/obra/abrir', {}], ['POST', '/sites/x/obra/renovar', {}], ['POST', '/desvios/x/aceitar', {}],
+  ];
+  it('as demais rotas só do Gestor: Beto e Cris recebem 403 (Gestor), Ana passa o portão', async () => {
+    for (const [m, r, b] of GATED) {
+      for (const quem of [S.beto, S.cris]) {
+        const res = await chamar(m, '/api/v1/projects/p-d/ot' + r, quem, b);
+        expect(res.status, r).toBe(403);
+      }
+      const a = await chamar(m, '/api/v1/projects/p-d/ot' + r, S.ana, b);
+      expect(JSON.stringify(await a.json()), r).not.toMatch(/só o Gestor ARCiber/);
+    }
+  });
   it('GET /agente: pode_ligar só para o Gestor designado', async () => {
     expect((await (await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.ana)).json() as any).pode_ligar).toBe(true);
     expect((await (await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.beto)).json() as any).pode_ligar).toBe(false);
@@ -137,8 +151,12 @@ describe('n.ot: Gestor ARCiber na organização direta', () => {
     const ana = ps.find((p) => p.id === 'u-ana')!;
     expect(await gestorArciberDireto(env.DB, ana, 'p-d')).toBe(true);
     expect(await gestorArciberDireto(env.DB, ps.find((p) => p.id === 'u-beto')!, 'p-d')).toBe(false);
+    await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase, obra_ate) VALUES ('s-ap','p-d','SE Leste','base_em_aprovacao',NULL)`).run();
     const { blocoOt } = await import('../src/services/painel-ot');
     const b: any = await blocoOt(env.DB, 'p-d', { id: 'u-ana', email: 'ana@d.lat', role: 'consultoria_admin', org_id: 'org_d' }, '2026-11-16', new Date('2026-11-16'));
-    expect(b).toBeTruthy();
+    const textos = (b.itens as any[]).map((i) => i.texto).join('|');
+    expect(textos).toMatch(/base aguardando aprovação/);
+    const bb: any = await blocoOt(env.DB, 'p-d', { id: 'u-beto', email: 'beto@d.lat', role: 'consultoria_admin', org_id: 'org_d' }, '2026-11-16', new Date('2026-11-16'));
+    expect((bb.itens as any[]).map((i) => i.texto).join('|')).not.toMatch(/base aguardando aprovação/);
   });
 });
