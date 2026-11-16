@@ -361,9 +361,10 @@ function semProjetoNenhum() {
     }
     const criaProjeto = S.user && ['platform_admin', 'consultoria_admin'].includes(S.user.role);
     const acao = [
-        doComercial ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
-        // Área comercial desligada: "Novo projeto" abre o assistente aqui mesmo (views/empresa.js), para quem cria projeto.
-        !comercial && criaProjeto ? '<button type="button" class="btn btn-primary" data-action="abrirNovoProjeto">Novo projeto</button>' : '',
+        // Quem pode criar projeto: "Novo projeto" abre o assistente aqui mesmo (views/empresa.js), seja qual for a área comercial.
+        criaProjeto ? '<button type="button" class="btn btn-primary" data-action="abrirNovoProjeto">Novo projeto</button>' : '',
+        // Com a área comercial ligada, o funil é o caminho do comercial (primário) ou o alternativo de quem também cria (secundário).
+        doComercial ? `<a class="btn ${criaProjeto ? 'btn-secondary' : 'btn-primary'}" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
         S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver consultorias</a>' : '',
     ].join('');
     return renderEmptyState({ id, titulo: 'Nenhum projeto ainda',

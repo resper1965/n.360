@@ -72,7 +72,7 @@ describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecio
         expect(irPara).not.toHaveBeenCalled();
         expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
     });
-    it('cliente sem projeto nenhum: o Início (que diz a quem pedir acesso), sem redirecionar', async () => {
+    it('cliente sem projeto nenhum: vai ao Início, sem redirecionar (o texto "a quem pedir acesso" é coberto em painel-view.test.js)', async () => {
         papel = { role: 'org_admin' };
         await window.initApp();
         expect(navigate).toHaveBeenCalledWith('inicio');
@@ -85,7 +85,7 @@ describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecio
         expect(S.totalProjetos).toBeUndefined();
         expect(S.projects).toEqual([]);
     });
-    it('equipe da ness. sem projeto ainda: o Início (com "Novo projeto"), não o n.iso', async () => {
+    it('equipe da ness. sem projeto ainda: vai ao Início, sem redirecionar (o "Novo projeto" é coberto em painel-view.test.js)', async () => {
         papel = { role: 'platform_admin' };
         await window.initApp();
         expect(navigate).toHaveBeenCalledWith('inicio');

@@ -383,9 +383,19 @@ describe('sem acesso e links entre módulos', () => {
             S.user = { role: 'platform_admin', comercial_ativo: true };
             semAcesso(el('c'), 'privacy');
             expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
+            // Quem pode criar projeto vê "Novo projeto" (primário) e, com a área comercial ligada, o funil como secundário.
             const links = [...el('c').querySelectorAll('.empty-action a')];
             expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads'], ['Ver consultorias', '/?tela=organizacoes']]);
-            expect(links[0].className).toContain('btn-primary');
+            expect(links[0].className).toContain('btn-secondary');
+            for (const role of ['platform_admin', 'consultoria_admin']) {
+                S.user = { role, comercial_ativo: true };
+                semAcesso(el('c'), 'n360');
+                const novo = el('c').querySelector('.empty-action [data-action="abrirNovoProjeto"]');
+                expect([novo.textContent, novo.className.includes('btn-primary')], role).toEqual(['Novo projeto', true]);
+                expect(el('c').querySelector('.empty-action a[href="/iso?tela=leads"]').textContent, role).toBe('Criar projeto');
+                expect(el('c').querySelectorAll('.empty-action .btn-primary').length, role).toBe(1);
+            }
+            S.user = { role: 'platform_admin', comercial_ativo: true };
             // consultor: não abre o funil comercial nem as organizações; fica o texto
             S.user = { role: 'consultor' };
             semAcesso(el('c'), 'n360');

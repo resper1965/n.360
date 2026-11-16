@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { servirShell } from './shell.js';
+import { servirShell, aguardarBoot } from './shell.js';
 
 // Referência jurídica (n.privacy, spec 2026-10-20): menu → Referência jurídica → buscar "consentimento" → o inciso do art. 7 com o selo.
 // A API é mockada. Dados fictícios.
@@ -36,6 +36,7 @@ test('menu → Referência jurídica → buscar "consentimento"', async ({ page 
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/privacy$/);
+  await aguardarBoot(page);
 
   await page.locator('#sidebar #nav-referencia-juridica').click();
   await expect(page.locator('#header-title')).toHaveText('Referência jurídica');

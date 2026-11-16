@@ -1,3 +1,4 @@
+import { expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -8,4 +9,10 @@ export async function servirShell(page) {
     if (route.request().resourceType() !== 'document') return route.fallback();
     return route.fulfill({ status: 200, contentType: 'text/html', body: shell });
   });
+}
+
+// O boot terminou quando o seletor de projeto mostra o projeto ativo: a URL do módulo vale desde o login, antes de o boot
+// redesenhar a tela, e um clique nesse intervalo se perde. Para quem loga direto no caminho de um módulo com um projeto.
+export async function aguardarBoot(page) {
+  await expect(page.locator('#tenant-name')).not.toHaveText('Nenhum projeto escolhido');
 }

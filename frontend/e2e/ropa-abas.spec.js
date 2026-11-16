@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { servirShell } from './shell.js';
+import { servirShell, aguardarBoot } from './shell.js';
 
 // O SISTEMA VAZIO: projeto novo, sem nenhum cadastro. O consultor cria a primeira atividade e percorre as nove abas só pelo teclado.
 // Cada aba tem de explicar o que é e o que fazer (nunca uma lista seca), sem erro no console. A API é dublada; as formas são as do
@@ -71,6 +71,7 @@ async function entrarEAbrirAtividade(page) {
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/privacy$/);
+  await aguardarBoot(page);
   await page.locator('#nav-ropa').click();
   // lista vazia: explica e oferece o caminho
   await expect(page.locator('#content')).toContainText('Nenhuma atividade de tratamento registrada.');
