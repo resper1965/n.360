@@ -1,4 +1,4 @@
-import { PRODUTOS, atualizarItemOt, produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, enderecoNoModulo, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
+import { PRODUTOS, atualizarItemOt, produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoNoModulo, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
 import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
@@ -626,7 +626,7 @@ window.doLogout = function doLogout() {
         // Sem isto o poll seguia rodando apos o logout: cada ciclo tomava 401 e
         // chamava doLogout de novo.
         clearInterval(window._notifPoll);
-        S.token = null; S.user = null; S.activeProject = null; S.orgAtuacao = null;
+        S.token = null; S.user = null; S.activeProject = null; S.orgAtuacao = null; S.painel = {};
         try { sessionStorage.removeItem('niso_orgAtuacao'); } catch { /* sem storage */ }
         localStorage.removeItem('niso_token');
         localStorage.removeItem('niso_user');
@@ -727,19 +727,18 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
 window.updateSidebarProjectSelector = function updateSidebarProjectSelector() {
         const selectEl = document.getElementById('sidebar-project-select');
         if (!selectEl) return;
+        // Sem projeto ativo (o Início do n.360), o último usado vem primeiro: lembrado para oferecer, nunca aplicado sozinho.
+        let lembrado = null;
+        if (!S.activeProject) { try { lembrado = (JSON.parse(localStorage.getItem('niso_activeProject') || 'null') || {}).id || null; } catch (e) { lembrado = null; } }
+        const todos = Array.isArray(S.projects) ? S.projects : [];
+        const lista = [...todos.filter((p) => p.id === lembrado), ...todos.filter((p) => p.id !== lembrado)];
         const optionsHtml = ['<option value="">Selecione um projeto...</option>'];
-        if (Array.isArray(S.projects)) {
-            S.projects.forEach(p => {
-                const name = p.project_name || p.client_name || p.id;
-                optionsHtml.push(`<option value="${p.id}">${escapeHTML(name)}</option>`);
-            });
-        }
+        lista.forEach(p => {
+            const name = p.project_name || p.client_name || p.id;
+            optionsHtml.push(`<option value="${escapeHTML(p.id)}">${escapeHTML(name)}</option>`);
+        });
         selectEl.innerHTML = optionsHtml.join('');
-        if (S.activeProject) {
-            selectEl.value = S.activeProject.id;
-        } else {
-            selectEl.value = '';
-        }
+        selectEl.value = S.activeProject ? S.activeProject.id : '';
         updateTenantFace();
     }
 
@@ -753,13 +752,13 @@ window.updateTenantFace = function updateTenantFace() {
         const normEl = document.getElementById('tenant-norm');
         const initialsEl = document.getElementById('tenant-initials');
         const p = S.activeProject;
-        const name = p ? (p.project_name || p.client_name || 'Projeto') : 'Selecione um projeto';
+        const name = p ? (p.project_name || p.client_name || 'Projeto') : 'Nenhum projeto escolhido';
         nameEl.textContent = name;
         // O corte do nome é só visual (duas linhas no CSS): o nome inteiro fica no title e no rótulo do select.
         const face = nameEl.closest('.tenant-face');
         if (face) { if (p) face.setAttribute('title', name); else face.removeAttribute('title'); }
         const sel = document.getElementById('sidebar-project-select');
-        if (sel) sel.setAttribute('aria-label', p ? `Projeto ativo: ${name}. Trocar de projeto` : 'Escolher o projeto');
+        if (sel) sel.setAttribute('aria-label', p ? `Projeto ativo: ${name}. Trocar de projeto` : 'Nenhum projeto escolhido. Escolher o projeto');
         // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
         const prod = produtoAtual();
         if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod !== 'n360' ? `n.${prod}` : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
@@ -1371,9 +1370,10 @@ window.loadProjects = async function loadProjects() {
         const todos = await api('GET', '/api/v1/projects');
         S.projects = projetosDoProduto(todos);
         S.totalProjetos = Array.isArray(todos) ? todos.length : undefined; // zero de verdade: a entrada guiada do semAcesso
-        // O projeto ativo guardado sai só se ele existe e é de OUTRO módulo (lista vazia ou com falha não apaga a escolha).
+        // O projeto ativo guardado sai se é de OUTRO módulo ou não está na lista (falha da lista não apaga a escolha).
+        // Também sai o que não está na lista: o lembrado de outra pessoa que usou este navegador.
         const ativo = S.activeProject && Array.isArray(todos) ? todos.find((p) => p.id === S.activeProject.id) : null;
-        if (ativo && !S.projects.some((p) => p.id === ativo.id)) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) { /* sem storage */ } }
+        if (S.activeProject && Array.isArray(todos) && (!ativo || !S.projects.some((p) => p.id === ativo.id))) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) { /* sem storage */ } }
         if (typeof updateSidebarProjectSelector === 'function') { updateSidebarProjectSelector(); }
     } catch(e) { S.projects = []; S.totalProjetos = undefined; } // falha não é zero: nada de "Nenhum projeto ainda"
 }
@@ -1612,8 +1612,14 @@ window.initApp = async function initApp() {
         // de erro atrás da outra.
         if (await window.checkLegalGate()) return;
 
+        S.painel = {};
         mostrarEntrada(false);
         const ehStakeholder = S.user && S.user.role === 'stakeholder';
+        // O Início do n.360 (mesmo critério do destino abaixo) não tem projeto ativo: solta o hidratado do storage ANTES de
+        // loadAll, senão o seletor o mostra por um instante. O lembrado fica no storage, só para o seletor oferecê-lo primeiro.
+        // Sem `?tela=` (lido sem consumir o endereço) o destino é o Início: solta o hidratado antes de loadAll.
+        const noInicio = produtoAtual() === 'n360' && !ehStakeholder && !new URLSearchParams(location.search).has('tela');
+        if (noInicio) { S.activeProject = null; S.currentProject = null; }
         // Stakeholder não alcança leads, projetos nem controles (403 em todos): não os pede.
         if (!ehStakeholder) await loadAll();
 
@@ -1622,7 +1628,7 @@ window.initApp = async function initApp() {
             if (S.projects && S.projects.length > 0) {
                 const myProj = S.projects.find(p => p.id === S.user.client_project_id);
                 if (myProj) {
-                    S.activeProject = myProj;
+                    if (!noInicio) S.activeProject = myProj; // no Início o cliente usa o client_project_id, não o ativo
                     // Persiste sob a MESMA chave que o state hidrata no reload
                     // (niso_activeProject), senão o projeto ativo se perdia ao recarregar.
                     localStorage.setItem('niso_activeProject', JSON.stringify(myProj));
@@ -1634,11 +1640,8 @@ window.initApp = async function initApp() {
         updateActiveProjectWidget();
 
         const produto = produtoAtual();
-        // Módulos alcançáveis: os dos projetos visíveis (o cliente olha só o projeto dele).
-        const doCliente = isClient && S.user.client_project_id ? (S.projects || []).filter((p) => p.id === S.user.client_project_id) : [];
-        const meus = doCliente.length ? doCliente : (S.projects || []);
-        const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
-        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida vence o "um módulo só, entra nele".
+        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida em vez do Início. Só depois de updateHeaderUser:
+        // telaPedida lê o menu visível, e é ele que mostra os itens do papel (e limpa o endereço).
         const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
         const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
@@ -1648,21 +1651,13 @@ window.initApp = async function initApp() {
             navigate('meus-pedidos');
         } else if (tela) {
             navigate(tela);
-        } else if (produto === 'n360' && !modulos.length && !isClient) {
-            // Equipe da ness. sem projeto ainda (instalação nova, comercial): o funil comercial e a criação de projeto vivem
-            // no n.iso. Sem isto ela ficaria trancada fora.
-            irPara(enderecoDoProduto('iso'), true);
-            return;
-        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'ot' || produto === 'n360' || isClient)) {
-            // Nenhum projeto com o módulo do caminho (ou nenhum módulo, no n.360): diz isso, em vez de uma tela vazia.
+        } else if (produto === 'n360') {
+            // O Início não escolhe projeto nem leva a um módulo (spec 2026-11-14-entrada-n360): a tela diz o que há, inclusive o vazio.
+            navigate('inicio');
+        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'ot' || isClient)) {
+            // Nenhum projeto com o módulo do caminho: diz isso, em vez de uma tela vazia.
             S.view = 'sem-acesso-produto';
             semAcesso(document.getElementById('content'));
-        } else if (produto === 'n360' && modulos.length === 1) {
-            // Um módulo só: entra direto nele.
-            irPara(enderecoDoProduto(modulos[0]), true);
-            return;
-        } else if (produto === 'n360') {
-            navigate('inicio');
         } else if (doHub) {
             if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             if (doHub.aviso) await window.abrirAviso(doHub.aviso);

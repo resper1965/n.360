@@ -1740,7 +1740,7 @@ td .mais-acoes-botao { padding: 4px 10px; }
 .pn-fig dd { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
 @container (max-width: 900px) { .pn-m { grid-template-columns: minmax(0, 1fr) auto; } .pn-fig { grid-column: 1 / -1; } }
 
-/* Alternância Projeto | Carteira no cabeçalho */
+/* Botões alternados (filtro de situação dos consentimentos) */
 .pn-alterna { display: inline-flex; }
 .pn-alterna .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-dim); }
 .pn-alterna .btn + .btn { margin-left: -1px; }
@@ -1802,7 +1802,9 @@ td .mais-acoes-botao { padding: 4px 10px; }
 .pn-tabela th { text-align: left; font: 500 11px var(--font-body); color: var(--text-dim); padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .pn-tabela td { padding: 8px; border-bottom: 1px solid var(--border); color: var(--text-2); }
 .pn-tabela .n { text-align: right; font-variant-numeric: tabular-nums; }
-.pn-carteira td.pn-tx { color: var(--text); }
+/* Início do n.360: botões "Abrir no n.x" da linha e a situação aberta no lugar */
+.pn-entrar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.pn-sit .pn-modulos { margin: 0; }
 
 .pn-export { list-style: none; margin: 12px 0; padding: 0; }
 .pn-export li { display: flex; align-items: center; gap: 12px; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--border); }

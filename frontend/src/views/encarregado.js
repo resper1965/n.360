@@ -72,7 +72,7 @@ window.indicarEncarregado = async function (projectId) {
     try {
         await api('POST', `/api/v1/projects/${projectId}/partes/${encodeURIComponent(id)}/vinculos`, { papel: 'encarregado', alvo_tipo: 'projeto', alvo_id: projectId });
         // O painel guardado deste projeto já não vale: o encarregado aparece na identidade e sai do "O que fazer".
-        if (S.painel) for (const k of Object.keys(S.painel)) if (k.startsWith(`${projectId}|`)) delete S.painel[k];
+        if (S.painel) for (const k of Object.keys(S.painel)) if (k.split('|')[1] === projectId) delete S.painel[k];
         window.forceCloseModal();
         window.render();
     } catch (e) { showToast((e && e.message) || 'Não foi possível indicar o encarregado', 'error'); }

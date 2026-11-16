@@ -1,10 +1,10 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState } from '../ui.js';
-import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, projetosDoProduto, DESCRICAO_DO_MODULO } from '../produto.js';
+import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState, formatarData } from '../ui.js';
+import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, semAcesso, DESCRICAO_DO_MODULO } from '../produto.js';
+import { montarLista } from '../lista.js';
 import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
-import { renderPontoDePartida } from './ponto-de-partida.js';
 import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, ligarDicas } from './painel-graficos.js';
 
 // Painel de entrada do n.360, do n.iso e do n.privacy (estudo docs/design/diagnostico-2026-10-14/dashboard-entrada.md, direção A).
@@ -14,9 +14,7 @@ import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, liga
 
 const VALIDADE_MS = 60_000;
 const NOME = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
-// O n.ot só ganha linha quando o servidor mandou o bloco (módulo no projeto E na pessoa): nunca "não habilitado" (P0-1).
 const MODULOS = ['iso', 'privacy'];
-const modulosDaTela = (d) => (d.modulos && d.modulos.ot ? [...MODULOS, 'ot'] : MODULOS);
 const ROTULO_ESTADO = { atraso: 'Atrasado', semana: 'Nesta semana', plano: 'Para planejar' };
 const e = (v) => escapeHTML(String(v ?? ''));
 const args = (...v) => escapeHTML(JSON.stringify(v));
@@ -33,7 +31,7 @@ let rodada = 0;
 const TELAS_DO_PAINEL = new Set(['encarregado', 'ropa', 'titular', 'terceiros', 'mapa-de-risco', 'evidence', 'documentos', 'requisitos', 'capa', 'audits',
     'risks', 'soa', 'context', 'project-detail', 'assets', 'meus-pedidos', 'importacao', 'ot']);
 
-/** O projeto da entrada: o ativo; sem ele, o primeiro da lista (e passa a ser o ativo, como o início do n.360 sempre fez). */
+/** O projeto da entrada de um módulo: o ativo; sem ele, o primeiro da lista (e passa a ser o ativo: o módulo precisa de um). O Início do n.360 não usa. */
 function projetoDaEntrada() {
     if (!S.activeProject && Array.isArray(S.projects) && S.projects.length) {
         S.activeProject = S.projects[0];
@@ -43,26 +41,21 @@ function projetoDaEntrada() {
     return S.activeProject || null;
 }
 
-// ─── Vista do n.360: Projeto ou Carteira (decisão 4) ───────────────────────────────────────────────────
-
-const CHAVE_VISTA = 'n360_vista';
-const temCarteira = () => ehEquipe() && projetosDoProduto(S.projects || [], 'n360').length > 1;
-let vistaDaSessao = null; // a escolha desta página, para valer mesmo sem storage
-function vistaDoN360() {
-    if (!temCarteira()) return 'projeto';
-    let lembrada = vistaDaSessao;
-    if (!lembrada) { try { lembrada = localStorage.getItem(CHAVE_VISTA); } catch (err) { lembrada = null; } }
-    return lembrada === 'projeto' || lembrada === 'carteira' ? lembrada : 'carteira';
+/** O Início do n.360 não tem projeto ativo: solta o da memória. O lembrado (`niso_activeProject`) fica, só para o seletor oferecê-lo primeiro. */
+function soltarProjeto() {
+    S.activeProject = null;
+    S.currentProject = null;
+    if (typeof window.updateActiveProjectWidget === 'function') window.updateActiveProjectWidget();
 }
-window.painelVista = function (vista) {
-    if (vista !== 'projeto' && vista !== 'carteira') return;
-    vistaDaSessao = vista;
-    try { localStorage.setItem(CHAVE_VISTA, vista); } catch (err) { /* sem storage: vale só até recarregar */ }
-    if (typeof window.render === 'function') window.render();
-};
-const alternancia = (vista) => `<div class="pn-alterna" role="group" aria-label="Ver o projeto ativo ou a carteira">
-    <button type="button" class="btn btn-sm" data-action="painelVista" data-args='["projeto"]' aria-pressed="${vista === 'projeto'}">Projeto</button>
-    <button type="button" class="btn btn-sm" data-action="painelVista" data-args='["carteira"]' aria-pressed="${vista === 'carteira'}">Carteira</button></div>`;
+
+/** O cliente preso ao projeto dele (`client_project_id`): o Início mostra só esse, nunca a carteira. Null para quem vê a lista. */
+const idDoCliente = () => (S.user && ['org_admin', 'org_user', 'client'].includes(S.user.role) && S.user.client_project_id) || null;
+
+/** Início sem nada para listar: a tela "sem acesso" de sempre (produto.js), com o título do menu. */
+function vazioDoInicio(c, h) {
+    semAcesso(c, 'n360');
+    if (h) h.textContent = 'Início';
+}
 
 // ─── Peças ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -136,17 +129,17 @@ function passos(lista) {
 const DEPOIS = '<p class="pn-vazio-tx">Quando houver o primeiro registro, este lado mostra a cobertura do programa por tema, o mapa de risco e os próximos vencimentos.</p>'
     + '<p class="pn-vazio-tx pn-meta">Nada aparece zerado de propósito: zero aqui significaria "em dia", e um projeto sem cadastro não está em dia.</p>';
 
+/** Os números de um módulo; o cliente com projeto começando não vê números zerados. */
+const figuras = (b, cliente) => (cliente && b.comecando ? '<div></div>'
+    : `<dl class="pn-fig">${(Array.isArray(b.numeros) ? b.numeros : []).map(([v, r]) => `<div><dt>${e(r)}</dt><dd class="pn-num">${e(v)}</dd></div>`).join('')}</dl>`);
+
 /** Uma linha por módulo (n.360): estado, frase, três números e "Abrir"; o módulo fora do projeto diz quem habilita. */
 function linhaModulo(m, d, proj) {
     const b = d.modulos && d.modulos[m];
     if (b) {
         // Abrir o módulo é sempre secundário: o primário é o item mais urgente (equipe) ou a decisão (cliente).
-        // Projeto começando não mostra números zerados ao cliente.
-        const cliente = d.visao === 'cliente';
-        const numeros = cliente && b.comecando ? '<div></div>'
-            : `<dl class="pn-fig">${(Array.isArray(b.numeros) ? b.numeros : []).map(([v, r]) => `<div><dt>${e(r)}</dt><dd class="pn-num">${e(v)}</dd></div>`).join('')}</dl>`;
         return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado(b.saude.tom, b.saude.rotulo)}<div class="pn-m-frase">${e(b.saude.frase)}</div></div>
-            ${numeros}
+            ${figuras(b, d.visao === 'cliente')}
             <button type="button" class="btn btn-sm" data-action="abrirModulo" data-args='${args(m)}'>Abrir o ${NOME[m]}</button></div>`;
     }
     const doProjeto = modulosDe(proj).includes(m);
@@ -210,23 +203,6 @@ function telaDoModulo(d, m, proj) {
     return `${topo}${colunas(esquerda, direita)}`;
 }
 
-/** Início do n.360: a frase dos dois módulos, uma linha por módulo e a lista que junta os dois. */
-function telaDoN360(d, proj) {
-    const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}`;
-    const linhas = `<section class="pn-modulos" aria-label="Módulos deste projeto">${modulosDaTela(d).map((m) => linhaModulo(m, d, proj)).join('')}</section>`;
-    // Para o cliente, a decisão vem antes das linhas dos módulos: é a ação dele.
-    if (d.visao === 'cliente') return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))], [])}${linhas}`;
-    // A mesma ordem da frase do servidor: o n.privacy primeiro em cada grupo (o prazo dele é legal).
-    const blocos = ['privacy', 'iso', 'ot'].map((m) => d.modulos && d.modulos[m]).filter(Boolean);
-    const juntos = ['atraso', 'semana', 'plano'].flatMap((g) => blocos.flatMap((b) => (Array.isArray(b.fazer) ? b.fazer : []).filter((i) => i.grupo === g)));
-    const mostrados = juntos.slice(0, 8);
-    const resto = juntos.length - mostrados.length;
-    const esquerda = blocos.every((b) => b.comecando)
-        ? quadro('pn-passos-t', 'Primeiros passos', `<p class="pn-vazio-tx">Comece por um dos módulos acima: cada um abre com os primeiros passos dele.</p>`)
-        : quadro('pn-fazer', `O que fazer agora, nos ${blocos.length > 2 ? 'seus' : 'dois'} módulos`, `${listaFazer(mostrados, true)}${resto > 0 ? `<p class="pn-meta">E mais ${resto}. Abra o módulo para a lista inteira.</p>` : ''}`);
-    return `${topo}${linhas}${colunas([esquerda], ['<div id="inicio-ponto-de-partida"></div>'])}`;
-}
-
 function esqueleto(entrada) {
     const b = (cls) => `<div class="pn-esq ${cls}"></div>`;
     const lista = [1, 2, 3, 4].map(() => b('pn-esq-linha')).join('');
@@ -238,7 +214,7 @@ function esqueleto(entrada) {
         <div class="pn-col"><div class="pn-quadro">${b('pn-esq-rotulo')}${[1, 2, 3, 4, 5, 6].map(() => b('pn-esq-barra')).join('')}</div></div></div></div>`;
 }
 
-// ─── Carteira (Fase 3) ─────────────────────────────────────────────────────────────────────────────────
+// ─── Início do n.360: a lista dos projetos, sem projeto ativo (spec 2026-11-14-entrada-n360) ──────────────────
 
 const quandoFoi = (iso) => {
     if (!iso) return 'sem registro';
@@ -246,48 +222,168 @@ const quandoFoi = (iso) => {
     return Number.isNaN(d) ? 'sem registro' : d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`;
 };
 
-function telaDaCarteira(dados) {
-    const lista = Array.isArray(dados && dados.projetos) ? dados.projetos : [];
-    const atrasados = lista.filter((p) => p.tom === 'atraso').length;
-    const frase = !lista.length ? 'Nenhum projeto na sua carteira.'
-        : `${lista.length} ${lista.length === 1 ? 'projeto' : 'projetos'}. ${atrasados ? `${atrasados === 1 ? 'Um precisa' : `${atrasados} precisam`} de você hoje.` : 'Nenhum com prazo vencido.'}`;
-    const tabela = `<table class="pn-tabela pn-carteira"><thead><tr><th scope="col">Empresa</th><th scope="col">Módulos</th><th scope="col">Situação</th><th scope="col">O mais urgente</th>
-        <th scope="col">Último movimento</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead><tbody>${lista.map((p, n) => `<tr>
-        <td class="pn-tx">${e(p.nome)}</td><td class="pn-meta">${(p.modulos || []).map((m) => e(NOME[m] || m)).join(', ')}</td><td>${estado(p.tom, p.situacao)}</td>
-        <td>${e(p.urgente)}</td><td class="pn-meta">${e(quandoFoi(p.ultimo_movimento))}</td>
-        <td class="n"><button type="button" class="btn btn-sm${n === 0 ? ' btn-primary' : ''}" data-action="painelAbrirProjeto" data-args='${args(p.id, p.modulo_urgente)}' aria-label="Abrir ${e(p.nome)}">Abrir</button></td></tr>`).join('')}</tbody></table>`;
-    return `<div class="pn"><section class="pn-saude" aria-labelledby="pn-cart-t"><h2 id="pn-cart-t" class="sr-only">Sua carteira</h2>${estado(atrasados ? 'atraso' : 'ok', atrasados ? 'Atenção hoje' : 'Em dia')}
-        <p class="pn-frase">${e(frase)}</p><p class="pn-apoio">A lista começa pelo que tem prazo legal vencido. Abrir leva ao projeto, no módulo onde está a pendência.</p></section>
-        ${quadro('pn-cart-l', 'Projetos por urgência', lista.length ? tabela : '<p class="pn-vazio-tx">Quando você for designado num projeto, ele aparece aqui.</p>')}</div>`;
+/** Os módulos que o servidor mandou no painel (o n.ot só vem a quem tem o módulo: P0-1), na ordem fixa de NOME. */
+const mandados = (d) => Object.keys(NOME).filter((m) => d.modulos && d.modulos[m]);
+
+/** "Abrir no n.x": um por módulo que veio do servidor (linha da carteira ou painel), na ordem fixa. Entrar no projeto é este clique. */
+const botoesDosModulos = (id, nome, modulos, primario) => `<div class="pn-entrar">${Object.keys(NOME).filter((m) => modulos.includes(m)).map((m) =>
+    `<button type="button" class="btn btn-sm${m === primario ? ' btn-primary' : ''}" data-action="painelAbrirProjeto" data-args='${args(id, m)}' aria-label="${e(`Abrir ${nome} no ${NOME[m]}`)}">Abrir no ${NOME[m]}</button>`).join('')}</div>`;
+
+/** Uma linha por módulo na situação aberta no lugar: estado, frase, números e o item mais urgente (o botão dele entra no projeto). */
+function linhaSituacao(m, d, projectId) {
+    const b = d.modulos[m];
+    const sd = b.saude || { tom: 'plano', rotulo: 'Sem dados', frase: '' };
+    const lista = Array.isArray(b.fazer) ? b.fazer : [];
+    const i = ['atraso', 'semana', 'plano'].map((g) => lista.find((x) => x.grupo === g)).find(Boolean);
+    const urgente = i ? `<div class="pn-cx">Mais urgente: ${e(i.texto)}</div>` : '';
+    const botao = i ? `<button type="button" class="btn btn-sm" data-action="painelAbrirItem" data-args='${args(projectId, i.tela, i.aba || null, i.filtro || null)}' aria-label="${e(`${i.acao}: ${i.texto} (${NOME[m]})`)}">${e(i.acao)}</button>` : '<div></div>';
+    return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado(sd.tom, sd.rotulo)}<div class="pn-m-frase">${e(sd.frase)}</div>${urgente}</div>${figuras(b, d.visao === 'cliente')}${botao}</div>`;
 }
 
-window.painelAbrirProjeto = function (projectId, modulo) {
+function situacao(d, projectId, nome) {
+    const ms = mandados(d);
+    return `<section class="pn-modulos" aria-label="${e(`Situação por módulo de ${nome}`)}">${ms.length ? ms.map((m) => linhaSituacao(m, d, projectId)).join('')
+        : '<p class="pn-vazio-tx">Nenhum módulo seu neste projeto.</p>'}</section>`;
+}
+
+/** O painel do projeto sem `?modulo` (os módulos do projeto que a pessoa tem), guardado os mesmos 60 s de `S.painel`. */
+async function situacaoDoProjeto(projectId) {
+    S.painel = S.painel || {};
+    const chave = chaveDe(`${projectId}|n360`);
+    if (valido(S.painel[chave])) return S.painel[chave].dados;
+    const dados = await api('GET', `/api/v1/projects/${encodeURIComponent(projectId)}/painel`);
+    if (!dados || !dados.modulos) throw new Error('Painel sem módulos');
+    S.painel[chave] = { t: Date.now(), dados };
+    return dados;
+}
+
+/** "Minhas aprovações" no topo do Início da equipe, só quando há pedido esperando a pessoa (a mesma regra da tela meus-pedidos). */
+function quadroAprovacoes(pedidos) {
+    const meus = (Array.isArray(pedidos) ? pedidos : []).filter((p) => p.meu_status === 'pendente' && p.status === 'aberto');
+    if (!meus.length) return '';
+    const nomeDe = (id) => { const p = (S.projects || []).find((x) => x.id === id); return p ? p.client_name || p.project_name || '' : ''; };
+    const itens = meus.slice(0, 3).map((p) => `<li><span class="pn-meta">${e(formatarData(p.criado_em))}</span><div><div class="pn-tx">${e(p.titulo)}</div>${nomeDe(p.project_id) ? `<div class="pn-cx">${e(nomeDe(p.project_id))}</div>` : ''}</div>
+        <button type="button" class="btn btn-sm" data-action="abrirPedido" data-args='${args(p.id)}' aria-label="${e(`Abrir o pedido: ${p.titulo}`)}">Abrir</button></li>`).join('');
+    return quadro('pn-aprov', 'Minhas aprovações', `<ul class="pn-grupo">${itens}</ul>`,
+        `<button type="button" class="btn btn-ghost btn-sm" data-action="navigate" data-args='["meus-pedidos"]'>Ver todas (${meus.length})</button>`);
+}
+
+/** A carteira e os pedidos da pessoa, juntos no cache de 60 s; falhar nos pedidos só tira o quadro. */
+const buscarInicio = async () => {
+    const [carteira, pedidos] = await Promise.all([
+        api('GET', '/api/v1/carteira'),
+        api('GET', '/api/v1/pedidos').then((r) => (r && Array.isArray(r.pedidos) ? r.pedidos : []), () => []),
+    ]);
+    if (!carteira || !Array.isArray(carteira.projetos)) throw new Error('Resposta da carteira sem projetos');
+    return { projetos: carteira.projetos, pedidos };
+};
+
+function telaDaLista(c, h, dados) {
+    const lista = Array.isArray(dados && dados.projetos) ? dados.projetos : [];
+    if (!lista.length) { vazioDoInicio(c, h); return; }
+    const atrasados = lista.filter((p) => p.tom === 'atraso').length;
+    const frase = `${lista.length} ${lista.length === 1 ? 'projeto' : 'projetos'}. ${atrasados ? `${atrasados === 1 ? 'Um precisa' : `${atrasados} precisam`} de você hoje.` : 'Nenhum com prazo vencido.'}`;
+    // A ação primária da tela: o módulo da pendência mais urgente do primeiro projeto (a carteira vem por urgência).
+    const primeiro = lista[0];
+    // Empresas com o mesmo nome ganham (1), (2)... só na hora de nomear botões: o nome acessível precisa distinguir as linhas.
+    const iguais = (p) => lista.filter((x) => x.nome === p.nome);
+    const rotulo = (p) => (iguais(p).length > 1 ? `${p.nome} (${iguais(p).indexOf(p) + 1})` : p.nome);
+    const mods = primeiro.modulos || [];
+    const doPrimeiro = mods.includes(primeiro.modulo_urgente) ? primeiro.modulo_urgente : mods[0];
+    c.innerHTML = `<div class="pn">${quadroAprovacoes(dados.pedidos)}<section class="pn-saude" aria-labelledby="pn-ini-t"><h2 id="pn-ini-t" class="sr-only">Seus projetos</h2>${estado(atrasados ? 'atraso' : 'ok', atrasados ? 'Atenção hoje' : 'Em dia')}
+        <p class="pn-frase">${e(frase)}</p><p class="pn-apoio">A lista começa pelo que tem prazo legal vencido. "Ver situação" mostra cada módulo sem entrar no projeto; "Abrir no" entra nele.</p></section>
+        ${quadro('pn-ini-l', 'Projetos por urgência', '<div id="ini-lista"></div>')}</div>`;
+    montarLista(c.querySelector('#ini-lista'), {
+        id: 'ini-projetos', linhas: lista, busca: (p) => `${p.nome} ${p.situacao} ${p.urgente}`, buscaDica: 'Empresa ou situação',
+        colunas: [
+            { label: 'Empresa', render: (p) => `<div class="pn-tx">${e(p.nome)}</div><button type="button" class="btn btn-ghost btn-sm" data-action="painelVerSituacao" data-args='${args(p.id, rotulo(p))}' data-arg-el aria-expanded="false" aria-label="${e(`Ver situação de ${rotulo(p)}`)}">Ver situação</button>` },
+            { label: 'Módulos', render: (p) => `<span class="pn-meta">${(p.modulos || []).map((m) => e(NOME[m] || m)).join(', ')}</span>` },
+            { label: 'Situação', render: (p) => estado(p.tom, p.situacao) },
+            { label: 'O mais urgente', render: (p) => e(p.urgente) },
+            { label: 'Último movimento', render: (p) => `<span class="pn-meta">${e(quandoFoi(p.ultimo_movimento))}</span>` },
+            { label: 'Entrar', render: (p) => botoesDosModulos(p.id, rotulo(p), p.modulos || [], p.id === primeiro.id ? doPrimeiro : null) },
+        ],
+    });
+}
+
+/**
+ * "Ver situação": a situação do projeto numa linha logo abaixo, sem mudar o projeto ativo. Pedida só ao abrir; fechar tira a linha.
+ * shortcut: buscar ou "Carregar mais" redesenha a lista e fecha a linha aberta; guardar as abertas só se alguém sentir falta.
+ */
+window.painelVerSituacao = async function (projectId, nome, botao) {
+    const tr = botao && botao.closest('tr');
+    if (!tr) return;
+    const id = `ini-sit-${projectId}`;
+    if (botao.getAttribute('aria-expanded') === 'true') {
+        if (tr.nextElementSibling && tr.nextElementSibling.id === id) tr.nextElementSibling.remove();
+        botao.setAttribute('aria-expanded', 'false');
+        botao.removeAttribute('aria-controls');
+        return;
+    }
+    tr.insertAdjacentHTML('afterend', `<tr class="pn-sit" id="${e(id)}"><td colspan="${tr.children.length}" aria-busy="true"><div class="pn-esq pn-esq-linha"></div></td></tr>`);
+    botao.setAttribute('aria-expanded', 'true');
+    botao.setAttribute('aria-controls', id);
+    const td = tr.nextElementSibling.firstElementChild;
+    try {
+        td.innerHTML = situacao(await situacaoDoProjeto(projectId), projectId, nome);
+    } catch (err) {
+        td.innerHTML = renderErrorState('Não foi possível ver a situação deste projeto.', { erro: err, acao: null });
+    }
+    td.removeAttribute('aria-busy');
+};
+
+/** O nome do projeto do cliente: o da empresa, como na carteira. */
+const nomeDaEmpresa = (d, proj) => (d.empresa && (d.empresa.nome_fantasia || d.empresa.razao_social)) || proj.client_name || proj.project_name || 'Projeto';
+
+/** Início do cliente: o que espera a decisão dele em cima e o projeto dele (por client_project_id, não pelo ativo) com os módulos que o servidor mandou. */
+function telaDoCliente(d, proj) {
+    const mods = mandados(d);
+    const decide = Array.isArray(d.decisoes) && d.decisoes.length > 0;
+    const nome = nomeDaEmpresa(d, proj);
+    // Uma ação primária: a primeira decisão (listaDecisoes); sem decisão, o primeiro "Abrir no".
+    return `<div class="pn">${quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))}
+        ${quadro('pn-proj', nome, situacao(d, proj.id, nome), botoesDosModulos(proj.id, nome, mods, decide ? null : mods[0]))}</div>`;
+}
+
+/** Entrar num projeto: vira o ativo e fica lembrado para o módulo (o state o hidrata de `niso_activeProject`). */
+function entrarNoProjeto(projectId) {
     const p = (S.projects || []).find((x) => x.id === projectId);
-    if (!p) return;
+    if (!p) return null;
     S.activeProject = p;
     S.currentProject = p;
     try { localStorage.setItem('niso_activeProject', JSON.stringify(p)); } catch (err) { /* o módulo abre no projeto que tiver */ }
+    return p;
+}
+
+window.painelAbrirProjeto = function (projectId, modulo) {
+    const p = entrarNoProjeto(projectId);
+    if (!p) return;
     const destino = modulosVisiveis(p).includes(modulo) ? modulo : modulosVisiveis(p)[0];
     if (destino) irPara(enderecoDoProduto(destino));
+};
+
+/** O item mais urgente da situação: entra no projeto (como "Abrir no") e vai à tela, já filtrada (`painelAbrir`). */
+window.painelAbrirItem = function (projectId, tela, aba, filtro) {
+    if (!TELAS_DO_PAINEL.has(tela) || !entrarNoProjeto(projectId)) return;
+    // "Indicar o encarregado" não abre o modal no hub: o n.privacy o oferece no Painel dele.
+    if (tela === 'encarregado') { window.navigate('encarregado'); return; }
+    window.painelAbrir(tela, aba, filtro);
 };
 
 // ─── Desenho e dados ───────────────────────────────────────────────────────────────────────────────────
 
 function cabecalho(a, entrada, proj, d) {
     const botoes = [];
-    if (entrada === 'n360' && temCarteira()) botoes.push(alternancia('projeto'));
     if (entrada === 'privacy' && d && d.visao === 'equipe') botoes.push(`<button type="button" class="btn" data-action="painelExportar" data-args='${args(proj.id)}'>Exportar</button>`);
     a.innerHTML = botoes.join('');
 }
 
 function desenhar(c, a, entrada, proj, d) {
     cabecalho(a, entrada, proj, d);
-    c.innerHTML = `<div class="pn">${entrada === 'n360' ? telaDoN360(d, proj) : telaDoModulo(d, entrada, proj)}</div>`;
+    c.innerHTML = `<div class="pn">${telaDoModulo(d, entrada, proj)}</div>`;
     ligarDicas(c.firstElementChild);
     const selos = entrada === 'iso' ? d.modulos && d.modulos.iso && d.modulos.iso.selos : d.selos;
     if (selos) aplicarSelos(selos);
-    const pp = c.querySelector('#inicio-ponto-de-partida');
-    if (pp) renderPontoDePartida(pp, proj.id, 'n360');
 }
 
 function semModulo(c, entrada, proj) {
@@ -299,7 +395,16 @@ function semModulo(c, entrada, proj) {
         acao: `${acao}<a class="btn" href="${e(enderecoDoProduto('n360'))}">Voltar ao início do n.360</a>` });
 }
 
+// O cache é por pessoa: a visão (equipe ou cliente) de um projeto nunca serve a outra pessoa sem recarregar a página.
+const chaveDe = (k) => `${S.user ? S.user.id : ''}|${k}`;
 const valido = (x) => x && Date.now() - x.t < VALIDADE_MS;
+
+/** Decidir um pedido muda o Início: apaga o que a pessoa atual guardou (carteira com os pedidos, painéis de projeto) para a próxima entrada recarregar. */
+window.invalidarInicio = function invalidarInicio() {
+    if (!S.painel) return;
+    const meu = chaveDe('');
+    for (const k of Object.keys(S.painel)) if (k.startsWith(meu)) delete S.painel[k];
+};
 
 async function carregar(c, a, entrada, proj, chave, buscar, desenho) {
     S.painel = S.painel || {};
@@ -337,26 +442,42 @@ async function carregar(c, a, entrada, proj, chave, buscar, desenho) {
 export async function renderPainel(c, h, a, entrada) {
     if (h) h.textContent = entrada === 'n360' ? 'Início' : 'Painel';
     if (a) a.innerHTML = '';
+    if (entrada === 'n360') { await renderInicioDoN360(c, h, a); return; }
     const proj = projetoDaEntrada();
-    if (!proj) {
-        c.innerHTML = entrada === 'n360'
-            ? renderEmptyState({ titulo: 'Nenhum projeto ainda', texto: 'Quando um projeto seu tiver um módulo habilitado, ele aparece aqui.' })
-            : window.renderSemProjeto();
-        return;
-    }
-    if (entrada === 'n360' && vistaDoN360() === 'carteira') {
-        if (a) a.innerHTML = alternancia('carteira');
-        await carregar(c, a, entrada, null, 'carteira', () => api('GET', '/api/v1/carteira'), (dados) => {
-            c.innerHTML = telaDaCarteira(dados);
-            if (a) a.innerHTML = alternancia('carteira');
-        });
-        return;
-    }
-    const q = entrada === 'n360' ? '' : `?modulo=${entrada}`;
-    await carregar(c, a, entrada, proj, `${proj.id}|${entrada}`, () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel${q}`),
+    if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
+    await carregar(c, a, entrada, proj, chaveDe(`${proj.id}|${entrada}`), () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel?modulo=${entrada}`),
         (dados) => (dados && dados.modulos ? desenhar(c, a, entrada, proj, dados)
             : (c.innerHTML = renderErrorState('Não foi possível montar o painel.'))));
 }
+
+/**
+ * Início do n.360 (spec 2026-11-14-entrada-n360): não há projeto ativo aqui. O cliente vê o projeto dele; os demais, a lista dos
+ * projetos que alcançam (`GET /api/v1/carteira`). Entrar num projeto é um clique em "Abrir no n.x".
+ */
+async function renderInicioDoN360(c, h, a) {
+    soltarProjeto();
+    if (!(S.projects || []).length) {
+        // Zero de verdade: "Nenhum projeto ainda" com "Novo projeto" para quem cria, ou a quem pedir (produto.js). Falha da lista não é zero.
+        if (S.totalProjetos === 0) vazioDoInicio(c, h);
+        else c.innerHTML = renderErrorState('Não foi possível carregar os projetos.', { acao: 'recarregarInicio' });
+        return;
+    }
+    const idCliente = idDoCliente();
+    if (idCliente) {
+        const proj = (S.projects || []).find((p) => p.id === idCliente);
+        if (!proj) { vazioDoInicio(c, h); return; }
+        await carregar(c, a, 'n360', proj, chaveDe(`${proj.id}|n360`), () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel`),
+            (dados) => { c.innerHTML = dados && dados.modulos ? telaDoCliente(dados, proj) : renderErrorState('Não foi possível montar o painel.'); });
+        return;
+    }
+    await carregar(c, a, 'n360', null, chaveDe('carteira'), buscarInicio, (dados) => telaDaLista(c, h, dados));
+}
+
+/** "Tentar de novo" do Início quando a lista de projetos falhou: pede a lista outra vez e redesenha. */
+window.recarregarInicio = async function () {
+    if (typeof window.loadProjects === 'function') await window.loadProjects();
+    if (typeof window.render === 'function') window.render();
+};
 
 /**
  * Botão de um item: a tela do destino (lista fechada), com a aba quando há e a lista já filtrada pela situação do item

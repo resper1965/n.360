@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { servirShell } from './shell.js';
 
-// Entrada do n.360: login na raiz, início com um cartão por módulo, "Abrir" leva ao caminho do módulo
-// (/iso, /privacy) com a casca dele; quem só tem um módulo entra direto. A API é mockada.
+// Entrada do n.360: login na raiz, o Início lista os projetos sem projeto ativo e "Abrir no n.x" leva ao caminho do módulo
+// (/iso, /privacy) com a casca dele; ninguém é redirecionado. A API é mockada.
 
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor' };
 
@@ -24,40 +24,41 @@ const PAINEL = (modulos) => ({
   ...(modulos.includes('privacy') ? { selos: { pedidos_titular: { exigem_atencao: 4, atrasados: 1 }, terceiros: { com_pendencia: 2 }, incidentes: { comunicacoes_pendentes: 0 } } } : {}),
 });
 
-async function mockApi(page, modulos) {
+async function mockApi(page, modulos, { user = USER, painel = {} } = {}) {
   await servirShell(page);
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
-    if (path === '/api/v1/auth/login') return json({ token: 'e2e-fake-token', user: USER });
-    if (path === '/api/v1/auth/me') return json({ user: USER });
+    if (path === '/api/v1/auth/login') return json({ token: 'e2e-fake-token', user });
+    if (path === '/api/v1/auth/me') return json({ user });
     if (path === '/api/v1/projects' && method === 'GET')
       return json([{ id: 'proj-e2e', client_name: 'Cliente E2E', project_name: 'Projeto E2E', modulos }]);
+    if (path === '/api/v1/carteira') return json({ gerado_em: new Date().toISOString(), projetos: [{ id: 'proj-e2e', nome: 'Cliente E2E', modulos, tom: 'atraso',
+      situacao: '1 prazo legal vencido', urgente: '2 pedidos do titular atrasados', modulo_urgente: modulos.includes('privacy') ? 'privacy' : modulos[0], ultimo_movimento: null }] });
     if (path === '/api/v1/projects/proj-e2e/painel') {
       const pedido = new URL(route.request().url()).searchParams.get('modulo');
-      return json(PAINEL(pedido ? [pedido] : modulos));
+      return json({ ...PAINEL(pedido ? [pedido] : modulos), ...painel });
     }
     return json(method === 'GET' ? [] : { ok: true });
   });
 }
 
-async function entrar(page) {
-  await page.goto('/login.html');
+async function entrar(page, caminho = '/login.html') {
+  await page.goto(caminho);
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
 }
 
-test('dois módulos: início do n.360 e "Abrir" leva à casca de cada módulo', async ({ page }) => {
+test('dois módulos: o Início lista o projeto e "Abrir no" leva à casca de cada módulo', async ({ page }) => {
   await mockApi(page, ['iso', 'privacy']);
   await entrar(page);
 
-  await expect(page.locator('#content')).toContainText('n.iso');
-  await expect(page.locator('#content')).toContainText('n.privacy');
-  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
+  await expect(page.locator('#content')).toContainText('Cliente E2E');
+  await expect(page.getByRole('button', { name: /^Abrir Cliente E2E no n\./ })).toHaveCount(2);
 
-  await page.getByRole('button', { name: /^Abrir o n\./ }).first().click();
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.iso' }).click();
   await expect(page).toHaveURL(/\/iso$/);
   await expect(page).toHaveTitle('n.iso | ness. Agentic GRC');
 
@@ -69,15 +70,18 @@ test('dois módulos: início do n.360 e "Abrir" leva à casca de cada módulo', 
   await expect(page.getByRole('navigation', { name: 'Módulo' }).getByRole('link', { name: 'n.privacy' })).toHaveAttribute('aria-current', 'page');
 
   await page.goto('/login.html');
-  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
-  await page.getByRole('button', { name: /^Abrir o n\./ }).nth(1).click();
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.privacy' }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
 
-test('um módulo só (privacy): entra direto em /privacy', async ({ page }) => {
+test('um módulo só (privacy): fica no Início, sem redirecionamento; "Abrir no n.privacy" leva ao módulo', async ({ page }) => {
   await mockApi(page, ['privacy']);
   await entrar(page);
+  const abrir = page.getByRole('button', { name: 'Abrir Cliente E2E no n.privacy' });
+  await expect(abrir).toBeVisible();
+  await expect(page).not.toHaveURL(/\/privacy/);
+  await abrir.click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
@@ -87,7 +91,7 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
   // os selos vêm do próprio painel (selos), sem a segunda chamada à visão do encarregado
   const visao = [];
   page.on('request', (r) => { if (new URL(r.url()).pathname.endsWith('/encarregado')) visao.push(r.url()); });
-  await entrar(page);
+  await entrar(page, '/privacy');
   await expect(page).toHaveURL(/\/privacy$/);
   const menu = page.locator('#sidebar');
   await expect(menu.locator('#nav-titular')).toContainText('Solicitações');
@@ -127,7 +131,7 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
 // tem nome em todo link.
 test('n.iso: Tab sem item escondido e barra recolhida com nome', async ({ page }) => {
   await mockApi(page, ['iso']);
-  await entrar(page);
+  await entrar(page, '/iso');
   await expect(page).toHaveURL(/\/iso$/);
   const menu = page.locator('#sidebar');
   await expect(menu.locator('#nav-evidence')).toBeHidden(); // grupo Operacional começa fechado
@@ -151,11 +155,14 @@ test('painel: uma chamada a /painel por entrada (n.360, n.iso e n.privacy)', asy
   const painel = [];
   page.on('request', (r) => { if (new URL(r.url()).pathname.endsWith('/painel')) painel.push(new URL(r.url()).search); });
   await entrar(page);
-  await expect(page.locator('.pn-frase')).toHaveText('2 pedidos do titular atrasados no n.privacy.');
-  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
+  const ver = page.getByRole('button', { name: 'Ver situação de Cliente E2E' });
+  await expect(ver).toBeVisible();
+  expect(painel).toEqual([]);
+  await ver.click();
+  await expect(page.locator('.pn-sit')).toContainText('2 pedidos do titular atrasados.');
   expect(painel).toEqual(['']);
   painel.length = 0;
-  await page.getByRole('button', { name: 'Abrir o n.privacy' }).click();
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.privacy' }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.locator('.pn-frase')).toBeVisible();
   await expect(page.locator('#pn-cob')).toBeVisible();
@@ -178,9 +185,88 @@ test('painel: a frase de saúde aparece em menos de 1 s com a API do painel atra
   });
   let pedido = 0;
   page.on('request', (r) => { if (!pedido && new URL(r.url()).pathname.endsWith('/painel')) pedido = Date.now(); });
-  await entrar(page);
+  await entrar(page, '/privacy');
   await expect(page.locator('.pn-frase')).toBeVisible();
   const ate = Date.now() - pedido;
   expect(pedido).toBeGreaterThan(0);
   expect(ate).toBeLessThan(1000);
+});
+
+// Roteiro da entrada (spec 2026-11-14-entrada-n360): ver a situação de um projeto sem entrar nele; entrar é o "Abrir no".
+test('entrada: "Ver situação" abre no lugar sem escolher projeto; "Abrir no n.iso" entra no projeto', async ({ page }) => {
+  await mockApi(page, ['iso', 'privacy']);
+  const painel = [];
+  page.on('request', (r) => { if (new URL(r.url()).pathname.endsWith('/painel')) painel.push(new URL(r.url()).search); });
+  await entrar(page);
+  const ver = page.getByRole('button', { name: 'Ver situação de Cliente E2E' });
+  await expect(ver).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#tenant-name')).toHaveText('Nenhum projeto escolhido');
+  expect(painel).toEqual([]);
+  const ativo = () => page.evaluate(() => localStorage.getItem('niso_activeProject'));
+  expect(await ativo()).toBeNull();
+  await ver.click();
+  await expect(ver).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.pn-sit')).toContainText('1 ação corretiva passou do prazo.');
+  await expect(page.locator('.pn-sit')).toContainText('2 pedidos do titular atrasados.');
+  expect(painel).toEqual(['']);
+  await expect(page.locator('#tenant-name')).toHaveText('Nenhum projeto escolhido');
+  await expect(page.locator('#content .btn-primary')).toHaveCount(1);
+  expect(await ativo()).toBeNull();
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.iso' }).click();
+  await expect(page).toHaveURL(/\/iso$/);
+  await expect(page.locator('#tenant-name')).toHaveText('Projeto E2E');
+  expect(JSON.parse(await ativo()).id).toBe('proj-e2e');
+});
+
+test('cliente: o projeto dele já aberto, "Esperando a sua decisão" em cima, sem lista e sem carteira', async ({ page }) => {
+  const cliente = { ...USER, role: 'org_admin', client_project_id: 'proj-e2e' };
+  await mockApi(page, ['iso', 'privacy'], { user: cliente, painel: { visao: 'cliente',
+    decisoes: [{ id: 'pd1', titulo: 'Aprovar a política', tipo: 'documento', papel: 'ciso', desde: '2026-11-10', acao: 'Ler e aprovar' }] } });
+  const carteira = [];
+  const paineis = [];
+  page.on('request', (r) => {
+    const p = new URL(r.url()).pathname;
+    if (p === '/api/v1/carteira') carteira.push(r.url());
+    if (/^\/api\/v1\/projects\/[^/]+\/painel$/.test(p)) paineis.push(p);
+  });
+  await entrar(page);
+  await expect(page.locator('#pn-dec')).toHaveText('Esperando a sua decisão');
+  await expect(page.getByRole('button', { name: 'Ler e aprovar: Aprovar a política' })).toHaveClass(/btn-primary/);
+  await expect(page.getByRole('button', { name: 'Abrir Exemplo Logística Integrada S.A. no n.iso' })).toBeVisible();
+  await expect(page.locator('[data-action="painelVerSituacao"]')).toHaveCount(0);
+  await expect(page.locator('#content .btn-primary')).toHaveCount(1);
+  await page.waitForLoadState('networkidle');
+  expect(carteira).toEqual([]);
+  expect(new Set(paineis)).toEqual(new Set(['/api/v1/projects/proj-e2e/painel']));
+});
+
+// O projeto lembrado de uma visita anterior não pode aparecer como ativo no seletor ao recarregar o Início, nem por um instante.
+test('recarregar o Início com projeto lembrado: o seletor nunca mostra o nome dele', async ({ page }) => {
+  await mockApi(page, ['iso', 'privacy']);
+  await page.addInitScript(() => {
+    window.__nomes = [];
+    new MutationObserver(() => {
+      const n = document.getElementById('tenant-name');
+      const t = n ? n.textContent : null;
+      if (t !== null && window.__nomes[window.__nomes.length - 1] !== t) window.__nomes.push(t);
+    }).observe(document, { subtree: true, childList: true, characterData: true });
+  });
+  await entrar(page);
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.iso' }).click();
+  await expect(page.locator('#tenant-name')).toHaveText('Projeto E2E');
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('niso_activeProject'))).id).toBe('proj-e2e');
+  await page.goto('/login.html');
+  await expect(page.getByRole('button', { name: 'Ver situação de Cliente E2E' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  expect(await page.evaluate(() => window.__nomes.filter((n) => n.includes('E2E')))).toEqual([]);
+  await expect(page.locator('#tenant-name')).toHaveText('Nenhum projeto escolhido');
+  expect(await page.locator('#sidebar-project-select option').evaluateAll((os) => os.map((o) => o.value))).toEqual(['', 'proj-e2e']);
+});
+
+// "Ver consultorias" e o rodapé "Conta e acessos (n.360)" levam a `/?tela=`: o menu da conta só aparece depois do boot do papel.
+test('platform_admin sem projeto: /?tela=organizacoes abre Consultorias, não o Início', async ({ page }) => {
+  await mockApi(page, ['iso'], { user: { ...USER, role: 'platform_admin' } });
+  await page.route('**/api/v1/projects', (route) => (route.request().method() === 'GET' ? route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }) : route.fallback()));
+  await entrar(page, '/login.html?tela=organizacoes');
+  await expect(page.locator('#header-title')).toHaveText('Consultorias');
 });

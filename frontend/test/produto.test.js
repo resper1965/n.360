@@ -110,14 +110,14 @@ describe('casca', () => {
             for (const id of ids) expect(el(id).dataset.foraDoProduto, `${p} ${id}`).toBe('1');
         }
     });
-    it('atualizarItemOt: no n.ot mostra os itens novos e esconde o nav-ot; Acessos só para quem edita', () => {
+    it('atualizarItemOt: no n.ot mostra os itens do n.ot (o nav-ot não existe mais); Acessos só para quem edita', () => {
         montarApp();
         const antes = { p: S.activeProject, u: S.user };
         S.activeProject = { id: 'p1', modulos: ['ot'] };
         history.replaceState(null, '', '/ot');
         S.user = { role: 'org_user' };
         atualizarItemOt(document);
-        expect(el('nav-ot').hidden).toBe(true);
+        expect(el('nav-ot')).toBeNull();
         expect(el('nav-ot-inicio').hidden).toBe(false);
         expect(el('secao-ot-organizacao').hidden).toBe(false);
         expect(el('nav-ot-acessos').hidden).toBe(true);
@@ -383,9 +383,19 @@ describe('sem acesso e links entre módulos', () => {
             S.user = { role: 'platform_admin', comercial_ativo: true };
             semAcesso(el('c'), 'privacy');
             expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
+            // Quem pode criar projeto vê "Novo projeto" (primário) e, com a área comercial ligada, o funil como secundário.
             const links = [...el('c').querySelectorAll('.empty-action a')];
             expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads'], ['Ver consultorias', '/?tela=organizacoes']]);
-            expect(links[0].className).toContain('btn-primary');
+            expect(links[0].className).toContain('btn-secondary');
+            for (const role of ['platform_admin', 'consultoria_admin']) {
+                S.user = { role, comercial_ativo: true };
+                semAcesso(el('c'), 'n360');
+                const novo = el('c').querySelector('.empty-action [data-action="abrirNovoProjeto"]');
+                expect([novo.textContent, novo.className.includes('btn-primary')], role).toEqual(['Novo projeto', true]);
+                expect(el('c').querySelector('.empty-action a[href="/iso?tela=leads"]').textContent, role).toBe('Criar projeto');
+                expect(el('c').querySelectorAll('.empty-action .btn-primary').length, role).toBe(1);
+            }
+            S.user = { role: 'platform_admin', comercial_ativo: true };
             // consultor: não abre o funil comercial nem as organizações; fica o texto
             S.user = { role: 'consultor' };
             semAcesso(el('c'), 'n360');
@@ -396,14 +406,18 @@ describe('sem acesso e links entre módulos', () => {
             expect(el('c').querySelector('h3').textContent).toBe('Você ainda não tem acesso a um projeto');
             expect(el('c').textContent).toMatch(/consultoria|administrador/);
             expect(el('c').querySelector('a, button')).toBeNull();
-            // Área comercial desligada: o caminho é o "Novo projeto" da tela Projetos, para quem cria projeto.
+            // Área comercial desligada: "Novo projeto" abre o assistente ali mesmo, para quem cria projeto.
             for (const role of ['platform_admin', 'consultoria_admin']) {
                 S.user = { role, comercial_ativo: false };
                 semAcesso(el('c'), 'n360');
-                const [novo] = el('c').querySelectorAll('.empty-action a');
-                expect([novo.textContent, novo.getAttribute('href')], role).toEqual(['Novo projeto', '/?tela=projects']);
+                const novo = el('c').querySelector('.empty-action [data-action="abrirNovoProjeto"]');
+                expect([novo.tagName, novo.textContent, novo.className.includes('btn-primary')], role).toEqual(['BUTTON', 'Novo projeto', true]);
                 expect(el('c').innerHTML).not.toContain('tela=leads');
             }
+            // O papel comercial começa sem projeto: o caminho é o funil do n.iso, não "a quem pedir".
+            S.user = { role: 'comercial', comercial_ativo: true };
+            semAcesso(el('c'), 'n360');
+            expect([...el('c').querySelectorAll('.empty-action a')].map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads']]);
             S.user = { role: 'consultor', comercial_ativo: false };
             semAcesso(el('c'), 'n360');
             expect(el('c').querySelector('a')).toBeNull();

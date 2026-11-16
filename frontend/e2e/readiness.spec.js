@@ -20,6 +20,7 @@ async function mockApi(page) {
     const p = new URL(route.request().url()).pathname;
     const json = (obj, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(obj) });
     if (p === '/api/v1/auth/me') return json({ user: USER });
+    if (p === '/api/v1/projects') return json([{ id: 'proj-e2e', project_name: 'Projeto E2E', modulos: ['iso'] }]);
     // O botão do diagnóstico só aparece com controles carregados (no vazio, o CTA é carregar o catálogo).
     if (p === '/api/v1/controls') return json([{ id: 'c1', project_id: 'proj-e2e', title: 'A.5.1 — Políticas', status: 'Missing' }]);
     if (/\/readiness-check$/.test(p)) {

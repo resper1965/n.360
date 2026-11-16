@@ -156,6 +156,7 @@ async function enviarDecisao(id, acao) {
     }
     forceCloseModal();
     showToast(acao === 'recusar' ? 'Recusa registrada' : 'Decisão registrada');
+    if (typeof window.invalidarInicio === 'function') window.invalidarInicio(); // o Início guarda a lista por 60 s
     redesenha();
 }
 

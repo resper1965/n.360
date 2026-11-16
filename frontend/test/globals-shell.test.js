@@ -78,11 +78,36 @@ describe('seletor de tenant', () => {
     expect(document.getElementById('sidebar-project-select').getAttribute('aria-label')).toBe(`Projeto ativo: ${nome}. Trocar de projeto`);
   });
 
-  it('sem projeto ativo, convida a escolher', () => {
+  it('sem projeto ativo: "Nenhum projeto escolhido", e o último usado (lembrado, não aplicado) vem primeiro na lista', () => {
     S.activeProject = null;
+    localStorage.setItem('niso_activeProject', JSON.stringify({ id: 'p2' }));
+    try {
+      window.updateSidebarProjectSelector();
+      expect(document.getElementById('tenant-name').textContent).toBe('Nenhum projeto escolhido');
+      expect(document.getElementById('tenant-norm').textContent).toBe('');
+      expect(document.getElementById('sidebar-project-select').getAttribute('aria-label')).toBe('Nenhum projeto escolhido. Escolher o projeto');
+      expect([...document.querySelectorAll('#sidebar-project-select option')].map((o) => o.value)).toEqual(['', 'p2', 'p1']);
+      expect(document.getElementById('sidebar-project-select').value).toBe('');
+      expect(S.activeProject).toBeNull();
+    } finally { localStorage.removeItem('niso_activeProject'); }
+  });
+
+  it('id com aspas e "&" no seletor: o value escapado devolve o id original (o data-arg-val lê el.value)', () => {
+    const id = 'p"x&amp;y<z';
+    S.projects = [{ id, project_name: 'Esquisito' }, { id: 'p2', client_name: 'Alup' }];
+    S.activeProject = S.projects[0];
     window.updateSidebarProjectSelector();
-    expect(document.getElementById('tenant-name').textContent).toBe('Selecione um projeto');
-    expect(document.getElementById('tenant-norm').textContent).toBe('');
+    const sel = document.getElementById('sidebar-project-select');
+    expect([...sel.options].map((o) => o.value)).toEqual(['', id, 'p2']);
+    expect(sel.value).toBe(id);
+  });
+
+  it('com projeto ativo, a ordem é a da lista', () => {
+    localStorage.setItem('niso_activeProject', JSON.stringify({ id: 'p2' }));
+    try {
+      window.updateSidebarProjectSelector();
+      expect([...document.querySelectorAll('#sidebar-project-select option')].map((o) => o.value)).toEqual(['', 'p1', 'p2']);
+    } finally { localStorage.removeItem('niso_activeProject'); }
   });
 });
 

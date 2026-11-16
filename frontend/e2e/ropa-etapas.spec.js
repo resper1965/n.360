@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { servirShell } from './shell.js';
+import { servirShell, aguardarBoot } from './shell.js';
 
 // SISTEMA VAZIO na aba Tratamento de Dados: projeto novo, uma atividade criada, e as seis etapas mostram o vazio explicado.
 // Coleta primeiro (listas vazias com texto de ajuda); as de 2 a 6 ficam travadas ate a Coleta ser concluida ou marcada Nao Aplicavel;
@@ -88,11 +88,12 @@ async function mockApi(page, erros) {
 }
 
 async function entrarEAbrirAtividade(page) {
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/privacy$/);
+  await aguardarBoot(page);
   await page.locator('#nav-ropa').click();
   await expect(page.locator('#content')).toContainText('Nenhuma atividade de tratamento registrada.');
   // a atividade nasce por "Nova atividade", direto nas abas (o formulário antigo não existe no n.privacy)

@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { servirShell } from './shell.js';
 
-// n.ot (N1): o item "n.ot" do menu do n.360 só aparece com projeto e pessoa com o módulo; leva à casca /ot, que lista o
-// catálogo RO-CB.BR.01 (GET /projects/:id/ot/requisitos, src/routes/ot.ts). A API é mockada.
+// n.ot: o Início do n.360 oferece "Abrir no n.ot" na linha do projeto só quando a carteira traz o módulo (projeto E pessoa); leva à casca /ot,
+// que lista o catálogo RO-CB.BR.01 (GET /projects/:id/ot/requisitos, src/routes/ot.ts). A API é mockada.
 
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor' };
 const REQ = (codigo, titulo, prazo_meses) => ({ id: `ons-${codigo}`, framework: 'ONS-RO-CB.BR.01', codigo, titulo, descricao: null, categoria: null, versao: 'Rev.00', prazo_meses });
@@ -17,6 +17,8 @@ async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
     if (path === '/api/v1/auth/login') return json({ token: 'e2e-fake-token', user });
     if (path === '/api/v1/auth/me') return json({ user });
     if (path === '/api/v1/projects' && method === 'GET') return json([{ id: 'proj-e2e', client_name: 'Cliente E2E', project_name: 'Projeto E2E', modulos }]);
+    if (path === '/api/v1/carteira') return json({ gerado_em: new Date().toISOString(), projetos: [{ id: 'proj-e2e', nome: 'Cliente E2E', modulos: modulos.filter((m) => modulosDaPessoa.includes(m)),
+      tom: 'ok', situacao: 'Em dia', urgente: 'Nenhum prazo nos próximos 90 dias', modulo_urgente: 'iso', ultimo_movimento: null }] });
     if (path === '/api/v1/projects/proj-e2e/ot/requisitos') return json({ requisitos: [REQ('4.1.1', 'Segregação em zonas de segurança', 18), REQ('5.1.1', 'Tratamento de exceções', null)] });
     if (path === '/api/v1/projects/proj-e2e/ot/assessment') return json({ resumo: { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 2, revisar: 0, a_confirmar: 0 }, itens: [
       { codigo: '4.1.1', titulo: 'Segregação em zonas de segurança', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_avaliado', por_site: [] },
@@ -32,6 +34,12 @@ async function entrar(page) {
   await page.click('#login-submit');
 }
 
+// Entra no n.ot pelo endereço depois do login (com o Início já desenhado); o caminho pelo botão da linha é o primeiro teste.
+async function abrirOt(page) {
+  await expect(page.getByRole('button', { name: 'Ver situação de Cliente E2E' })).toBeVisible();
+  await page.goto('/ot');
+}
+
 // Navegação nova: menu (Início, Sites, Assessment, Relatórios, Acessos e sondas) e, dentro do site, modo + sub-aba.
 async function noSite(page, modo, sub) {
   await page.locator('#nav-ot-sites').click();
@@ -40,13 +48,12 @@ async function noSite(page, modo, sub) {
   await page.getByRole('tab', { name: sub, exact: true }).click();
 }
 
-test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB.BR.01', async ({ page }) => {
+test('projeto e pessoa com o n.ot: "Abrir no n.ot" da linha leva a /ot e à lista da RO-CB.BR.01', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   await entrar(page);
-  const item = page.locator('#nav-ot');
-  await expect(item).toBeVisible();
-  await expect(item).toHaveText('n.ot');
-  await item.click();
+  const botao = page.getByRole('button', { name: 'Abrir Cliente E2E no n.ot' });
+  await expect(botao).toHaveText('Abrir no n.ot');
+  await botao.click();
   await expect(page).toHaveURL(/\/ot$/);
   await expect(page).toHaveTitle('n.ot | ness. ARCiber');
   // A entrada é o Início; o catálogo fica no item Assessment do menu.
@@ -57,11 +64,12 @@ test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB
   await expect(page.locator('#content')).toContainText('Sem prazo');
 });
 
-test('pessoa sem o n.ot (projeto com ele): o item não aparece', async ({ page }) => {
+test('pessoa sem o n.ot (projeto com ele): a linha não oferece o n.ot', async ({ page }) => {
   await mockApi(page, ['iso', 'privacy', 'ot'], ['iso', 'privacy']);
   await entrar(page);
-  await expect(page.locator('#nav-inicio')).toBeVisible();
-  await expect(page.locator('#nav-ot')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Abrir Cliente E2E no n.iso' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /no n\.ot$/ })).toHaveCount(0);
+  await expect(page.locator('#nav-ot')).toHaveCount(0);
 });
 
 // N2–N4: as abas da casca /ot sobre os corpos de src/routes/ot.ts e ot-saidas.ts (mockados). Smoke: cada aba desenha o que a
@@ -98,7 +106,7 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guard
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   const conteudo = page.locator('#content');
   await page.locator('#nav-ot-assessment').click();
   await expect(conteudo).toContainText('4.1.1');
@@ -161,7 +169,7 @@ test('levantamento: abre o levantamento, registra um achado e envia para aprova�
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   const conteudo = page.locator('#content');
   await noSite(page, 'projeto', 'Levantamento');
   await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
@@ -230,7 +238,7 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   const conteudo = page.locator('#content');
   await noSite(page, 'projeto', 'Levantamento');
   await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
@@ -280,7 +288,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   const conteudo = page.locator('#content');
   await noSite(page, 'projeto', 'Levantamento');
   await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
@@ -323,7 +331,7 @@ test('agente de coleta: o gestor liga depois de confirmar o aviso do modelo', as
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
   const puts = await rotasAgente(page, { ligado: false, pode_ligar: true, pode_emitir: true, endpoint: ENDPOINT }, { [`GET ${B}/agente/chaves`]: () => [{ chaves: [] }] });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await page.locator('#nav-ot-acessos').click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Um agente externo (Claude Code, Cursor)');
@@ -350,7 +358,7 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
     },
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await page.locator('#nav-ot-acessos').click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Ligado');
@@ -396,7 +404,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await page.locator('#nav-ot-acessos').click();
   const area = page.locator('#ot-sondas');
   await expect(area).toContainText('Nenhuma sonda neste site.');
@@ -452,7 +460,7 @@ test('desvios: o gestor lista, trata com nota e aceita com prazo', async ({ page
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await noSite(page, 'operacao', 'Desvios');
   const conteudo = page.locator('#content');
   await expect(conteudo).toContainText('CLP-01');
@@ -484,7 +492,7 @@ test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abr
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   const conteudo = page.locator('#content');
   await expect(conteudo).toContainText('Espera por você');
   await expect(conteudo).toContainText('Lote de aprovação em SE Norte');
@@ -508,7 +516,7 @@ test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a
     return route.fallback();
   });
   await entrar(page);
-  await expect(page.locator('#nav-ot')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ver situação de Cliente E2E' })).toBeVisible();
   await page.goto('/ot/desvios/d1');
   await expect(page.getByRole('tab', { name: 'Modo operação' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -539,7 +547,7 @@ test('revisão: marca achados de dois levantamentos, envia para aprovação e o 
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   const conteudo = page.locator('#content');
   await noSite(page, 'projeto', 'Revisão e aprovação');
   await expect(conteudo).toContainText('Notebook IHM');
@@ -591,7 +599,7 @@ test('decisão: o gestor recusa um item com motivo, aprova o restante e o levant
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   const conteudo = page.locator('#content');
   await noSite(page, 'projeto', 'Revisão e aprovação');
   await page.getByRole('button', { name: /^Revisar lote/ }).click();
@@ -637,7 +645,7 @@ test('base: o consultor pede a aprovação e o gestor aprova; o site abre no Mod
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await page.locator('#nav-ot-sites').click();
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
   const conteudo = page.locator('#content');
@@ -668,7 +676,7 @@ test('técnico: vê "Trazer dados" e "Novo levantamento" e não vê "Pedir aprov
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await noSite(page, 'projeto', 'Levantamento');
   await expect(page.getByRole('button', { name: 'Trazer dados' })).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Novo levantamento' })).toBeVisible();
@@ -695,7 +703,7 @@ test('obra: o gestor abre a obra, o selo aparece e Renovar obra fica disponível
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await page.locator('#nav-ot-sites').click();
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
   await expect(page.getByRole('button', { name: 'Renovar obra' })).toHaveCount(0);
@@ -726,7 +734,7 @@ test('desvios: Regularizar envia o achado do desvio e abre o lote', async ({ pag
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await noSite(page, 'operacao', 'Desvios');
   await page.getByRole('button', { name: /Regularizar Fluxo/ }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Regularizar' }).click();
@@ -761,7 +769,7 @@ test('assessment: o consultor preenche um item de política e o gestor o vê "A 
       itens: [{ codigo: '4.2.1', titulo: 'Gestor e suplente designados', categoria: 'Governança', prazo: null, tipo: 'politica', avaliacao, evidencias: [], subsidio: [] }] });
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await page.locator('#nav-ot-assessment').click();
   const conteudo = page.locator('#content');
   await expect(conteudo).toContainText('4.2.1');
@@ -805,7 +813,7 @@ test('relatório: Relatórios abre o relatório de conformidade com o botão Imp
     return route.fallback();
   });
   await entrar(page);
-  await page.locator('#nav-ot').click();
+  await abrirOt(page);
   await page.locator('#nav-ot-relatorios').click();
   await page.getByRole('button', { name: 'Relatório de conformidade' }).click();
   const conteudo = page.locator('#content');

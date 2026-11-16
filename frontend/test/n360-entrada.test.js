@@ -34,6 +34,7 @@ beforeEach(() => {
     S.token = 'tok';
     S.user = null;
     S.activeProject = null;
+    localStorage.removeItem('niso_activeProject');
     S.projects = [];
     projetos = [];
     apiMock.mockReset();
@@ -46,41 +47,44 @@ beforeEach(() => {
 });
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); history.replaceState(null, '', '/'); });
 
-describe('initApp no n.360', () => {
-    it('todos os projetos só com n.iso: vai direto a /iso', async () => {
-        projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2' }];
+describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecionar', () => {
+    it.each([
+        ['só com n.iso', [{ id: 'p1', modulos: ['iso'] }, { id: 'p2' }]],
+        ['só com n.privacy', [{ id: 'p1', modulos: ['privacy'] }]],
+        ['com os dois', [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['privacy'] }]],
+    ])('projetos %s: o Início, nada de ir ao módulo', async (_, lista) => {
+        projetos = lista;
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
-        expect(navigate).not.toHaveBeenCalled();
+        expect(navigate).toHaveBeenCalledWith('inicio');
+        expect(irPara).not.toHaveBeenCalled();
     });
-    it('todos só com n.privacy: vai direto a /privacy', async () => {
-        projetos = [{ id: 'p1', modulos: ['privacy'] }];
-        await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/privacy', true);
-    });
-    it('os dois módulos entre os projetos: abre o início', async () => {
+    it('a equipe entra sem projeto: o boot não aplica nem grava o lembrado', async () => {
         projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['privacy'] }];
         await window.initApp();
-        expect(irPara).not.toHaveBeenCalled();
-        expect(navigate).toHaveBeenCalledWith('inicio');
-        expect(S.projects.map((p) => p.id)).toEqual(['p1', 'p2']);
+        expect(S.activeProject).toBeNull();
+        expect(localStorage.getItem('niso_activeProject')).toBeNull();
     });
-    it('cliente: a regra vale sobre o projeto dele', async () => {
+    it('cliente: o Início também com um módulo só; o projeto dele segue lembrado para os módulos', async () => {
         papel = { role: 'client', client_project_id: 'p2' };
-        projetos = [{ id: 'p2', modulos: ['iso', 'privacy'] }];
+        projetos = [{ id: 'p2', modulos: ['privacy'] }];
         await window.initApp();
         expect(navigate).toHaveBeenCalledWith('inicio');
-        projetos = [{ id: 'p2', modulos: ['privacy'] }];
-        navigate.mockClear();
-        await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/privacy', true);
+        expect(irPara).not.toHaveBeenCalled();
+        expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
     });
-    it('cliente sem projeto nenhum: entrada guiada dizendo a quem pedir acesso', async () => {
+    it('cliente sem projeto nenhum: vai ao Início, sem redirecionar (o texto "a quem pedir acesso" é coberto em painel-view.test.js)', async () => {
         papel = { role: 'org_admin' };
         await window.initApp();
+        expect(navigate).toHaveBeenCalledWith('inicio');
         expect(irPara).not.toHaveBeenCalled();
-        expect(document.getElementById('content').textContent).toContain('Você ainda não tem acesso a um projeto');
-        expect(document.getElementById('content').querySelector('.empty-action')).toBeNull();
+    });
+    it('projeto lembrado que não está na lista (de outra pessoa) é solto, no storage também', async () => {
+        S.activeProject = { id: 'alheio', project_name: 'Alheio' };
+        localStorage.setItem('niso_activeProject', JSON.stringify(S.activeProject));
+        apiMock.mockImplementation(async () => [{ id: 'p1', modulos: ['iso'] }]);
+        await window.loadProjects();
+        expect(S.activeProject).toBeNull();
+        expect(localStorage.getItem('niso_activeProject')).toBeNull();
     });
     it('lista de projetos que falha não vira "zero projetos" (sem entrada guiada por engano)', async () => {
         S.totalProjetos = 0;
@@ -89,10 +93,38 @@ describe('initApp no n.360', () => {
         expect(S.totalProjetos).toBeUndefined();
         expect(S.projects).toEqual([]);
     });
-    it('equipe da ness. sem projeto ainda: vai ao n.iso, onde está o comercial (não fica trancada fora)', async () => {
+    it('equipe da ness. sem projeto ainda: vai ao Início, sem redirecionar (o "Novo projeto" é coberto em painel-view.test.js)', async () => {
         papel = { role: 'platform_admin' };
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(navigate).toHaveBeenCalledWith('inicio');
+        expect(irPara).not.toHaveBeenCalled();
+    });
+    it('projeto lembrado no storage: o seletor nunca o vê como ativo no Início (nem o do cliente), mas ele segue oferecido', async () => {
+        projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['iso'] }];
+        for (const eCliente of [false, true]) {
+            papel = eCliente ? { role: 'org_admin', client_project_id: 'p2' } : { role: 'consultor' };
+            S.activeProject = projetos[1]; // hidratado do storage pelo state
+            localStorage.setItem('niso_activeProject', JSON.stringify(projetos[1]));
+            const orig = window.updateSidebarProjectSelector;
+            const vistos = [];
+            window.updateSidebarProjectSelector = vi.fn(() => { vistos.push(S.activeProject); });
+            try { await window.initApp(); } finally { window.updateSidebarProjectSelector = orig; }
+            expect(vistos.length).toBeGreaterThan(0);
+            expect(vistos.every((v) => v === null), `cliente=${eCliente}`).toBe(true);
+            expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
+        }
+    });
+    it('num módulo o projeto lembrado continua sendo o ativo', async () => {
+        projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['iso'] }];
+        history.replaceState(null, '', '/iso');
+        S.activeProject = projetos[1];
+        await window.initApp();
+        expect(S.activeProject && S.activeProject.id).toBe('p2');
+    });
+    it('entrar zera o cache do painel (troca de pessoa sem logout não herda a visão da anterior)', async () => {
+        S.painel = { 'outra|carteira': { t: Date.now(), dados: { projetos: [] } } };
+        await window.initApp();
+        expect(S.painel).toEqual({});
     });
     it('stakeholder continua indo aos pedidos dele', async () => {
         papel = { role: 'stakeholder' };
@@ -103,9 +135,10 @@ describe('initApp no n.360', () => {
 });
 
 describe('initApp no n.360 com ?tela= (vindo do rodapé de um módulo)', () => {
+    // Como o login.html real: os itens da conta nascem com display:none e só updateHeaderUser os mostra, conforme o papel.
     const comMenu = () => {
-        document.body.insertAdjacentHTML('beforeend', ['projects', 'users', 'organizacoes', 'api-keys', 'conectar-agente']
-            .map((t) => `<div class="sidebar-nav" id="nav-${t}"></div>`).join(''));
+        document.body.insertAdjacentHTML('beforeend', ['projects', 'users', 'organizacoes', 'identidade', 'modelos-fornecedor', 'api-keys', 'conectar-agente']
+            .map((t) => `<div class="sidebar-nav" id="nav-${t}" style="${t === 'projects' ? '' : 'display:none'}"></div>`).join(''));
     };
     it('abre a tela pedida mesmo com um módulo só (não volta ao módulo) e limpa o endereço', async () => {
         comMenu();
@@ -125,17 +158,26 @@ describe('initApp no n.360 com ?tela= (vindo do rodapé de um módulo)', () => {
         expect(irPara).not.toHaveBeenCalled();
         expect(navigate).toHaveBeenCalledWith('organizacoes');
     });
+    it('org_admin do cliente com ?tela=users abre Usuários (rodapé "Conta e acessos")', async () => {
+        comMenu();
+        papel = { role: 'org_admin', client_project_id: 'p1' };
+        projetos = [{ id: 'p1', modulos: ['iso'] }];
+        history.replaceState(null, '', '/?tela=users');
+        await window.initApp();
+        expect(navigate).toHaveBeenCalledWith('users');
+    });
     it('tela fora da lista ou que o papel não vê: segue a entrada normal', async () => {
         comMenu();
         projetos = [{ id: 'p1', modulos: ['iso'] }];
         history.replaceState(null, '', '/?tela=soa');
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(navigate).toHaveBeenCalledWith('inicio');
         expect(location.search).toBe('');
-        irPara.mockClear();
+        navigate.mockClear();
         history.replaceState(null, '', '/?tela=api-keys'); // consultor não vê Chaves de API
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(navigate).toHaveBeenCalledWith('inicio');
+        expect(irPara).not.toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalledWith('api-keys');
     });
 });

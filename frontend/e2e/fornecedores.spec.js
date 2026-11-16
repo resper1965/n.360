@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { servirShell } from './shell.js';
+import { servirShell, aguardarBoot } from './shell.js';
 
 // Fornecedores (n.privacy, spec 2026-10-19): lista → abrir o fornecedor → aba Criticidade → confirmar → o nível aparece na lista.
 // A API é mockada com estado: a criticidade confirmada passa a valer na lista e na ficha. Dados fictícios.
@@ -39,11 +39,12 @@ async function mockApi(page) {
 
 test('lista → ficha → aba Criticidade → confirmar → o nível aparece na lista', async ({ page }) => {
   await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/privacy$/);
+  await aguardarBoot(page);
 
   const menu = page.locator('#sidebar');
   await expect(menu.getByText('Cadastros', { exact: true })).toBeVisible();
@@ -71,11 +72,12 @@ test('lista → ficha → aba Criticidade → confirmar → o nível aparece na 
 
 test('lista com a pendência → fila de avaliações → Abrir leva à aba Avaliações', async ({ page }) => {
   await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/privacy$/);
+  await aguardarBoot(page);
 
   await page.locator('#sidebar #nav-terceiros').click();
   await expect(page.locator('#content tbody tr', { hasText: 'Fornecedor Exemplo' })).toContainText('Falta: Tipo, Criticidade, Avaliação, DPA');

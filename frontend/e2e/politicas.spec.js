@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { servirShell } from './shell.js';
+import { servirShell, aguardarBoot } from './shell.js';
 
 // Políticas temáticas (spec 2026-10-23): Nova política → tema do catálogo → seções "a gerar" → Gerar seções pendentes →
 // Abrir em Documentos → Publicar rascunho → Vigente. API mockada com estado; o texto do rascunho muda a cada seção gerada.
@@ -58,11 +58,12 @@ async function mockApi(page) {
 
 test('Nova política → gerar seções pendentes → publicar → Vigente', async ({ page }) => {
   const chamadas = await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/iso');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/iso$/);
+  await aguardarBoot(page);
 
   // O item fica em "Mais" (recolhido) e a tela inicial ainda pode redesenhar por cima: repete o caminho todo até o modal abrir.
   await expect(async () => {

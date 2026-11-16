@@ -23,7 +23,10 @@ export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-asses
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
-/** O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`, Tarefa 5), e o cadastro comum não entra. `nav-ot` é a entrada do hub. */
+/**
+ * O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`). `nav-ot` não é mais item de menu (o n.ot abre
+ * pelo "Abrir no n.ot" da linha do projeto no Início), mas fica aqui: é o que diz que a tela `ot` é do n.ot (`produtoDaTela`).
+ */
 export const SO_OT = ['nav-ot', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
@@ -35,8 +38,7 @@ export const SO_N360 = Object.values(TELAS_DA_CONTA);
  * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
  * trilha). Segurança do projeto mora em Conta e acessos, então também é só do n.360. Tela fora daqui leva ao módulo (router).
  */
-// nav-ot: no hub, a entrada do n.ot (o painel do n.360 mostra a linha dele quando o servidor manda o bloco); só com projeto e pessoa com o módulo (atualizarItemOt).
-export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', 'nav-ot', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
+export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
 export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
 // Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
 const DO_ISO_SEM_ITEM = ['project-detail', 'controls', 'metrics', 'audit-execution', 'assessment-detail', 'management-review'];
@@ -350,21 +352,24 @@ export const projetosDoProduto = (lista, produto = produtoAtual()) => (!Array.is
  */
 function semProjetoNenhum() {
     const id = 'sem-acesso-produto';
-    if (!(typeof window.ehEquipeNess === 'function' && window.ehEquipeNess())) {
+    const comercial = typeof window.comercialAtivo === 'function' && window.comercialAtivo();
+    const doComercial = comercial && typeof window.ehComercial === 'function' && window.ehComercial();
+    // O papel comercial não conduz projeto, mas o trabalho dele (o funil) começa sem projeto nenhum: vê o caminho, não "a quem pedir".
+    if (!(typeof window.ehEquipeNess === 'function' && window.ehEquipeNess()) && !doComercial) {
         return renderEmptyState({ id, titulo: 'Você ainda não tem acesso a um projeto',
             texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua empresa, para incluir você no projeto.' });
     }
-    // Área comercial desligada: o projeto nasce pelo "Novo projeto" da tela Projetos (platform_admin e consultoria_admin).
-    const comercial = typeof window.comercialAtivo === 'function' && window.comercialAtivo();
     const criaProjeto = S.user && ['platform_admin', 'consultoria_admin'].includes(S.user.role);
     const acao = [
-        comercial && typeof window.ehComercial === 'function' && window.ehComercial() ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
-        !comercial && criaProjeto ? '<a class="btn btn-primary" href="/?tela=projects">Novo projeto</a>' : '',
+        // Quem pode criar projeto: "Novo projeto" abre o assistente aqui mesmo (views/empresa.js), seja qual for a área comercial.
+        criaProjeto ? '<button type="button" class="btn btn-primary" data-action="abrirNovoProjeto">Novo projeto</button>' : '',
+        // Com a área comercial ligada, o funil é o caminho do comercial (primário) ou o alternativo de quem também cria (secundário).
+        doComercial ? `<a class="btn ${criaProjeto ? 'btn-secondary' : 'btn-primary'}" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
         S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver consultorias</a>' : '',
     ].join('');
     return renderEmptyState({ id, titulo: 'Nenhum projeto ainda',
         texto: comercial ? 'O projeto nasce quando a proposta é aprovada, no funil comercial do n.iso: lead, diagnóstico e proposta.'
-            : criaProjeto ? 'Crie o primeiro em Conta e acessos, Projetos: "Novo projeto".' : 'Quem administra a consultoria cria o projeto e designa você nele.', acao });
+            : criaProjeto ? 'Crie o primeiro: o assistente pede a empresa, o programa e as pessoas.' : 'Quem administra a consultoria cria o projeto e designa você nele.', acao });
 }
 
 /** Tela de quem entrou num módulo que nenhum projeto seu tem (ou no n.360 sem módulo em projeto nenhum). */
@@ -441,12 +446,9 @@ export function atualizarLinkCruzado(doc = document) {
 /** O que cada módulo é, numa linha: no início do n.360, a escolha não depende de conhecer o nome. */
 export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e fornecedores', ot: 'ARCiber: requisitos da RO-CB.BR.01 do ONS' };
 
-/** O item n.ot do menu: só com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
+/** Os itens do menu do n.ot: só dentro do /ot, com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
 export function atualizarItemOt(doc = document) {
-    const tem = !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
-    const dentro = tem && produtoAtual() === 'ot';
-    const el = doc.getElementById('nav-ot');
-    if (el) el.hidden = !tem || dentro; // no n.ot o "Início" o substitui
+    const dentro = produtoAtual() === 'ot' && !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
     for (const id of ['secao-ot-organizacao', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro; }
     const ac = doc.getElementById('nav-ot-acessos');
     if (ac) ac.hidden = !(dentro && podeEditarOt());

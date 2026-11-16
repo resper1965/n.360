@@ -503,3 +503,13 @@ describe('renderSettings (Preços e margens)', () => {
     expect(c.textContent).toContain('Comissão');
   });
 });
+
+describe('renderAuditTrail', () => {
+  it('sem projeto ativo pede o projeto, em vez de abrir a trilha do primeiro da lista', async () => {
+    const [c, h, a] = dom();
+    await window.renderAuditTrail(c, h, a);
+    expect(c.textContent).toContain('Sem projeto ativo');
+    expect(c.querySelector('[data-action="openActiveProjectModal"]')).not.toBeNull();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+});
