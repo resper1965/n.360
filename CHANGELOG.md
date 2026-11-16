@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.360, onda 1: organização direta (spec 2026-11-16)
+- **Organização direta** (migração 0113, `organizations.tipo`): a empresa que usa o n.360 por conta própria. O administrador dela (`consultoria_admin`) exerce, no projeto da própria organização, os atos que eram só do `org_admin`: Gestor ARCiber do n.ot (se constar no cargo), ver IP/MAC, painel e avisos do n.ot, assinatura e revogação de aprovação, titular. Sem área comercial e sem conta de cliente; agente e chave de API não passam. O tipo é lido do banco e nunca muda.
+- **Mudança de comportamento, vale também para consultorias:** quem criou não decide. Pedido, base do site e avaliação do n.ot não são decididos por quem os criou; encerrar incidente também não (o agente conta como quem o concedeu). Mensagem de recusa sem revelar quem criou.
+- **Minhas aprovações** e `decisoes` do painel não listam mais o pedido que a própria pessoa criou.
+- **Esperando a sua decisão:** `decisoes` também vai à equipe que é destinatária de pedido.
+- **Consultorias → Organizações** no menu e nas telas; criação com Tipo (Consultoria/Direta) e Módulos contratados; lista com coluna Tipo. `GET /auth/me` devolve `org_tipo`; `GET /platform/orgs` devolve `tipo`. Na direta somem Comercial, Levantamentos, Preços e margens e Identidade.
+- **Pendente:** a migração 0113 ainda não foi aplicada em produção.
+
 ### n.360: o Início é a lista dos projetos e ninguém é redirecionado na entrada
 - **Início sem projeto ativo:** lista dos projetos com "Ver situação" (abre na linha e não muda o projeto) e "Abrir no n.x" (entrar é só por clique). O seletor mostra "Nenhum projeto escolhido"; a alternância Projeto/Carteira saiu. O cliente vê o projeto dele já aberto.
 - **Minhas aprovações** no topo do Início quando há pedido esperando a pessoa; decidir um pedido (individual ou em lote) atualiza o Início na hora.

@@ -85,6 +85,16 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
   ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
   nem agente MCP** (`otApp` responde 403 a `apikey:` e a `agente`; `/projects/:id/ot` esta em `FORA_DO_AGENTE`). Frontend:
+  **Organizacao direta (spec `2026-11-16-onda1-organizacao-direta-design`, migration 0113):** `organizations.tipo` e `'consultoria'` ou `'direta'`,
+  definido na criacao (so `platform_admin`) e imutavel. E lido SO do banco, da organizacao da SESSAO (`org_id`), nunca do `X-Org-Id`:
+  `tipoDaOrg` e `adminDireto(db, user, projectId)` em `src/services/organizacao.ts`; `gestorArciberDireto` em `src/services/ot-inventario.ts`
+  (re-exportado por `ot-conformidade.ts`; admin direto que consta como Gestor ARCiber em `project_governance`, por e-mail). O `authMiddleware`
+  poe `user.org_direta` (so UX e `ehComercial`; nunca confiar no que vem do cliente). O admin direto e o `consultoria_admin` e exerce os atos
+  so de `org_admin` apenas em projeto da propria direta; as travas: Gestor ARCiber (obra, base, desvio), `podeVerCompleto`, `painel-ot`, avisos
+  de prazo, `podeMexerEmAssinaturaDe`, `podeRevogarAprovacao` e `data-subject`. **Quem criou nao decide** (vale em toda organizacao): pedido,
+  base do site, avaliacao do n.ot e encerrar incidente; o agente conta como quem o concedeu (`agente_conta`). A direta nao tem area comercial
+  (`ehComercial` nega com `org_direta`), nem conta de cliente (so `platform_admin`, break-glass), nem SSO/SCIM por ora, e fica sem tela de
+  identidade (`GET /org/config` e comercial). Agente e chave de API nunca passam por essas travas.
   casca `/ot` com uma tela (`views/ot.js`) em abas: catalogo, inventario (sites, zonas, ativos), fluxos, coleta (`views/ot-coleta.js`),
   saidas (`views/ot-saidas.js`) e acesso por site (so quem edita); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
   a API recusaria. IP/MAC aparecem como a API devolve e ficam so na memoria da tela; "Revelar" (platform_admin, ativo mascarado) pede o
@@ -591,7 +601,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se
   ele for o proprio host, ou o `/health` falhar, fica onde esta. O item Inicio do menu so aparece no n.360; nos modulos a volta e
   o link "n.360" do rodape. Login unico (a sessao e por origem: na troca, todos entram de novo uma vez).
-  **Conta e acessos (n.360, fatia 2):** Projetos (com o cartao Produtos), Usuarios, Consultorias (o tenant; view `organizacoes`), Chaves de API e Conectar agente
+  **Conta e acessos (n.360, fatia 2):** Projetos (com o cartao Produtos), Usuarios, Organizações (o tenant; view `organizacoes`), Chaves de API e Conectar agente
   ficam no grupo "Conta e acessos" (`group-conta` em `login.html`), que so o n.360 mostra (`SO_N360`); o papel continua decidindo
   cada item (`updateHeaderUser`), e o grupo sem item do papel some. Nos modulos o rodape traz "Conta e acessos (n.360)", que leva a
   `/?tela=<primeira tela da conta que o papel ve>`. O boot do n.360 le o `?tela=` uma vez (`telaPedida`): so valores de

@@ -89,4 +89,12 @@ Três PRs: (1) migration, tipo e criação; (2) as sete travas e a regra de pess
 ## Não conferido
 
 Texto do termo de uso, SCIM, assinatura da análise crítica, `confirmarAvaliacao` completa, telas `ot-*.js`, estado das migrations em
-produção (o README ainda diz 0109; a última no disco é 0112).
+produção (o README dizia 0109; a última no disco é 0113, ainda não aplicada).
+
+## Rulings da execução
+
+- O `platform_admin` pode criar conta de cliente em projeto de organização direta (break-glass); `POST /users` e a troca de papel equipe→cliente só recusam os demais criadores.
+- A direta fica sem tela de identidade na onda 1: `GET /org/config` é comercial-only e devolve custo e margem; liberar exige mudar a autorização no servidor.
+- A regra criador ≠ decisor vale em toda organização, inclusive no encerramento de incidente. O agente é resolvido para quem o concedeu (`agente_conta`).
+- SSO/SCIM e convite de stakeholder ficam fora da onda 1 (não checam o tipo da organização).
+- O pedido criado pela própria pessoa nunca aparece em "Minhas aprovações" nem em `decisoes`.

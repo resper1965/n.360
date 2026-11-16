@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0109** (`ls migrations/*.sql | tail -1`). São 110 arquivos
+- Última migration no repositório: **0113** (`ls migrations/*.sql | tail -1`). São 114 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -777,6 +777,11 @@ $ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1
 $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
+
+## 0113 — tipo da organização (2026-11-16)
+
+`organizations.tipo TEXT NOT NULL DEFAULT 'consultoria' CHECK (tipo IN ('consultoria','direta'))`. Aditiva: o DEFAULT dispensa backfill; a organização `direta` só nasce pelo `platform_admin`, na criação. Spec `2026-11-16-onda1-organizacao-direta-design`. **Status: PENDENTE de aplicar** (nada foi aplicado em produção; só com o "sim" do dono e `npm run db:backup` antes). Aplicar: `npx wrangler d1 migrations apply niso-db --remote`. Conferência depois:
+`SELECT count(*) FROM organizations WHERE tipo = 'consultoria'` igual a `SELECT count(*) FROM organizations` (todas as existentes ficam `consultoria`) e `PRAGMA table_info(organizations)` com a coluna `tipo`. Registrar aqui a saída quando houver.
 
 ## 0112 — assessment do n.ot (2026-11-12)
 
