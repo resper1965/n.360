@@ -22,6 +22,7 @@ test('abre o passo pelo endereço, escreve e o texto é salvo no servidor', asyn
     const metodo = route.request().method();
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (url.pathname === '/api/v1/auth/me') return json({ user: USER });
+    if (url.pathname === '/api/v1/projects' && metodo === 'GET') return json([{ id: 'proj-e2e', project_name: 'Projeto E2E', modulos: ['iso'] }]);
     if (url.pathname === '/api/v1/passos/catalogo') return json(contrato('catalogo'));
     if (url.pathname === '/api/v1/projects/proj-e2e/bancada') return json(contrato('bancada'));
     if (url.pathname === '/api/v1/projects/proj-e2e/prontidao') return json({ indicador: { implementados: 31, aplicaveis: 90 } });
