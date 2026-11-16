@@ -57,6 +57,11 @@ describe('itens do n.ot: só dentro do /ot, com projeto E pessoa com o módulo',
         S.user = { role: 'consultor', modulos: ['iso'] };
         atualizarItemOt();
         expect(el('nav-ot-inicio').hidden).toBe(true);
+        // projeto SEM o n.ot e pessoa COM o n.ot: continua escondido (modulosVisiveis cruza projeto e pessoa)
+        S.activeProject = { id: 'c', modulos: ['iso', 'privacy'] };
+        S.user = { role: 'consultor', modulos: ['ot'] };
+        atualizarItemOt();
+        expect(el('nav-ot-inicio').hidden).toBe(true);
         S.activeProject = null;
         S.user = { role: 'consultor', modulos: ['ot'] };
         atualizarItemOt();

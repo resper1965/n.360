@@ -110,7 +110,7 @@ describe('casca', () => {
             for (const id of ids) expect(el(id).dataset.foraDoProduto, `${p} ${id}`).toBe('1');
         }
     });
-    it('atualizarItemOt: no n.ot mostra os itens novos e esconde o nav-ot; Acessos só para quem edita', () => {
+    it('atualizarItemOt: no n.ot mostra os itens do n.ot (o nav-ot não existe mais); Acessos só para quem edita', () => {
         montarApp();
         const antes = { p: S.activeProject, u: S.user };
         S.activeProject = { id: 'p1', modulos: ['ot'] };
