@@ -244,7 +244,7 @@ describe('início do n.360', () => {
         servir({ 'GET /api/v1/carteira': semOt, 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO() } }) });
         await abrir('n360');
         expect(el('c').textContent).not.toContain('n.ot');
-        await window.painelVerSituacao('p9', el('c').querySelector('[data-action="painelVerSituacao"]'));
+        await window.painelVerSituacao('p9', 'Exemplo', el('c').querySelector('[data-action="painelVerSituacao"]'));
         expect([...el('c').querySelectorAll('.pn-sit .pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy']);
         expect(el('c').textContent).not.toContain('n.ot');
     });
@@ -255,7 +255,7 @@ describe('início do n.360', () => {
         const ver = [...el('c').querySelectorAll('[data-action="painelVerSituacao"]')][1];
         expect(ver.getAttribute('aria-expanded')).toBe('false');
         expect(ver.getAttribute('aria-label')).toBe('Ver situação de Exemplo');
-        await window.painelVerSituacao('p9', ver);
+        await window.painelVerSituacao('p9', 'Exemplo', ver);
         expect(ver.getAttribute('aria-expanded')).toBe('true');
         expect(ver.getAttribute('aria-controls')).toBe('ini-sit-p9');
         const sit = el('ini-sit-p9');
@@ -266,10 +266,10 @@ describe('início do n.360', () => {
         expect(sit.querySelector('.btn-primary')).toBeNull();
         expect(chamadas(f)).toContain('GET /api/v1/projects/p9/painel');
         expect(S.activeProject).toBeNull();
-        await window.painelVerSituacao('p9', ver);
+        await window.painelVerSituacao('p9', 'Exemplo', ver);
         expect(ver.getAttribute('aria-expanded')).toBe('false');
         expect(el('ini-sit-p9')).toBeNull();
-        await window.painelVerSituacao('p9', ver);
+        await window.painelVerSituacao('p9', 'Exemplo', ver);
         expect(el('ini-sit-p9')).not.toBeNull();
         expect(chamadas(f).filter((x) => x.includes('/painel'))).toEqual(['GET /api/v1/projects/p9/painel']);
     });
@@ -277,9 +277,30 @@ describe('início do n.360', () => {
     it('"Ver situação" com falha: diz isso na linha, sem segundo botão primário', async () => {
         servir({ 'GET /api/v1/carteira': CARTEIRA });
         await abrir('n360');
-        await window.painelVerSituacao('p8', el('c').querySelector('[data-action="painelVerSituacao"]'));
+        await window.painelVerSituacao('p8', 'Clínica', el('c').querySelector('[data-action="painelVerSituacao"]'));
         expect(el('ini-sit-p8').textContent).toContain('Não foi possível ver a situação deste projeto');
         expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(1);
+    });
+
+    it('a situação aberta leva o nome da empresa (escapado) no aria-label da região', async () => {
+        servir({ 'GET /api/v1/carteira': CARTEIRA, 'GET /api/v1/projects/p8/painel': PAINEL({ modulos: { privacy: BLOCO() } }), 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: ISO_ATRASO } }) });
+        await abrir('n360');
+        const [v8, v9] = [...el('c').querySelectorAll('[data-action="painelVerSituacao"]')];
+        await window.painelVerSituacao('p8', 'Clínica <b>Exemplo</b>', v8);
+        await window.painelVerSituacao('p9', 'Exemplo', v9);
+        expect([...el('c').querySelectorAll('.pn-sit .pn-modulos')].map((x) => x.getAttribute('aria-label'))).toEqual(['Situação por módulo de Clínica <b>Exemplo</b>', 'Situação por módulo de Exemplo']);
+        expect(el('c').querySelector('.pn-sit b')).toBeNull();
+    });
+    it('empresas com o mesmo nome: os nomes acessíveis dos botões se distinguem por (1), (2); nome único fica como está', async () => {
+        const dup = { ...CARTEIRA, projetos: [{ ...CARTEIRA.projetos[1], id: 'a1', nome: 'Acme' }, { ...CARTEIRA.projetos[1], id: 'a2', nome: 'Acme' }, { ...CARTEIRA.projetos[0], id: 'b1', nome: 'Beta' }] };
+        servir({ 'GET /api/v1/carteira': dup });
+        await abrir('n360');
+        const nomes = (acao) => [...el('c').querySelectorAll(`[data-action="${acao}"]`)].map((b) => b.getAttribute('aria-label'));
+        expect(nomes('painelVerSituacao')).toEqual(['Ver situação de Acme (1)', 'Ver situação de Acme (2)', 'Ver situação de Beta']);
+        const abrirNo = nomes('painelAbrirProjeto');
+        expect(new Set(abrirNo).size).toBe(abrirNo.length);
+        expect(abrirNo).toContain('Abrir Acme (2) no n.iso');
+        expect(abrirNo).toContain('Abrir Beta no n.privacy');
     });
 
     it('lista pelo componente: busca sem acento e "N de M"', async () => {
@@ -335,15 +356,6 @@ describe('início do n.360', () => {
         expect(S.activeProject.id).toBe('p7');
         expect(irPara).toHaveBeenLastCalledWith('/iso');
         expect(irPara).not.toHaveBeenCalledWith('/ot');
-    });
-
-    it('cliente (preso ao projeto dele): pede só o painel do projeto dele, nunca a carteira', async () => {
-        S.user = { id: 'u2', role: 'org_user', client_project_id: 'p9' };
-        window.ehEquipeNess = () => false;
-        const f = servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ visao: 'cliente', decisoes: [] }) });
-        await abrir('n360');
-        expect(chamadas(f)).toEqual(['GET /api/v1/projects/p9/painel']);
-        expect(el('c').textContent).toContain('Nada esperando a sua decisão agora.');
     });
 
     it('sem projeto: diz isso, sem chamar a API', async () => {
@@ -434,23 +446,59 @@ describe('o cliente age: a entrada do cliente', () => {
         await abrir('iso');
         expect(el('c').textContent).toContain('A jornada deste projeto ainda não foi aberta pela consultoria.');
     });
-    it('Início do n.360: decisões antes das linhas, "Ler e aprovar" primário e "Abrir o n.x" secundário', async () => {
+    it('Início do cliente: o projeto dele aberto, "Esperando a sua decisão" em cima, botões dos módulos que vieram; nunca a carteira', async () => {
         history.replaceState(null, '', '/');
-        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ decisoes: DECISOES, modulos: { iso: ISO(), privacy: { saude: { tom: 'ok', rotulo: 'Em dia', frase: 'x' }, numeros: [['1', 'y']], comecando: false } } }) });
+        S.view = 'inicio';
+        S.projects = [S.activeProject, { id: 'p8', modulos: ['iso'] }];
+        const f = servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ decisoes: DECISOES, modulos: { iso: ISO(), privacy: { saude: { tom: 'ok', rotulo: 'Em dia', frase: 'x' }, numeros: [['1', 'y']], comecando: false } } }) });
         await abrir('n360');
         const c = el('c');
+        expect(chamadas(f)).toEqual(['GET /api/v1/projects/p9/painel']);
+        expect(c.querySelector('[data-action="painelVerSituacao"]')).toBeNull();
+        expect(c.querySelector('#pn-proj').textContent).toBe('Exemplo Log');
+        const entrar = [...c.querySelectorAll('[data-action="painelAbrirProjeto"]')];
+        expect(entrar.map((b) => JSON.parse(b.getAttribute('data-args')))).toEqual([['p9', 'iso'], ['p9', 'privacy']]);
         const decidir = c.querySelector('[data-action="abrirPedido"]');
-        const abrirModulo = [...c.querySelectorAll('[data-action="abrirModulo"]')];
         expect(decidir.className).toContain('btn-primary');
-        expect(abrirModulo).toHaveLength(2);
-        for (const b of abrirModulo) expect(b.className).not.toContain('btn-primary');
-        expect(decidir.compareDocumentPosition(abrirModulo[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(c.querySelectorAll('.btn-primary')).toHaveLength(1);
+        expect(decidir.compareDocumentPosition(entrar[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect([...c.querySelectorAll('.pn-quadro .pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy']);
+        expect(S.activeProject).toBeNull();
     });
-    it('Início do cliente com projeto começando: sem números zerados nas linhas dos módulos', async () => {
+    it('Início do cliente sem decisão: o primeiro "Abrir no" é o primário; projeto começando sem números zerados', async () => {
         history.replaceState(null, '', '/');
+        S.view = 'inicio';
         servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ modulos: { iso: ISO({ comecando: true, numeros: [['0 de 0', 'controles implementados']] }) } }) });
         await abrir('n360');
+        expect([...el('c').querySelectorAll('.btn-primary')].map((b) => b.textContent)).toEqual(['Abrir no n.iso']);
         expect(el('c').querySelector('.pn-fig')).toBeNull();
         expect(el('c').textContent).not.toContain('0 de 0');
+        expect(el('c').textContent).toContain('Nada esperando a sua decisão agora.');
+    });
+    it('Início do cliente: n.ot só quando o servidor mandou o bloco (P0-1)', async () => {
+        history.replaceState(null, '', '/');
+        S.view = 'inicio';
+        const ot = { saude: { tom: 'ok', rotulo: 'Em dia', frase: 'Sites em operação.' }, numeros: [['1', 'site']], comecando: false };
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ modulos: { iso: ISO(), ot } }) });
+        await abrir('n360');
+        expect([...el('c').querySelectorAll('[data-action="painelAbrirProjeto"]')].map((b) => b.textContent)).toEqual(['Abrir no n.iso', 'Abrir no n.ot']);
+        S.painel = {};
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE() });
+        await abrir('n360');
+        expect(el('c').textContent).not.toContain('n.ot');
+    });
+    it('Início do cliente com activeProject solto (login deixa o projeto dele): os botões funcionam pelo client_project_id, não pelo ativo', async () => {
+        history.replaceState(null, '', '/');
+        S.view = 'inicio';
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ modulos: { iso: ISO({ fazer: [ITENS[2]] }) } }) });
+        await abrir('n360');
+        expect(S.activeProject).toBeNull();
+        window.painelAbrirItem('p9', 'evidence', null, null);
+        expect(S.activeProject.id).toBe('p9');
+        expect(window.navigate).toHaveBeenCalledWith('evidence');
+        S.activeProject = null;
+        window.painelAbrirProjeto('p9', 'iso');
+        expect(S.activeProject.id).toBe('p9');
+        expect(irPara).toHaveBeenCalled();
     });
 });

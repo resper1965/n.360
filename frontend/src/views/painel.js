@@ -5,7 +5,6 @@ import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, semAcesso, DESCR
 import { montarLista } from '../lista.js';
 import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
-import { renderPontoDePartida } from './ponto-de-partida.js';
 import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, ligarDicas } from './painel-graficos.js';
 
 // Painel de entrada do n.360, do n.iso e do n.privacy (estudo docs/design/diagnostico-2026-10-14/dashboard-entrada.md, direção A).
@@ -15,9 +14,7 @@ import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, liga
 
 const VALIDADE_MS = 60_000;
 const NOME = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
-// O n.ot só ganha linha quando o servidor mandou o bloco (módulo no projeto E na pessoa): nunca "não habilitado" (P0-1).
 const MODULOS = ['iso', 'privacy'];
-const modulosDaTela = (d) => (d.modulos && d.modulos.ot ? [...MODULOS, 'ot'] : MODULOS);
 const ROTULO_ESTADO = { atraso: 'Atrasado', semana: 'Nesta semana', plano: 'Para planejar' };
 const e = (v) => escapeHTML(String(v ?? ''));
 const args = (...v) => escapeHTML(JSON.stringify(v));
@@ -206,23 +203,6 @@ function telaDoModulo(d, m, proj) {
     return `${topo}${colunas(esquerda, direita)}`;
 }
 
-/** Início do n.360: a frase dos dois módulos, uma linha por módulo e a lista que junta os dois. */
-function telaDoN360(d, proj) {
-    const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}`;
-    const linhas = `<section class="pn-modulos" aria-label="Módulos deste projeto">${modulosDaTela(d).map((m) => linhaModulo(m, d, proj)).join('')}</section>`;
-    // Para o cliente, a decisão vem antes das linhas dos módulos: é a ação dele.
-    if (d.visao === 'cliente') return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))], [])}${linhas}`;
-    // A mesma ordem da frase do servidor: o n.privacy primeiro em cada grupo (o prazo dele é legal).
-    const blocos = ['privacy', 'iso', 'ot'].map((m) => d.modulos && d.modulos[m]).filter(Boolean);
-    const juntos = ['atraso', 'semana', 'plano'].flatMap((g) => blocos.flatMap((b) => (Array.isArray(b.fazer) ? b.fazer : []).filter((i) => i.grupo === g)));
-    const mostrados = juntos.slice(0, 8);
-    const resto = juntos.length - mostrados.length;
-    const esquerda = blocos.every((b) => b.comecando)
-        ? quadro('pn-passos-t', 'Primeiros passos', `<p class="pn-vazio-tx">Comece por um dos módulos acima: cada um abre com os primeiros passos dele.</p>`)
-        : quadro('pn-fazer', `O que fazer agora, nos ${blocos.length > 2 ? 'seus' : 'dois'} módulos`, `${listaFazer(mostrados, true)}${resto > 0 ? `<p class="pn-meta">E mais ${resto}. Abra o módulo para a lista inteira.</p>` : ''}`);
-    return `${topo}${linhas}${colunas([esquerda], ['<div id="inicio-ponto-de-partida"></div>'])}`;
-}
-
 function esqueleto(entrada) {
     const b = (cls) => `<div class="pn-esq ${cls}"></div>`;
     const lista = [1, 2, 3, 4].map(() => b('pn-esq-linha')).join('');
@@ -260,9 +240,9 @@ function linhaSituacao(m, d, projectId) {
     return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado(sd.tom, sd.rotulo)}<div class="pn-m-frase">${e(sd.frase)}</div>${urgente}</div>${figuras(b, d.visao === 'cliente')}${botao}</div>`;
 }
 
-function situacao(d, projectId) {
+function situacao(d, projectId, nome) {
     const ms = mandados(d);
-    return `<section class="pn-modulos" aria-label="Situação por módulo">${ms.length ? ms.map((m) => linhaSituacao(m, d, projectId)).join('')
+    return `<section class="pn-modulos" aria-label="${e(`Situação por módulo de ${nome}`)}">${ms.length ? ms.map((m) => linhaSituacao(m, d, projectId)).join('')
         : '<p class="pn-vazio-tx">Nenhum módulo seu neste projeto.</p>'}</section>`;
 }
 
@@ -284,6 +264,9 @@ function telaDaLista(c, h, dados) {
     const frase = `${lista.length} ${lista.length === 1 ? 'projeto' : 'projetos'}. ${atrasados ? `${atrasados === 1 ? 'Um precisa' : `${atrasados} precisam`} de você hoje.` : 'Nenhum com prazo vencido.'}`;
     // A ação primária da tela: o módulo da pendência mais urgente do primeiro projeto (a carteira vem por urgência).
     const primeiro = lista[0];
+    // Empresas com o mesmo nome ganham (1), (2)... só na hora de nomear botões: o nome acessível precisa distinguir as linhas.
+    const iguais = (p) => lista.filter((x) => x.nome === p.nome);
+    const rotulo = (p) => (iguais(p).length > 1 ? `${p.nome} (${iguais(p).indexOf(p) + 1})` : p.nome);
     const mods = primeiro.modulos || [];
     const doPrimeiro = mods.includes(primeiro.modulo_urgente) ? primeiro.modulo_urgente : mods[0];
     c.innerHTML = `<div class="pn"><section class="pn-saude" aria-labelledby="pn-ini-t"><h2 id="pn-ini-t" class="sr-only">Seus projetos</h2>${estado(atrasados ? 'atraso' : 'ok', atrasados ? 'Atenção hoje' : 'Em dia')}
@@ -292,12 +275,12 @@ function telaDaLista(c, h, dados) {
     montarLista(c.querySelector('#ini-lista'), {
         id: 'ini-projetos', linhas: lista, busca: (p) => `${p.nome} ${p.situacao} ${p.urgente}`, buscaDica: 'Empresa ou situação',
         colunas: [
-            { label: 'Empresa', render: (p) => `<div class="pn-tx">${e(p.nome)}</div><button type="button" class="btn btn-ghost btn-sm" data-action="painelVerSituacao" data-args='${args(p.id)}' data-arg-el aria-expanded="false" aria-label="${e(`Ver situação de ${p.nome}`)}">Ver situação</button>` },
+            { label: 'Empresa', render: (p) => `<div class="pn-tx">${e(p.nome)}</div><button type="button" class="btn btn-ghost btn-sm" data-action="painelVerSituacao" data-args='${args(p.id, rotulo(p))}' data-arg-el aria-expanded="false" aria-label="${e(`Ver situação de ${rotulo(p)}`)}">Ver situação</button>` },
             { label: 'Módulos', render: (p) => `<span class="pn-meta">${(p.modulos || []).map((m) => e(NOME[m] || m)).join(', ')}</span>` },
             { label: 'Situação', render: (p) => estado(p.tom, p.situacao) },
             { label: 'O mais urgente', render: (p) => e(p.urgente) },
             { label: 'Último movimento', render: (p) => `<span class="pn-meta">${e(quandoFoi(p.ultimo_movimento))}</span>` },
-            { label: 'Entrar', render: (p) => botoesDosModulos(p.id, p.nome, p.modulos || [], p.id === primeiro.id ? doPrimeiro : null) },
+            { label: 'Entrar', render: (p) => botoesDosModulos(p.id, rotulo(p), p.modulos || [], p.id === primeiro.id ? doPrimeiro : null) },
         ],
     });
 }
@@ -306,7 +289,7 @@ function telaDaLista(c, h, dados) {
  * "Ver situação": a situação do projeto numa linha logo abaixo, sem mudar o projeto ativo. Pedida só ao abrir; fechar tira a linha.
  * shortcut: buscar ou "Carregar mais" redesenha a lista e fecha a linha aberta; guardar as abertas só se alguém sentir falta.
  */
-window.painelVerSituacao = async function (projectId, botao) {
+window.painelVerSituacao = async function (projectId, nome, botao) {
     const tr = botao && botao.closest('tr');
     if (!tr) return;
     const id = `ini-sit-${projectId}`;
@@ -321,12 +304,25 @@ window.painelVerSituacao = async function (projectId, botao) {
     botao.setAttribute('aria-controls', id);
     const td = tr.nextElementSibling.firstElementChild;
     try {
-        td.innerHTML = situacao(await situacaoDoProjeto(projectId), projectId);
+        td.innerHTML = situacao(await situacaoDoProjeto(projectId), projectId, nome);
     } catch (err) {
         td.innerHTML = renderErrorState('Não foi possível ver a situação deste projeto.', { erro: err, acao: null });
     }
     td.removeAttribute('aria-busy');
 };
+
+/** O nome do projeto do cliente: o da empresa, como na carteira. */
+const nomeDaEmpresa = (d, proj) => (d.empresa && (d.empresa.nome_fantasia || d.empresa.razao_social)) || proj.client_name || proj.project_name || 'Projeto';
+
+/** Início do cliente: o que espera a decisão dele em cima e o projeto dele (por client_project_id, não pelo ativo) com os módulos que o servidor mandou. */
+function telaDoCliente(d, proj) {
+    const mods = mandados(d);
+    const decide = Array.isArray(d.decisoes) && d.decisoes.length > 0;
+    const nome = nomeDaEmpresa(d, proj);
+    // Uma ação primária: a primeira decisão (listaDecisoes); sem decisão, o primeiro "Abrir no".
+    return `<div class="pn">${quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))}
+        ${quadro('pn-proj', nome, situacao(d, proj.id, nome), botoesDosModulos(proj.id, nome, mods, decide ? null : mods[0]))}</div>`;
+}
 
 /** Entrar num projeto: vira o ativo e fica lembrado para o módulo (o state o hidrata de `niso_activeProject`). */
 function entrarNoProjeto(projectId) {
@@ -363,12 +359,10 @@ function cabecalho(a, entrada, proj, d) {
 
 function desenhar(c, a, entrada, proj, d) {
     cabecalho(a, entrada, proj, d);
-    c.innerHTML = `<div class="pn">${entrada === 'n360' ? telaDoN360(d, proj) : telaDoModulo(d, entrada, proj)}</div>`;
+    c.innerHTML = `<div class="pn">${telaDoModulo(d, entrada, proj)}</div>`;
     ligarDicas(c.firstElementChild);
     const selos = entrada === 'iso' ? d.modulos && d.modulos.iso && d.modulos.iso.selos : d.selos;
     if (selos) aplicarSelos(selos);
-    const pp = c.querySelector('#inicio-ponto-de-partida');
-    if (pp) renderPontoDePartida(pp, proj.id, 'n360');
 }
 
 function semModulo(c, entrada, proj) {
@@ -441,7 +435,7 @@ async function renderInicioDoN360(c, h, a) {
         const proj = (S.projects || []).find((p) => p.id === idCliente);
         if (!proj) { vazioDoInicio(c, h); return; }
         await carregar(c, a, 'n360', proj, `${proj.id}|n360`, () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel`),
-            (dados) => (dados && dados.modulos ? desenhar(c, a, 'n360', proj, dados) : (c.innerHTML = renderErrorState('Não foi possível montar o painel.'))));
+            (dados) => { c.innerHTML = dados && dados.modulos ? telaDoCliente(dados, proj) : renderErrorState('Não foi possível montar o painel.'); });
         return;
     }
     await carregar(c, a, 'n360', null, 'carteira', () => api('GET', '/api/v1/carteira'), (dados) => telaDaLista(c, h, dados));
