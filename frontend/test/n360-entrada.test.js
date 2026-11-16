@@ -78,6 +78,14 @@ describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecio
         expect(navigate).toHaveBeenCalledWith('inicio');
         expect(irPara).not.toHaveBeenCalled();
     });
+    it('projeto lembrado que não está na lista (de outra pessoa) é solto, no storage também', async () => {
+        S.activeProject = { id: 'alheio', project_name: 'Alheio' };
+        localStorage.setItem('niso_activeProject', JSON.stringify(S.activeProject));
+        apiMock.mockImplementation(async () => [{ id: 'p1', modulos: ['iso'] }]);
+        await window.loadProjects();
+        expect(S.activeProject).toBeNull();
+        expect(localStorage.getItem('niso_activeProject')).toBeNull();
+    });
     it('lista de projetos que falha não vira "zero projetos" (sem entrada guiada por engano)', async () => {
         S.totalProjetos = 0;
         apiMock.mockImplementation(async () => { throw new Error('503'); });
@@ -113,6 +121,11 @@ describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecio
         await window.initApp();
         expect(S.activeProject && S.activeProject.id).toBe('p2');
     });
+    it('entrar zera o cache do painel (troca de pessoa sem logout não herda a visão da anterior)', async () => {
+        S.painel = { 'outra|carteira': { t: Date.now(), dados: { projetos: [] } } };
+        await window.initApp();
+        expect(S.painel).toEqual({});
+    });
     it('stakeholder continua indo aos pedidos dele', async () => {
         papel = { role: 'stakeholder' };
         await window.initApp();
@@ -122,9 +135,10 @@ describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecio
 });
 
 describe('initApp no n.360 com ?tela= (vindo do rodapé de um módulo)', () => {
+    // Como o login.html real: os itens da conta nascem com display:none e só updateHeaderUser os mostra, conforme o papel.
     const comMenu = () => {
-        document.body.insertAdjacentHTML('beforeend', ['projects', 'users', 'organizacoes', 'api-keys', 'conectar-agente']
-            .map((t) => `<div class="sidebar-nav" id="nav-${t}"></div>`).join(''));
+        document.body.insertAdjacentHTML('beforeend', ['projects', 'users', 'organizacoes', 'identidade', 'modelos-fornecedor', 'api-keys', 'conectar-agente']
+            .map((t) => `<div class="sidebar-nav" id="nav-${t}" style="${t === 'projects' ? '' : 'display:none'}"></div>`).join(''));
     };
     it('abre a tela pedida mesmo com um módulo só (não volta ao módulo) e limpa o endereço', async () => {
         comMenu();
@@ -143,6 +157,14 @@ describe('initApp no n.360 com ?tela= (vindo do rodapé de um módulo)', () => {
         await window.initApp();
         expect(irPara).not.toHaveBeenCalled();
         expect(navigate).toHaveBeenCalledWith('organizacoes');
+    });
+    it('org_admin do cliente com ?tela=users abre Usuários (rodapé "Conta e acessos")', async () => {
+        comMenu();
+        papel = { role: 'org_admin', client_project_id: 'p1' };
+        projetos = [{ id: 'p1', modulos: ['iso'] }];
+        history.replaceState(null, '', '/?tela=users');
+        await window.initApp();
+        expect(navigate).toHaveBeenCalledWith('users');
     });
     it('tela fora da lista ou que o papel não vê: segue a entrada normal', async () => {
         comMenu();

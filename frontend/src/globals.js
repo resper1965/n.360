@@ -1370,9 +1370,10 @@ window.loadProjects = async function loadProjects() {
         const todos = await api('GET', '/api/v1/projects');
         S.projects = projetosDoProduto(todos);
         S.totalProjetos = Array.isArray(todos) ? todos.length : undefined; // zero de verdade: a entrada guiada do semAcesso
-        // O projeto ativo guardado sai só se ele existe e é de OUTRO módulo (lista vazia ou com falha não apaga a escolha).
+        // O projeto ativo guardado sai se é de OUTRO módulo ou não está na lista (falha da lista não apaga a escolha).
+        // Também sai o que não está na lista: o lembrado de outra pessoa que usou este navegador.
         const ativo = S.activeProject && Array.isArray(todos) ? todos.find((p) => p.id === S.activeProject.id) : null;
-        if (ativo && !S.projects.some((p) => p.id === ativo.id)) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) { /* sem storage */ } }
+        if (S.activeProject && Array.isArray(todos) && (!ativo || !S.projects.some((p) => p.id === ativo.id))) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) { /* sem storage */ } }
         if (typeof updateSidebarProjectSelector === 'function') { updateSidebarProjectSelector(); }
     } catch(e) { S.projects = []; S.totalProjetos = undefined; } // falha não é zero: nada de "Nenhum projeto ainda"
 }
@@ -1616,9 +1617,8 @@ window.initApp = async function initApp() {
         const ehStakeholder = S.user && S.user.role === 'stakeholder';
         // O Início do n.360 (mesmo critério do destino abaixo) não tem projeto ativo: solta o hidratado do storage ANTES de
         // loadAll, senão o seletor o mostra por um instante. O lembrado fica no storage, só para o seletor oferecê-lo primeiro.
-        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida em vez do Início (lida uma vez: telaPedida limpa o endereço).
-        const tela = produtoAtual() === 'n360' && !ehStakeholder ? telaPedida() : null;
-        const noInicio = produtoAtual() === 'n360' && !ehStakeholder && !tela;
+        // Sem `?tela=` (lido sem consumir o endereço) o destino é o Início: solta o hidratado antes de loadAll.
+        const noInicio = produtoAtual() === 'n360' && !ehStakeholder && !new URLSearchParams(location.search).has('tela');
         if (noInicio) { S.activeProject = null; S.currentProject = null; }
         // Stakeholder não alcança leads, projetos nem controles (403 em todos): não os pede.
         if (!ehStakeholder) await loadAll();
@@ -1640,6 +1640,9 @@ window.initApp = async function initApp() {
         updateActiveProjectWidget();
 
         const produto = produtoAtual();
+        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida em vez do Início. Só depois de updateHeaderUser:
+        // telaPedida lê o menu visível, e é ele que mostra os itens do papel (e limpa o endereço).
+        const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
         const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
         // A Bancada abre no passo do endereço (`?fase=&passo=`); a própria tela o consome e mantém o endereço em dia.
