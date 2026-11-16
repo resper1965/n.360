@@ -28,7 +28,7 @@ export async function emitirCredencialSensor(db: D1Database, projectId: string, 
   return { id, credencial, expira_em };
 }
 
-type Cred = { expira_em: string; situacao: string };
+export type Cred = { expira_em: string; situacao: string };
 const HORA = 3_600_000;
 // D1 grava `created_at` como 'AAAA-MM-DD HH:MM:SS' (UTC, sem fuso); a credencial, como ISO.
 const ms = (s: string) => new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z').getTime();

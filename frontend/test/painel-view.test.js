@@ -20,7 +20,7 @@ const ITENS = [
 ];
 const BLOCO = (extra = {}) => ({
     saude: { tom: 'atraso', rotulo: 'Atrasado' , frase: '2 pedidos do titular atrasados.', apoio: '' },
-    numeros: [['1 de 3', 'atividades aprovadas'], ['2', 'pedidos atrasados'], ['0', 'terceiros vencidos']],
+    numeros: [['1 de 3', 'atividades aprovadas'], ['2', 'pedidos atrasados'], ['0', 'fornecedores vencidos']],
     comecando: false, fazer: ITENS,
     cobertura: [{ tema: 'Atividades (RoPA)', feito: 1, andamento: 1, falta: 1, conta: 'aprovadas / ... / ...' }, { tema: 'LIA exigidas', feito: 0, andamento: 0, falta: 0, conta: 'x' }],
     vencimentos: [{ tipo: 'Pedidos do titular', vencidos: 2, itens: [{ dias: 3, rotulo: 'PT-3' }, { dias: 40, rotulo: 'PT-<i>4</i>' }] }],
@@ -201,7 +201,7 @@ describe('início do n.360', () => {
         expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toEqual(['Abrir o n.iso', 'Abrir o n.privacy']);
         // Cada linha diz o que o módulo é: a escolha entre os dois não depende de conhecer o nome.
         expect([...el('c').querySelectorAll('.pn-m .pn-m-desc')].map((p) => p.textContent))
-            .toEqual(['ISO 27001 e 27701: controles, riscos e auditoria', 'LGPD: tratamentos, titulares, incidentes e terceiros']);
+            .toEqual(['ISO 27001 e 27701: controles, riscos e auditoria', 'LGPD: tratamentos, titulares, incidentes e fornecedores']);
         expect(el('c').textContent).toContain('O que fazer agora, nos dois módulos');
         const nomes = [...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'));
         expect(new Set(nomes).size).toBe(nomes.length);
@@ -226,8 +226,28 @@ describe('início do n.360', () => {
         expect(el('c').querySelectorAll('.pn-m .pn-m-desc')).toHaveLength(2);
     });
 
-    it('projeto com o n.ot: o painel o ignora (sem linha nem bloco) e não quebra', async () => {
+    it('projeto com o n.ot: a linha aparece só quando o servidor mandou o bloco', async () => {
         S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy', 'ot'] };
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy', 'ot'] }; S.projects = [S.activeProject];
+        const ot = { saude: { tom: 'semana', rotulo: 'Atenção', frase: '2 desvios abertos.', apoio: '' }, numeros: [['1 de 3', 'sites em operação'], ['2', 'desvios abertos']],
+            comecando: false, cobertura: [], vencimentos: [], riscos: [], passos: [],
+            fazer: [{ grupo: 'semana', quando: 'Nesta semana', texto: '2 desvios abertos', contexto: '', acao: 'Ver os desvios', tela: 'ot', aba: 'sites', modulo: 'ot' }] };
+        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO(), ot } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
+        await abrir('n360');
+        expect([...el('c').querySelectorAll('.pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy', 'n.ot']);
+        expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toContain('Abrir o n.ot');
+        expect(el('c').textContent).toContain('O que fazer agora, nos seus módulos');
+        expect([...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'))).toContain('Ver os desvios: 2 desvios abertos (n.ot)');
+        window.painelAbrir('ot', 'sites', null);
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
+        window.painelAbrir('ot', '<script>', null);
+        expect(irPara).toHaveBeenLastCalledWith('/ot');
+        window.abrirModulo('ot');
+        expect(irPara).toHaveBeenCalledWith('/ot');
+    });
+
+    it('sem bloco do n.ot na resposta: nenhuma linha do n.ot, nem "não habilitado"', async () => {
+        S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy'] };
         S.activeProject = { id: 'p9', modulos: ['iso', 'privacy', 'ot'] }; S.projects = [S.activeProject];
         servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO() } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
         await abrir('n360');
@@ -266,6 +286,15 @@ describe('início do n.360', () => {
         window.painelVista('carteira');
         await abrir('n360');
         expect(el('c').querySelector('.pn-carteira')).not.toBeNull();
+    });
+
+    it('"Abrir" com módulo que a pessoa não tem (ot) cai no primeiro módulo visível do projeto', () => {
+        S.user = { id: 'u3', role: 'consultor', modulos: ['iso', 'privacy'] };
+        S.projects = [{ id: 'p7', client_name: 'Com OT', modulos: ['ot', 'iso', 'privacy'] }];
+        window.painelAbrirProjeto('p7', 'ot');
+        expect(S.activeProject.id).toBe('p7');
+        expect(irPara).toHaveBeenLastCalledWith('/iso');
+        expect(irPara).not.toHaveBeenCalledWith('/ot');
     });
 
     it('cliente com um projeto: sem alternância e sem carteira', async () => {

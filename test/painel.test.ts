@@ -58,6 +58,11 @@ describe('estado do programa e situação na carteira (funções puras)', () => 
     expect(estadoDoPrograma(null, true).rotulo).toBe('Em implantação');
     expect(estadoDoPrograma(null, false).rotulo).toBe('Começando');
   });
+  it('carteira fala em fornecedor, não em terceiro', () => {
+    const s = situacaoNaCarteira({ modulos: ['privacy'], pedidos_atrasados: 0, comunicacoes_atrasadas: 0, acoes_vencidas: 0, terceiros_vencidos: 2,
+      vence_7_dias: 0, tratamentos: 1, controles: 0, proximo: null });
+    expect(s.urgente).toBe('2 fornecedores vencidos');
+  });
   it('prazo legal vencido vem antes de tudo; sem cadastro é começando; o resto, em dia com o próximo prazo', () => {
     const base = { modulos: ['iso', 'privacy'] as ('iso' | 'privacy')[], pedidos_atrasados: 0, comunicacoes_atrasadas: 0, acoes_vencidas: 0, terceiros_vencidos: 0, vence_7_dias: 0, tratamentos: 1, controles: 0, proximo: null };
     expect(situacaoNaCarteira({ ...base, pedidos_atrasados: 2, acoes_vencidas: 1 })).toMatchObject({ tom: 'atraso', situacao: '2 prazos legais vencidos', modulo: 'privacy' });

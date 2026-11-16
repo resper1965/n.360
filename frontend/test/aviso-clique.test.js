@@ -90,6 +90,17 @@ describe('handleNotificationClick', () => {
       expect(S.otPedido).toEqual({ tela: 'sites' });
     });
 
+    it('aviso de prazo do n.ot: o tipo decide a tela (revisão: Assessment; aceite e obra: Sites)', async () => {
+      history.replaceState(null, '', '/ot');
+      for (const [type, tela] of [['prazo_ot_revisao', 'assessment'], ['prazo_ot_aceite', 'sites'], ['prazo_ot_obra', 'sites']]) {
+        S.otPedido = null;
+        S.projects = [OT];
+        S.notifications = [{ id: 'n1', type, link: '/projects/p2/ot', message: 'Prazo do n.ot: 1 requisito com revisão vencida, 2 desvios exportou', read: 0 }];
+        await window.handleNotificationClick('n1');
+        expect(S.otPedido).toEqual({ tela });
+      }
+    });
+
     it('no n.iso: vai à casca /ot com o projeto e o aviso guardados (o n.ot o reabre no boot)', async () => {
       history.replaceState(null, '', '/iso');
       await clicarOt(EXPORTOU);

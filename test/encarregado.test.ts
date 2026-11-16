@@ -104,13 +104,13 @@ describe('projeto com pendências', () => {
     expect(textos).toContain('alta: 1 pedido do titular atrasado');
     expect(textos).toContain('alta: 2 comunicações de incidente atrasadas');
     expect(textos).toContain('alta: 1 incidente sem avaliação de risco');
-    expect(textos).toContain('alta: 1 terceiro com avaliação vencida');
+    expect(textos).toContain('alta: 1 fornecedor com avaliação vencida');
     expect(textos).toContain('alta: 1 tratamento exige DPIA e não tem');
     expect(textos).toContain('alta: 1 tratamento por legítimo interesse sem LIA');
     expect(textos).toContain('media: 1 pedido do titular vence em até 7 dias');
     expect(textos).toContain('media: 1 evidência vencida ou não conforme');
     expect(textos).toContain('media: 1 documento com revisão vencida');
-    expect(textos).toContain('media: 1 terceiro nunca avaliado ou a reavaliar');
+    expect(textos).toContain('media: 1 fornecedor nunca avaliado ou a reavaliar');
     expect(textos).toContain('media: 1 tratamento sem base legal');
     // a alta vem antes da média
     expect(v.prioridades.findIndex((p) => p.nivel === 'media')).toBeGreaterThan(v.prioridades.map((p) => p.nivel).lastIndexOf('alta') - 1);

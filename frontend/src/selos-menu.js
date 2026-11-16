@@ -19,7 +19,7 @@ const SELOS = (v) => {
         ['selo-titular', pt.exigem_atencao, inteiro(pt.atrasados),
             (q, r) => `${plural(q, 'pedido vencido ou a vencer', 'pedidos vencidos ou a vencer')} em 7 dias${r ? `, ${plural(r, 'atrasado', 'atrasados')}` : ''}`],
         ['selo-terceiros', te.com_pendencia, inteiro(te.vencidos) + inteiro(te.reprovados),
-            (q, r) => `${plural(q, 'terceiro sem avaliação, vencida ou reprovada', 'terceiros sem avaliação, vencida ou reprovada')}${r ? `, ${r} com avaliação vencida ou reprovada` : ''}`],
+            (q, r) => `${plural(q, 'fornecedor sem avaliação, vencida ou reprovada', 'fornecedores sem avaliação, vencida ou reprovada')}${r ? `, ${r} com avaliação vencida ou reprovada` : ''}`],
         ['selo-incidentes', inc.comunicacoes_pendentes, inteiro(inc.comunicacoes_atrasadas),
             (q, r) => `${plural(q, 'comunicação de incidente pendente', 'comunicações de incidente pendentes')}${r ? `, ${plural(r, 'atrasada', 'atrasadas')}` : ''}`],
     ];

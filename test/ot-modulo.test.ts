@@ -90,12 +90,12 @@ describe('n.ot: GET /ot/requisitos e as travas do módulo', () => {
     }
   });
 
-  it('o painel do projeto com o n.ot não quebra (o n.ot ainda não tem bloco no painel)', async () => {
+  it('o painel do projeto traz o bloco do n.ot', async () => {
     for (const q of ['', '?modulo=ot']) {
       const r = await pedir(plat, `/api/v1/projects/proj-a/painel${q}`);
       expect(r.status, `${q} ${await r.clone().text()}`).toBe(200);
     }
-    expect(Object.keys((await (await pedir(plat, '/api/v1/projects/proj-a/painel')).json<{ modulos: object }>()).modulos)).toEqual(['iso']);
+    expect(Object.keys((await (await pedir(plat, '/api/v1/projects/proj-a/painel')).json<{ modulos: object }>()).modulos)).toEqual(['iso', 'ot']);
   });
 
   // Por último: liga o n.ot no proj-b.

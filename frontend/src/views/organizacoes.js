@@ -169,7 +169,7 @@ window.__orgReenviar = async (id) => {
     try {
         const r = await api('POST', `/api/v1/platform/orgs/${encodeURIComponent(id)}/reenviar-convite`);
         if (r.emailEnviado === false) window.showToast('O e-mail falhou de novo. Tente mais tarde.', 'error');
-        else window.showToast('Convite reenviado com uma nova senha provisória');
+        else window.showToast('Convite reenviado. O link anterior deixou de valer.');
     } catch (e) {
         window.showToast(e.message || 'Erro ao reenviar o convite', 'error');
     }
@@ -229,7 +229,7 @@ function mostrarErros(pref, e) {
 window.__orgNova = () => {
     openModal(`<form class="org-form" id="org-n-form" data-action-submit="__orgCriar" data-arg-event data-prevent novalidate>
         <h2 class="org-form-titulo">Nova consultoria</h2>
-        <p class="org-nota">Cria a consultoria e o administrador dela. O administrador recebe por e-mail o convite com a senha provisória, que ele troca no primeiro acesso; a senha não aparece aqui.</p>
+        <p class="org-nota">Cria a consultoria e o administrador dela. O administrador recebe por e-mail o link para criar a senha; nenhuma senha aparece aqui.</p>
         <div class="org-grade2">
             ${campo('org-n', 'nome', 'Nome da consultoria', '')}
             ${campo('org-n', 'slug', 'Identificador (slug)', '', { dica: '3 a 40 letras minúsculas, números ou hífen. Vira o id org_<slug>.' })}
@@ -281,7 +281,7 @@ window.__orgCriar = async () => {
     // só os campos que a tela precisa: nada do corpo da resposta além disto chega ao DOM
     const aviso = r.emailEnviado === false
         ? `<p class="org-aviso" role="alert">O convite para ${escapeHTML(r.adminEmail)} NÃO foi enviado: o e-mail falhou. Use "Reenviar convite" na linha da consultoria para tentar de novo.</p>`
-        : `<p class="org-nota" role="status">Convite enviado para ${escapeHTML(r.adminEmail)}. O administrador troca a senha provisória no primeiro acesso.</p>`;
+        : `<p class="org-nota" role="status">Convite enviado para ${escapeHTML(r.adminEmail)}. O administrador cria a senha pelo link do e-mail.</p>`;
     $('modal-content').innerHTML = `<div class="org-form org-resultado" id="org-n-resultado">
         <h2 class="org-form-titulo">Consultoria criada</h2>
         <p class="org-nota">${escapeHTML(corpo.nome)} (${escapeHTML(r.id)}) está ativa.</p>

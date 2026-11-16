@@ -31,7 +31,7 @@ describe('selos do menu do n.privacy', () => {
         expect(el('selo-titular').textContent).toBe('3');
         expect(el('selo-titular').getAttribute('aria-label')).toBe('3 pedidos vencidos ou a vencer em 7 dias, 1 atrasado');
         expect(el('selo-titular').classList.contains('is-danger')).toBe(true);
-        expect(el('selo-terceiros').getAttribute('aria-label')).toBe('2 terceiros sem avaliação, vencida ou reprovada');
+        expect(el('selo-terceiros').getAttribute('aria-label')).toBe('2 fornecedores sem avaliação, vencida ou reprovada');
         expect(el('selo-terceiros').classList.contains('is-danger')).toBe(false);
         expect(el('selo-incidentes').getAttribute('aria-label')).toBe('1 comunicação de incidente pendente');
     });
@@ -44,7 +44,7 @@ describe('selos do menu do n.privacy', () => {
         expect(el('selo-painel').getAttribute('aria-label')).toBe('5 itens atrasados');
         expect(el('selo-painel').classList.contains('is-danger')).toBe(true);
         expect(el('selo-incidentes').getAttribute('aria-label')).toBe('2 comunicações de incidente pendentes, 2 atrasadas');
-        expect(el('selo-terceiros').getAttribute('aria-label')).toBe('2 terceiros sem avaliação, vencida ou reprovada, 2 com avaliação vencida ou reprovada');
+        expect(el('selo-terceiros').getAttribute('aria-label')).toBe('2 fornecedores sem avaliação, vencida ou reprovada, 2 com avaliação vencida ou reprovada');
         apiMock.mockResolvedValue({ pedidos_titular: { exigem_atencao: 3, atrasados: 0 }, terceiros: { com_pendencia: 2 }, incidentes: {} });
         await atualizarSelos(document, true);
         expect(el('selo-painel').hidden).toBe(true);

@@ -14,12 +14,13 @@ import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, liga
 
 const VALIDADE_MS = 60_000;
 const NOME = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
-// O n.ot ainda não tem bloco no painel (N1): fica fora das linhas e da lista; só o nome aparece na carteira.
+// O n.ot só ganha linha quando o servidor mandou o bloco (módulo no projeto E na pessoa): nunca "não habilitado" (P0-1).
 const MODULOS = ['iso', 'privacy'];
+const modulosDaTela = (d) => (d.modulos && d.modulos.ot ? [...MODULOS, 'ot'] : MODULOS);
 const ROTULO_ESTADO = { atraso: 'Atrasado', semana: 'Nesta semana', plano: 'Para planejar' };
 const e = (v) => escapeHTML(String(v ?? ''));
 const args = (...v) => escapeHTML(JSON.stringify(v));
-const marca = (m) => `n<span class="pn-ponto">.</span>${m === 'iso' ? 'iso' : 'privacy'}`;
+const marca = (m) => `n<span class="pn-ponto">.</span>${m}`;
 /** Nome do módulo com o que ele é, na primeira coluna da linha. */
 const nomeDoModulo = (m) => `<div><h3>${marca(m)}</h3><p class="pn-m-desc pn-meta">${e(DESCRICAO_DO_MODULO[m])}</p></div>`;
 const estado = (tom, texto) => `<span class="pn-estado pn-${e(tom)}">${e(texto)}</span>`;
@@ -30,7 +31,7 @@ let rodada = 0;
 
 /** Telas a que um botão do painel pode levar: a lista fechada (o destino vem do servidor como dado). */
 const TELAS_DO_PAINEL = new Set(['encarregado', 'ropa', 'titular', 'terceiros', 'mapa-de-risco', 'evidence', 'documentos', 'requisitos', 'capa', 'audits',
-    'risks', 'soa', 'context', 'project-detail', 'assets', 'meus-pedidos', 'importacao']);
+    'risks', 'soa', 'context', 'project-detail', 'assets', 'meus-pedidos', 'importacao', 'ot']);
 
 /** O projeto da entrada: o ativo; sem ele, o primeiro da lista (e passa a ser o ativo, como o início do n.360 sempre fez). */
 function projetoDaEntrada() {
@@ -94,7 +95,7 @@ function saude(s, geradoEm) {
         <p class="pn-frase">${e(sd.frase)}</p><p class="pn-apoio">${e(sd.apoio)}</p>
         <details class="pn-regra"><summary>Calculado às ${e(hora(geradoEm))} a partir do cadastro do projeto. Como esta frase é montada</summary>
             <p>A frase sai da mesma lista de "O que fazer". <b>Atrasado</b>: algum prazo vencido (pedido do titular, comunicação de incidente,
-            ação corretiva, avaliação de terceiro); a frase nomeia o mais grave. <b>Atenção</b>: nada vencido, mas algo vence em até 7 dias ou há
+            ação corretiva, avaliação de fornecedor); a frase nomeia o mais grave. <b>Atenção</b>: nada vencido, mas algo vence em até 7 dias ou há
             pendência exigida. <b>Em dia</b>: nenhuma das duas; a frase diz o próximo prazo. <b>Começando</b>: o projeto ainda não tem o cadastro
             mínimo, e projeto vazio nunca é dado como em dia. <b>Sua vez</b>: há pedido de aprovação ou ciência para você.</p></details></section>`;
 }
@@ -212,17 +213,17 @@ function telaDoModulo(d, m, proj) {
 /** Início do n.360: a frase dos dois módulos, uma linha por módulo e a lista que junta os dois. */
 function telaDoN360(d, proj) {
     const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}`;
-    const linhas = `<section class="pn-modulos" aria-label="Módulos deste projeto">${MODULOS.map((m) => linhaModulo(m, d, proj)).join('')}</section>`;
+    const linhas = `<section class="pn-modulos" aria-label="Módulos deste projeto">${modulosDaTela(d).map((m) => linhaModulo(m, d, proj)).join('')}</section>`;
     // Para o cliente, a decisão vem antes das linhas dos módulos: é a ação dele.
     if (d.visao === 'cliente') return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))], [])}${linhas}`;
     // A mesma ordem da frase do servidor: o n.privacy primeiro em cada grupo (o prazo dele é legal).
-    const blocos = ['privacy', 'iso'].map((m) => d.modulos && d.modulos[m]).filter(Boolean);
+    const blocos = ['privacy', 'iso', 'ot'].map((m) => d.modulos && d.modulos[m]).filter(Boolean);
     const juntos = ['atraso', 'semana', 'plano'].flatMap((g) => blocos.flatMap((b) => (Array.isArray(b.fazer) ? b.fazer : []).filter((i) => i.grupo === g)));
     const mostrados = juntos.slice(0, 8);
     const resto = juntos.length - mostrados.length;
     const esquerda = blocos.every((b) => b.comecando)
         ? quadro('pn-passos-t', 'Primeiros passos', `<p class="pn-vazio-tx">Comece por um dos módulos acima: cada um abre com os primeiros passos dele.</p>`)
-        : quadro('pn-fazer', 'O que fazer agora, nos dois módulos', `${listaFazer(mostrados, true)}${resto > 0 ? `<p class="pn-meta">E mais ${resto}. Abra o módulo para a lista inteira.</p>` : ''}`);
+        : quadro('pn-fazer', `O que fazer agora, nos ${blocos.length > 2 ? 'seus' : 'dois'} módulos`, `${listaFazer(mostrados, true)}${resto > 0 ? `<p class="pn-meta">E mais ${resto}. Abra o módulo para a lista inteira.</p>` : ''}`);
     return `${topo}${linhas}${colunas([esquerda], ['<div id="inicio-ponto-de-partida"></div>'])}`;
 }
 
@@ -371,6 +372,8 @@ window.painelAbrir = function (tela, aba, filtro) {
     }
     // As faixas são as do painel do n.privacy desenhado agora (encarregado.js as guarda); em outra entrada, a tela das atividades.
     if (filtro === 'acoes_vencidas' && proj && S.view === 'encarregado' && typeof window.abrirFaixaPrazo === 'function' && window.abrirFaixaPrazo(proj.id, 'vencidas')) return;
+    // O hub navega por recarga: a aba do n.ot vai no endereço (?ot=, lido por ot-navegacao.js), não em S.otTela.
+    if (tela === 'ot') { irPara(['sites', 'assessment', 'acessos'].includes(aba) ? `${enderecoDoProduto('ot')}?ot=${aba}` : enderecoDoProduto('ot')); return; }
     if (aba === 'pedidos' || aba === 'incidentes' || aba === 'consentimentos') S.titularAba = aba;
     const filtroPainel = filtro ? filtroValido(tela, aba, filtro) : null;
     if (typeof window.navigate === 'function') { if (filtroPainel) window.navigate(tela, { filtroPainel }); else window.navigate(tela); }
@@ -397,7 +400,7 @@ window.painelBaixar = function (projectId, tipo) {
 
 /** "Abrir o n.x" da linha do módulo: só os módulos conhecidos viram endereço (data-args é atributo do DOM). */
 window.abrirModulo = function abrirModulo(m) {
-    if (MODULOS.includes(m)) irPara(enderecoDoProduto(m));
+    if (MODULOS.includes(m) || m === 'ot') irPara(enderecoDoProduto(m));
 };
 
 window.renderPainel = renderPainel;

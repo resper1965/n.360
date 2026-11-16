@@ -8,6 +8,9 @@ import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
 import { hojeEmSaoPaulo } from './hoje';
 import { SQL_EH_FORNECEDOR, listarTerceiros } from './terceiros';
 import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
+import { blocoOt } from './painel-ot';
+import { TETO_LEITURA_OT } from './ot-inventario';
+import { situacaoSensor, type Cred } from './ot-sensor';
 
 /** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA. A regra mora em classe-controle.ts. */
 export { SQL_CLASSE_CONTROLE } from './classe-controle';
@@ -156,7 +159,7 @@ const SQL_UNIAO_DOCUMENTOS_ARQUIVO = `SELECT 'Documentos (revisão)' AS tipo, no
 
 // ─── n.privacy ──────────────────────────────────────────────────────────────────────────────────────────
 
-const TIPOS_PRIVACY = ['Pedidos do titular', 'Comunicações de incidente', 'Terceiros', 'Evidências', 'Documentos (revisão)', 'Ações das atividades'];
+const TIPOS_PRIVACY = ['Pedidos do titular', 'Comunicações de incidente', 'Fornecedores', 'Evidências', 'Documentos (revisão)', 'Ações das atividades'];
 const UNIAO_PRIVACY = [
   `SELECT 'Pedidos do titular' AS tipo, protocolo AS rotulo, substr(prazo_em, 1, 10) AS data FROM titular_pedidos
     WHERE project_id = ?1 AND status IN ('recebido', 'em_andamento') AND prazo_em IS NOT NULL`,
@@ -165,7 +168,7 @@ const UNIAO_PRIVACY = [
   `SELECT 'Comunicações de incidente', protocolo || ' (titulares)', substr(prazo_titular_em, 1, 10) FROM incidentes
     WHERE project_id = ?1 AND status <> 'encerrado' AND COALESCE(risco_titular, '') <> 'sem_risco' AND comunicacao_titular_em IS NULL AND prazo_titular_em IS NOT NULL`,
   // A avaliação que vale é a mais recente (a mesma regra de `situacaoDe`): reprovada não tem validade.
-  `SELECT 'Terceiros', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
+  `SELECT 'Fornecedores', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
       WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) AS data
     FROM partes p WHERE p.project_id = ?1 AND ${SQL_EH_FORNECEDOR}`,
   SQL_UNIAO_EVIDENCIAS,
@@ -235,7 +238,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     tema('LIA exigidas', { feito: exigidas.filter((l) => l.lia === 'concluida').length, andamento: exigidas.filter((l) => l.lia === 'rascunho').length, falta: exigidas.filter((l) => !l.lia).length },
       'concluídas / em rascunho / não iniciadas'),
     tema('Ciclo de vida documentado', um(ciclo), 'as seis etapas registradas / parte das etapas / nenhuma etapa'),
-    tema('Terceiros', { feito: Math.max(0, te.total - te.sem_tipo - te.pendentes - te.vencidos - te.reprovados), andamento: te.sem_tipo + te.pendentes, falta: te.vencidos + te.reprovados },
+    tema('Fornecedores', { feito: Math.max(0, te.total - te.sem_tipo - te.pendentes - te.vencidos - te.reprovados), andamento: te.sem_tipo + te.pendentes, falta: te.vencidos + te.reprovados },
       'avaliação vigente / sem tipo ou nunca avaliados / vencidos ou reprovados'),
     tema('Pedidos do titular (90 dias)', um(pedidos90), 'respondidos ou encerrados / em andamento no prazo / atrasados'),
     tema('Incidentes (12 meses)', um(incidentes12), 'encerrados / abertos com comunicação em dia / comunicação atrasada'),
@@ -270,14 +273,14 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     numeros: [
       [`${contaAtiv.feito} de ${totalAtiv}`, 'atividades aprovadas'],
       [String(visao.pedidos_titular.atrasados), 'pedidos atrasados'],
-      lg.carregada ? [`${lg.cobertos ?? 0} de ${lg.total ?? 0}`, 'artigos da LGPD cobertos'] : [String(te.vencidos), 'terceiros vencidos'],
+      lg.carregada ? [`${lg.cobertos ?? 0} de ${lg.total ?? 0}`, 'artigos da LGPD cobertos'] : [String(te.vencidos), 'fornecedores vencidos'],
       [pct(an.gaps_ok ?? 0, an.gaps ?? 0), 'de gaps concluídos'],
       [pct(an.riscos_ok ?? 0, an.riscos ?? 0), 'de riscos concluídos'],
     ] as [string, string][],
     passos: [
       { texto: 'Indicar o encarregado', contexto: 'A LGPD exige a indicação (art. 41)', feito: encarregados.length > 0, acao: 'Indicar', tela: 'encarregado' },
       { texto: 'Trazer as atividades de tratamento', contexto: 'Importe o programa que já existe ou cadastre a primeira', feito: !comecando, acao: 'Abrir os tratamentos', tela: 'ropa' },
-      { texto: 'Cadastrar os terceiros', contexto: 'Fornecedores que recebem dados pessoais', feito: te.total > 0, acao: 'Cadastrar terceiros', tela: 'terceiros' },
+      { texto: 'Cadastrar os fornecedores', contexto: 'Fornecedores que recebem dados pessoais', feito: te.total > 0, acao: 'Cadastrar fornecedores', tela: 'terceiros' },
     ] as Passo[],
     // Os números dos selos do menu (`selos-menu.js`): a mesma visão, sem segunda chamada.
     selos: { pedidos_titular: visao.pedidos_titular, terceiros: visao.terceiros, incidentes: visao.incidentes },
@@ -429,7 +432,7 @@ export const SQL_MARCO_DO_PROGRAMA = `SELECT min(d) AS d FROM (
       WHERE pe.project_id = ?1 AND pe.papel_exigido IN ('ciso', 'ceo') AND pd.status = 'aprovado')`;
 
 /** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu. */
-export type QuemPede = { id?: string; email?: string; cliente: boolean };
+export type QuemPede = { id?: string; email?: string; cliente: boolean; role?: string; client_project_id?: string | null };
 
 export async function painelDoProjeto(db: D1Database, projectId: string, modulos: Modulo[], quem: QuemPede) {
   const dia = hoje();
@@ -456,15 +459,16 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   const [marco, cadastro, pedidos, encs, fases] = base;
   const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, quem) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
+  const ot = modulos.includes('ot') && quem.id
+    ? await blocoOt(db, projectId, { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', client_project_id: quem.client_project_id }, dia, new Date()) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
-  const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0);
+  const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0 || (!!ot && !ot.comecando));
   const decisoes = (pedidos.results as { id: string; tipo: string; titulo: string; papel_exigido: string; criado_em: string }[]).map((p) => ({
     id: p.id, titulo: p.titulo, tipo: p.tipo, papel: p.papel_exigido, desde: String(p.criado_em).slice(0, 10),
     acao: p.papel_exigido === 'ciente' ? 'Ler e dar ciência' : 'Ler e aprovar',
   }));
   // Na lista que junta os dois módulos, o n.privacy vem primeiro dentro de cada grupo: o prazo dele é legal.
-  // Partial: o n.ot ainda não tem bloco no painel (fatia N1); módulo sem bloco fica fora de `modulos`.
-  const blocos = { ...(privacy ? { privacy } : {}), ...(iso ? { iso } : {}) } as Partial<Record<Modulo, NonNullable<typeof iso> | NonNullable<typeof privacy>>>;
+  const blocos = { ...(privacy ? { privacy } : {}), ...(iso ? { iso } : {}), ...(ot ? { ot } : {}) } as Partial<Record<Modulo, NonNullable<typeof iso> | NonNullable<typeof privacy> | NonNullable<typeof ot>>>;
   const proximoDe = (lista: Proximo[]) => lista.filter((p): p is NonNullable<Proximo> => !!p).sort((a, b) => a.dias - b.dias)[0] ?? null;
   const modulosResp: Record<string, unknown> = {};
   for (const m of modulos) {
@@ -507,6 +511,7 @@ export type LinhaCarteira = {
 export function situacaoNaCarteira(x: {
   modulos: Modulo[]; pedidos_atrasados: number; comunicacoes_atrasadas: number; acoes_vencidas: number; terceiros_vencidos: number;
   vence_7_dias: number; tratamentos: number; controles: number; proximo: { data: string; rotulo: string } | null;
+  sites?: number; desvios_abertos?: number; lotes_revisao?: number; sondas_paradas?: number;
 }): { tom: Tom; situacao: string; urgente: string; modulo: Modulo } {
   const priv = x.modulos.includes('privacy');
   const legais = priv ? x.pedidos_atrasados + x.comunicacoes_atrasadas : 0;
@@ -519,10 +524,18 @@ export function situacaoNaCarteira(x: {
   const outros = x.acoes_vencidas + (priv ? x.terceiros_vencidos : 0);
   if (outros > 0) {
     return { tom: 'atraso', situacao: plural(outros, 'prazo vencido', 'prazos vencidos'), modulo: x.acoes_vencidas || !priv ? primeiro : 'privacy',
-      urgente: [x.acoes_vencidas ? plural(x.acoes_vencidas, 'ação vencida', 'ações vencidas') : '', priv && x.terceiros_vencidos ? plural(x.terceiros_vencidos, 'terceiro vencido', 'terceiros vencidos') : '']
+      urgente: [x.acoes_vencidas ? plural(x.acoes_vencidas, 'ação vencida', 'ações vencidas') : '', priv && x.terceiros_vencidos ? plural(x.terceiros_vencidos, 'fornecedor vencido', 'fornecedores vencidos') : '']
         .filter(Boolean).join(' e ') };
   }
-  if (x.tratamentos === 0 && x.controles === 0) return { tom: 'plano', situacao: 'Começando', urgente: 'Nada cadastrado ainda', modulo: primeiro };
+  const temOt = x.modulos.includes('ot');
+  const sondas = temOt ? x.sondas_paradas ?? 0 : 0;
+  const desvios = temOt ? x.desvios_abertos ?? 0 : 0;
+  const lotes = temOt ? x.lotes_revisao ?? 0 : 0;
+  const doOt = [sondas ? plural(sondas, 'sonda parada', 'sondas paradas') : '', desvios ? plural(desvios, 'desvio aberto', 'desvios abertos') : '',
+    lotes ? plural(lotes, 'lote aguardando revisão', 'lotes aguardando revisão') : ''].filter(Boolean);
+  if (sondas > 0) return { tom: 'atraso', situacao: doOt[0], urgente: doOt.join(' e '), modulo: 'ot' };
+  if (doOt.length) return { tom: 'semana', situacao: doOt[0], urgente: doOt.join(' e '), modulo: 'ot' };
+  if (x.tratamentos === 0 && x.controles === 0 && !(temOt && (x.sites ?? 0) > 0)) return { tom: 'plano', situacao: 'Começando', urgente: 'Nada cadastrado ainda', modulo: primeiro };
   const quando = x.proximo ? `${x.proximo.rotulo} em ${diaMes(x.proximo.data)}` : 'Nenhum prazo nos próximos 90 dias';
   if (x.vence_7_dias > 0) return { tom: 'semana', situacao: plural(x.vence_7_dias, 'prazo nesta semana', 'prazos nesta semana'), urgente: quando, modulo: primeiro };
   return { tom: 'ok', situacao: 'Em dia', urgente: x.proximo ? `Próximo: ${quando}` : quando, modulo: primeiro };
@@ -535,7 +548,7 @@ const PESO: Record<Tom, number> = { atraso: 0, vez: 1, semana: 2, plano: 3, ok: 
  * consultas agrupadas por projeto num `db.batch`, nunca o painel projeto a projeto. Só conta o módulo que o projeto tem e a
  * pessoa também tem; projeto sem nenhum desses fica de fora.
  */
-export async function carteira(db: D1Database, visiveis: { sql: string; bind: string } | null, modulosDaPessoa: Modulo[]): Promise<LinhaCarteira[]> {
+export async function carteira(db: D1Database, visiveis: { sql: string; bind: string } | null, modulosDaPessoa: Modulo[], agora = new Date()): Promise<LinhaCarteira[]> {
   const dia = hoje();
   const em7 = somarDias(dia, 7);
   const em90 = somarDias(dia, 90);
@@ -543,7 +556,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
   // ?1 hoje, ?2 daqui a 7 dias, ?3 daqui a 90, ?9 o escopo. Cada consulta recebe só até o maior índice que usa.
   const args = [dia, em7, em90, null, null, null, null, null, visiveis?.bind ?? null];
   const b = (sql: string) => db.prepare(sql).bind(...args.slice(0, Math.max(0, ...[...sql.matchAll(/\?(\d)/g)].map((m) => Number(m[1])))));
-  const [proj, mods, contas, terceiros, proximos, movimento] = await db.batch([
+  const [proj, mods, contas, terceiros, proximos, movimento, otContas, otSondas, otCreds] = await db.batch([
     b(`SELECT p.id, COALESCE(NULLIF(e.nome_fantasia, ''), NULLIF(e.razao_social, ''), NULLIF(p.client_name, ''), p.project_name, p.id) AS nome
          FROM projects p LEFT JOIN empresas e ON e.project_id = p.id WHERE p.id ${escopo} ORDER BY nome LIMIT 300`),
     b(`SELECT project_id, modulo FROM projeto_modulos WHERE project_id ${escopo}`),
@@ -565,6 +578,19 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          UNION ALL SELECT project_id, 'evidencia', 'Evidência ' || file_name, substr(valido_ate, 1, 10) FROM evidence WHERE project_id ${escopo} AND valido_ate IS NOT NULL
        ) WHERE data >= ?1 AND data <= ?3 ORDER BY data`),
     b(`SELECT project_id, max(created_at) AS em FROM audit_logs WHERE project_id ${escopo} GROUP BY project_id`),
+    // n.ot: só quando a pessoa tem o módulo; senão as três consultas ficam vazias.
+    ...(modulosDaPessoa.includes('ot') ? [
+      b(`SELECT s.project_id,
+           count(*) AS sites,
+           sum((SELECT count(*) FROM ot_desvios d WHERE d.site_id = s.id AND d.situacao = 'aberto')) AS desvios_abertos,
+           sum((SELECT count(*) FROM ot_lotes l WHERE l.site_id = s.id AND l.status = 'em_revisao')) AS lotes_revisao
+         FROM ot_sites s WHERE s.project_id ${escopo} AND s.status = 'ativo' GROUP BY s.project_id`),
+      b(`SELECT s.id, s.project_id, s.created_at,
+           (SELECT created_at FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1) AS ultimo_envio
+         FROM ot_sensores s WHERE s.project_id ${escopo} AND s.situacao = 'ativa'
+           AND s.site_id IN (SELECT id FROM ot_sites WHERE project_id = s.project_id AND status = 'ativo') LIMIT ${TETO_LEITURA_OT}`),
+      b(`SELECT sensor_id, project_id, expira_em, situacao FROM ot_sensor_credenciais WHERE project_id ${escopo} AND situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`),
+    ] : [b('SELECT 1 WHERE 0'), b('SELECT 1 WHERE 0'), b('SELECT 1 WHERE 0')]),
   ]);
   const porProjeto = <T extends { project_id: string }>(r: D1Result) => {
     const m = new Map<string, T[]>();
@@ -576,6 +602,11 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
   const tt = porProjeto<{ project_id: string; n: number }>(terceiros);
   const pp = porProjeto<{ project_id: string; tipo: string; rotulo: string; data: string }>(proximos);
   const mv = porProjeto<{ project_id: string; em: string }>(movimento);
+  const oo = porProjeto<{ project_id: string; sites: number; desvios_abertos: number; lotes_revisao: number }>(otContas);
+  const sondasPor = porProjeto<{ project_id: string; id: string; created_at: string; ultimo_envio: string | null }>(otSondas);
+  const credsOt = otCreds.results as (Cred & { sensor_id: string })[];
+  const paradas = (id: string) => (sondasPor.get(id) ?? [])
+    .filter((s) => situacaoSensor(s.ultimo_envio ?? s.created_at, credsOt.filter((k) => k.sensor_id === s.id), agora) === 'parada').length;
   const linhas: LinhaCarteira[] = [];
   for (const p of proj.results as { id: string; nome: string }[]) {
     const modulos = (mm.get(p.id) ?? []).map((x) => x.modulo).filter((m) => modulosDaPessoa.includes(m)).sort();
@@ -586,6 +617,9 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
       modulos, pedidos_atrasados: c?.pedidos_atrasados ?? 0, comunicacoes_atrasadas: c?.comunicacoes_atrasadas ?? 0, acoes_vencidas: c?.acoes_vencidas ?? 0,
       terceiros_vencidos: tt.get(p.id)?.[0]?.n ?? 0, vence_7_dias: prox.filter((x) => x.data <= em7).length, tratamentos: c?.tratamentos ?? 0, controles: c?.controles ?? 0,
       proximo: prox[0] ? { data: prox[0].data, rotulo: prox[0].rotulo } : null,
+      // shortcut: a carteira conta o projeto inteiro, sem o corte por site; por isso a rota tira o `ot` de quem tem papel de cliente (inclusive o técnico por site). Se a carteira passar a servir cliente, aplicar sitesPermitidos.
+      ...(modulos.includes('ot') ? { sites: oo.get(p.id)?.[0]?.sites ?? 0, desvios_abertos: oo.get(p.id)?.[0]?.desvios_abertos ?? 0,
+        lotes_revisao: oo.get(p.id)?.[0]?.lotes_revisao ?? 0, sondas_paradas: paradas(p.id) } : {}),
     });
     linhas.push({ id: p.id, nome: p.nome, modulos, tom: s.tom, situacao: s.situacao, urgente: s.urgente, modulo_urgente: s.modulo, ultimo_movimento: mv.get(p.id)?.[0]?.em ?? null });
   }

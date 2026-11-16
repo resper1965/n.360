@@ -133,7 +133,7 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         expect(chip().textContent).toContain('comunicação atrasada');
     });
 
-    it('terceiros com avaliação vencida; sem nenhum, a lista vazia diz que é o filtro', async () => {
+    it('fornecedores com avaliação vencida; sem nenhum, a lista vazia diz que é o filtro', async () => {
         palco();
         S.filtroPainel = filtroValido('terceiros', null, 'vencidos');
         servir({ [`GET ${B}/terceiros`]: [

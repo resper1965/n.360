@@ -35,7 +35,7 @@ export const SO_N360 = Object.values(TELAS_DA_CONTA);
  * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
  * trilha). Segurança do projeto mora em Conta e acessos, então também é só do n.360. Tela fora daqui leva ao módulo (router).
  */
-// nav-ot: no hub, a entrada do n.ot (o painel do n.360 ainda não tem bloco dele); só com projeto e pessoa com o módulo (atualizarItemOt).
+// nav-ot: no hub, a entrada do n.ot (o painel do n.360 mostra a linha dele quando o servidor manda o bloco); só com projeto e pessoa com o módulo (atualizarItemOt).
 export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', 'nav-ot', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
 export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
 // Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
@@ -228,12 +228,10 @@ export function abrirGrupo(grupo, doc = document) {
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
 
-// Rótulos do n.privacy, uma linha cada (os do legado de 19/10/2026, revistos em 11/11/2026: Painel, RIPD, Arquivos e Políticas). Só aqui:
-// o n.iso e o n.360 ficam com os deles; os ids nav-* e as rotas não mudam.
+// Rótulos do n.privacy (revistos em 11/11/2026): o mapa guarda só o que difere por módulo; o n.iso mostra "Pessoas e parceiros".
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Painel', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
-    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
-    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos', 'nav-documentos-arquivo': 'Arquivos', 'nav-documentos': 'Políticas',
+    'nav-titular': 'Solicitações', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-questionarios-fornecedor': 'Questionários',
 };
 
 /**
@@ -441,7 +439,7 @@ export function atualizarLinkCruzado(doc = document) {
 }
 
 /** O que cada módulo é, numa linha: no início do n.360, a escolha não depende de conhecer o nome. */
-export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e terceiros', ot: 'ARCiber: requisitos da RO-CB.BR.01 do ONS' };
+export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e fornecedores', ot: 'ARCiber: requisitos da RO-CB.BR.01 do ONS' };
 
 /** O item n.ot do menu: só com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
 export function atualizarItemOt(doc = document) {

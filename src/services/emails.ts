@@ -131,7 +131,7 @@ export function emailCiencia(d: { titulo: string; nome: string | null; link: str
 
 const TIPO_PEDIDO: Record<string, string> = {
   dpia: 'RIPD (DPIA)', politica: 'Política', documento: 'Documento', excecao: 'Exceção a documento',
-  tratamento: 'Tratamento (RoPA)', avaliacao_terceiro: 'Avaliação de terceiro',
+  tratamento: 'Tratamento (RoPA)', avaliacao_terceiro: 'Avaliação de fornecedor',
 };
 const PAPEL_PEDIDO: Record<string, string> = { ciso: 'Líder SGSI', ceo: 'Direção (CEO)' };
 
@@ -167,9 +167,9 @@ export function emailHomologacaoRespondida(d: { nome: string | null; fornecedor:
     titulo: 'Questionário de homologação respondido',
     saudacao: ola(d.nome),
     paragrafos: [`${d.fornecedor} enviou o questionário de homologação de fornecedor${d.cliente ? ` do projeto ${d.cliente}` : ''}.`],
-    acao: 'Revisar as respostas na ficha do terceiro e concluir a avaliação',
+    acao: 'Revisar as respostas na ficha do fornecedor e concluir a avaliação',
     dados: [['Fornecedor', d.fornecedor], ['Respondido', `${d.percentual}% (${d.respondidas} de ${d.total} perguntas)`]],
-    botao: { rotulo: 'Abrir Terceiros', url: d.link },
+    botao: { rotulo: 'Abrir Fornecedores', url: d.link },
     notas: ['As respostas não vão por e-mail: leia e conclua no n.privacy.'],
     motivo: 'você acompanha este projeto na consultoria e o fornecedor enviou o questionário.',
   });

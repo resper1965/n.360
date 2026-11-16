@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.360, onda 0: uma língua nos módulos e o n.ot à vista (spec 2026-11-14)
+- **Rótulos:** "fornecedor" no lugar de "terceiro" nos textos do painel, da carteira, dos avisos e do e-mail; "Papéis e comitê" e "Políticas e normas" nos dois módulos; "Pessoas e parceiros" no n.iso. Só texto: nenhum id, rota ou valor de banco muda. O modal de nova consultoria não fala mais em senha provisória.
+- **n.ot no painel e na carteira:** bloco e linha do n.ot só para quem tem o módulo (P0-1); chave de API e agente nunca recebem (P0-2); papel de cliente não o vê na carteira. Só contagem e nome de site.
+- **Avisos de prazo do n.ot:** aceite de desvio e obra a vencer (Gestor ARCiber) e revisão do assessment; exigem o módulo no projeto; a exportação de portabilidade não leva essas linhas.
+
 ### n.ot: relatório legível na impressão e item técnico sem base aprovada
 - **Impressão do relatório de conformidade:** o `@media print` força texto preto em fundo branco. O navegador não imprime fundo, e no tema escuro o texto claro ficava quase invisível no PDF.
 - **Item técnico sem site com base aprovada** aparece como "Aguardando base aprovada" (Assessment e relatório), não "Não avaliado": o site em levantamento já mostra a sua situação, mas ainda não define a da organização.

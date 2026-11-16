@@ -159,8 +159,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
       contexto: exemplos(comAtraso.map((i) => i.protocolo)), acao: 'Comunicar o incidente', aba: 'incidentes', filtro: 'comunicacao_atrasada' });
   p('alta', secao.incidentes.sem_avaliacao_de_risco, (q) => `${q} ${q === 1 ? 'incidente sem avaliação de risco' : 'incidentes sem avaliação de risco'}`, 'titular',
     exigido(exemplos(incidentesAbertos.filter((i) => !i.risco_titular).map((i) => i.protocolo)), 'Avaliar o risco', 'incidentes', 'sem_avaliacao'));
-  p('alta', secao.terceiros.vencidos, (q) => `${q} ${q === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}`, 'terceiros',
-    { grupo: 'atraso', quando: venceu(terceirosVencidos.map((t) => t.ultima_avaliacao?.valido_ate)), contexto: exemplos(terceirosVencidos.map((t) => t.nome)), acao: 'Reavaliar os terceiros', filtro: 'vencidos' });
+  p('alta', secao.terceiros.vencidos, (q) => `${q} ${q === 1 ? 'fornecedor com avaliação vencida' : 'fornecedores com avaliação vencida'}`, 'terceiros',
+    { grupo: 'atraso', quando: venceu(terceirosVencidos.map((t) => t.ultima_avaliacao?.valido_ate)), contexto: exemplos(terceirosVencidos.map((t) => t.nome)), acao: 'Reavaliar os fornecedores', filtro: 'vencidos' });
   p('alta', secao.tratamentos.dpia_pendente, (q) => `${q} ${q === 1 ? 'tratamento exige DPIA e não tem' : 'tratamentos exigem DPIA e não têm'}`, 'ropa',
     exigido(exemplos(trat.filter((t) => t.dpia_required && !t.tem_dpia).map((t) => t.nome)), 'Criar o RIPD'));
   p('alta', secao.tratamentos.lia_pendente, (q) => `${q} ${q === 1 ? 'tratamento por legítimo interesse sem LIA' : 'tratamentos por legítimo interesse sem LIA'}`, 'ropa',
@@ -173,8 +173,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos', filtro: 'vencem_7_dias' });
   p('media', secao.evidencias.a_corrigir, (q) => `${q} ${q === 1 ? 'evidência vencida ou não conforme' : 'evidências vencidas ou não conformes'}`, 'evidence', planejar('Renove ou substitua o arquivo', 'Renovar as evidências', 'vencidas_ou_nao_conformes'));
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos', planejar('A data de revisão passou', 'Revisar os documentos'));
-  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado ou a reavaliar' : 'terceiros nunca avaliados ou a reavaliar'}`, 'terceiros',
-    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')).map((t) => t.nome)), 'Avaliar os terceiros', 'pendentes'));
+  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'fornecedor nunca avaliado ou a reavaliar' : 'fornecedores nunca avaliados ou a reavaliar'}`, 'terceiros',
+    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')).map((t) => t.nome)), 'Avaliar os fornecedores', 'pendentes'));
   p('media', secao.tratamentos.sem_base_legal, (q) => `${q} ${q === 1 ? 'tratamento sem base legal' : 'tratamentos sem base legal'}`, 'ropa',
     planejar(exemplos(trat.filter(semBase).map((t) => t.nome)), 'Definir a base legal'));
   p('media', lgpdCarregada || cliente ? 0 : 1, () => 'Catálogo de requisitos LGPD não carregado', 'requisitos', planejar('Sem o catálogo, a cobertura da LGPD não é calculada', 'Abrir a cobertura'));

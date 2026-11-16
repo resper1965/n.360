@@ -27,7 +27,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 // departamentos (Áreas, views/areas.js); as organizações ficam em Fornecedores. No n.iso, partes dos dois tipos; as áreas têm tela própria.
 async function renderPartes(c, h, a) {
     const privacy = produtoAtual() === 'privacy';
-    h.textContent = tituloDaTela('nav-partes', privacy ? 'Pessoas' : 'Partes');
+    h.textContent = tituloDaTela('nav-partes', privacy ? 'Pessoas' : 'Pessoas e parceiros');
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';
@@ -86,7 +86,7 @@ window.openNovaParteModal = function (projectId, tipo = 'pessoa') {
     const privacy = produtoAtual() === 'privacy';
     const tipoEscolhido = TIPOS[tipo] ? tipo : 'pessoa';
     openModal(`
-        <div class="modal-header"><span class="modal-title">${tipoEscolhido === 'organizacao' ? 'Novo terceiro (organização)' : privacy ? 'Nova pessoa' : 'Nova parte'}</span></div>
+        <div class="modal-header"><span class="modal-title">${tipoEscolhido === 'organizacao' ? 'Novo fornecedor (organização)' : privacy ? 'Nova pessoa' : 'Nova parte'}</span></div>
         ${privacy ? `<input type="hidden" id="parte-tipo" value="${tipoEscolhido}">` : `<div class="form-group"><label class="form-label" for="parte-tipo">Tipo</label>
             <select class="form-input" id="parte-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === tipoEscolhido ? 'selected' : ''}>${r}</option>`).join('')}</select></div>`}
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-nome" maxlength="200"></div>

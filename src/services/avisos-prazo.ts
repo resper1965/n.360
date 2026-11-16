@@ -15,7 +15,7 @@ import { log } from '../observability';
 import { passoPorId } from '../data/passos/catalogo';
 import type { Bindings } from '../index';
 
-export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia' | 'documento_arquivo' | 'encaminhamento_titular';
+export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia' | 'documento_arquivo' | 'encaminhamento_titular' | 'ot_aceite' | 'ot_obra' | 'ot_revisao';
 
 export type ItemPrazo = {
   fonte: Fonte;
@@ -116,7 +116,7 @@ const FONTES: Record<Fonte, string> = {
       LEFT JOIN partes pa ON pa.id = d.dono_parte_id AND pa.project_id = d.project_id
     WHERE e.status = 'ativa'`,
   avaliacao_terceiro: `SELECT a.id AS item_id, a.project_id, date(substr(a.valido_ate, 1, 10)) AS vence_em,
-      'Avaliação do terceiro ' || pa.nome || CASE WHEN COALESCE(n.q, 0) > 0 THEN ' (' || n.q || CASE WHEN n.q = 1 THEN ' tratamento' ELSE ' tratamentos' END || ')' ELSE '' END AS titulo,
+      'Avaliação do fornecedor ' || pa.nome || CASE WHEN COALESCE(n.q, 0) > 0 THEN ' (' || n.q || CASE WHEN n.q = 1 THEN ' tratamento' ELSE ' tratamentos' END || ')' ELSE '' END AS titulo,
       NULL AS responsavel
     FROM avaliacoes_terceiro a JOIN partes pa ON pa.id = a.parte_id JOIN projects p ON p.id = a.project_id
       LEFT JOIN (SELECT parte_id, count(DISTINCT alvo_id) AS q FROM parte_vinculos WHERE alvo_tipo = 'tratamento' GROUP BY parte_id) n ON n.parte_id = pa.id
@@ -150,6 +150,18 @@ const FONTES: Record<Fonte, string> = {
     FROM titular_pedido_encaminhamentos e JOIN titular_pedidos t ON t.id = e.pedido_id JOIN partes pa ON pa.id = e.parte_id
       JOIN projects p ON p.id = e.project_id LEFT JOIN partes pr ON pr.id = t.responsavel_parte_id AND pr.project_id = t.project_id
     WHERE e.status = 'aguardando'`,
+  // n.ot (onda 0): só D-7 e D0 para aceite e obra (depois do prazo, reabrirVencidos e encerrarObrasVencidas já agem e avisam).
+  // O título leva só o nome do site ou o código do requisito: nunca ativo, IP ou MAC.
+  // aceito_ate é gravado como 'AAAA-MM-DDT23:59:59.999Z' e obra_ate como 'AAAA-MM-DD': o dia vale como está.
+  ot_aceite: `SELECT d.id AS item_id, d.project_id, date(substr(d.aceito_ate, 1, 10)) AS vence_em, 'Aceite de desvio no site ' || s.nome AS titulo, NULL AS responsavel
+    FROM ot_desvios d JOIN ot_sites s ON s.id = d.site_id AND s.project_id = d.project_id JOIN projects p ON p.id = d.project_id JOIN projeto_modulos pm ON pm.project_id = p.id AND pm.modulo = 'ot'
+    WHERE d.situacao = 'aceito' AND d.aceito_ate IS NOT NULL AND s.status = 'ativo'`,
+  ot_obra: `SELECT s.id AS item_id, s.project_id, date(substr(s.obra_ate, 1, 10)) AS vence_em, 'Obra do site ' || s.nome AS titulo, NULL AS responsavel
+    FROM ot_sites s JOIN projects p ON p.id = s.project_id JOIN projeto_modulos pm ON pm.project_id = p.id AND pm.modulo = 'ot'
+    WHERE s.status = 'ativo' AND s.fase IN ('em_obra', 'base_em_aprovacao') AND s.obra_ate IS NOT NULL`,
+  ot_revisao: `SELECT a.id AS item_id, a.project_id, date(substr(a.proxima_revisao, 1, 10)) AS vence_em, 'Revisão do requisito ' || r.codigo AS titulo, NULL AS responsavel
+    FROM ot_avaliacoes a JOIN ot_requisitos r ON r.id = a.requisito_id JOIN projects p ON p.id = a.project_id JOIN projeto_modulos pm ON pm.project_id = p.id AND pm.modulo = 'ot'
+    WHERE a.proxima_revisao IS NOT NULL`,
 };
 
 /** Os itens que têm marco hoje. Uma fonte que falha vai para `falhas` e as outras seguem. */
@@ -166,7 +178,7 @@ export async function itensDoDia(db: D1Database, hoje: string): Promise<{ itens:
         const marco = marcoDoDia(r.vence_em, hoje);
         // Carência (pedido e incidente): prazo que nasceu vencido não gera atraso na semana ISO em que o registro foi criado.
         if (marco?.startsWith('atraso-') && criado_em && r.vence_em < criado_em && semanaIso(hoje) === semanaIso(criado_em)) continue;
-        if (!marco || (fonte === 'encaminhamento_titular' && marco === 'D-7')) continue;
+        if (!marco || (fonte === 'encaminhamento_titular' && marco === 'D-7') || (SO_GESTOR.has(fonte) && marco.startsWith('atraso-'))) continue;
         // Passo da trilha: o título do passo no lugar de "Item p3_3 da fase 3". Id fora do catálogo mantém o texto antigo.
         const passo = fonte === 'checklist' && r.passo_id ? passoPorId(r.passo_id) : undefined;
         itens.push({ fonte, ...r, ...(passo ? { titulo: `Passo: ${passo.titulo}` } : { passo_id: undefined }), marco });
@@ -225,12 +237,14 @@ export type ResultadoAvisos = { avisos_criados: number; emails_enviados: number;
 
 const ROTULO: Record<Fonte, string> = {
   capa: 'CAPA', checklist: 'Passo da trilha', auditoria: 'Auditoria', certificado: 'Certificado',
-  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência', documento_arquivo: 'Documento', encaminhamento_titular: 'Encaminhamento',
+  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de fornecedor', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência', documento_arquivo: 'Documento', encaminhamento_titular: 'Encaminhamento',
+  ot_aceite: 'Aceite de desvio', ot_obra: 'Obra do site', ot_revisao: 'Revisão do assessment',
 };
 
 /** Tela de cada fonte no clique do sino (frontend/src/globals.js, handleNotificationClick). */
 const TELA: Record<Fonte, string> = {
   capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence', documento_arquivo: '/documentos-arquivo', encaminhamento_titular: '/titular',
+  ot_aceite: '/ot', ot_obra: '/ot', ot_revisao: '/ot',
 };
 
 /** Faixa do módulo de cada fonte (a mesma de `src/modulos.ts` para a tela que o aviso abre): só recebe quem tem o módulo. */
@@ -238,7 +252,11 @@ const FAIXA_DA_FONTE: Record<Fonte, Faixa> = {
   capa: 'iso', checklist: 'iso', auditoria: 'iso', certificado: 'iso', link_auditor: 'iso', politica: 'iso',
   avaliacao_terceiro: 'privacy', titular_pedido: 'privacy', encaminhamento_titular: 'privacy',
   documento: 'nucleo', excecao: 'nucleo', incidente: 'nucleo', evidencia: 'nucleo', documento_arquivo: 'nucleo',
+  ot_aceite: 'ot', ot_obra: 'ot', ot_revisao: 'ot',
 };
+
+/** Fontes do n.ot que só o Gestor ARCiber do cliente recebe (decisão do dono, 14/11/2026): o `org_admin` do próprio projeto. */
+export const SO_GESTOR = new Set<Fonte>(['ot_aceite', 'ot_obra']);
 
 const dataBr = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
 const quando = (marco: string) => (marco === 'D-7' ? 'vence em 7 dias' : marco === 'D0' ? 'vence hoje' : 'com prazo vencido');
@@ -301,7 +319,10 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
       const faixa: Faixa = tela === '/ropa' ? 'privacy' : FAIXA_DA_FONTE[item.fonte];
       const comModulo: Pessoa[] = [];
       for (const p of pessoas) if (!recusaDaPessoa(faixa, await modulosDe(p))) comModulo.push(p);
-      const destinos = escolherDestinatarios(comModulo, item.responsavel);
+      // Aceite e obra do n.ot: só o Gestor ARCiber (org_admin do projeto). `pessoasDoProjeto` já prende o cliente ao client_project_id.
+      // A revisão do assessment vai a todos que têm o n.ot e alcançam o projeto (spec da onda 0); o texto leva só o código do requisito.
+      const destinos = SO_GESTOR.has(item.fonte) ? comModulo.filter((p) => p.role === 'org_admin')
+        : item.fonte === 'ot_revisao' ? comModulo : escolherDestinatarios(comModulo, item.responsavel);
       if (!destinos.length) { r.sem_destinatario++; continue; }
       // Atraso na mesma semana do vencimento só sai se o D0 não saiu (a rotina não rodou no dia).
       const guardaD0 = atraso && semanaIso(item.vence_em) === semanaIso(hoje) ? 1 : 0;

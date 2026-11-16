@@ -34,7 +34,7 @@ describe('tela de Partes', () => {
   it('lista partes, sem departamentos, e escapa o nome', async () => {
     const [c, h, a] = montar();
     await window.renderPartes(c, h, a);
-    expect(h.textContent).toBe('Partes');
+    expect(h.textContent).toBe('Pessoas e parceiros');
     expect(c.textContent).toContain('Ana Exemplo');
     expect(c.textContent).not.toContain('Departamentos'); // as áreas têm tela própria
     expect(apiMock.mock.calls.map(([, u]) => u)).not.toContain('/api/v1/projects/p1/departamentos');
