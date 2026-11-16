@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
-import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
+import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, podeRevogarAprovacao, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
@@ -542,10 +542,10 @@ projectRopaApp.delete('/:recordId/transferencias/:transferenciaId', async (c) =>
 projectRopaApp.post('/:recordId/revoke-approval', async (c) => {
   try {
     const user = c.get('user');
-    if (!PODE_REVOGAR_APROVACAO.has(user?.role ?? '')) {
+    const projectId = c.req.param('projectId')!;
+    if (!(await podeRevogarAprovacao(c.env.DB, user, projectId))) {
       return c.json({ error: 'Forbidden: revogar aprovação é do administrador do cliente ou da plataforma' }, 403);
     }
-    const projectId = c.req.param('projectId');
     const recordId = c.req.param('recordId');
     const valid = await validateBody(c, revogarRopaSchema);
     if (!valid.success) return valid.response;

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { ehEquipeNess, erro500, logAudit, podeAdministrarOrg, registraErro, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
+import { ehEquipeNess, erro500, logAudit, podeAdministrarOrg, registraErro, podeMexerEmAssinaturaDe, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
 import { mesclar, previaDaMescla } from '../services/mesclar';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
@@ -254,7 +254,7 @@ nucleoApp.put('/partes/:id', async (c) => {
     const email = v.data.email === undefined ? atual.email : (v.data.email?.toLowerCase() ?? null);
     // A parte encarregada leva nome e e-mail à linha do DPO na governança: mudar é mexer na linha de quem assina.
     if ((v.data.nome ?? atual.nome) !== atual.nome || email !== atual.email) {
-      if (!podeMexerEmAssinatura(c.get('user'), projectId)
+      if (!(await podeMexerEmAssinaturaDe(c.env.DB, c.get('user'), projectId))
         && await c.env.DB.prepare(`SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND project_id = ? AND papel = 'encarregado'`).bind(id, projectId).first()
         && await membroDpoDaParte(c.env.DB, projectId, { nome: atual.nome, email: atual.email })) {
         return c.json(RECUSA_LINHA_DE_ASSINATURA, 403);

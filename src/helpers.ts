@@ -1,6 +1,6 @@
 import { FAIXA_DA_TABELA, modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from './modulos';
 import { log, requestId, resumoErro } from './observability';
-import { orgDoUsuario } from './services/organizacao';
+import { adminDireto, orgDoUsuario } from './services/organizacao';
 import { REMETENTE_PADRAO, type EmailMontado } from './services/email-layout';
 
 /**
@@ -22,6 +22,10 @@ import { REMETENTE_PADRAO, type EmailMontado } from './services/email-layout';
  * consultor humano não entra, e o agente fica de fora (FORA_DO_AGENTE).
  */
 export const PODE_REVOGAR_APROVACAO = new Set(['platform_admin', 'org_admin']);
+
+/** Async (admin direto consulta o banco): todo chamador precisa de `await`. */
+export const podeRevogarAprovacao = async (db: D1Database, u: { role?: string | null; org_id?: string | null; id?: string | null; agente?: boolean } | null | undefined, projectId: string) =>
+  PODE_REVOGAR_APROVACAO.has(u?.role ?? '') || adminDireto(db, u, projectId);
 
 export class ForbiddenError extends Error {
   constructor(message = 'Forbidden') {
@@ -497,6 +501,10 @@ export const linhaDeAssinatura = (g: { job_title?: string | null; role_category?
 /** Só o administrador do PRÓPRIO cliente (pessoa, não agente nem chave) cria, altera ou remove a linha de quem assina. */
 export const podeMexerEmAssinatura = (u: { role?: string; client_project_id?: string | null; agente?: boolean } | undefined, projectId: string) =>
   u?.role === 'org_admin' && u.client_project_id === projectId && u.agente !== true;
+
+/** Idem, ou o administrador de uma organização de organização direta (consultoria_admin da própria org, projeto dela). Async: todo chamador precisa de `await`. */
+export const podeMexerEmAssinaturaDe = async (db: D1Database, u: (Parameters<typeof podeMexerEmAssinatura>[0] & { org_id?: string | null; id?: string | null }) | undefined, projectId: string) =>
+  podeMexerEmAssinatura(u, projectId) || adminDireto(db, u, projectId);
 
 export const RECUSA_LINHA_DE_ASSINATURA = { error: 'A linha de quem assina (Direção, Líder SGSI/CISO ou DPO/encarregado) é do cliente: só o administrador do cliente neste projeto a cria, altera ou remove.' };
 

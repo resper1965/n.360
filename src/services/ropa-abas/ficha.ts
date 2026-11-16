@@ -1,3 +1,4 @@
+import { adminDireto } from '../organizacao';
 import { aprovacoesDoProjeto } from '../documentos';
 import { PERGUNTAS_IMPACTO } from '../impacto';
 import { entradaDaConferencia, lerDadosAtividade, montarConferencia, sensivelSemArt11, temVolumeOuDescricao, type DadosAtividade } from './conferencia';
@@ -49,7 +50,7 @@ export function estadoDasAbas(d: DadosAtividade, etapas: EstadoEtapa[]): Record<
 }
 
 /** A ficha: cabeçalho, situação, menu Ações e o estado das abas, em poucas consultas. null: a atividade não é do projeto. */
-export async function montarFicha(db: D1Database, projectId: string, ropaId: string, user: { email?: string; role?: string; client_project_id?: string | null; org_id?: string | null }): Promise<Ficha | null> {
+export async function montarFicha(db: D1Database, projectId: string, ropaId: string, user: { email?: string; role?: string; id?: string | null; agente?: boolean; client_project_id?: string | null; org_id?: string | null }): Promise<Ficha | null> {
   const d = await lerDadosAtividade(db, projectId, ropaId);
   if (!d) return null;
   const [detalhe, aprovacoes, podePedir, respondidas] = await Promise.all([
@@ -73,7 +74,7 @@ export async function montarFicha(db: D1Database, projectId: string, ropaId: str
       responsavel: d.owner_parte_id ? { id: d.owner_parte_id, nome: d.owner_nome ?? '' } : null, areas, empresa: d.empresa ?? '',
     },
     situacao,
-    acoes: acoesDoMenu(situacao, papelDe(user, podePedir, bloqueios)),
+    acoes: acoesDoMenu(situacao, papelDe(user, podePedir, bloqueios, await adminDireto(db, user, projectId))),
     abas: estadoDasAbas(d, etapas),
     modulos: { iso: d.iso > 0 },
     ...comLacunas(lacunas(entradaDaProxima(d, detalhe ?? [], respondidas.results.map((r) => r.pergunta), etapas))),

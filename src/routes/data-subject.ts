@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { logAudit, semIpENavegador, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
+import { adminDireto } from '../services/organizacao';
+import { logAudit, semIpENavegador, linhaDeAssinatura, podeMexerEmAssinaturaDe, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { validateBody, identificadorSchema } from '../schemas';
 import { localizarTitular, anonimizarTitular, ropaVencidos } from '../services/data-subject';
 
@@ -20,9 +21,9 @@ const PAPEIS_AUTORIZADOS = ['platform_admin', 'consultor', 'org_admin'];
 
 /** Requisição de titular expõe PII: papel read-only não pode executar. O agente
  *  tem paridade de consultor, preso ao projeto pelo projectAccessMiddleware. */
-function autorizado(c: any): boolean {
+async function autorizado(c: any): Promise<boolean> {
   const u = c.get('user');
-  return PAPEIS_AUTORIZADOS.includes(u?.role) || u?.agente === true;
+  return PAPEIS_AUTORIZADOS.includes(u?.role) || u?.agente === true || await adminDireto(c.env.DB, u, c.req.param('projectId'));
 }
 
 /**
@@ -30,7 +31,7 @@ function autorizado(c: any): boolean {
  * A saída é JSON estruturado justamente para servir de portabilidade.
  */
 dataSubjectApp.get('/', async (c) => {
-  if (!autorizado(c)) return c.json({ error: 'Papel não autorizado a consultar dados de titular' }, 403);
+  if (!(await autorizado(c))) return c.json({ error: 'Papel não autorizado a consultar dados de titular' }, 403);
 
   const projectId = c.req.param('projectId')!;
   const identificador = c.req.query('identificador');
@@ -69,7 +70,7 @@ dataSubjectApp.get('/', async (c) => {
  * dado pessoal e preserva o fato, que é o que o art. 16, IV permite.
  */
 dataSubjectApp.post('/erase', async (c) => {
-  if (!autorizado(c)) return c.json({ error: 'Papel não autorizado a eliminar dados de titular' }, 403);
+  if (!(await autorizado(c))) return c.json({ error: 'Papel não autorizado a eliminar dados de titular' }, 403);
 
   const projectId = c.req.param('projectId')!;
   const valid = await validateBody(c, identificadorSchema);
@@ -97,7 +98,7 @@ dataSubjectApp.post('/erase', async (c) => {
   if (linhas.some((g) => g.role_category === 'consultor')) {
     return c.json({ error: 'A pessoa é consultora na governança do projeto: retire-a da governança antes de atender o pedido.' }, 409);
   }
-  if (linhas.some(linhaDeAssinatura) && !podeMexerEmAssinatura(c.get('user'), projectId)) {
+  if (linhas.some(linhaDeAssinatura) && !(await podeMexerEmAssinaturaDe(c.env.DB, c.get('user'), projectId))) {
     return c.json(RECUSA_LINHA_DE_ASSINATURA, 409);
   }
 
@@ -126,7 +127,7 @@ dataSubjectApp.post('/erase', async (c) => {
  * coisa errada; a decisão é do DPO e precisa ficar registrada.
  */
 dataSubjectApp.get('/retencao', async (c) => {
-  if (!autorizado(c)) return c.json({ error: 'Papel não autorizado' }, 403);
+  if (!(await autorizado(c))) return c.json({ error: 'Papel não autorizado' }, 403);
 
   const projectId = c.req.param('projectId')!;
   const vencidos = await ropaVencidos(c.env.DB, projectId);

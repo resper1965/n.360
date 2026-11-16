@@ -160,3 +160,73 @@ describe('n.ot: Gestor ARCiber na organização direta', () => {
     expect((bb.itens as any[]).map((i) => i.texto).join('|')).not.toMatch(/base aguardando aprovação/);
   });
 });
+
+describe('privacy: matriz de assinatura, revogação, titular', () => {
+  beforeAll(async () => {
+    await concederModulos(['u-ana', 'u-beto', 'u-cris'], ['privacy', 'iso']);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, status, ciso_approved_by) VALUES ('ro-d','p-d','F','Approved','L'),('ro-c','p-c','F','Approved','L')`),
+      env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, system_name, status, dpo_signature) VALUES ('dp-d','p-d','S','Approved','D'),('dp-c','p-c','S','Approved','D')`),
+      env.DB.prepare(`INSERT INTO management_reviews (id, project_id, review_date, status) VALUES ('mr-d','p-d','2026-07-16','Completed'),('mr-c','p-c','2026-07-16','Completed')`),
+    ]);
+  });
+  const corpo = { name: 'Dir', email: 'dir@d.lat', role_category: 'executivo', job_title: 'CEO' };
+  const motivo = { role: 'todas', reason: 'motivo suficiente' };
+  it('governança: admin direto cria e remove a linha de quem assina; o de consultoria e o de outra org, não', async () => {
+    const ok = await chamar('POST', '/api/v1/projects/p-d/governance', S.beto, corpo);
+    expect(ok.status, await ok.clone().text()).toBeLessThan(300);
+    expect((await chamar('POST', '/api/v1/projects/p-c/governance', S.cris, corpo)).status).toBe(403);
+    expect((await chamar('POST', '/api/v1/projects/p-c/governance', S.beto, corpo)).status).toBeGreaterThanOrEqual(403);
+    const id = (await um<{ id: string }>(`SELECT id FROM project_governance WHERE project_id='p-d' AND email='dir@d.lat'`))!.id;
+    expect((await chamar('DELETE', `/api/v1/projects/p-d/governance/${id}`, S.beto)).status).toBeLessThan(300);
+  });
+  it('helpers', async () => {
+    const { podeMexerEmAssinaturaDe, podeRevogarAprovacao } = await import('../src/helpers');
+    const beto = { id: 'u-beto', role: 'consultoria_admin', org_id: 'org_d' } as any;
+    expect(await podeMexerEmAssinaturaDe(env.DB, beto, 'p-d')).toBe(true);
+    expect(await podeRevogarAprovacao(env.DB, beto, 'p-d')).toBe(true);
+    expect(await podeRevogarAprovacao(env.DB, beto, 'p-c')).toBe(false);
+    expect(await podeRevogarAprovacao(env.DB, { ...beto, org_id: 'org_c' }, 'p-c')).toBe(false);
+    for (const u of [{ id: 'a', role: 'client', agente: true }, { ...beto, agente: true }, { ...beto, id: 'apikey:k' }]) {
+      expect(await podeRevogarAprovacao(env.DB, u as any, 'p-d')).toBe(false);
+      expect(await podeMexerEmAssinaturaDe(env.DB, u as any, 'p-d')).toBe(false);
+    }
+  });
+  it('revogar aprovação do ROPA: direto passa; consultoria e outra org, não', async () => {
+    expect((await chamar('POST', '/api/v1/projects/p-c/ropa/ro-c/revoke-approval', S.cris, motivo)).status).toBe(403);
+    expect((await chamar('POST', '/api/v1/projects/p-c/ropa/ro-c/revoke-approval', S.beto, motivo)).status).toBeGreaterThanOrEqual(403);
+    const r = await chamar('POST', '/api/v1/projects/p-d/ropa/ro-d/revoke-approval', S.beto, motivo);
+    expect(r.status, await r.clone().text()).toBe(200);
+  });
+  it('revogar aprovação do DPIA: direto passa; consultoria e outra org, não', async () => {
+    const u = (p: string, d: string) => `/api/v1/projects/${p}/dpia/${d}/revoke-approval`;
+    expect((await chamar('POST', u('p-c', 'dp-c'), S.cris, { reason: 'motivo suficiente' })).status).toBe(403);
+    expect((await chamar('POST', u('p-c', 'dp-c'), S.beto, { reason: 'motivo suficiente' })).status).toBeGreaterThanOrEqual(403);
+    const r = await chamar('POST', u('p-d', 'dp-d'), S.beto, { reason: 'motivo suficiente' });
+    expect(r.status, await r.clone().text()).toBe(200);
+  });
+  it('excluir análise crítica: direto passa; consultoria e outra org, não', async () => {
+    expect((await chamar('DELETE', '/api/v1/management-reviews/mr-c', S.cris)).status).toBe(403);
+    expect((await chamar('DELETE', '/api/v1/management-reviews/mr-c', S.beto)).status).toBeGreaterThanOrEqual(403);
+    const r = await chamar('DELETE', '/api/v1/management-reviews/mr-d', S.beto);
+    expect(r.status, await r.clone().text()).toBe(200);
+  });
+  it('titular: admin direto consulta; admin de consultoria e de outra org, não', async () => {
+    const q = (p: string, s: any) => chamar('GET', `/api/v1/projects/${p}/data-subject?identificador=x@y.lat`, s);
+    expect((await q('p-d', S.beto)).status).toBe(200);
+    expect((await q('p-c', S.cris)).status).toBe(403);
+    expect((await q('p-c', S.beto)).status).toBeGreaterThanOrEqual(403);
+    expect((await chamar('GET', '/api/v1/projects/p-c/data-subject/retencao', S.cris)).status).toBe(403);
+    expect((await chamar('GET', '/api/v1/projects/p-d/data-subject/retencao', S.beto)).status).toBe(200);
+  });
+  it('ficha do ROPA: reabrir é do admin direto, não do de consultoria', async () => {
+    const { montarFicha } = await import('../src/services/ropa-abas/ficha');
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, status, ciso_approved_by) VALUES ('ro-f','p-d','F','Approved','L'),('ro-g','p-c','F','Approved','L')`),
+    ]);
+    const beto = { id: 'u-beto', email: 'beto@d.lat', role: 'consultoria_admin', org_id: 'org_d' };
+    const cris = { id: 'u-cris', email: 'cris@c.lat', role: 'consultoria_admin', org_id: 'org_c' };
+    expect((await montarFicha(env.DB, 'p-d', 'ro-f', beto))!.acoes.reabrir.habilitada).toBe(true);
+    expect((await montarFicha(env.DB, 'p-c', 'ro-g', cris))!.acoes.reabrir.habilitada).toBe(false);
+  });
+});

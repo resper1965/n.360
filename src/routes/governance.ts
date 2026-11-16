@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto, ehEquipeNess, semIpENavegador, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
+import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto, ehEquipeNess, semIpENavegador, linhaDeAssinatura, podeMexerEmAssinaturaDe, podeRevogarAprovacao, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
 import { SEM_SENHA } from '../services/convite';
 import { ehDpo, garantirEncarregado, desfazerEncarregado, atualizarEncarregado, encarregadosFora } from '../services/encarregado-pessoa';
@@ -176,7 +176,7 @@ governanceApp.post('/projects/:id/governance', async (c) => {
     if (!PODE_DESIGNAR_CONSULTOR.has(c.get('user')?.role ?? '') && await mexeEmConsultor(c.env.DB, projectId, id, role_category)) {
       return c.json(recusaDesignacao, 403);
     }
-    if (!podeMexerEmAssinatura(c.get('user'), projectId) && await mexeEmAssinatura(c.env.DB, projectId, id, { role_category, job_title })) {
+    if (!(await podeMexerEmAssinaturaDe(c.env.DB, c.get('user'), projectId)) && await mexeEmAssinatura(c.env.DB, projectId, id, { role_category, job_title })) {
       return c.json(RECUSA_LINHA_DE_ASSINATURA, 403);
     }
 
@@ -246,7 +246,7 @@ governanceApp.delete('/projects/:id/governance/:memberId', async (c) => {
     if (!PODE_DESIGNAR_CONSULTOR.has(c.get('user')?.role ?? '') && await mexeEmConsultor(c.env.DB, projectId, memberId)) {
       return c.json(recusaDesignacao, 403);
     }
-    if (!podeMexerEmAssinatura(c.get('user'), projectId) && await mexeEmAssinatura(c.env.DB, projectId, memberId)) {
+    if (!(await podeMexerEmAssinaturaDe(c.env.DB, c.get('user'), projectId)) && await mexeEmAssinatura(c.env.DB, projectId, memberId)) {
       return c.json(RECUSA_LINHA_DE_ASSINATURA, 403);
     }
     const antes = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE id = ? AND project_id = ?')
@@ -564,10 +564,11 @@ governanceApp.post('/projects/:id/management-reviews', async (c) => {
 governanceApp.delete('/management-reviews/:id', async (c) => {
   try {
     const user = c.get('user');
-    if (!PODE_REVOGAR_APROVACAO.has(user?.role ?? '')) {
+    const id = c.req.param('id');
+    const alvo = await c.env.DB.prepare('SELECT project_id FROM management_reviews WHERE id = ?').bind(id).first<{ project_id: string }>();
+    if (!(await podeRevogarAprovacao(c.env.DB, user, alvo?.project_id ?? ''))) {
       return c.json({ error: 'Forbidden: excluir análise crítica é do administrador do cliente ou da plataforma' }, 403);
     }
-    const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'management_reviews', id, user);
     const r = await c.env.DB.prepare('SELECT project_id, review_date, status FROM management_reviews WHERE id = ?')
       .bind(id).first<{ project_id: string; review_date: string; status: string | null }>();
