@@ -69,7 +69,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
 ## O que e o n.360, em uma tela
 
 - **Um Worker, um banco (D1 `niso-db`), um deploy.** O endereco canonico e `https://n360.ness.com.br`
-  (`APP_URL` em `wrangler.jsonc`). `/` e o inicio do n.360 (um cartao por modulo e o grupo "Conta e acessos"),
+  (`APP_URL` em `wrangler.jsonc`). `/` e o Inicio do n.360 (a lista dos projetos que a pessoa alcanca, sem projeto ativo; o cliente ve o projeto dele ja aberto) e o grupo "Conta e acessos",
   `/iso*` a casca do n.iso, `/privacy*` a do n.privacy e `/ot*` a do n.ot. O CAMINHO decide a casca (`frontend/src/produto.js`);
   o servidor entrega o mesmo `login.html` para todos.
 - **Um cadastro so.** Partes, itens, documentos, RoPA, DPIA, evidencias, pedidos e incidentes sao do nucleo e
@@ -94,7 +94,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   (revelar 20/pessoa e 60/projeto; exportar 5/pessoa e 15/projeto; 429 `teto_por_hora`) e aviso ao Gestor ARCiber titular e suplente
   (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo (de novo se errado, sem
   perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) abre o n.ot na aba Saidas
-  (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). No hub o n.ot abre pelo botao "Abrir no n.ot" da linha do projeto no Inicio, que so aparece quando a carteira ou o painel trazem o modulo; `nav-ot` segue em `SO_OT` so para `produtoDaTela`; os itens do menu do n.ot so aparecem no `/ot`, com projeto **e** pessoa com o modulo (`atualizarItemOt`);
   o painel e a carteira trazem o n.ot so a quem tem o modulo e nao e papel de cliente na carteira (`src/services/painel-ot.ts`: contagem e nome de site, nunca IP, MAC nem nome de ativo; chave de API e agente nunca recebem). Avisos de prazo do n.ot: fontes `ot_aceite` e `ot_obra` (so o Gestor ARCiber, D-7 e D0) e `ot_revisao`, todas com o modulo no projeto (`src/services/avisos-prazo.ts`); a exportacao de portabilidade omite as linhas `ot_*` de `avisos_prazo`.
   Coleta (N3, migration 0092): `POST …/ot/lotes/manual` (JSON; a planilha entra pelo de-para do levantamento, o multipart `POST …/ot/lotes` saiu na E3) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
   no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
@@ -141,7 +141,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   agente). A frase de saude e o estado do programa sao funcoes puras (`saudeDoProjeto`, `estadoDoPrograma` em `src/services/painel.ts`)
   sobre a mesma lista de "O que fazer"; projeto vazio e "Comecando", nunca "Em dia". O cliente recebe so a frase, as linhas dos
   modulos e `decisoes`. As `prioridades` da visao do encarregado ganharam `grupo`, `quando`, `contexto`, `acao` e `aba` (so campos
-  novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), entrada do n.360 (`inicio`), do
+  novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), Inicio do n.360 (`inicio`: lista por `montarLista` sobre `GET /api/v1/carteira`; "Ver situacao" pede `GET /projects/:id/painel` sem `?modulo` so ao abrir a linha, com cache de 60 s, e nao muda o projeto ativo; quadro "Minhas aprovacoes" no topo com `GET /api/v1/pedidos` quando ha pedido esperando a pessoa, invalidado ao decidir por `window.invalidarInicio`; o cliente com `client_project_id` ve so o projeto dele), do
   n.iso (`dashboard`) e do n.privacy (`encarregado`); uma chamada por entrada, cache de 60 s em `S.painel`, selos do menu do
   n.privacy vindos do proprio painel. O funil comercial e a tela `comercial` (`renderComercial`, `views/dashboard.js`).
   **Painel do n.iso (Frente 4):** a lista "O que fazer" traz tambem fornecedor com avaliacao vencida (filtro `vendors::vencidos`; `situacao` em `GET /vendors`) e pedido esperando decisao (conta so os pedidos abertos do projeto em que a pessoa e destinataria pendente, o mesmo casamento de `GET /api/v1/pedidos`; o item fica fora da visao do cliente, que tem `decisoes`); os selos do menu do n.iso vem do painel (`modulos.iso.selos`, `frontend/src/selos-menu.js`) e chegam tambem a visao do cliente; fornecedor reprovado conta como atraso, como no n.privacy.
@@ -581,10 +581,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   lista de projetos), depois de a organizacao contratar. Ligar o `privacy` (de desligado a ligado) roda `importarPartes`,
   `conciliarResponsaveis` e `importarDocumentos` no projeto, cada uma em try/catch (falha vira `avisos` na resposta, o modulo fica
   ligado; `test/modulos-ligar-privacy.test.ts`). Desligar nao apaga dado. **Frontend (n.360, 11/10/2026):** o n.360 e a plataforma-mae e os dois produtos sao modulos dele; o CAMINHO decide a casca
-  (`frontend/src/produto.js`, `produtoAtual`): `/` e o inicio do n.360 (o painel de entrada, `views/painel.js`: uma linha por modulo
-  habilitado, "Abrir" vai a `/iso` ou `/privacy`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
-  entrega o mesmo `login.html` para qualquer um (catch-all). Quem tem um modulo so entra direto nele; equipe da ness. sem projeto
-  vai ao n.iso; cliente sem projeto com modulo ve "sem acesso". O cliente com projeto entra no Painel do n.iso (`dashboard`, visao de
+  (`frontend/src/produto.js`, `produtoAtual`): `/` e o Inicio do n.360 (`views/painel.js`: a lista dos projetos, uma linha por projeto com "Ver situacao" e "Abrir no n.x", que vai a `/iso`, `/privacy` ou `/ot`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
+  entrega o mesmo `login.html` para qualquer um (catch-all). Ninguem e redirecionado: o boot do n.360 sempre abre o Inicio (fora Stakeholder e `?tela=`),
+  que nao escolhe projeto (`soltarProjeto` em `views/painel.js`; o ultimo usado so ordena o seletor, que mostra "Nenhum projeto escolhido"); entrar num modulo e so por clique em "Abrir no n.x"
+  (ou escolher o projeto no seletor estando no Inicio, `changeActiveProject`). Sem projeto nenhum: "Nenhum projeto ainda", com "Novo projeto" (o assistente) para quem cria
+  e, com a area comercial ligada, tambem "Criar projeto" (o funil do n.iso); ou a tela sem acesso. Nao ha alternancia Projeto/Carteira. O cliente com projeto ve o dele ja aberto no Inicio e, no n.iso, no Painel (`dashboard`, visao de
   cliente: "Esperando a sua decisao", e a direita a fase em curso da jornada, `jornada` do `GET .../painel`, so na visao dele), nao mais
   na Jornada, que segue no menu (`project-detail`). Nos modulos a casca aplica marca, titulo e menu (`SO_ISO`,
   `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se

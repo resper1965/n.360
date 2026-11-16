@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.360: o Início é a lista dos projetos e ninguém é redirecionado na entrada
+- **Início sem projeto ativo:** lista dos projetos com "Ver situação" (abre na linha e não muda o projeto) e "Abrir no n.x" (entrar é só por clique). O seletor mostra "Nenhum projeto escolhido"; a alternância Projeto/Carteira saiu. O cliente vê o projeto dele já aberto.
+- **Minhas aprovações** no topo do Início quando há pedido esperando a pessoa; decidir um pedido (individual ou em lote) atualiza o Início na hora.
+- **Sem redirecionamento:** o boot sempre abre o Início. Sem projeto, "Novo projeto" para quem cria (também com a área comercial ligada, ao lado do funil) ou a quem pedir acesso. O item solto do n.ot saiu do menu: o módulo abre pela linha do projeto.
+
 ### n.360, onda 0: uma língua nos módulos e o n.ot à vista (spec 2026-11-14)
 - **Rótulos:** "fornecedor" no lugar de "terceiro" nos textos do painel, da carteira, dos avisos e do e-mail; "Papéis e comitê" e "Políticas e normas" nos dois módulos; "Pessoas e parceiros" no n.iso. Só texto: nenhum id, rota ou valor de banco muda. O modal de nova consultoria não fala mais em senha provisória.
 - **n.ot no painel e na carteira:** bloco e linha do n.ot só para quem tem o módulo (P0-1); chave de API e agente nunca recebem (P0-2); papel de cliente não o vê na carteira. Só contagem e nome de site.
