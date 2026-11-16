@@ -12,7 +12,7 @@ const el = (id) => document.getElementById(id);
 const chamadas = (f) => f.mock.calls.map(([u, o]) => `${o?.method || 'GET'} ${new URL(u, 'http://localhost').pathname}`);
 
 beforeEach(() => {
-    S.token = 'tok'; S.user = { role: 'consultor' }; S.activeProject = { id: 'p9' }; S.view = 'encarregado'; window.render = vi.fn();
+    S.token = 'tok'; S.user = { id: 'u1', role: 'consultor' }; S.activeProject = { id: 'p9' }; S.view = 'encarregado'; window.render = vi.fn();
     document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -33,7 +33,7 @@ describe('Painel do n.privacy (encarregado)', () => {
             'GET /api/v1/projects/p9/partes': [{ id: 'pe7', nome: 'Rita <b>Exemplo</b>', tipo: 'pessoa' }],
             'POST /api/v1/projects/p9/partes/pe7/vinculos': { id: 'v1' },
         });
-        S.painel = { 'p9|privacy': { t: Date.now(), dados: {} }, 'p9|n360': { t: Date.now(), dados: {} }, 'p8|privacy': { t: Date.now(), dados: {} } };
+        S.painel = { 'u1|p9|privacy': { t: Date.now(), dados: {} }, 'u1|p9|n360': { t: Date.now(), dados: {} }, 'u1|p8|privacy': { t: Date.now(), dados: {} } };
         await window.abrirIndicarEncarregado('p9');
         const sel = document.getElementById('encarregado-parte');
         expect(sel.options.length).toBe(1);
@@ -44,6 +44,6 @@ describe('Painel do n.privacy (encarregado)', () => {
         expect(new URL(post[0], 'http://localhost').pathname).toBe('/api/v1/projects/p9/partes/pe7/vinculos');
         expect(JSON.parse(post[1].body)).toEqual({ papel: 'encarregado', alvo_tipo: 'projeto', alvo_id: 'p9' });
         // o painel guardado do projeto deixa de valer (o encarregado sai do "O que fazer"); o de outro projeto fica
-        expect(Object.keys(S.painel)).toEqual(['p8|privacy']);
+        expect(Object.keys(S.painel)).toEqual(['u1|p8|privacy']);
     });
 });
