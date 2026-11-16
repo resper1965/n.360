@@ -52,7 +52,7 @@ async function mockApi(page) {
 
 test('Gestão de GAPs: lista → filtro de status → o Gap abre o Controle de GAPs → a Atividade leva à ficha na aba', async ({ page }) => {
   await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
@@ -84,7 +84,7 @@ test('Gestão de GAPs: lista → filtro de status → o Gap abre o Controle de G
 
 test('Gestão de Riscos: lista padrão → filtro de área → Tratar Risco grava pela rota da atividade', async ({ page }) => {
   await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');

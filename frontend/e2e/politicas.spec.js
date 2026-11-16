@@ -58,7 +58,7 @@ async function mockApi(page) {
 
 test('Nova política → gerar seções pendentes → publicar → Vigente', async ({ page }) => {
   const chamadas = await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/iso');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');

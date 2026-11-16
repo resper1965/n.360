@@ -350,21 +350,23 @@ export const projetosDoProduto = (lista, produto = produtoAtual()) => (!Array.is
  */
 function semProjetoNenhum() {
     const id = 'sem-acesso-produto';
-    if (!(typeof window.ehEquipeNess === 'function' && window.ehEquipeNess())) {
+    const comercial = typeof window.comercialAtivo === 'function' && window.comercialAtivo();
+    const doComercial = comercial && typeof window.ehComercial === 'function' && window.ehComercial();
+    // O papel comercial não conduz projeto, mas o trabalho dele (o funil) começa sem projeto nenhum: vê o caminho, não "a quem pedir".
+    if (!(typeof window.ehEquipeNess === 'function' && window.ehEquipeNess()) && !doComercial) {
         return renderEmptyState({ id, titulo: 'Você ainda não tem acesso a um projeto',
             texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua empresa, para incluir você no projeto.' });
     }
-    // Área comercial desligada: o projeto nasce pelo "Novo projeto" da tela Projetos (platform_admin e consultoria_admin).
-    const comercial = typeof window.comercialAtivo === 'function' && window.comercialAtivo();
     const criaProjeto = S.user && ['platform_admin', 'consultoria_admin'].includes(S.user.role);
     const acao = [
-        comercial && typeof window.ehComercial === 'function' && window.ehComercial() ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
-        !comercial && criaProjeto ? '<a class="btn btn-primary" href="/?tela=projects">Novo projeto</a>' : '',
+        doComercial ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
+        // Área comercial desligada: "Novo projeto" abre o assistente aqui mesmo (views/empresa.js), para quem cria projeto.
+        !comercial && criaProjeto ? '<button type="button" class="btn btn-primary" data-action="abrirNovoProjeto">Novo projeto</button>' : '',
         S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver consultorias</a>' : '',
     ].join('');
     return renderEmptyState({ id, titulo: 'Nenhum projeto ainda',
         texto: comercial ? 'O projeto nasce quando a proposta é aprovada, no funil comercial do n.iso: lead, diagnóstico e proposta.'
-            : criaProjeto ? 'Crie o primeiro em Conta e acessos, Projetos: "Novo projeto".' : 'Quem administra a consultoria cria o projeto e designa você nele.', acao });
+            : criaProjeto ? 'Crie o primeiro: o assistente pede a empresa, o programa e as pessoas.' : 'Quem administra a consultoria cria o projeto e designa você nele.', acao });
 }
 
 /** Tela de quem entrou num módulo que nenhum projeto seu tem (ou no n.360 sem módulo em projeto nenhum). */

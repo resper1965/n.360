@@ -358,12 +358,41 @@ describe('início do n.360', () => {
         expect(irPara).not.toHaveBeenCalledWith('/ot');
     });
 
-    it('sem projeto: diz isso, sem chamar a API', async () => {
-        S.activeProject = null; S.projects = [];
-        const f = servir({});
-        await abrir('n360');
-        expect(el('c').textContent).toContain('Nenhum projeto ainda');
-        expect(f).not.toHaveBeenCalled();
+    describe('sem projeto (S.projects vazio)', () => {
+        beforeEach(() => { S.activeProject = null; S.projects = []; });
+        afterEach(() => { delete S.totalProjetos; delete window.loadProjects; });
+        it('quem cria projeto: "Nenhum projeto ainda" com "Novo projeto" (o assistente), sem chamar a API', async () => {
+            S.totalProjetos = 0;
+            S.user = { id: 'u1', role: 'consultoria_admin' };
+            const f = servir({});
+            await abrir('n360');
+            expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
+            const novo = el('c').querySelector('.empty-action [data-action="abrirNovoProjeto"]');
+            expect([novo.textContent, novo.className.includes('btn-primary')]).toEqual(['Novo projeto', true]);
+            expect(el('h').textContent).toBe('Início');
+            expect(f).not.toHaveBeenCalled();
+        });
+        it('quem não cria: a tela sem acesso de sempre (o consultor sabe quem cria; o cliente, a quem pedir)', async () => {
+            S.totalProjetos = 0;
+            S.user = { id: 'u1', role: 'consultor' };
+            await abrir('n360');
+            expect(el('c').querySelector('button, a')).toBeNull();
+            expect(el('c').textContent).toMatch(/administra a consultoria/);
+            S.user = { id: 'u2', role: 'org_user' };
+            window.ehEquipeNess = () => false;
+            await abrir('n360');
+            expect(el('c').querySelector('h3').textContent).toBe('Você ainda não tem acesso a um projeto');
+        });
+        it('lista de projetos que falhou não vira "nenhum projeto": erro com "Tentar de novo" que pede a lista outra vez', async () => {
+            S.user = { id: 'u1', role: 'consultoria_admin' };
+            await abrir('n360');
+            expect(el('c').textContent).toContain('Não foi possível carregar os projetos');
+            expect(el('c').querySelector('[data-action="recarregarInicio"]')).not.toBeNull();
+            window.loadProjects = vi.fn(async () => {});
+            await window.recarregarInicio();
+            expect(window.loadProjects).toHaveBeenCalled();
+            expect(window.render).toHaveBeenCalled();
+        });
     });
 
     it('"Minhas aprovações" no topo quando há pedido esperando a pessoa; some sem pedido; falha dos pedidos não derruba a lista', async () => {

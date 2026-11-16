@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { servirShell } from './shell.js';
 
-// Entrada do n.360: login na raiz, início com um cartão por módulo, "Abrir" leva ao caminho do módulo
-// (/iso, /privacy) com a casca dele; quem só tem um módulo entra direto. A API é mockada.
+// Entrada do n.360: login na raiz, o Início lista os projetos sem projeto ativo e "Abrir no n.x" leva ao caminho do módulo
+// (/iso, /privacy) com a casca dele; ninguém é redirecionado. A API é mockada.
 
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor' };
 
@@ -44,8 +44,8 @@ async function mockApi(page, modulos) {
   });
 }
 
-async function entrar(page) {
-  await page.goto('/login.html');
+async function entrar(page, caminho = '/login.html') {
+  await page.goto(caminho);
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
@@ -75,9 +75,13 @@ test('dois módulos: o Início lista o projeto e "Abrir no" leva à casca de cad
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
 
-test('um módulo só (privacy): entra direto em /privacy', async ({ page }) => {
+test('um módulo só (privacy): fica no Início, sem redirecionamento; "Abrir no n.privacy" leva ao módulo', async ({ page }) => {
   await mockApi(page, ['privacy']);
   await entrar(page);
+  const abrir = page.getByRole('button', { name: 'Abrir Cliente E2E no n.privacy' });
+  await expect(abrir).toBeVisible();
+  await expect(page).not.toHaveURL(/\/privacy/);
+  await abrir.click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
@@ -87,7 +91,7 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
   // os selos vêm do próprio painel (selos), sem a segunda chamada à visão do encarregado
   const visao = [];
   page.on('request', (r) => { if (new URL(r.url()).pathname.endsWith('/encarregado')) visao.push(r.url()); });
-  await entrar(page);
+  await entrar(page, '/privacy');
   await expect(page).toHaveURL(/\/privacy$/);
   const menu = page.locator('#sidebar');
   await expect(menu.locator('#nav-titular')).toContainText('Solicitações');
@@ -127,7 +131,7 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
 // tem nome em todo link.
 test('n.iso: Tab sem item escondido e barra recolhida com nome', async ({ page }) => {
   await mockApi(page, ['iso']);
-  await entrar(page);
+  await entrar(page, '/iso');
   await expect(page).toHaveURL(/\/iso$/);
   const menu = page.locator('#sidebar');
   await expect(menu.locator('#nav-evidence')).toBeHidden(); // grupo Operacional começa fechado
@@ -181,7 +185,7 @@ test('painel: a frase de saúde aparece em menos de 1 s com a API do painel atra
   });
   let pedido = 0;
   page.on('request', (r) => { if (!pedido && new URL(r.url()).pathname.endsWith('/painel')) pedido = Date.now(); });
-  await entrar(page);
+  await entrar(page, '/privacy');
   await expect(page.locator('.pn-frase')).toBeVisible();
   const ate = Date.now() - pedido;
   expect(pedido).toBeGreaterThan(0);

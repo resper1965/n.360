@@ -450,7 +450,9 @@ export async function renderPainel(c, h, a, entrada) {
 async function renderInicioDoN360(c, h, a) {
     soltarProjeto();
     if (!(S.projects || []).length) {
-        c.innerHTML = renderEmptyState({ titulo: 'Nenhum projeto ainda', texto: 'Quando um projeto seu tiver um módulo habilitado, ele aparece aqui.' });
+        // Zero de verdade: "Nenhum projeto ainda" com "Novo projeto" para quem cria, ou a quem pedir (produto.js). Falha da lista não é zero.
+        if (S.totalProjetos === 0) vazioDoInicio(c, h);
+        else c.innerHTML = renderErrorState('Não foi possível carregar os projetos.', { acao: 'recarregarInicio' });
         return;
     }
     const idCliente = idDoCliente();
@@ -463,6 +465,12 @@ async function renderInicioDoN360(c, h, a) {
     }
     await carregar(c, a, 'n360', null, chaveDe('carteira'), buscarInicio, (dados) => telaDaLista(c, h, dados));
 }
+
+/** "Tentar de novo" do Início quando a lista de projetos falhou: pede a lista outra vez e redesenha. */
+window.recarregarInicio = async function () {
+    if (typeof window.loadProjects === 'function') await window.loadProjects();
+    if (typeof window.render === 'function') window.render();
+};
 
 /**
  * Botão de um item: a tela do destino (lista fechada), com a aba quando há e a lista já filtrada pela situação do item

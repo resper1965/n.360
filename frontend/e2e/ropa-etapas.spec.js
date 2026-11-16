@@ -88,7 +88,7 @@ async function mockApi(page, erros) {
 }
 
 async function entrarEAbrirAtividade(page) {
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');

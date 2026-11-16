@@ -396,14 +396,18 @@ describe('sem acesso e links entre módulos', () => {
             expect(el('c').querySelector('h3').textContent).toBe('Você ainda não tem acesso a um projeto');
             expect(el('c').textContent).toMatch(/consultoria|administrador/);
             expect(el('c').querySelector('a, button')).toBeNull();
-            // Área comercial desligada: o caminho é o "Novo projeto" da tela Projetos, para quem cria projeto.
+            // Área comercial desligada: "Novo projeto" abre o assistente ali mesmo, para quem cria projeto.
             for (const role of ['platform_admin', 'consultoria_admin']) {
                 S.user = { role, comercial_ativo: false };
                 semAcesso(el('c'), 'n360');
-                const [novo] = el('c').querySelectorAll('.empty-action a');
-                expect([novo.textContent, novo.getAttribute('href')], role).toEqual(['Novo projeto', '/?tela=projects']);
+                const novo = el('c').querySelector('.empty-action [data-action="abrirNovoProjeto"]');
+                expect([novo.tagName, novo.textContent, novo.className.includes('btn-primary')], role).toEqual(['BUTTON', 'Novo projeto', true]);
                 expect(el('c').innerHTML).not.toContain('tela=leads');
             }
+            // O papel comercial começa sem projeto: o caminho é o funil do n.iso, não "a quem pedir".
+            S.user = { role: 'comercial', comercial_ativo: true };
+            semAcesso(el('c'), 'n360');
+            expect([...el('c').querySelectorAll('.empty-action a')].map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads']]);
             S.user = { role: 'consultor', comercial_ativo: false };
             semAcesso(el('c'), 'n360');
             expect(el('c').querySelector('a')).toBeNull();

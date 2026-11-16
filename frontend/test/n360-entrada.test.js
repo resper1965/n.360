@@ -34,6 +34,7 @@ beforeEach(() => {
     S.token = 'tok';
     S.user = null;
     S.activeProject = null;
+    localStorage.removeItem('niso_activeProject');
     S.projects = [];
     projetos = [];
     apiMock.mockReset();
@@ -46,41 +47,36 @@ beforeEach(() => {
 });
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); history.replaceState(null, '', '/'); });
 
-describe('initApp no n.360', () => {
-    it('todos os projetos só com n.iso: vai direto a /iso', async () => {
-        projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2' }];
+describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecionar', () => {
+    it.each([
+        ['só com n.iso', [{ id: 'p1', modulos: ['iso'] }, { id: 'p2' }]],
+        ['só com n.privacy', [{ id: 'p1', modulos: ['privacy'] }]],
+        ['com os dois', [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['privacy'] }]],
+    ])('projetos %s: o Início, nada de ir ao módulo', async (_, lista) => {
+        projetos = lista;
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
-        expect(navigate).not.toHaveBeenCalled();
+        expect(navigate).toHaveBeenCalledWith('inicio');
+        expect(irPara).not.toHaveBeenCalled();
     });
-    it('todos só com n.privacy: vai direto a /privacy', async () => {
-        projetos = [{ id: 'p1', modulos: ['privacy'] }];
-        await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/privacy', true);
-    });
-    it('os dois módulos entre os projetos: abre o início', async () => {
+    it('a equipe entra sem projeto: o boot não aplica nem grava o lembrado', async () => {
         projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['privacy'] }];
         await window.initApp();
-        expect(irPara).not.toHaveBeenCalled();
-        expect(navigate).toHaveBeenCalledWith('inicio');
-        expect(S.projects.map((p) => p.id)).toEqual(['p1', 'p2']);
+        expect(S.activeProject).toBeNull();
+        expect(localStorage.getItem('niso_activeProject')).toBeNull();
     });
-    it('cliente: a regra vale sobre o projeto dele', async () => {
+    it('cliente: o Início também com um módulo só; o projeto dele segue lembrado para os módulos', async () => {
         papel = { role: 'client', client_project_id: 'p2' };
-        projetos = [{ id: 'p2', modulos: ['iso', 'privacy'] }];
+        projetos = [{ id: 'p2', modulos: ['privacy'] }];
         await window.initApp();
         expect(navigate).toHaveBeenCalledWith('inicio');
-        projetos = [{ id: 'p2', modulos: ['privacy'] }];
-        navigate.mockClear();
-        await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/privacy', true);
+        expect(irPara).not.toHaveBeenCalled();
+        expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
     });
-    it('cliente sem projeto nenhum: entrada guiada dizendo a quem pedir acesso', async () => {
+    it('cliente sem projeto nenhum: o Início (que diz a quem pedir acesso), sem redirecionar', async () => {
         papel = { role: 'org_admin' };
         await window.initApp();
+        expect(navigate).toHaveBeenCalledWith('inicio');
         expect(irPara).not.toHaveBeenCalled();
-        expect(document.getElementById('content').textContent).toContain('Você ainda não tem acesso a um projeto');
-        expect(document.getElementById('content').querySelector('.empty-action')).toBeNull();
     });
     it('lista de projetos que falha não vira "zero projetos" (sem entrada guiada por engano)', async () => {
         S.totalProjetos = 0;
@@ -89,10 +85,11 @@ describe('initApp no n.360', () => {
         expect(S.totalProjetos).toBeUndefined();
         expect(S.projects).toEqual([]);
     });
-    it('equipe da ness. sem projeto ainda: vai ao n.iso, onde está o comercial (não fica trancada fora)', async () => {
+    it('equipe da ness. sem projeto ainda: o Início (com "Novo projeto"), não o n.iso', async () => {
         papel = { role: 'platform_admin' };
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(navigate).toHaveBeenCalledWith('inicio');
+        expect(irPara).not.toHaveBeenCalled();
     });
     it('stakeholder continua indo aos pedidos dele', async () => {
         papel = { role: 'stakeholder' };
@@ -130,12 +127,13 @@ describe('initApp no n.360 com ?tela= (vindo do rodapé de um módulo)', () => {
         projetos = [{ id: 'p1', modulos: ['iso'] }];
         history.replaceState(null, '', '/?tela=soa');
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(navigate).toHaveBeenCalledWith('inicio');
         expect(location.search).toBe('');
-        irPara.mockClear();
+        navigate.mockClear();
         history.replaceState(null, '', '/?tela=api-keys'); // consultor não vê Chaves de API
         await window.initApp();
-        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(navigate).toHaveBeenCalledWith('inicio');
+        expect(irPara).not.toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalledWith('api-keys');
     });
 });

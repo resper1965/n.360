@@ -39,7 +39,7 @@ async function mockApi(page) {
 
 test('lista → ficha → aba Criticidade → confirmar → o nível aparece na lista', async ({ page }) => {
   await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');
@@ -71,7 +71,7 @@ test('lista → ficha → aba Criticidade → confirmar → o nível aparece na 
 
 test('lista com a pendência → fila de avaliações → Abrir leva à aba Avaliações', async ({ page }) => {
   await mockApi(page);
-  await page.goto('/login.html');
+  await page.goto('/privacy');
   await page.fill('#login-email', USER.email);
   await page.fill('#login-password', 'senha-e2e');
   await page.click('#login-submit');

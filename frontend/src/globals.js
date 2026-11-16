@@ -1,4 +1,4 @@
-import { PRODUTOS, atualizarItemOt, produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, enderecoNoModulo, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
+import { PRODUTOS, atualizarItemOt, produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoNoModulo, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
 import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
@@ -1634,11 +1634,7 @@ window.initApp = async function initApp() {
         updateActiveProjectWidget();
 
         const produto = produtoAtual();
-        // Módulos alcançáveis: os dos projetos visíveis (o cliente olha só o projeto dele).
-        const doCliente = isClient && S.user.client_project_id ? (S.projects || []).filter((p) => p.id === S.user.client_project_id) : [];
-        const meus = doCliente.length ? doCliente : (S.projects || []);
-        const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
-        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida vence o "um módulo só, entra nele".
+        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida em vez do Início.
         const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
         const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
@@ -1648,21 +1644,13 @@ window.initApp = async function initApp() {
             navigate('meus-pedidos');
         } else if (tela) {
             navigate(tela);
-        } else if (produto === 'n360' && !modulos.length && !isClient) {
-            // Equipe da ness. sem projeto ainda (instalação nova, comercial): o funil comercial e a criação de projeto vivem
-            // no n.iso. Sem isto ela ficaria trancada fora.
-            irPara(enderecoDoProduto('iso'), true);
-            return;
-        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'ot' || produto === 'n360' || isClient)) {
-            // Nenhum projeto com o módulo do caminho (ou nenhum módulo, no n.360): diz isso, em vez de uma tela vazia.
+        } else if (produto === 'n360') {
+            // O Início não escolhe projeto nem leva a um módulo (spec 2026-11-14-entrada-n360): a tela diz o que há, inclusive o vazio.
+            navigate('inicio');
+        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'ot' || isClient)) {
+            // Nenhum projeto com o módulo do caminho: diz isso, em vez de uma tela vazia.
             S.view = 'sem-acesso-produto';
             semAcesso(document.getElementById('content'));
-        } else if (produto === 'n360' && modulos.length === 1) {
-            // Um módulo só: entra direto nele.
-            irPara(enderecoDoProduto(modulos[0]), true);
-            return;
-        } else if (produto === 'n360') {
-            navigate('inicio');
         } else if (doHub) {
             if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             if (doHub.aviso) await window.abrirAviso(doHub.aviso);
