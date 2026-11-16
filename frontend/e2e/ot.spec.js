@@ -69,7 +69,7 @@ test('pessoa sem o n.ot (projeto com ele): a linha não oferece o n.ot', async (
   await entrar(page);
   await expect(page.getByRole('button', { name: 'Abrir Cliente E2E no n.iso' })).toBeVisible();
   await expect(page.getByRole('button', { name: /no n\.ot$/ })).toHaveCount(0);
-  await expect(page.locator('#nav-ot')).toBeHidden();
+  await expect(page.locator('#nav-ot')).toHaveCount(0);
 });
 
 // N2–N4: as abas da casca /ot sobre os corpos de src/routes/ot.ts e ot-saidas.ts (mockados). Smoke: cada aba desenha o que a

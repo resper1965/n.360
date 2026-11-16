@@ -117,7 +117,7 @@ describe('casca', () => {
         history.replaceState(null, '', '/ot');
         S.user = { role: 'org_user' };
         atualizarItemOt(document);
-        expect(el('nav-ot').hidden).toBe(true);
+        expect(el('nav-ot')).toBeNull();
         expect(el('nav-ot-inicio').hidden).toBe(false);
         expect(el('secao-ot-organizacao').hidden).toBe(false);
         expect(el('nav-ot-acessos').hidden).toBe(true);

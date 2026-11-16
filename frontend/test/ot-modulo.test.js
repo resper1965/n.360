@@ -8,7 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import html from '../login.html?raw';
-import { produtoAtual, aplicarCasca, enderecoDoProduto, atualizarItemOt, moduloPara, pedidoDoHub, TELAS_DOS_MODULOS, NAV_DO_HUB } from '../src/produto.js';
+import { produtoAtual, aplicarCasca, enderecoDoProduto, atualizarItemOt, moduloPara, pedidoDoHub, TELAS_DOS_MODULOS, NAV_DO_HUB, produtoDaTela } from '../src/produto.js';
 import '../src/views/ot.js';
 import * as ui from '../src/ui.js';
 
@@ -31,38 +31,36 @@ describe('casca do n.ot', () => {
     it('no /ot o menu tem só os itens do n.ot; a marca é n.ot em minúsculas, com o ponto em accent', () => {
         montarApp();
         aplicarCasca('ot');
-        expect(visiveis()).toEqual(['nav-ot', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos']);
+        expect(visiveis()).toEqual(['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos']);
         expect(document.title).toMatch(/^n\.ot \| ness\./);
         expect(el('sidebar-logo-mark').textContent).toBe('n.ot');
         expect(el('sidebar-logo-mark').innerHTML).toContain('var(--accent)');
     });
-    it('o item do menu diz n.ot (ponto em accent) e é do hub, não dos outros módulos', () => {
+    it('o n.ot não tem item solto em menu nenhum (entra-se pelo "Abrir no n.ot" do Início), e a tela ot continua sendo dele', () => {
         montarApp();
-        expect(el('nav-ot').textContent.trim()).toBe('n.ot');
-        expect(el('nav-ot').querySelector('.pn-ponto').textContent).toBe('.');
-        expect(NAV_DO_HUB).toContain('nav-ot');
-        for (const p of ['iso', 'privacy']) {
-            aplicarCasca(p);
-            expect(visiveis(), p).not.toContain('nav-ot');
-        }
+        expect(el('nav-ot')).toBeNull();
+        expect(NAV_DO_HUB).not.toContain('nav-ot');
+        expect(produtoDaTela('ot')).toBe('ot');
     });
 });
 
-describe('item n.ot: projeto E pessoa com o módulo', () => {
-    it('some sem projeto, com projeto sem o ot e com pessoa sem o ot; aparece com os dois', () => {
+describe('itens do n.ot: só dentro do /ot, com projeto E pessoa com o módulo', () => {
+    it('fora do /ot ficam escondidos mesmo com o módulo; no /ot, só com projeto e pessoa', () => {
         montarApp();
-        atualizarItemOt();
-        expect(el('nav-ot').hidden).toBe(true);
-        S.activeProject = { id: 'a', modulos: ['iso', 'privacy'] };
-        atualizarItemOt();
-        expect(el('nav-ot').hidden).toBe(true);
         S.activeProject = { id: 'b', modulos: ['iso', 'ot'] };
-        S.user = { role: 'consultor', modulos: ['iso', 'privacy'] };
-        atualizarItemOt();
-        expect(el('nav-ot').hidden).toBe(true);
         S.user = { role: 'consultor', modulos: ['ot'] };
         atualizarItemOt();
-        expect(el('nav-ot').hidden).toBe(false);
+        expect(el('nav-ot-inicio').hidden).toBe(true);
+        ir('/ot');
+        atualizarItemOt();
+        expect(el('nav-ot-inicio').hidden).toBe(false);
+        S.user = { role: 'consultor', modulos: ['iso'] };
+        atualizarItemOt();
+        expect(el('nav-ot-inicio').hidden).toBe(true);
+        S.activeProject = null;
+        S.user = { role: 'consultor', modulos: ['ot'] };
+        atualizarItemOt();
+        expect(el('nav-ot-inicio').hidden).toBe(true);
     });
     it('o hub leva a tela ot ao módulo dela; /ot?tela=ot abre a tela e ?tela=ot noutro módulo não', () => {
         expect(TELAS_DOS_MODULOS).toContain('ot');

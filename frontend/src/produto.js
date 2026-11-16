@@ -23,7 +23,10 @@ export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-asses
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
-/** O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`, Tarefa 5), e o cadastro comum não entra. `nav-ot` é a entrada do hub. */
+/**
+ * O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`). `nav-ot` não é mais item de menu (o n.ot abre
+ * pelo "Abrir no n.ot" da linha do projeto no Início), mas fica aqui: é o que diz que a tela `ot` é do n.ot (`produtoDaTela`).
+ */
 export const SO_OT = ['nav-ot', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
@@ -35,8 +38,7 @@ export const SO_N360 = Object.values(TELAS_DA_CONTA);
  * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
  * trilha). Segurança do projeto mora em Conta e acessos, então também é só do n.360. Tela fora daqui leva ao módulo (router).
  */
-// nav-ot: no hub, a entrada do n.ot (o painel do n.360 mostra a linha dele quando o servidor manda o bloco); só com projeto e pessoa com o módulo (atualizarItemOt).
-export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', 'nav-ot', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
+export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
 export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
 // Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
 const DO_ISO_SEM_ITEM = ['project-detail', 'controls', 'metrics', 'audit-execution', 'assessment-detail', 'management-review'];
@@ -443,12 +445,9 @@ export function atualizarLinkCruzado(doc = document) {
 /** O que cada módulo é, numa linha: no início do n.360, a escolha não depende de conhecer o nome. */
 export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e fornecedores', ot: 'ARCiber: requisitos da RO-CB.BR.01 do ONS' };
 
-/** O item n.ot do menu: só com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
+/** Os itens do menu do n.ot: só dentro do /ot, com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
 export function atualizarItemOt(doc = document) {
-    const tem = !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
-    const dentro = tem && produtoAtual() === 'ot';
-    const el = doc.getElementById('nav-ot');
-    if (el) el.hidden = !tem || dentro; // no n.ot o "Início" o substitui
+    const dentro = produtoAtual() === 'ot' && !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
     for (const id of ['secao-ot-organizacao', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro; }
     const ac = doc.getElementById('nav-ot-acessos');
     if (ac) ac.hidden = !(dentro && podeEditarOt());
