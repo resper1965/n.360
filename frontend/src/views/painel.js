@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState } from '../ui.js';
+import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState, formatarData } from '../ui.js';
 import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, semAcesso, DESCRICAO_DO_MODULO } from '../produto.js';
 import { montarLista } from '../lista.js';
 import { aplicarSelos } from '../selos-menu.js';
@@ -257,6 +257,27 @@ async function situacaoDoProjeto(projectId) {
     return dados;
 }
 
+/** "Minhas aprovações" no topo do Início da equipe, só quando há pedido esperando a pessoa (a mesma regra da tela meus-pedidos). */
+function quadroAprovacoes(pedidos) {
+    const meus = (Array.isArray(pedidos) ? pedidos : []).filter((p) => p.meu_status === 'pendente' && p.status === 'aberto');
+    if (!meus.length) return '';
+    const nomeDe = (id) => { const p = (S.projects || []).find((x) => x.id === id); return p ? p.client_name || p.project_name || '' : ''; };
+    const itens = meus.slice(0, 3).map((p) => `<li><span class="pn-meta">${e(formatarData(p.criado_em))}</span><div><div class="pn-tx">${e(p.titulo)}</div>${nomeDe(p.project_id) ? `<div class="pn-cx">${e(nomeDe(p.project_id))}</div>` : ''}</div>
+        <button type="button" class="btn btn-sm" data-action="abrirPedido" data-args='${args(p.id)}' aria-label="${e(`Abrir o pedido: ${p.titulo}`)}">Abrir</button></li>`).join('');
+    return quadro('pn-aprov', 'Minhas aprovações', `<ul class="pn-grupo">${itens}</ul>`,
+        `<button type="button" class="btn btn-ghost btn-sm" data-action="navigate" data-args='["meus-pedidos"]'>Ver todas (${meus.length})</button>`);
+}
+
+/** A carteira e os pedidos da pessoa, juntos no cache de 60 s; falhar nos pedidos só tira o quadro. */
+const buscarInicio = async () => {
+    const [carteira, pedidos] = await Promise.all([
+        api('GET', '/api/v1/carteira'),
+        api('GET', '/api/v1/pedidos').then((r) => (r && Array.isArray(r.pedidos) ? r.pedidos : []), () => []),
+    ]);
+    if (!carteira || !Array.isArray(carteira.projetos)) throw new Error('Resposta da carteira sem projetos');
+    return { projetos: carteira.projetos, pedidos };
+};
+
 function telaDaLista(c, h, dados) {
     const lista = Array.isArray(dados && dados.projetos) ? dados.projetos : [];
     if (!lista.length) { vazioDoInicio(c, h); return; }
@@ -269,7 +290,7 @@ function telaDaLista(c, h, dados) {
     const rotulo = (p) => (iguais(p).length > 1 ? `${p.nome} (${iguais(p).indexOf(p) + 1})` : p.nome);
     const mods = primeiro.modulos || [];
     const doPrimeiro = mods.includes(primeiro.modulo_urgente) ? primeiro.modulo_urgente : mods[0];
-    c.innerHTML = `<div class="pn"><section class="pn-saude" aria-labelledby="pn-ini-t"><h2 id="pn-ini-t" class="sr-only">Seus projetos</h2>${estado(atrasados ? 'atraso' : 'ok', atrasados ? 'Atenção hoje' : 'Em dia')}
+    c.innerHTML = `<div class="pn">${quadroAprovacoes(dados.pedidos)}<section class="pn-saude" aria-labelledby="pn-ini-t"><h2 id="pn-ini-t" class="sr-only">Seus projetos</h2>${estado(atrasados ? 'atraso' : 'ok', atrasados ? 'Atenção hoje' : 'Em dia')}
         <p class="pn-frase">${e(frase)}</p><p class="pn-apoio">A lista começa pelo que tem prazo legal vencido. "Ver situação" mostra cada módulo sem entrar no projeto; "Abrir no" entra nele.</p></section>
         ${quadro('pn-ini-l', 'Projetos por urgência', '<div id="ini-lista"></div>')}</div>`;
     montarLista(c.querySelector('#ini-lista'), {
@@ -440,7 +461,7 @@ async function renderInicioDoN360(c, h, a) {
             (dados) => { c.innerHTML = dados && dados.modulos ? telaDoCliente(dados, proj) : renderErrorState('Não foi possível montar o painel.'); });
         return;
     }
-    await carregar(c, a, 'n360', null, chaveDe('carteira'), () => api('GET', '/api/v1/carteira'), (dados) => telaDaLista(c, h, dados));
+    await carregar(c, a, 'n360', null, chaveDe('carteira'), buscarInicio, (dados) => telaDaLista(c, h, dados));
 }
 
 /**

@@ -365,6 +365,33 @@ describe('início do n.360', () => {
         expect(el('c').textContent).toContain('Nenhum projeto ainda');
         expect(f).not.toHaveBeenCalled();
     });
+
+    it('"Minhas aprovações" no topo quando há pedido esperando a pessoa; some sem pedido; falha dos pedidos não derruba a lista', async () => {
+        // Corpo de GET /api/v1/pedidos (src/routes/pedidos.ts:182-191).
+        const PEDIDOS = { pedidos: [
+            { id: 'pd1', project_id: 'p8', titulo: 'Aprovar <b>política</b>', papel_exigido: 'ciso', status: 'aberto', meu_status: 'pendente', criado_em: '2026-11-10 10:00:00' },
+            { id: 'pd2', project_id: 'p9', titulo: 'Já decidido', papel_exigido: 'ciso', status: 'aberto', meu_status: 'aprovado', criado_em: '2026-11-09 10:00:00' },
+        ] };
+        const f = servir({ 'GET /api/v1/carteira': CARTEIRA, 'GET /api/v1/pedidos': PEDIDOS });
+        await abrir('n360');
+        expect(chamadas(f)).toEqual(expect.arrayContaining(['GET /api/v1/carteira', 'GET /api/v1/pedidos']));
+        const q = el('pn-aprov').closest('section');
+        expect(q.compareDocumentPosition(el('ini-lista')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect([...q.querySelectorAll('[data-action="abrirPedido"]')].map((b) => b.getAttribute('aria-label'))).toEqual(['Abrir o pedido: Aprovar <b>política</b>']);
+        expect(q.querySelector('b')).toBeNull();
+        expect(q.textContent).toContain('Clínica');
+        expect(q.querySelector('[data-action="navigate"]').textContent).toBe('Ver todas (1)');
+        expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(1);
+        S.painel = {};
+        servir({ 'GET /api/v1/carteira': CARTEIRA, 'GET /api/v1/pedidos': { pedidos: [PEDIDOS.pedidos[1]] } });
+        await abrir('n360');
+        expect(el('pn-aprov')).toBeNull();
+        S.painel = {};
+        servir({ 'GET /api/v1/carteira': CARTEIRA });
+        await abrir('n360');
+        expect(el('pn-aprov')).toBeNull();
+        expect(el('c').querySelector('[data-action="painelVerSituacao"]')).not.toBeNull();
+    });
 });
 
 describe('gráficos', () => {
