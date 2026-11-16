@@ -595,8 +595,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   ficam no grupo "Conta e acessos" (`group-conta` em `login.html`), que so o n.360 mostra (`SO_N360`); o papel continua decidindo
   cada item (`updateHeaderUser`), e o grupo sem item do papel some. Nos modulos o rodape traz "Conta e acessos (n.360)", que leva a
   `/?tela=<primeira tela da conta que o papel ve>`. O boot do n.360 le o `?tela=` uma vez (`telaPedida`): so valores de
-  `TELAS_DA_CONTA`, so se o item estiver visivel para o papel, e o parametro sai do endereco (`history.replaceState`); a tela pedida
-  vence o "um modulo so, entra nele". "Seguranca do projeto" (SSO, SCIM e politica; so a equipe) fica em "Conta e acessos",
+  `TELAS_DA_CONTA`, so se o item estiver visivel para o papel, e o parametro sai do endereco (`history.replaceState`); lido depois de `updateHeaderUser`, que mostra os itens do papel. Valor invalido ou item
+  escondido cai no Inicio. "Seguranca do projeto" (SSO, SCIM e politica; so a equipe) fica em "Conta e acessos",
   so no n.360 (`NAV_DO_HUB` em `frontend/src/produto.js`).
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
@@ -606,7 +606,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   nao um cadastro paralelo, e e opcional: a lista do n.iso mostra todo fornecedor e "Remover avaliacao de seguranca" apaga so o perfil); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
   nucleo e gera CAPA (`corrective_actions.incidente_id`, 0063). O catalogo LGPD/ANPD (`src/data/lgpd.ts`, `src/data/anpd.ts`) traz um
   mapeamento proposto para a ISO (`src/data/mapeamento-privacidade-iso.ts`) que so conta como cobertura depois de validado por
-  humano. O painel `GET /projects/:id/ponto-de-partida` (`src/routes/ponto-de-partida.ts`) mostra o que cada produto ja aproveita do outro.
+  humano. O painel `GET /projects/:id/ponto-de-partida` (`src/routes/ponto-de-partida.ts`) existe (os dois produtos o leem), mas nenhuma tela da interface o chama hoje (`views/ponto-de-partida.js` e carregado em `main.js`, mas nenhuma tela o chama).
 - **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
   Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
   equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`
@@ -897,7 +897,7 @@ errar um digito destruia a sessao.
   n.privacy usam o componente; Consentimentos ainda nao (botoes de situacao com contagem). Nao recrie busca ou filtro a mao na tela.
 - Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.
 - Proibido: italicos, emojis/icones (excecao: a seta funcional das etapas da ficha, `at-chevron`, que mostra aberto/fechado), accent como background de area.
-- Uma acao principal por tela (um `.btn-primary` visivel); acima de tres secundarias, `renderMaisAcoes` (`frontend/src/ui.js`); nenhum primario por linha de tabela; destrutivo so no fim do menu. O projeto ativo mora so no seletor da barra lateral. Detalhe em `design.md`.
+- Uma acao principal por tela (um `.btn-primary` visivel); acima de tres secundarias, `renderMaisAcoes` (`frontend/src/ui.js`); nenhum primario por linha de tabela (unica excecao: a lista de projetos do Inicio tem UM `.btn-primary`, o "Abrir" do modulo urgente da primeira linha); destrutivo so no fim do menu. O projeto ativo mora so no seletor da barra lateral. Detalhe em `design.md`.
 - Geometria: o sistema e quadrado (`--radius: 0`). Desde a onda 3 (15/10/2026) nao sobra raio em px no CSS nem
   inline (`git grep -nE "border-radius:\s*[1-9][0-9.]*(px|rem)" -- frontend/src` nao imprime nada); so os circulos de
   50%. Inline so `0` (`frontend/test/catracas-visuais.test.js`); novo nasce quadrado.
