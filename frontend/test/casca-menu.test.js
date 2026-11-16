@@ -73,7 +73,7 @@ const ESTRUTURA_N360 = [
     'nav-inicio=Início',
     'nav-meus=Minhas aprovações',
     '[Conta e acessos] true',
-    'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Consultorias, nav-identidade=Identidade da consultoria, nav-seguranca-projeto=Segurança do projeto, nav-modelos-fornecedor=Modelos de avaliação de fornecedor, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
+    'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Organizações, nav-identidade=Identidade da consultoria, nav-seguranca-projeto=Segurança do projeto, nav-modelos-fornecedor=Modelos de avaliação de fornecedor, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
     '[Sistema] false',
     'group-system-config: nav-audit-trail=Trilha de auditoria',
 ];

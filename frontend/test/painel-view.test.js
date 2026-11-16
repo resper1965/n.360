@@ -150,6 +150,32 @@ describe('entrada do n.privacy', () => {
         expect(el('c').querySelector('a[href="/"]').textContent).toBe('Voltar ao início do n.360');
     });
 
+    it('403 na organização direta: quem habilita é o administrador da organização, não "a consultoria"', async () => {
+        S.user.org_tipo = 'direta';
+        vi.stubGlobal('fetch', vi.fn(async () => resposta({ error: 'Produto n.privacy não habilitado neste projeto' }, 403)));
+        await abrir();
+        expect(el('c').textContent).toContain('Quem administra a organização habilita o módulo no projeto');
+        expect(el('c').textContent).not.toContain('consultoria');
+    });
+
+    it('equipe destinatária de pedido: "Esperando a sua decisão" antes de "O que fazer", sem tirar a ação primária da lista', async () => {
+        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ decisoes: [{ id: 'pd1', titulo: 'Aprovar <b>Folha</b>', tipo: 'tratamento', papel: 'ciso', desde: '2026-10-14', acao: 'Ler e aprovar' }] }) });
+        await abrir();
+        const c = el('c');
+        const quadros = [...c.querySelectorAll('.pn-quadro h2')].map((h) => h.textContent);
+        expect(quadros.indexOf('Esperando a sua decisão')).toBe(quadros.indexOf('O que fazer agora') - 1);
+        expect(c.querySelector('[data-action="abrirPedido"]').getAttribute('aria-label')).toBe('Ler e aprovar: Aprovar <b>Folha</b>');
+        expect(c.querySelector('[data-action="abrirPedido"]').className).not.toContain('btn-primary');
+        expect(c.querySelectorAll('.btn-primary')).toHaveLength(1);
+        expect(c.querySelector('#pn-dec ~ * b, .pn-grupo b')).toBeNull();
+    });
+
+    it('equipe sem pedido para ela: sem o quadro de decisão', async () => {
+        servir({ 'GET /api/v1/projects/p9/painel': PAINEL() });
+        await abrir();
+        expect(el('c').textContent).not.toContain('Esperando a sua decisão');
+    });
+
     it('falha do servidor: mensagem, não tela quebrada', async () => {
         servir({});
         await abrir();

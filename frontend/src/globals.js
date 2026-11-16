@@ -971,7 +971,8 @@ window.updateHeaderUser = function updateHeaderUser() {
         // Ocultar grupo comercial para clientes, e para todos com a área comercial desligada (COMERCIAL_ATIVO).
         const labelSales = document.getElementById('label-group-sales');
         const groupSales = document.getElementById('group-sales');
-        const semComercial = isClient || !window.comercialAtivo();
+        // A organização direta não tem área comercial (o servidor recusa; `org_tipo` do /auth/me só decide o que mostrar).
+        const semComercial = isClient || !window.comercialAtivo() || S.user?.org_tipo === 'direta';
         if (labelSales) labelSales.style.display = semComercial ? 'none' : '';
         if (groupSales) groupSales.style.display = semComercial ? 'none' : '';
         // Leads e propostas são do comercial (somenteComercial no servidor); o
@@ -982,7 +983,7 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (el) el.style.display = comercial ? '' : 'none';
         });
         const navLevantamentos = document.getElementById('nav-assessments');
-        if (navLevantamentos) navLevantamentos.style.display = window.comercialAtivo() ? '' : 'none';
+        if (navLevantamentos) navLevantamentos.style.display = window.comercialAtivo() && S.user?.org_tipo !== 'direta' ? '' : 'none';
 
         // Configurações do grupo de sistema
         const labelSystem = document.getElementById('label-group-system');
@@ -1018,7 +1019,8 @@ window.updateHeaderUser = function updateHeaderUser() {
             // Área comercial desligada: a identidade da organização (nome, CNPJ, cor, logo, que vão também nos documentos Word do
             // projeto) sai da Configuração comercial e fica em Conta e acessos, para quem a administra.
             const navIdentidade = document.getElementById('nav-identidade');
-            if (navIdentidade) navIdentidade.style.display = !window.comercialAtivo() && ['platform_admin', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
+            // Na direta a tela daria 403 (GET /org/config é do comercial): não aparece.
+            if (navIdentidade) navIdentidade.style.display = !window.comercialAtivo() && S.user?.org_tipo !== 'direta' && ['platform_admin', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
             // Modelos de avaliação de fornecedor: a equipe da consultoria lê; o administrador dela edita (o servidor decide).
             const navModelos = document.getElementById('nav-modelos-fornecedor');
             if (navModelos) navModelos.style.display = ['platform_admin', 'consultoria_admin', 'consultor', 'consultant'].includes(S.user?.role) ? '' : 'none';
@@ -1352,7 +1354,7 @@ window.updateContextPanel = function updateContextPanel() {
 
 // Espelho de `ehComercial` (src/helpers.ts). Só decide o que MOSTRAR; quem
 // barra de verdade é o servidor.
-window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role)) && window.comercialAtivo(); }
+window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role) && S.user.org_tipo !== 'direta') && window.comercialAtivo(); }
 // Interruptor da área comercial (`comercial_ativo` do /auth/me; servidor: `comercialAtivo`, src/helpers.ts). Sem o campo, desligada.
 window.comercialAtivo = function comercialAtivo() { return !!(S.user && S.user.comercial_ativo === true); }
 // Espelho de `ehEquipeNess` (src/helpers.ts, PAPEIS_NESS): equipe da consultoria, não cliente. Só decide o que MOSTRAR; o servidor barra.

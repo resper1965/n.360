@@ -7625,6 +7625,26 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 60
+                  },
+                  "tipo": {
+                    "default": "consultoria",
+                    "type": "string",
+                    "enum": [
+                      "consultoria",
+                      "direta"
+                    ]
+                  },
+                  "modulos": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "iso",
+                        "privacy",
+                        "ot"
+                      ]
+                    }
                   }
                 },
                 "required": [

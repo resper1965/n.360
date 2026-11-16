@@ -385,7 +385,7 @@ describe('sem acesso e links entre módulos', () => {
             expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
             // Quem pode criar projeto vê "Novo projeto" (primário) e, com a área comercial ligada, o funil como secundário.
             const links = [...el('c').querySelectorAll('.empty-action a')];
-            expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads'], ['Ver consultorias', '/?tela=organizacoes']]);
+            expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads'], ['Ver organizações', '/?tela=organizacoes']]);
             expect(links[0].className).toContain('btn-secondary');
             for (const role of ['platform_admin', 'consultoria_admin']) {
                 S.user = { role, comercial_ativo: true };

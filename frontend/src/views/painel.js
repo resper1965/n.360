@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState, formatarData } from '../ui.js';
-import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, semAcesso, DESCRICAO_DO_MODULO } from '../produto.js';
+import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, semAcesso, DESCRICAO_DO_MODULO, orgDireta } from '../produto.js';
 import { montarLista } from '../lista.js';
 import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
@@ -111,13 +111,13 @@ function listaFazer(itens, comModulo) {
     }).join('');
 }
 
-/** O que espera a decisão do cliente; a primeira decisão é a ação primária da tela. `semNada` completa o vazio. */
-function listaDecisoes(decisoes, semNada = '') {
+/** O que espera a decisão da pessoa; no cliente, a primeira decisão é a ação primária da tela (`primaria`). `semNada` completa o vazio. */
+function listaDecisoes(decisoes, semNada = '', primaria = true) {
     const lista = Array.isArray(decisoes) ? decisoes : [];
     if (!lista.length) return `<p class="pn-vazio-tx">Nada esperando a sua decisão agora.</p>${semNada}`;
     return `<ul class="pn-grupo">${lista.map((p, n) => `<li><span class="pn-meta">Desde ${e(String(p.desde || '').split('-').reverse().join('/'))}</span>
         <div><div class="pn-tx">${e(p.titulo)}</div><div class="pn-cx">${p.papel === 'ciente' ? 'Ciência' : `Aprovação (${e(String(p.papel || '').toUpperCase())})`}</div></div>
-        <button type="button" class="btn btn-sm${n === 0 ? ' btn-primary' : ''}" data-action="abrirPedido" data-args='${args(p.id)}' aria-label="${e(`${p.acao}: ${p.titulo}`)}">${e(p.acao)}</button></li>`).join('')}</ul>`;
+        <button type="button" class="btn btn-sm${primaria && n === 0 ? ' btn-primary' : ''}" data-action="abrirPedido" data-args='${args(p.id)}' aria-label="${e(`${p.acao}: ${p.titulo}`)}">${e(p.acao)}</button></li>`).join('')}</ul>`;
 }
 
 function passos(lista) {
@@ -143,7 +143,7 @@ function linhaModulo(m, d, proj) {
             <button type="button" class="btn btn-sm" data-action="abrirModulo" data-args='${args(m)}'>Abrir o ${NOME[m]}</button></div>`;
     }
     const doProjeto = modulosDe(proj).includes(m);
-    const texto = doProjeto ? `Você ainda não tem acesso ao ${NOME[m]} neste projeto. Quem administra as contas da consultoria concede em Usuários.`
+    const texto = doProjeto ? `Você ainda não tem acesso ao ${NOME[m]} neste projeto. Quem administra as contas da ${orgDireta() ? 'organização' : 'consultoria'} concede em Usuários.`
         : ehEquipe() ? `O ${NOME[m]} não está habilitado neste projeto. Ao habilitar, o que já está no cadastro (pessoas, sistemas, documentos) entra pronto.`
             : `O ${NOME[m]} não está habilitado neste projeto. Fale com a ness. para contratar; o que já está no cadastro entra pronto.`;
     const acao = !doProjeto && podeGerirModulos() ? `<button type="button" class="btn btn-sm" data-action="abrirProdutosDoProjeto" data-args='${args(proj.id)}'>Habilitar no projeto</button>` : '';
@@ -185,12 +185,14 @@ function telaDoModulo(d, m, proj) {
         return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))],
             [`<section class="pn-modulos" aria-label="Este módulo">${linhaModulo(m, d, proj)}</section>`])}`;
     }
-    if (b.comecando) return `${topo}${colunas([quadro('pn-passos-t', 'Primeiros passos', passos(b.passos))], [quadro('pn-depois', 'O que vai aparecer aqui', DEPOIS)])}`;
+    // Equipe destinatária de pedido (o servidor manda `decisoes` só quando há): a lista vem antes, sem mudar a frase de saúde.
+    const decidir = Array.isArray(d.decisoes) && d.decisoes.length ? [quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes, '', false))] : [];
+    if (b.comecando) return `${topo}${colunas([...decidir, quadro('pn-passos-t', 'Primeiros passos', passos(b.passos))], [quadro('pn-depois', 'O que vai aparecer aqui', DEPOIS)])}`;
     // Ações das atividades por faixa de prazo (F4): o modal de encarregado.js, com as faixas que vieram no painel.
     const faixas = m === 'privacy' && Array.isArray(b.acoes_por_prazo) ? b.acoes_por_prazo : null;
     if (faixas && typeof window.guardarFaixasPrazo === 'function') window.guardarFaixasPrazo(faixas);
     const porPrazo = faixas ? `<button type="button" class="btn btn-ghost btn-sm" data-action="abrirPrazosDasAcoes" data-args='${args(proj.id)}'>Ações por prazo</button>` : '';
-    const esquerda = [quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false)), quadro('pn-venc', 'Próximos vencimentos, 90 dias', graficoVencimentos(b.vencimentos), porPrazo)];
+    const esquerda = [...decidir, quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false)), quadro('pn-venc', 'Próximos vencimentos, 90 dias', graficoVencimentos(b.vencimentos), porPrazo)];
     const riscos = Array.isArray(b.riscos) ? b.riscos : [];
     const totalRiscos = riscos.reduce((t, c) => t + (Number(c.n) || 0), 0);
     const direita = [quadro('pn-cob', 'Cobertura do programa', graficoCobertura(b.cobertura), '<span class="pn-meta">mesma escala em todos os temas</span>'),
@@ -390,7 +392,7 @@ function semModulo(c, entrada, proj) {
     const nome = NOME[entrada];
     const acao = podeGerirModulos() ? `<button type="button" class="btn btn-primary" data-action="abrirProdutosDoProjeto" data-args='${args(proj.id)}'>Habilitar no projeto</button>` : '';
     c.innerHTML = renderEmptyState({ id: 'pn-sem-modulo', titulo: `O ${nome} não está habilitado neste projeto`,
-        texto: ehEquipe() ? 'A consultoria habilita o módulo no projeto; o que já está no cadastro (pessoas, sistemas, documentos) entra pronto.'
+        texto: ehEquipe() ? `${orgDireta() ? 'Quem administra a organização habilita' : 'A consultoria habilita'} o módulo no projeto; o que já está no cadastro (pessoas, sistemas, documentos) entra pronto.`
             : 'Fale com a ness. para contratar. O que já está no cadastro entra pronto quando o módulo for habilitado.',
         acao: `${acao}<a class="btn" href="${e(enderecoDoProduto('n360'))}">Voltar ao início do n.360</a>` });
 }

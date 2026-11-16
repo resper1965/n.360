@@ -35,7 +35,7 @@ painelApp.get('/', async (c) => {
     if (!modulos.length) return c.json({ error: 'Você não tem acesso a nenhum módulo deste projeto' }, 403);
     // O agente MCP entra como `client`, mas age pela consultoria que o concedeu: lê a visão da equipe.
     const cliente = ehPapelCliente(user) && user?.agente !== true;
-    return c.json(await painelDoProjeto(c.env.DB, projectId, modulos, { id: user?.id, email: user?.email, cliente, role: user?.role, client_project_id: user?.client_project_id, org_id: user?.org_id }));
+    return c.json(await painelDoProjeto(c.env.DB, projectId, modulos, { id: user?.id, email: user?.email, cliente, agente: user?.agente === true, role: user?.role, client_project_id: user?.client_project_id, org_id: user?.org_id }));
   } catch (e) {
     return erro500(c, 'Falha ao montar o painel', e);
   }

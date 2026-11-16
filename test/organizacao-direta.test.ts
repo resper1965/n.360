@@ -360,3 +360,20 @@ describe('equipe direta: rodada de correção (agente e consultor)', () => {
     expect(ok.status, await ok.clone().text()).toBe(201);
   });
 });
+
+describe('telas: org_tipo em /auth/me e tipo na lista de organizações', () => {
+  beforeAll(async () => {
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id, ativo) VALUES
+      ('u-me-d','me@d.lat','x','Me D','consultoria_admin','org_d',1), ('u-me-c','me@c.lat','x','Me C','consultor','org_c',1)`).run();
+  });
+  const me = async (h: Record<string, string>) => ((await (await chamar('GET', '/api/v1/auth/me', h)).json()) as any).user.org_tipo;
+  it('org_tipo vem do banco: direta, consultoria', async () => {
+    expect(await me(await sessionFor({ id: 'u-me-d', email: 'me@d.lat', role: 'consultoria_admin', org_id: 'org_d' } as any))).toBe('direta');
+    expect(await me(await sessionFor({ id: 'u-me-c', email: 'me@c.lat', role: 'consultor', org_id: 'org_c' } as any))).toBe('consultoria');
+  });
+  it('a lista do platform_admin traz o tipo', async () => {
+    const l = (await (await chamar('GET', '/api/v1/platform/orgs', S.pa)).json()) as any[];
+    expect(l.find((o) => o.id === 'org_empresa-direta')?.tipo).toBe('direta');
+    expect(l.find((o) => o.id === 'org_cons-x')?.tipo).toBe('consultoria');
+  });
+});

@@ -236,6 +236,24 @@ describe('GET /projects/:id/painel', () => {
     expect(corpo.modulos.privacy.numeros).toHaveLength(5);
   });
 
+  it('equipe: destinatário pendente recebe `decisoes` (sem "Sua vez"); quem não é destinatário e quem criou não recebem', async () => {
+    await semear();
+    // antes de ser destinatário: sem a lista
+    expect((await painel(semPrivacy, 'pa', 'iso')).corpo).not.toHaveProperty('decisoes');
+    // o criador do pedido (cons@ness.lat) também consta como destinatário: não pode decidir, então não vê
+    await db().prepare(`INSERT INTO pedido_destinatarios (id, pedido_id, email, user_id) VALUES ('d2', 'pd1', 'iso@ness.lat', 'u-iso'), ('d3', 'pd1', 'cons@ness.lat', 'u-cons')`).run();
+    const eq = (await painel(semPrivacy, 'pa', 'iso')).corpo;
+    expect(eq.visao).toBe('equipe');
+    expect(eq.decisoes).toEqual([expect.objectContaining({ id: 'pd1', titulo: 'Aprovar "Folha"' })]);
+    expect(eq.saude.tom).not.toBe('vez');
+    expect((await painel(consultor, 'pa', 'iso')).corpo).not.toHaveProperty('decisoes');
+    // o cliente continua recebendo a dele
+    expect((await painel(cliente, 'pa', 'privacy')).corpo.decisoes).toHaveLength(1);
+    // a carteira não carrega pedidos de ninguém
+    const cart = await chamar(semPrivacy, '/api/v1/carteira');
+    expect(JSON.stringify(await cart.json())).not.toContain('Folha');
+  });
+
   it('cliente no n.iso: o próximo marco da jornada (a primeira fase não concluída), sem a lista da consultoria', async () => {
     await semear();
     await db().prepare(`INSERT INTO project_phases (id, project_id, phase_number, title, status) VALUES

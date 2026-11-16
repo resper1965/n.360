@@ -203,9 +203,9 @@ window.__adminCopiarApiKey = () => {
 
             // Platform admin escolhe aqui de qual organização listar; sem escolha, todas.
             const orgsLista = souPA ? (window.orgsConhecidas?.() || []) : [];
-            const nota = souPA && orgsLista.length ? `<div class="org-filtro-usuarios"><label class="org-sel-rotulo" for="usr-org">Consultoria</label>
+            const nota = souPA && orgsLista.length ? `<div class="org-filtro-usuarios"><label class="org-sel-rotulo" for="usr-org">Organização</label>
                 <select class="org-sel" id="usr-org" data-action-change="__usuariosFiltrarOrg" data-arg-val>
-                    <option value="">Todas as consultorias</option>
+                    <option value="">Todas as organizações</option>
                     ${orgsLista.map((o) => `<option value="${escapeHTML(o.id)}"${o.id === filtroOrg ? ' selected' : ''}>${escapeHTML(o.nome)}</option>`).join('')}
                 </select></div>` : '';
             c.innerHTML = `

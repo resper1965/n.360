@@ -70,7 +70,7 @@ describe('renderUsers', () => {
     expect(linhas[0].textContent).toContain('ness.');
     expect(linhas[1].textContent).toContain('Bekaa');
     const sel = c.querySelector('#usr-org');
-    expect([...sel.options].map((o) => o.textContent)).toEqual(['Todas as consultorias', 'ness.', 'Bekaa']);
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['Todas as organizações', 'ness.', 'Bekaa']);
     apiMock.mockClear();
     renderMock.mockClear();
     window.__usuariosFiltrarOrg('org_bekaa');
