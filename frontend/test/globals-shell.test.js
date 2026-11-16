@@ -92,6 +92,16 @@ describe('seletor de tenant', () => {
     } finally { localStorage.removeItem('niso_activeProject'); }
   });
 
+  it('id com aspas e "&" no seletor: o value escapado devolve o id original (o data-arg-val lê el.value)', () => {
+    const id = 'p"x&amp;y<z';
+    S.projects = [{ id, project_name: 'Esquisito' }, { id: 'p2', client_name: 'Alup' }];
+    S.activeProject = S.projects[0];
+    window.updateSidebarProjectSelector();
+    const sel = document.getElementById('sidebar-project-select');
+    expect([...sel.options].map((o) => o.value)).toEqual(['', id, 'p2']);
+    expect(sel.value).toBe(id);
+  });
+
   it('com projeto ativo, a ordem é a da lista', () => {
     localStorage.setItem('niso_activeProject', JSON.stringify({ id: 'p2' }));
     try {
