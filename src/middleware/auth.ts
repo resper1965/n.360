@@ -9,7 +9,7 @@ import { resolverAgente, acaoDestrutiva } from './agente';
 import { logAudit } from '../helpers';
 import { alvoDaExclusao } from '../trilha-exclusao';
 import { ESCRITAS_DO_TECNICO } from '../services/ot-inventario';
-import { equipeDeOrgSuspensa, orgDaEquipeAChecar, ORG_SUSPENSA } from '../services/organizacao';
+import { equipeDeOrgSuspensa, orgDaEquipeAChecar, tipoDaOrg, ORG_SUSPENSA } from '../services/organizacao';
 
 /** De quanto em quanto tempo a marca de atividade da sessão é reescrita. */
 const RENOVA_ATIVIDADE_MS = 60 * 1000;
@@ -161,7 +161,7 @@ const STAKEHOLDER_PERMITIDO: RegExp[] = [
   /^\/api\/v1\/pedidos(\/.*)?$/,
 ];
 
-type Leitura = { orgSuspensa: boolean; docs: DocumentoLegal[]; aceitos: string[]; politica: PoliticaTenant | null; totp: number | null };
+type Leitura = { orgSuspensa: boolean; orgDireta: boolean; docs: DocumentoLegal[]; aceitos: string[]; politica: PoliticaTenant | null; totp: number | null };
 type Pedido = { org: string | null; legal: boolean; userId: string; projeto: string | null };
 type LinhaDoc = { id: string; kind: string; version: string; classification: DocumentoLegal['classification']; title: string; url: string | null; published_at: string; aceito: number | null };
 type LinhaPolitica = PoliticaTenant & { totp: number | null };
@@ -183,10 +183,10 @@ async function lerChecagens(env: Bindings, q: Pedido): Promise<Leitura> {
   const db = env.DB;
   const stmts: D1PreparedStatement[] = [];
   const pos: { org?: number; docs?: number; politica?: number } = {};
-  if (q.org) pos.org = stmts.push(db.prepare('SELECT status FROM organizations WHERE id = ?').bind(q.org)) - 1;
+  if (q.org) pos.org = stmts.push(db.prepare('SELECT status, tipo FROM organizations WHERE id = ?').bind(q.org)) - 1;
   if (q.legal) pos.docs = stmts.push(db.prepare(SQL_DOCS).bind(q.userId)) - 1;
   if (q.projeto) pos.politica = stmts.push(db.prepare(SQL_POLITICA).bind(q.projeto, q.userId)) - 1;
-  if (!stmts.length) return { orgSuspensa: false, docs: [], aceitos: [], politica: null, totp: null };
+  if (!stmts.length) return { orgSuspensa: false, orgDireta: false, docs: [], aceitos: [], politica: null, totp: null };
   let r: D1Result[];
   try { r = await db.batch(stmts); } catch { return lerUmaAUma(env, q); }
   const linhas = <T>(i?: number) => (i === undefined ? [] : ((r[i].results ?? []) as T[]));
@@ -194,6 +194,7 @@ async function lerChecagens(env: Bindings, q: Pedido): Promise<Leitura> {
   const pol = linhas<LinhaPolitica>(pos.politica)[0];
   return {
     orgSuspensa: q.org ? linhas<{ status: string | null }>(pos.org)[0]?.status !== 'Active' : false,
+    orgDireta: q.org ? linhas<{ tipo: string | null }>(pos.org)[0]?.tipo === 'direta' : false,
     docs: docs.map(comoDoc),
     aceitos: docs.filter((d) => d.aceito === 1).map((d) => d.id),
     politica: pol ? { project_id: pol.project_id, mfa_obrigatorio: pol.mfa_obrigatorio, sessao_ttl_seg: pol.sessao_ttl_seg, ip_allowlist: pol.ip_allowlist } : null,
@@ -208,7 +209,8 @@ async function lerUmaAUma(env: Bindings, q: Pedido): Promise<Leitura> {
   const docs = q.legal ? await db.prepare(SQL_DOCS).bind(q.userId).all<LinhaDoc>().then((x) => x.results ?? []).catch(() => [] as LinhaDoc[]) : [];
   const politica = q.projeto ? await politicaDoProjeto(env, q.projeto) : null;
   const totp = politica ? ((await db.prepare('SELECT totp_enabled FROM users WHERE id = ?').bind(q.userId).first<{ totp_enabled: number | null }>())?.totp_enabled ?? null) : null;
-  return { orgSuspensa, docs: docs.map(comoDoc), aceitos: docs.filter((d) => d.aceito === 1).map((d) => d.id), politica, totp };
+  const orgDireta = q.org ? await tipoDaOrg(db, q.org) === 'direta' : false;
+  return { orgSuspensa, orgDireta, docs: docs.map(comoDoc), aceitos: docs.filter((d) => d.aceito === 1).map((d) => d.id), politica, totp };
 }
 
 export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: Variables }>(async (c, next) => {
@@ -350,6 +352,8 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
   const precisaLegal = !apiKey && !agente && !rotaLiberadaComBloqueio(path);
   const leitura = await lerChecagens(c.env, { org: orgAChecar, legal: precisaLegal, userId: user.id, projeto: user.client_project_id ?? null });
   if (leitura.orgSuspensa) return c.json(ORG_SUSPENSA, 403);
+  // Lido do banco nesta requisição (nunca da sessão): `ehComercial` nega a conta de organização direta (decisão 11).
+  user.org_direta = leitura.orgDireta;
 
   // Documento legal MATERIAL pendente barra o acesso até o aceite — muda base
   // legal ou retenção, e seguir usando o produto sem aceitar seria tratar o
@@ -377,7 +381,9 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
   const method = c.req.method.toUpperCase();
 
   // Independência 9.2 na sessão humana: a chave 'consultant' já é barrada em apiKeyRoleViolation.
-  if (!apiKey && !agente && PAPEIS_IMPLEMENTACAO.has(user.role) && isAuditWrite(method, path)) {
+  // Exceção: o consultoria_admin da organização direta (a empresa audita a si mesma; decisão 7). `org_direta` vem do banco acima.
+  if (!apiKey && !agente && PAPEIS_IMPLEMENTACAO.has(user.role) && isAuditWrite(method, path)
+      && !(user.role === 'consultoria_admin' && user.org_direta === true)) {
     return c.json({ error: 'Forbidden: consultoria não registra achado de auditoria' }, 403);
   }
 

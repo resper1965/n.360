@@ -10,7 +10,7 @@ import { genId, hashPassword, logAudit, rateLimitD1, sendEmail, invalidateUserSe
 import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema, ativoDaContaSchema } from '../schemas';
 import { MODULOS_PRODUTO, NOME_DO_PRODUTO, modulosContratados, modulosDaPessoa, modulosDoProjeto, type Modulo } from '../modulos';
 import { appUrl } from '../config/url';
-import { orgDoUsuario, resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_USUARIOS } from '../services/organizacao';
+import { orgDoUsuario, tipoDaOrg, resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_USUARIOS } from '../services/organizacao';
 
 export const usersApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -227,6 +227,10 @@ usersApp.post('/', async (c) => {
     if (ehAdminDaOrg(admin) && ehCliente && (!targetProject || await orgDoProjeto(c.env.DB, targetProject) !== orgCriador)) {
       return c.json({ error: 'Forbidden: projeto fora da sua consultoria' }, 403);
     }
+    // Organização direta (decisão 8): só equipe; conta de cliente não.
+    if (ehAdminDaOrg(admin) && ehCliente && await tipoDaOrg(c.env.DB, orgCriador) === 'direta') {
+      return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
+    }
     const orgNovo = ehCliente ? (await orgDoProjeto(c.env.DB, targetProject)) ?? orgCriador : orgCriador;
     if (!orgNovo) return c.json(SEM_ORG, 403);
     // O limite do plano conta só a EQUIPE da consultoria; conta de cliente não entra.
@@ -326,6 +330,10 @@ usersApp.put('/:id', async (c) => {
       // troca de papel de equipe para cliente sem mandar o projeto.
       if (ficaCliente && (!projetoFinal || await orgDoProjeto(c.env.DB, projetoFinal) !== minha)) {
         return c.json({ error: 'Forbidden: projeto fora da sua consultoria' }, 403);
+      }
+      // Organização direta (decisão 8): a troca de papel de equipe para cliente é o mesmo bypass do POST.
+      if (ficaCliente && !PAPEIS_CLIENTE_GERIVEIS.has(user.role) && await tipoDaOrg(c.env.DB, minha) === 'direta') {
+        return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
       }
       // A senha de outro administrador da consultoria só o dono (pelo fluxo de senha) ou o
       // platform_admin trocam: senão um administrador toma a conta do outro.

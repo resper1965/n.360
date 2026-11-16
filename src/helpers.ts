@@ -168,6 +168,8 @@ export interface AtorAutorizado {
   client_project_id?: string | null;
   /** Organização da equipe (sessão, gravada no login; migration 0040). Ausente em sessão antiga. */
   org_id?: string | null;
+  /** Posto pelo authMiddleware (lido do banco): a organização é `direta`, que não tem área comercial. */
+  org_direta?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -612,8 +614,9 @@ export async function somenteNess(
 // `consultoria_admin`: o funil e o catálogo da PRÓPRIA organização (as rotas cortam por `exigirOrg`).
 const PAPEIS_COMERCIAL = new Set(['platform_admin', 'comercial', 'consultoria_admin']);
 
-export function ehComercial(user: { role?: string | null } | null | undefined): boolean {
-  return PAPEIS_COMERCIAL.has(user?.role ?? '');
+// Organização direta (decisão 11) não tem área comercial: `org_direta` é posto pelo authMiddleware, que lê o tipo no banco.
+export function ehComercial(user: { role?: string | null; org_direta?: boolean } | null | undefined): boolean {
+  return PAPEIS_COMERCIAL.has(user?.role ?? '') && user?.org_direta !== true;
 }
 
 /**

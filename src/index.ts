@@ -189,6 +189,8 @@ export type Variables = {
     seen?: number;
     /** `users.org_id`, gravado pelo login (migration 0040). Ausente em sessão anterior a ela. */
     org_id?: string;
+    /** Definido pelo authMiddleware a cada requisição, lido do banco: a organização da equipe é do tipo `direta`. */
+    org_direta?: boolean;
   };
   /** Organização da requisição, resolvida por `exigirOrg` (services/organizacao.ts). */
   orgId: string;

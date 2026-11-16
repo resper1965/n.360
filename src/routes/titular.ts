@@ -421,6 +421,11 @@ incidentesApp.post('/:id/rascunho-comunicacao', async (c) => {
 incidentesApp.post('/:id/encerrar', async (c) => {
   try {
     if (!ehEquipeNess(c.get('user'))) return c.json({ error: 'Encerrar o incidente é feito pela equipe da consultoria' }, 403);
+    // Quem registrou não encerra: precisa de outra pessoa (decisão 6).
+    const inc = await c.env.DB.prepare('SELECT criado_por FROM incidentes WHERE id = ? AND project_id = ?').bind(c.req.param('id'), c.req.param('projectId')).first<{ criado_por: string | null }>();
+    if (inc?.criado_por && inc.criado_por.toLowerCase() === (c.get('user').email ?? '').toLowerCase()) {
+      return c.json({ error: 'Quem registrou o incidente não o encerra. Peça a outra pessoa.' }, 403);
+    }
     const r = await encerrarIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao encerrar o incidente', e); }

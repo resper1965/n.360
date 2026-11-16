@@ -266,3 +266,52 @@ describe('quem criou não decide', () => {
     expect(await confirmarAvaliacao(env.DB, ator('u-ana', 'ana@d.lat'), 'p-d', cod, visto)).toEqual({ ok: true });
   });
 });
+
+describe('equipe da organização direta', () => {
+  it('incidente: quem registrou não encerra (403); outra pessoa encerra (200)', async () => {
+    await env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, risco_titular, status, criado_por)
+      VALUES ('in-e','p-d','IN-2026-0900','Vaz','2026-10-01','baixo','avaliado','Beto@D.lat')`).run();
+    const r = await chamar('POST', '/api/v1/projects/p-d/incidentes/in-e/encerrar', S.beto, {});
+    expect(r.status, await r.clone().text()).toBe(403);
+    expect((await um('SELECT status FROM incidentes WHERE id = ?', 'in-e')).status).not.toBe('encerrado');
+    const ok = await chamar('POST', '/api/v1/projects/p-d/incidentes/in-e/encerrar', S.ana, {});
+    expect(ok.status, await ok.clone().text()).toBe(200);
+  });
+  it('achado de auditoria: admin direto registra; admin de consultoria segue barrado', async () => {
+    await env.DB.prepare(`INSERT INTO audit_schedule (id, project_id, audit_type, title, scheduled_date) VALUES ('au-d','p-d','interna','A','2026-12-01'),('au-c','p-c','interna','A','2026-12-01')`).run();
+    const corpo = { project_id: 'p-d', description: 'Achado', finding_type: 'Observation' };
+    const d = await chamar('POST', '/api/v1/audits/au-d/findings', S.beto, corpo);
+    expect(d.status, await d.clone().text()).toBe(200);
+    expect((await um('SELECT COUNT(*) n FROM audit_findings WHERE audit_id = ?', 'au-d')).n).toBe(1);
+    const c = await chamar('POST', '/api/v1/audits/au-c/findings', S.cris, corpo);
+    expect(c.status).toBe(403);
+    expect(await c.text()).toMatch(/não registra achado/);
+  });
+  it('comercial: o admin direto não acessa leads, funil nem preço; o de consultoria sim', async () => {
+    for (const rota of ['/api/v1/leads', '/api/v1/funil', '/api/v1/assessments/x/pricing', '/api/v1/org/config']) {
+      expect((await chamar('GET', rota, S.beto)).status, rota).toBe(403);
+    }
+    expect((await chamar('GET', '/api/v1/leads', S.cris)).status).toBe(200);
+    expect((await chamar('GET', '/api/v1/org/config', S.cris)).status).toBe(200);
+  });
+  it('comercial: a flag vem do banco, não da sessão (tipo mudado vale na requisição seguinte)', async () => {
+    await env.DB.prepare(`UPDATE organizations SET tipo = 'consultoria' WHERE id = 'org_d'`).run();
+    try { expect((await chamar('GET', '/api/v1/leads', S.beto)).status).toBe(200); }
+    finally { await env.DB.prepare(`UPDATE organizations SET tipo = 'direta' WHERE id = 'org_d'`).run(); }
+    expect((await chamar('GET', '/api/v1/leads', S.beto)).status).toBe(403);
+  });
+  it('contas: o admin direto não cria cliente nem promove equipe a cliente; cria consultor; consultoria cria cliente', async () => {
+    const base = { email: 'novo@d.lat', name: 'Novo' };
+    for (const role of ['org_admin', 'org_user', 'client']) {
+      expect((await chamar('POST', '/api/v1/users', S.beto, { ...base, role, client_project_id: 'p-d' })).status, role).toBe(403);
+    }
+    expect(await um('SELECT 1 x FROM users WHERE email = ?', 'novo@d.lat')).toBeNull();
+    const ok = await chamar('POST', '/api/v1/users', S.beto, { ...base, role: 'consultor' });
+    expect(ok.status, await ok.clone().text()).toBe(201);
+    const id = (await ok.json() as any).id;
+    const promove = await chamar('PUT', `/api/v1/users/${id}`, S.beto, { role: 'client', client_project_id: 'p-d' });
+    expect(promove.status, await promove.clone().text()).toBe(403);
+    const cli = await chamar('POST', '/api/v1/users', S.cris, { email: 'cli@c.lat', name: 'Cli', role: 'org_admin', client_project_id: 'p-c' });
+    expect(cli.status, await cli.clone().text()).toBe(201);
+  });
+});

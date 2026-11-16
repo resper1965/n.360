@@ -17,6 +17,7 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
 const json = async <T>(r: Response) => (await r.json()) as T;
 
 let consultor: Record<string, string>;
+let fecha: Record<string, string>;
 
 beforeAll(async () => {
   await applySchema();
@@ -28,6 +29,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em) VALUES ('in-alheio', ?, 'IN-2026-0001', 'Alheio', '2026-10-01')`).bind(OUTRO),
   ]);
   consultor = await sessionFor({ id: 'u-cons', email: 'cons@ness.lat', role: 'consultor' });
+  fecha = await sessionFor({ id: 'u-adm', email: 'adm@ness.lat', role: 'platform_admin' }); // quem registrou não encerra
 });
 
 describe('incidente sem n.privacy', () => {
@@ -37,7 +39,7 @@ describe('incidente sem n.privacy', () => {
     const { id } = await json<{ id: string }>(r);
     expect((await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' })).status).toBe(200);
     expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'anpd' })).status).toBe(200);
-    expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`)).status).toBe(200);
+    expect((await chamar(fecha, 'POST', `${B}/incidentes/${id}/encerrar`)).status).toBe(200);
     expect((await chamar(consultor, 'GET', `${B}/titular-pedidos`)).status).toBe(403);
   });
 });
