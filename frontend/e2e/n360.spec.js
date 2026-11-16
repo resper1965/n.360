@@ -34,6 +34,8 @@ async function mockApi(page, modulos) {
     if (path === '/api/v1/auth/me') return json({ user: USER });
     if (path === '/api/v1/projects' && method === 'GET')
       return json([{ id: 'proj-e2e', client_name: 'Cliente E2E', project_name: 'Projeto E2E', modulos }]);
+    if (path === '/api/v1/carteira') return json({ gerado_em: new Date().toISOString(), projetos: [{ id: 'proj-e2e', nome: 'Cliente E2E', modulos, tom: 'atraso',
+      situacao: '1 prazo legal vencido', urgente: '2 pedidos do titular atrasados', modulo_urgente: modulos.includes('privacy') ? 'privacy' : modulos[0], ultimo_movimento: null }] });
     if (path === '/api/v1/projects/proj-e2e/painel') {
       const pedido = new URL(route.request().url()).searchParams.get('modulo');
       return json(PAINEL(pedido ? [pedido] : modulos));
@@ -49,15 +51,14 @@ async function entrar(page) {
   await page.click('#login-submit');
 }
 
-test('dois módulos: início do n.360 e "Abrir" leva à casca de cada módulo', async ({ page }) => {
+test('dois módulos: o Início lista o projeto e "Abrir no" leva à casca de cada módulo', async ({ page }) => {
   await mockApi(page, ['iso', 'privacy']);
   await entrar(page);
 
-  await expect(page.locator('#content')).toContainText('n.iso');
-  await expect(page.locator('#content')).toContainText('n.privacy');
-  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
+  await expect(page.locator('#content')).toContainText('Cliente E2E');
+  await expect(page.getByRole('button', { name: /^Abrir Cliente E2E no n\./ })).toHaveCount(2);
 
-  await page.getByRole('button', { name: /^Abrir o n\./ }).first().click();
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.iso' }).click();
   await expect(page).toHaveURL(/\/iso$/);
   await expect(page).toHaveTitle('n.iso | ness. Agentic GRC');
 
@@ -69,8 +70,7 @@ test('dois módulos: início do n.360 e "Abrir" leva à casca de cada módulo', 
   await expect(page.getByRole('navigation', { name: 'Módulo' }).getByRole('link', { name: 'n.privacy' })).toHaveAttribute('aria-current', 'page');
 
   await page.goto('/login.html');
-  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
-  await page.getByRole('button', { name: /^Abrir o n\./ }).nth(1).click();
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.privacy' }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
@@ -151,11 +151,14 @@ test('painel: uma chamada a /painel por entrada (n.360, n.iso e n.privacy)', asy
   const painel = [];
   page.on('request', (r) => { if (new URL(r.url()).pathname.endsWith('/painel')) painel.push(new URL(r.url()).search); });
   await entrar(page);
-  await expect(page.locator('.pn-frase')).toHaveText('2 pedidos do titular atrasados no n.privacy.');
-  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
+  const ver = page.getByRole('button', { name: 'Ver situação de Cliente E2E' });
+  await expect(ver).toBeVisible();
+  expect(painel).toEqual([]);
+  await ver.click();
+  await expect(page.locator('.pn-sit')).toContainText('2 pedidos do titular atrasados.');
   expect(painel).toEqual(['']);
   painel.length = 0;
-  await page.getByRole('button', { name: 'Abrir o n.privacy' }).click();
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.privacy' }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.locator('.pn-frase')).toBeVisible();
   await expect(page.locator('#pn-cob')).toBeVisible();

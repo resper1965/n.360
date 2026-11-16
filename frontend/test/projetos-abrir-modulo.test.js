@@ -12,6 +12,7 @@ import '../src/ui.js';
 import { irPara } from '../src/produto.js';
 import { navigate } from '../src/router.js';
 import '../src/views/project.js';
+import '../src/views/painel.js';
 
 const P = [{ id: 'p1', client_name: 'Alfa', modulos: ['iso', 'privacy'] }, { id: 'p2', client_name: 'Beta', modulos: ['privacy'] }];
 const abrir = () => [...document.querySelectorAll('[data-action="abrirProjetoNoModulo"]')].map((b) => [JSON.parse(b.getAttribute('data-args')), b.textContent.trim()]);
@@ -106,6 +107,17 @@ describe('trocar o projeto ativo', () => {
         await window.changeActiveProject('p2');
         expect(S.activeProject.id).toBe('p2');
         expect(navigate).toHaveBeenCalledWith('projects');
+    });
+    it('no Início do n.360 (sem projeto ativo), escolher no seletor é entrar no projeto, no primeiro módulo dele', async () => {
+        history.replaceState(null, '', '/');
+        S.user = { role: 'consultor', modulos: ['iso', 'privacy'] };
+        S.view = 'inicio';
+        navigate.mockClear();
+        await window.changeActiveProject('p2');
+        expect(S.activeProject.id).toBe('p2');
+        expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
+        expect(irPara).toHaveBeenCalledWith('/privacy');
+        expect(navigate).not.toHaveBeenCalled();
     });
     it('no n.privacy, da lista, vai ao início do módulo; no n.iso, à certificação (como antes)', async () => {
         S.view = 'projects';

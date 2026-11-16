@@ -111,6 +111,9 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             navigate(PRODUTOS[produtoAtual()].inicio);
             return;
         }
+        // No Início do n.360 não há projeto ativo (spec 2026-11-14-entrada-n360): escolher um no seletor é entrar nele, no primeiro
+        // módulo que a pessoa tem, como o "Abrir" da lista. Sem isto, o Início redesenhado soltaria a escolha.
+        if (produtoAtual() === 'n360' && S.view === 'inicio' && typeof window.painelAbrirProjeto === 'function') { window.painelAbrirProjeto(projectId); return; }
         try {
             const p = S.projects.find(proj => proj.id === projectId) || await api('GET', `/api/v1/projects/${projectId}`);
             S.activeProject = p;

@@ -188,104 +188,144 @@ describe('entrada do n.privacy', () => {
 });
 
 describe('início do n.360', () => {
-    beforeEach(() => { history.replaceState(null, '', '/'); S.view = 'inicio'; });
+    // Corpo de GET /api/v1/carteira (src/routes/painel.ts:51-60; linhas de `carteira`, src/services/painel.ts:551-640).
+    const CARTEIRA = { gerado_em: '2026-11-16T12:00:00Z', projetos: [
+        { id: 'p8', nome: 'Clínica <b>Exemplo</b>', modulos: ['privacy'], tom: 'atraso', situacao: '1 prazo legal vencido', urgente: '1 pedido do titular atrasado', modulo_urgente: 'privacy', ultimo_movimento: null },
+        { id: 'p9', nome: 'Exemplo', modulos: ['iso', 'privacy', 'ot'], tom: 'ok', situacao: 'Em dia', urgente: 'Próximo: Pedido PT-9 em 03/11', modulo_urgente: 'iso', ultimo_movimento: null },
+    ] };
+    const OT = { saude: { tom: 'semana', rotulo: 'Atenção', frase: '2 desvios abertos.', apoio: '' }, numeros: [['2', 'desvios abertos']], comecando: false,
+        fazer: [{ grupo: 'semana', quando: 'Nesta semana', texto: '2 desvios abertos', contexto: '', acao: 'Ver os desvios', tela: 'ot', aba: 'sites', modulo: 'ot' }] };
+    const ISO_ATRASO = BLOCO({ fazer: [{ grupo: 'atraso', quando: 'Venceu em 01/10', texto: '1 ação corretiva passou do prazo', contexto: '', acao: 'Ver as ações', tela: 'capa', filtro: 'vencidas', modulo: 'iso' }] });
+    beforeEach(() => {
+        history.replaceState(null, '', '/');
+        S.view = 'inicio';
+        S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy', 'ot'] };
+        S.projects = [{ id: 'p8', client_name: 'Clínica', modulos: ['privacy'] }, { id: 'p9', client_name: 'Exemplo', modulos: ['iso', 'privacy', 'ot'] }];
+        // O projeto lembrado da última visita: o state o hidrata de niso_activeProject (state.js:33).
+        S.activeProject = S.projects[1];
+        localStorage.setItem('niso_activeProject', JSON.stringify(S.projects[1]));
+    });
+    afterEach(() => { localStorage.removeItem('niso_activeProject'); });
 
-    it('projeto: pede os dois módulos (sem ?modulo), linhas dos módulos com "Abrir" e a lista que junta os dois', async () => {
-        const iso = BLOCO({ fazer: [{ grupo: 'atraso', quando: 'Venceu em 01/10', texto: '1 ação corretiva passou do prazo', contexto: '', acao: 'Ver as ações', tela: 'capa', modulo: 'iso' }],
-            numeros: [['31 de 93', 'controles aplicáveis implementados'], ['1', 'ações vencidas'], ['23/10', 'próxima auditoria']] });
-        const f = servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { privacy: BLOCO(), iso } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {}, cobertura: [], iso_ajudados: [] } });
+    it('entrar no Início não pede o painel de projeto nenhum, solta o projeto ativo e não grava o lembrado', async () => {
+        const f = servir({ 'GET /api/v1/carteira': CARTEIRA });
+        const grava = vi.spyOn(Storage.prototype, 'setItem');
         await abrir('n360');
         expect(el('h').textContent).toBe('Início');
+        expect(chamadas(f)).toContain('GET /api/v1/carteira');
+        expect(chamadas(f).filter((x) => x.includes('/painel'))).toEqual([]);
+        expect(S.activeProject).toBeNull();
+        expect(grava.mock.calls.filter(([k]) => k === 'niso_activeProject')).toEqual([]);
+        expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p9');
+        expect(el('c').textContent).toContain('2 projetos. Um precisa de você hoje.');
+        expect(el('c').querySelector('.pn-alterna')).toBeNull();
+        expect(el('a').innerHTML).toBe('');
+    });
+
+    it('cada linha: empresa escapada, módulos, situação e o mais urgente; "Abrir no" só dos módulos da linha; um primário', async () => {
+        servir({ 'GET /api/v1/carteira': CARTEIRA });
+        await abrir('n360');
+        const c = el('c');
+        expect(c.querySelector('tbody b')).toBeNull();
+        const linhas = [...c.querySelectorAll('tbody tr')];
+        expect(linhas[0].textContent).toContain('Clínica <b>Exemplo</b>');
+        expect(linhas[0].textContent).toContain('1 prazo legal vencido');
+        expect(linhas[0].textContent).toContain('1 pedido do titular atrasado');
+        const entrar = (tr) => [...tr.querySelectorAll('[data-action="painelAbrirProjeto"]')].map((b) => b.textContent);
+        expect(entrar(linhas[0])).toEqual(['Abrir no n.privacy']);
+        expect(entrar(linhas[1])).toEqual(['Abrir no n.iso', 'Abrir no n.privacy', 'Abrir no n.ot']);
+        // A ação primária: o módulo da pendência mais urgente do primeiro projeto da lista.
+        expect([...c.querySelectorAll('.btn-primary')].map((b) => b.getAttribute('aria-label'))).toEqual(['Abrir Clínica <b>Exemplo</b> no n.privacy']);
+        for (const s of c.querySelectorAll('.pn-estado')) expect(s.textContent.trim().length).toBeGreaterThan(0);
+    });
+
+    it('n.ot (P0-1): sem ele na linha da carteira, nem botão nem situação, mesmo com o projeto e a pessoa tendo o módulo', async () => {
+        const semOt = { ...CARTEIRA, projetos: [{ ...CARTEIRA.projetos[1], modulos: ['iso', 'privacy'] }] };
+        servir({ 'GET /api/v1/carteira': semOt, 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO() } }) });
+        await abrir('n360');
+        expect(el('c').textContent).not.toContain('n.ot');
+        await window.painelVerSituacao('p9', el('c').querySelector('[data-action="painelVerSituacao"]'));
+        expect([...el('c').querySelectorAll('.pn-sit .pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy']);
+        expect(el('c').textContent).not.toContain('n.ot');
+    });
+
+    it('"Ver situação" abre no lugar: pede o painel só ao abrir, sem ?modulo, não muda o projeto ativo e usa o cache de 60 s', async () => {
+        const f = servir({ 'GET /api/v1/carteira': CARTEIRA, 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: ISO_ATRASO, privacy: BLOCO(), ot: OT } }) });
+        await abrir('n360');
+        const ver = [...el('c').querySelectorAll('[data-action="painelVerSituacao"]')][1];
+        expect(ver.getAttribute('aria-expanded')).toBe('false');
+        expect(ver.getAttribute('aria-label')).toBe('Ver situação de Exemplo');
+        await window.painelVerSituacao('p9', ver);
+        expect(ver.getAttribute('aria-expanded')).toBe('true');
+        expect(ver.getAttribute('aria-controls')).toBe('ini-sit-p9');
+        const sit = el('ini-sit-p9');
+        expect(sit).toBe(ver.closest('tr').nextElementSibling);
+        expect([...sit.querySelectorAll('.pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy', 'n.ot']);
+        expect(sit.textContent).toContain('2 desvios abertos.');
+        expect(sit.textContent).toContain('Mais urgente: 1 ação corretiva passou do prazo');
+        expect(sit.querySelector('.btn-primary')).toBeNull();
         expect(chamadas(f)).toContain('GET /api/v1/projects/p9/painel');
-        expect(chamadas(f).filter((x) => x.includes('/painel'))).toHaveLength(1);
-        expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toEqual(['Abrir o n.iso', 'Abrir o n.privacy']);
-        // Cada linha diz o que o módulo é: a escolha entre os dois não depende de conhecer o nome.
-        expect([...el('c').querySelectorAll('.pn-m .pn-m-desc')].map((p) => p.textContent))
-            .toEqual(['ISO 27001 e 27701: controles, riscos e auditoria', 'LGPD: tratamentos, titulares, incidentes e fornecedores']);
-        expect(el('c').textContent).toContain('O que fazer agora, nos dois módulos');
-        const nomes = [...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'));
-        expect(new Set(nomes).size).toBe(nomes.length);
-        expect(nomes).toContain('Ver as ações: 1 ação corretiva passou do prazo (n.iso)');
-        // Uma ação principal: só o item mais urgente; "Abrir o n.x" é secundário (eram seis primários).
-        const primarios = [...el('c').querySelectorAll('.btn-primary')];
-        expect(primarios).toHaveLength(1);
-        expect(primarios[0].getAttribute('aria-label')).toBe(nomes[0]);
-        await vi.waitFor(() => expect(chamadas(f)).toContain('GET /api/v1/projects/p9/ponto-de-partida'));
-        window.abrirModulo('iso');
-        expect(irPara).toHaveBeenCalledWith('/iso');
-        window.abrirModulo('https://evil.example');
-        expect(irPara).toHaveBeenCalledTimes(1);
+        expect(S.activeProject).toBeNull();
+        await window.painelVerSituacao('p9', ver);
+        expect(ver.getAttribute('aria-expanded')).toBe('false');
+        expect(el('ini-sit-p9')).toBeNull();
+        await window.painelVerSituacao('p9', ver);
+        expect(el('ini-sit-p9')).not.toBeNull();
+        expect(chamadas(f).filter((x) => x.includes('/painel'))).toEqual(['GET /api/v1/projects/p9/painel']);
     });
 
-    it('módulo fora do projeto: a linha diz que não está habilitado, sem número inventado', async () => {
-        S.activeProject = { id: 'p9', modulos: ['iso'] }; S.projects = [S.activeProject];
-        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO() } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
+    it('"Ver situação" com falha: diz isso na linha, sem segundo botão primário', async () => {
+        servir({ 'GET /api/v1/carteira': CARTEIRA });
         await abrir('n360');
-        expect(el('c').textContent).toContain('Não habilitado neste projeto');
-        expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toEqual(['Abrir o n.iso']);
-        expect(el('c').querySelectorAll('.pn-m .pn-m-desc')).toHaveLength(2);
+        await window.painelVerSituacao('p8', el('c').querySelector('[data-action="painelVerSituacao"]'));
+        expect(el('ini-sit-p8').textContent).toContain('Não foi possível ver a situação deste projeto');
+        expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(1);
     });
 
-    it('projeto com o n.ot: a linha aparece só quando o servidor mandou o bloco', async () => {
-        S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy', 'ot'] };
-        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy', 'ot'] }; S.projects = [S.activeProject];
-        const ot = { saude: { tom: 'semana', rotulo: 'Atenção', frase: '2 desvios abertos.', apoio: '' }, numeros: [['1 de 3', 'sites em operação'], ['2', 'desvios abertos']],
-            comecando: false, cobertura: [], vencimentos: [], riscos: [], passos: [],
-            fazer: [{ grupo: 'semana', quando: 'Nesta semana', texto: '2 desvios abertos', contexto: '', acao: 'Ver os desvios', tela: 'ot', aba: 'sites', modulo: 'ot' }] };
-        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO(), ot } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
+    it('lista pelo componente: busca sem acento e "N de M"', async () => {
+        servir({ 'GET /api/v1/carteira': CARTEIRA });
         await abrir('n360');
-        expect([...el('c').querySelectorAll('.pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy', 'n.ot']);
-        expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toContain('Abrir o n.ot');
-        expect(el('c').textContent).toContain('O que fazer agora, nos seus módulos');
-        expect([...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'))).toContain('Ver os desvios: 2 desvios abertos (n.ot)');
+        window.listaBuscar('ini-projetos', 'clinica');
+        expect(el('ini-projetos-contagem').textContent).toBe('1 de 2');
+        expect(el('c').querySelectorAll('tbody tr')).toHaveLength(1);
+    });
+
+    it('carteira vazia com projetos: a tela sem acesso do n.360, com o título do menu', async () => {
+        servir({ 'GET /api/v1/carteira': { gerado_em: 'x', projetos: [] } });
+        await abrir('n360');
+        expect(el('c').textContent).toContain('nenhum módulo do n.360');
+        expect(el('h').textContent).toBe('Início');
+    });
+
+    it('entrar é um clique: "Abrir no n.x" e o item mais urgente tornam o projeto ativo; "Indicar o encarregado" vai ao n.privacy', () => {
+        window.painelAbrirProjeto('p9', 'ot');
+        expect(S.activeProject.id).toBe('p9');
+        expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p9');
+        expect(irPara).toHaveBeenLastCalledWith('/ot');
+        S.activeProject = null;
+        window.painelAbrirItem('p8', 'titular', 'pedidos', 'atrasados');
+        expect(S.activeProject.id).toBe('p8');
+        expect(window.navigate).toHaveBeenLastCalledWith('titular', { filtroPainel: { tela: 'titular', aba: 'pedidos', filtro: 'atrasados' } });
+        window.painelAbrirItem('p8', 'encarregado', null, null);
+        expect(window.navigate).toHaveBeenLastCalledWith('encarregado');
+        window.navigate.mockClear();
+        S.activeProject = null;
+        window.painelAbrirItem('zz', 'titular', 'pedidos', null);
+        window.painelAbrirItem('p8', 'javascript:alert(1)', null, null);
+        expect(window.navigate).not.toHaveBeenCalled();
+        expect(S.activeProject).toBeNull();
+    });
+
+    it('painelAbrir e abrirModulo: só destinos da lista fechada', () => {
         window.painelAbrir('ot', 'sites', null);
         expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
         window.painelAbrir('ot', '<script>', null);
         expect(irPara).toHaveBeenLastCalledWith('/ot');
-        window.abrirModulo('ot');
-        expect(irPara).toHaveBeenCalledWith('/ot');
-    });
-
-    it('sem bloco do n.ot na resposta: nenhuma linha do n.ot, nem "não habilitado"', async () => {
-        S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy'] };
-        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy', 'ot'] }; S.projects = [S.activeProject];
-        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO() } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
-        await abrir('n360');
-        expect([...el('c').querySelectorAll('.pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy']);
-        expect(el('c').textContent).not.toContain('n.ot');
-    });
-
-    it('consultor com mais de um projeto: a carteira é o padrão; a escolha fica lembrada, e sem storage tudo funciona', async () => {
-        S.projects = [S.activeProject, { id: 'p8', client_name: 'Outro', modulos: ['privacy'] }];
-        const CARTEIRA = { projetos: [{ id: 'p8', nome: 'Clínica <b>Exemplo</b>', modulos: ['privacy'], tom: 'atraso', situacao: '1 prazo legal vencido', urgente: '1 pedido do titular atrasado', modulo_urgente: 'privacy', ultimo_movimento: null },
-            { id: 'p9', nome: 'Exemplo', modulos: ['iso', 'privacy'], tom: 'ok', situacao: 'Em dia', urgente: 'Próximo: Pedido PT-9 em 03/11', modulo_urgente: 'iso', ultimo_movimento: null }] };
-        const f = servir({ 'GET /api/v1/carteira': CARTEIRA, 'GET /api/v1/projects/p9/painel': PAINEL(), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
-        await abrir('n360');
-        expect(chamadas(f)).toEqual(['GET /api/v1/carteira']);
-        expect(el('c').textContent).toContain('2 projetos. Um precisa de você hoje.');
-        expect(el('c').querySelector('.pn-carteira b')).toBeNull();
-        expect([...el('c').querySelectorAll('[data-action="painelAbrirProjeto"]')].map((b) => b.getAttribute('aria-label'))).toEqual(['Abrir Clínica <b>Exemplo</b>', 'Abrir Exemplo']);
-        expect(el('a').querySelector('[aria-pressed="true"]').textContent).toBe('Carteira');
-        // O próximo passo da carteira: abrir o projeto mais urgente (a primeira linha) é o único primário.
-        const primarios = [...el('c').querySelectorAll('.btn-primary')];
-        expect(primarios.map((b) => b.getAttribute('aria-label'))).toEqual(['Abrir Clínica <b>Exemplo</b>']);
-        window.painelVista('projeto');
-        expect(localStorage.getItem('n360_vista')).toBe('projeto');
-        await abrir('n360');
-        expect(chamadas(f)).toContain('GET /api/v1/projects/p9/painel');
-        // "Abrir" leva ao módulo da pendência, com o projeto ativo
-        window.painelAbrirProjeto('p8', 'privacy');
-        expect(S.activeProject.id).toBe('p8');
-        expect(irPara).toHaveBeenCalledWith('/privacy');
-        // storage indisponível: lê e grava em try/catch
-        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('bloqueado'); });
-        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('bloqueado'); });
-        expect(() => window.painelVista('projeto')).not.toThrow();
-        await abrir('n360');
-        expect(el('c').querySelector('.pn-carteira')).toBeNull();
-        window.painelVista('carteira');
-        await abrir('n360');
-        expect(el('c').querySelector('.pn-carteira')).not.toBeNull();
+        window.abrirModulo('iso');
+        expect(irPara).toHaveBeenLastCalledWith('/iso');
+        irPara.mockClear();
+        window.abrirModulo('https://evil.example');
+        expect(irPara).not.toHaveBeenCalled();
     });
 
     it('"Abrir" com módulo que a pessoa não tem (ot) cai no primeiro módulo visível do projeto', () => {
@@ -297,14 +337,12 @@ describe('início do n.360', () => {
         expect(irPara).not.toHaveBeenCalledWith('/ot');
     });
 
-    it('cliente com um projeto: sem alternância e sem carteira', async () => {
-        S.user = { id: 'u2', role: 'org_user' };
+    it('cliente (preso ao projeto dele): pede só o painel do projeto dele, nunca a carteira', async () => {
+        S.user = { id: 'u2', role: 'org_user', client_project_id: 'p9' };
         window.ehEquipeNess = () => false;
-        S.projects = [S.activeProject, { id: 'p8', modulos: ['iso'] }];
         const f = servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ visao: 'cliente', decisoes: [] }) });
         await abrir('n360');
         expect(chamadas(f)).toEqual(['GET /api/v1/projects/p9/painel']);
-        expect(el('a').querySelector('.pn-alterna')).toBeNull();
         expect(el('c').textContent).toContain('Nada esperando a sua decisão agora.');
     });
 
@@ -361,7 +399,7 @@ describe('o cliente age: a entrada do cliente', () => {
         jornada: { atual: { numero: 3, titulo: 'Entrevistas <b>por</b> Trilha', status: 'in_progress' }, concluidas: 2, total: 41 }, ...extra });
     const CLIENTE = (extra = {}) => PAINEL({ visao: 'cliente', modulos_pedidos: ['iso'], saude: { tom: 'ok', rotulo: 'Em dia', frase: 'Nada vencido.', apoio: '' }, modulos: { iso: ISO() }, decisoes: [], ...extra });
     beforeEach(() => {
-        S.user = { id: 'u2', role: 'org_admin' };
+        S.user = { id: 'u2', role: 'org_admin', client_project_id: 'p9' };
         window.ehEquipeNess = () => false;
         S.view = 'dashboard';
         history.replaceState(null, '', '/iso');
