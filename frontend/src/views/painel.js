@@ -249,7 +249,7 @@ function situacao(d, projectId, nome) {
 /** O painel do projeto sem `?modulo` (os módulos do projeto que a pessoa tem), guardado os mesmos 60 s de `S.painel`. */
 async function situacaoDoProjeto(projectId) {
     S.painel = S.painel || {};
-    const chave = `${projectId}|n360`;
+    const chave = chaveDe(`${projectId}|n360`);
     if (valido(S.painel[chave])) return S.painel[chave].dados;
     const dados = await api('GET', `/api/v1/projects/${encodeURIComponent(projectId)}/painel`);
     if (!dados || !dados.modulos) throw new Error('Painel sem módulos');
@@ -374,6 +374,8 @@ function semModulo(c, entrada, proj) {
         acao: `${acao}<a class="btn" href="${e(enderecoDoProduto('n360'))}">Voltar ao início do n.360</a>` });
 }
 
+// O cache é por pessoa: a visão (equipe ou cliente) de um projeto nunca serve a outra pessoa sem recarregar a página.
+const chaveDe = (k) => `${S.user ? S.user.id : ''}|${k}`;
 const valido = (x) => x && Date.now() - x.t < VALIDADE_MS;
 
 async function carregar(c, a, entrada, proj, chave, buscar, desenho) {
@@ -415,7 +417,7 @@ export async function renderPainel(c, h, a, entrada) {
     if (entrada === 'n360') { await renderInicioDoN360(c, h, a); return; }
     const proj = projetoDaEntrada();
     if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
-    await carregar(c, a, entrada, proj, `${proj.id}|${entrada}`, () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel?modulo=${entrada}`),
+    await carregar(c, a, entrada, proj, chaveDe(`${proj.id}|${entrada}`), () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel?modulo=${entrada}`),
         (dados) => (dados && dados.modulos ? desenhar(c, a, entrada, proj, dados)
             : (c.innerHTML = renderErrorState('Não foi possível montar o painel.'))));
 }
@@ -434,11 +436,11 @@ async function renderInicioDoN360(c, h, a) {
     if (idCliente) {
         const proj = (S.projects || []).find((p) => p.id === idCliente);
         if (!proj) { vazioDoInicio(c, h); return; }
-        await carregar(c, a, 'n360', proj, `${proj.id}|n360`, () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel`),
+        await carregar(c, a, 'n360', proj, chaveDe(`${proj.id}|n360`), () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel`),
             (dados) => { c.innerHTML = dados && dados.modulos ? telaDoCliente(dados, proj) : renderErrorState('Não foi possível montar o painel.'); });
         return;
     }
-    await carregar(c, a, 'n360', null, 'carteira', () => api('GET', '/api/v1/carteira'), (dados) => telaDaLista(c, h, dados));
+    await carregar(c, a, 'n360', null, chaveDe('carteira'), () => api('GET', '/api/v1/carteira'), (dados) => telaDaLista(c, h, dados));
 }
 
 /**

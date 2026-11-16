@@ -108,7 +108,7 @@ describe('entrada do n.privacy', () => {
         await abrir();
         await abrir();
         expect(f).toHaveBeenCalledTimes(1);
-        S.painel['p9|privacy'].t -= 61_000;
+        S.painel['u1|p9|privacy'].t -= 61_000;
         let soltar;
         vi.stubGlobal('fetch', vi.fn(() => new Promise((r) => { soltar = () => r(resposta(PAINEL({ saude: { tom: 'ok', rotulo: 'Em dia', frase: 'Nada vencido.', apoio: '' } }))); })));
         montar();
@@ -500,5 +500,46 @@ describe('o cliente age: a entrada do cliente', () => {
         window.painelAbrirProjeto('p9', 'iso');
         expect(S.activeProject.id).toBe('p9');
         expect(irPara).toHaveBeenCalled();
+    });
+    it('cache por pessoa: a situação da equipe em p9 não serve o cliente de p9 (troca de usuário sem recarregar)', async () => {
+        history.replaceState(null, '', '/');
+        S.view = 'inicio';
+        S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy'] };
+        window.ehEquipeNess = () => true;
+        const f = servir({ 'GET /api/v1/carteira': { projetos: [{ id: 'p9', nome: 'Exemplo', modulos: ['iso'], tom: 'ok', situacao: 'Em dia', urgente: '' }] },
+            'GET /api/v1/projects/p9/painel': PAINEL({ visao: 'equipe', modulos: { iso: ISO({ saude: { tom: 'ok', rotulo: 'Em dia', frase: 'SEGREDO-EQUIPE' } }) } }) });
+        await abrir('n360');
+        await window.painelVerSituacao('p9', 'Exemplo', el('c').querySelector('[data-action="painelVerSituacao"]'));
+        expect(el('c').textContent).toContain('SEGREDO-EQUIPE');
+        // sai e entra o cliente de p9, sem recarregar a página
+        S.user = { id: 'u2', role: 'org_user', client_project_id: 'p9' };
+        window.ehEquipeNess = () => false;
+        const g = servir({ 'GET /api/v1/projects/p9/painel': CLIENTE() });
+        await abrir('n360');
+        expect(chamadas(g)).toEqual(['GET /api/v1/projects/p9/painel']);
+        expect(el('c').textContent).not.toContain('SEGREDO-EQUIPE');
+        expect(f).toBeDefined();
+    });
+    it('cliente com client_project_id fora de S.projects: vazio, sem chamada de rede', async () => {
+        history.replaceState(null, '', '/');
+        S.view = 'inicio';
+        S.projects = [{ id: 'p8', modulos: ['iso'] }];
+        const f = servir({});
+        await abrir('n360');
+        expect(f).not.toHaveBeenCalled();
+        expect(el('c').querySelector('[data-action="painelAbrirProjeto"]')).toBeNull();
+    });
+    it('projeto lembrado de OUTRA conta no navegador é ignorado: o Início do cliente usa o dele', async () => {
+        history.replaceState(null, '', '/');
+        S.view = 'inicio';
+        S.projects = [S.activeProject, { id: 'p8', client_name: 'Outra', modulos: ['iso'] }];
+        localStorage.setItem('niso_activeProject', JSON.stringify(S.projects[1]));
+        S.activeProject = S.projects[1];
+        const f = servir({ 'GET /api/v1/projects/p9/painel': CLIENTE() });
+        await abrir('n360');
+        localStorage.removeItem('niso_activeProject');
+        expect(chamadas(f)).toEqual(['GET /api/v1/projects/p9/painel']);
+        expect(el('c').querySelector('#pn-proj').textContent).toBe('Exemplo Log');
+        expect(S.activeProject).toBeNull();
     });
 });

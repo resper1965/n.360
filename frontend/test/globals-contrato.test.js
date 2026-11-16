@@ -78,6 +78,12 @@ describe('alteração de escopo (projects.ts:745-767)', () => {
 });
 
 describe('doLogout encerra a sessão no servidor (auth.ts:418)', () => {
+    it('zera o cache do painel (a visão de uma pessoa não serve a próxima)', () => {
+        servir({});
+        S.painel = { 'u1|p9|n360': { t: Date.now(), dados: {} } };
+        window.doLogout();
+        expect(S.painel).toEqual({});
+    });
     it('com token: POST /api/v1/auth/logout com o Bearer, e esquece o token', () => {
         const f = servir({ 'POST /api/v1/auth/logout': { ok: true } });
         S.token = 'tok-1';

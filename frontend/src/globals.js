@@ -626,7 +626,7 @@ window.doLogout = function doLogout() {
         // Sem isto o poll seguia rodando apos o logout: cada ciclo tomava 401 e
         // chamava doLogout de novo.
         clearInterval(window._notifPoll);
-        S.token = null; S.user = null; S.activeProject = null; S.orgAtuacao = null;
+        S.token = null; S.user = null; S.activeProject = null; S.orgAtuacao = null; S.painel = {};
         try { sessionStorage.removeItem('niso_orgAtuacao'); } catch { /* sem storage */ }
         localStorage.removeItem('niso_token');
         localStorage.removeItem('niso_user');
@@ -1611,6 +1611,7 @@ window.initApp = async function initApp() {
         // de erro atrás da outra.
         if (await window.checkLegalGate()) return;
 
+        S.painel = {};
         mostrarEntrada(false);
         const ehStakeholder = S.user && S.user.role === 'stakeholder';
         // Stakeholder não alcança leads, projetos nem controles (403 em todos): não os pede.
