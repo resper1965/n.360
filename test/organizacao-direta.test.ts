@@ -47,3 +47,34 @@ describe('criação de organização com tipo', () => {
     expect((await um('SELECT tipo FROM organizations WHERE id = ?', 'org_empresa-direta')).tipo).toBe('direta');
   });
 });
+
+import { adminDireto } from '../src/services/organizacao';
+import { gestorArciberDireto } from '../src/services/ot-inventario';
+
+describe('adminDireto / gestorArciberDireto', () => {
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO organizations (id, name, slug, max_projects, max_users, tipo) VALUES ('org_d','Direta','direta-d',10,10,'direta'), ('org_c','Consultoria','cons-c',10,10,'consultoria')`),
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-d','D','ISO 27001','controller','Active','org_d'),('p-c','C','ISO 27001','controller','Active','org_c')`),
+      env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title, is_primary) VALUES ('p-d','Ana','ana@d.lat','operacoes','Gestor ARCiber',1)`),
+    ]);
+  });
+  const ad = { id: 'u-ad', email: 'ana@d.lat', role: 'consultoria_admin', org_id: 'org_d' };
+  it('admin da organização direta, no projeto dela', async () => expect(await adminDireto(env.DB, ad, 'p-d')).toBe(true));
+  it('não em projeto de outra organização', async () => expect(await adminDireto(env.DB, ad, 'p-c')).toBe(false));
+  it('consultoria_admin de consultoria não passa', async () => expect(await adminDireto(env.DB, { ...ad, org_id: 'org_c' }, 'p-c')).toBe(false));
+  it('outros papéis, agente e chave de API não passam', async () => {
+    for (const u of [{ ...ad, role: 'consultor' }, { ...ad, role: 'org_admin' }, { ...ad, agente: true }, { ...ad, id: 'apikey:k' }, null]) {
+      expect(await adminDireto(env.DB, u as any, 'p-d')).toBe(false);
+    }
+  });
+  it('organização suspensa não passa', async () => {
+    await env.DB.prepare(`UPDATE organizations SET status = 'Suspended' WHERE id = 'org_d'`).run();
+    expect(await adminDireto(env.DB, ad, 'p-d')).toBe(false);
+    await env.DB.prepare(`UPDATE organizations SET status = 'Active' WHERE id = 'org_d'`).run();
+  });
+  it('gestor: admin direto que consta no cargo (e-mail igual)', async () => {
+    expect(await gestorArciberDireto(env.DB, ad, 'p-d')).toBe(true);
+    expect(await gestorArciberDireto(env.DB, { ...ad, email: 'outro@d.lat' }, 'p-d')).toBe(false);
+  });
+});

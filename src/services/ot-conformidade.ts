@@ -3,10 +3,9 @@
 // verificação vencida). Ausência de violação no cadastro não prova o item; e nada aqui diz "atende": no máximo, "o inventário
 // registra o que o item pede". Item que o inventário não cobre fica `sem_evidencia`. Tudo filtrado pelos sites permitidos (P0-4).
 import { sitesComZonas411 } from './ot-fase';
-import { FLUXO_VISIVEL } from './ot-inventario';
+import { FLUXO_VISIVEL, CARGO_GESTOR_ARCIBER } from './ot-inventario';
 
-/** Cargo do Gestor ARCiber em `project_governance` (spec §3): a mesma regra no 4.2.1 e no aviso do step-up (ot-stepup.ts). */
-export const CARGO_GESTOR_ARCIBER = `lower(trim(job_title)) = 'gestor arciber'`;
+export { CARGO_GESTOR_ARCIBER };
 export type Situacao = 'nao_atende' | 'evidencia_no_inventario' | 'sem_evidencia';
 const VIGENCIA = '2021-07-09'; // RO-CB.BR.01 Rev.00
 const NO_SITE = 'site_id IN (SELECT value FROM json_each(?))';

@@ -202,3 +202,27 @@ export async function lerConfigOrg(db: D1Database, orgId: string): Promise<Confi
 export function formatarNumeroProposta(prefixo: string, ano: number, n: number): string {
   return `${prefixo}-${ano}-${String(n).padStart(3, '0')}`;
 }
+
+export type TipoOrg = 'consultoria' | 'direta';
+
+/** O tipo da organização, lido do banco. Organização inexistente = `null`. */
+export async function tipoDaOrg(db: D1Database, orgId: string | null | undefined): Promise<TipoOrg | null> {
+  if (!orgId) return null;
+  const r = await db.prepare('SELECT tipo FROM organizations WHERE id = ?').bind(orgId).first<{ tipo: TipoOrg }>();
+  return r?.tipo ?? null;
+}
+
+/**
+ * O `consultoria_admin` da organização DIRETA (a empresa que usa o n.360 por conta própria), no projeto dela. As quatro condições
+ * juntas: papel, organização da SESSÃO (`org_id`, nunca o `X-Org-Id`), `projects.org_id` igual a ela e tipo `direta` lido do banco
+ * com a organização ativa. Pessoa apenas: agente e chave de API entram como `client` e, por garantia, também são recusados aqui.
+ */
+export async function adminDireto(
+  db: D1Database, user: { role?: string | null; org_id?: string | null; id?: string | null; agente?: boolean } | null | undefined, projectId: string,
+): Promise<boolean> {
+  if (!user || user.role !== 'consultoria_admin' || user.agente === true || String(user.id ?? '').startsWith('apikey:')) return false;
+  const org = orgDoUsuario(user);
+  if (!org) return false;
+  return !!await db.prepare(`SELECT 1 FROM organizations o JOIN projects p ON p.org_id = o.id
+    WHERE o.id = ? AND p.id = ? AND o.tipo = 'direta' AND o.status = 'Active'`).bind(org, projectId).first();
+}
