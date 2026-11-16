@@ -432,7 +432,7 @@ export const SQL_MARCO_DO_PROGRAMA = `SELECT min(d) AS d FROM (
       WHERE pe.project_id = ?1 AND pe.papel_exigido IN ('ciso', 'ceo') AND pd.status = 'aprovado')`;
 
 /** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu. */
-export type QuemPede = { id?: string; email?: string; cliente: boolean; role?: string; client_project_id?: string | null };
+export type QuemPede = { id?: string; email?: string; cliente: boolean; role?: string; client_project_id?: string | null; org_id?: string | null };
 
 export async function painelDoProjeto(db: D1Database, projectId: string, modulos: Modulo[], quem: QuemPede) {
   const dia = hoje();
@@ -460,7 +460,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, quem) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
   const ot = modulos.includes('ot') && quem.id
-    ? await blocoOt(db, projectId, { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', client_project_id: quem.client_project_id }, dia, new Date()) : null;
+    ? await blocoOt(db, projectId, { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', org_id: quem.org_id, client_project_id: quem.client_project_id }, dia, new Date()) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
   const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0 || (!!ot && !ot.comecando));
   const decisoes = (pedidos.results as { id: string; tipo: string; titulo: string; papel_exigido: string; criado_em: string }[]).map((p) => ({

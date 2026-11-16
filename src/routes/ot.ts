@@ -11,7 +11,7 @@ import {
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
-import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { gestorArciberDireto, ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
@@ -768,7 +768,7 @@ otApp.put('/assessment/:codigo', async (c) => {
 otApp.post('/assessment/:codigo/confirmar', async (c) => {
   try {
     const { db, user, projectId } = await contexto(c);
-    if (!ehGestorArciber(c, projectId)) return c.json({ error: 'Só o Gestor ARCiber confirma a avaliação' }, 403);
+    if (!(await ehGestorArciber(c, projectId))) return c.json({ error: 'Só o Gestor ARCiber confirma a avaliação' }, 403);
     const v = await validateBody(c, otAvaliacaoConfirmarSchema);
     if (!v.success) return v.response;
     const codigo = c.req.param('codigo');
@@ -811,21 +811,25 @@ otApp.get('/relatorio/conformidade', async (c) => {
 
 // ─── agente de coleta (L5, plano 2026-11-04) ───────────────────────────────────────────
 // Ligar é a autorização do cliente: só o Gestor ARCiber do projeto. Emitir/revogar: quem vê o inventário completo.
-const ehGestorArciber = (c: C, projectId: string) => c.get('user').role === 'org_admin' && c.get('user').client_project_id === projectId;
+const ehGestorArciber = async (c: C, projectId: string) => {
+  const u = c.get('user');
+  if (u.role === 'org_admin' && u.client_project_id === projectId) return true;
+  return gestorArciberDireto(c.env.DB, u, projectId);
+};
 const SO_COMPLETO = (c: C) => c.json({ error: 'Forbidden: só o Gestor ARCiber e a consultoria designada gerenciam as chaves do agente' }, 403);
 
 otApp.get('/agente', async (c) => {
   try {
     const { db, user, projectId } = await contexto(c);
     const p = await db.prepare('SELECT agente_coleta_ot FROM projects WHERE id = ?').bind(projectId).first<{ agente_coleta_ot: number }>();
-    return c.json({ ligado: p?.agente_coleta_ot === 1, pode_ligar: ehGestorArciber(c, projectId), pode_emitir: await podeVerCompleto(db, user, projectId), endpoint: `${appUrl(c.env)}/ot-coleta/mcp` });
+    return c.json({ ligado: p?.agente_coleta_ot === 1, pode_ligar: await ehGestorArciber(c, projectId), pode_emitir: await podeVerCompleto(db, user, projectId), endpoint: `${appUrl(c.env)}/ot-coleta/mcp` });
   } catch (e) { return erro500(c, 'Falha ao ler o agente de coleta', e); }
 });
 
 otApp.put('/agente', async (c) => {
   try {
     const { db, projectId } = await contexto(c);
-    if (!ehGestorArciber(c, projectId)) return c.json({ error: 'Só o Gestor ARCiber liga o agente de coleta' }, 403);
+    if (!(await ehGestorArciber(c, projectId))) return c.json({ error: 'Só o Gestor ARCiber liga o agente de coleta' }, 403);
     const v = await validateBody(c, otAgenteInterruptorSchema);
     if (!v.success) return v.response;
     await db.prepare('UPDATE projects SET agente_coleta_ot = ? WHERE id = ?').bind(Number(v.data.ligado), projectId).run();
@@ -1008,7 +1012,7 @@ otApp.post('/sites/:id/base/pedir', async (c) => {
 });
 otApp.post('/sites/:id/base/aprovar', async (c) => {
   try {
-    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
+    if (!(await ehGestorArciber(c, c.req.param('projectId')!))) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
     const v = await validateBody(c, otBaseAprovarSchema);
     if (!v.success) return v.response;
     return await decidirBase(c, 'aprovada');
@@ -1016,7 +1020,7 @@ otApp.post('/sites/:id/base/aprovar', async (c) => {
 });
 otApp.post('/sites/:id/base/devolver', async (c) => {
   try {
-    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
+    if (!(await ehGestorArciber(c, c.req.param('projectId')!))) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a base' }, 403);
     const v = await validateBody(c, otBaseDevolverSchema);
     if (!v.success) return v.response;
     return await decidirBase(c, 'devolvida', v.data.motivo);
@@ -1036,7 +1040,7 @@ async function decidirObra(c: C, fn: typeof abrirObra, acao: 'aberta' | 'renovad
 // uma rota por declaração, com o validateBody dentro dela: é o que o contrato (test/openapi.test.ts) consegue ler
 otApp.post('/sites/:id/obra/abrir', async (c) => {
   try {
-    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
+    if (!(await ehGestorArciber(c, c.req.param('projectId')!))) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
     const v = await validateBody(c, otObraSchema);
     if (!v.success) return v.response;
     return await decidirObra(c, abrirObra, 'aberta', v.data);
@@ -1044,7 +1048,7 @@ otApp.post('/sites/:id/obra/abrir', async (c) => {
 });
 otApp.post('/sites/:id/obra/renovar', async (c) => {
   try {
-    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
+    if (!(await ehGestorArciber(c, c.req.param('projectId')!))) return c.json({ error: 'Forbidden: só o Gestor ARCiber decide a obra' }, 403);
     const v = await validateBody(c, otObraSchema);
     if (!v.success) return v.response;
     return await decidirObra(c, renovarObra, 'renovada', v.data);
@@ -1126,7 +1130,7 @@ otApp.post('/desvios/:id/tratar', async (c) => {
 
 otApp.post('/desvios/:id/aceitar', async (c) => {
   try {
-    if (!ehGestorArciber(c, c.req.param('projectId')!)) return c.json({ error: 'Forbidden: só o Gestor ARCiber aceita um desvio' }, 403);
+    if (!(await ehGestorArciber(c, c.req.param('projectId')!))) return c.json({ error: 'Forbidden: só o Gestor ARCiber aceita um desvio' }, 403);
     const v = await validateBody(c, otDesvioAceitarSchema);
     if (!v.success) return v.response;
     return await fecharDesvio(c, 'aceito', v.data.justificativa, `${v.data.ate}T23:59:59.999Z`);

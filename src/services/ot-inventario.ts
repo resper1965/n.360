@@ -46,6 +46,7 @@ export async function podeVerCompleto(db: D1Database, u: AtorOt, projectId: stri
   if (naoEhPessoa(u)) return false;
   if (u.role === 'org_admin' || ehConsultor(u)) return true;
   if (u.role !== 'consultoria_admin') return false;
+  if (await adminDireto(db, u, projectId)) return true;
   return !!await db.prepare(`SELECT 1 FROM projects WHERE id = ? AND id IN (${PROJETOS_DO_CONSULTOR_SQL})`).bind(projectId, u.email).first();
 }
 

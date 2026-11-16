@@ -4,7 +4,7 @@ import app from '../src/index';
 import { hashPassword } from '../src/helpers';
 import { adminDireto, tipoDaOrg } from '../src/services/organizacao';
 import { gestorArciberDireto } from '../src/services/ot-inventario';
-import { applySchema, workerEnv, sessionFor } from './helpers/d1';
+import { applySchema, workerEnv, sessionFor, habilitarOt, concederModulos } from './helpers/d1';
 
 const SENHA = 'Senha-forte-123!';
 const json = { 'Content-Type': 'application/json' };
@@ -93,5 +93,52 @@ describe('adminDireto / gestorArciberDireto', () => {
     expect(await tipoDaOrg(env.DB, 'org_c')).toBe('consultoria');
     expect(await tipoDaOrg(env.DB, 'org_nope')).toBeNull();
     expect(await tipoDaOrg(env.DB, null)).toBeNull();
+  });
+});
+
+describe('n.ot: Gestor ARCiber na organização direta', () => {
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id) VALUES
+        ('u-ana','ana@d.lat','x','Ana','consultoria_admin','org_d'),('u-beto','beto@d.lat','x','Beto','consultoria_admin','org_d'),
+        ('u-cris','cris@c.lat','x','Cris','consultoria_admin','org_c')`),
+    ]);
+    await habilitarOt('p-d', 'p-c');
+    await concederModulos(['u-ana', 'u-beto', 'u-cris'], ['ot']);
+    S.ana = await sessionFor({ id: 'u-ana', email: 'ana@d.lat', role: 'consultoria_admin', org_id: 'org_d' } as any);
+    S.beto = await sessionFor({ id: 'u-beto', email: 'beto@d.lat', role: 'consultoria_admin', org_id: 'org_d' } as any);
+    S.cris = await sessionFor({ id: 'u-cris', email: 'cris@c.lat', role: 'consultoria_admin', org_id: 'org_c' } as any);
+  });
+  it('admin direto designado Gestor liga o agente; o não designado e o de consultoria não', async () => {
+    expect((await chamar('PUT', '/api/v1/projects/p-d/ot/agente', S.ana, { ligado: true })).status).toBe(200);
+    expect((await chamar('PUT', '/api/v1/projects/p-d/ot/agente', S.beto, { ligado: true })).status).toBe(403);
+    expect((await chamar('PUT', '/api/v1/projects/p-d/ot/agente', S.cris, { ligado: true })).status).toBe(403);
+    expect((await chamar('PUT', '/api/v1/projects/p-c/ot/agente', S.cris, { ligado: true })).status).toBe(403);
+  });
+  it('GET /agente: pode_ligar só para o Gestor designado', async () => {
+    expect((await (await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.ana)).json() as any).pode_ligar).toBe(true);
+    expect((await (await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.beto)).json() as any).pode_ligar).toBe(false);
+  });
+  it('projeto da organização direta não é alcançável por admin de outra organização', async () => {
+    expect((await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.cris)).status).toBeGreaterThanOrEqual(403);
+  });
+  it('podeVerCompleto: admin direto sim; consultoria_admin sem designação, agente e chave de API não', async () => {
+    const { podeVerCompleto } = await import('../src/services/ot-inventario');
+    expect(await podeVerCompleto(env.DB, { id: 'u-beto', email: 'beto@d.lat', role: 'consultoria_admin', org_id: 'org_d' }, 'p-d')).toBe(true);
+    expect(await podeVerCompleto(env.DB, { id: 'u-cris', email: 'cris@c.lat', role: 'consultoria_admin', org_id: 'org_c' }, 'p-c')).toBe(false);
+    expect(await podeVerCompleto(env.DB, { id: 'u-cris', email: 'cris@c.lat', role: 'consultoria_admin', org_id: 'org_c' }, 'p-d')).toBe(false);
+    for (const u of [{ id: 'apikey:k', role: 'consultoria_admin' }, { id: 'ag', role: 'consultoria_admin', agente: true }]) {
+      expect(await podeVerCompleto(env.DB, { ...u, email: 'beto@d.lat', org_id: 'org_d' }, 'p-d')).toBe(false);
+    }
+  });
+  it('aviso e painel: pessoasDoProjeto traz o org_id do admin direto, que então é Gestor', async () => {
+    const { pessoasDoProjeto } = await import('../src/services/avisos-prazo');
+    const ps = await pessoasDoProjeto(env.DB, 'p-d');
+    const ana = ps.find((p) => p.id === 'u-ana')!;
+    expect(await gestorArciberDireto(env.DB, ana, 'p-d')).toBe(true);
+    expect(await gestorArciberDireto(env.DB, ps.find((p) => p.id === 'u-beto')!, 'p-d')).toBe(false);
+    const { blocoOt } = await import('../src/services/painel-ot');
+    const b: any = await blocoOt(env.DB, 'p-d', { id: 'u-ana', email: 'ana@d.lat', role: 'consultoria_admin', org_id: 'org_d' }, '2026-11-16', new Date('2026-11-16'));
+    expect(b).toBeTruthy();
   });
 });
