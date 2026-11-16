@@ -231,6 +231,10 @@ export async function decidirPedido(
   const meu = await meuPedido(db, user, pedidoId);
   if (!meu) return { status: 404, corpo: { error: 'Pedido não encontrado' } };
   const { pedido, dest } = meu;
+  // Segregação de funções (spec onda 1): quem pediu não decide o que pediu. `criado_por` é o e-mail de quem criou.
+  if (pedido.criado_por.toLowerCase() === (user.email ?? '').toLowerCase()) {
+    return { status: 403, corpo: { error: 'Quem pediu a aprovação não a decide. Peça a outra pessoa.' } };
+  }
 
   const vig = await conferirEAvisar(c, pedido);
   if (!vig.vigente) {

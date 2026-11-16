@@ -230,3 +230,39 @@ describe('privacy: matriz de assinatura, revogação, titular', () => {
     expect((await montarFicha(env.DB, 'p-c', 'ro-g', cris))!.acoes.reabrir.habilitada).toBe(false);
   });
 });
+
+describe('quem criou não decide', () => {
+  const ator = (id: string, email: string) => ({ id, email, role: 'consultoria_admin', org_id: 'org_d' }) as any;
+  it('pedido: o criador não aprova nem recusa (rota); o colega passa do portão', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO pedidos (id, org_id, project_id, tipo, ref_id, titulo, papel_exigido, conteudo_json, hash, criado_por)
+        VALUES ('ped-q','org_d','p-d','documento','doc-q','Doc','ciso','{}','h','Beto@D.lat')`),
+      env.DB.prepare(`INSERT INTO pedido_destinatarios (id, pedido_id, email, user_id) VALUES ('pd-b','ped-q','beto@d.lat','u-beto'),('pd-a','ped-q','ana@d.lat','u-ana')`),
+    ]);
+    for (const acao of ['aprovar', 'recusar']) {
+      const r = await chamar('POST', `/api/v1/pedidos/ped-q/${acao}`, S.beto, { senha: SENHA, motivo: 'x' });
+      expect(r.status).toBe(403);
+      expect((await r.json() as any).error).toMatch(/quem pediu/i);
+    }
+    const ok = await chamar('POST', '/api/v1/pedidos/ped-q/aprovar', S.ana, { senha: SENHA });
+    expect(JSON.stringify(await ok.json())).not.toMatch(/quem pediu/i);
+  });
+  it('base do site: quem pediu não aprova; outro aprova', async () => {
+    const { aprovarBase } = await import('../src/services/ot-fase');
+    await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase, base_pedida_por) VALUES ('s-q','p-d','SE Q','base_em_aprovacao','u-beto')`).run();
+    expect(await aprovarBase(env.DB, ator('u-beto', 'beto@d.lat'), 'p-d', 's-q')).toMatchObject({ ok: false, status: 403 });
+    // o colega passa do portão: falha por outra razão (sem zonas 4.1.1), nunca 403
+    expect(await aprovarBase(env.DB, ator('u-ana', 'ana@d.lat'), 'p-d', 's-q')).not.toMatchObject({ status: 403 });
+    expect((await um('SELECT fase FROM ot_sites WHERE id = ?', 's-q')).fase).toBe('base_em_aprovacao');
+  });
+  it('avaliação: quem avaliou não confirma; outro confirma', async () => {
+    const { salvarAvaliacao, confirmarAvaliacao } = await import('../src/services/ot-avaliacao');
+    const cod = '9.9';
+    await env.DB.prepare(`INSERT OR IGNORE INTO ot_requisitos (id, framework, codigo, titulo, versao) VALUES ('rq-q', 'ONS-RO-CB.BR.01', ?, 't', 'v')`).bind(cod).run();
+    const beto = ator('u-beto', 'beto@d.lat');
+    expect(await salvarAvaliacao(env.DB, beto, 'p-d', cod, { situacao: 'atende' } as any)).toMatchObject({ ok: true });
+    const visto = (await um<any>('SELECT updated_at u FROM ot_avaliacoes WHERE project_id = ?', 'p-d')).u;
+    expect(await confirmarAvaliacao(env.DB, beto, 'p-d', cod, visto)).toMatchObject({ ok: false, status: 403 });
+    expect(await confirmarAvaliacao(env.DB, ator('u-ana', 'ana@d.lat'), 'p-d', cod, visto)).toEqual({ ok: true });
+  });
+});

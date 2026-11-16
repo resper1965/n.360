@@ -12,7 +12,7 @@ export interface SituacaoSite {
   obra: { ate: string; renovada: boolean; justificativa: string | null } | null; revalidar_em: string | null;
 }
 type Ator = { id: string };
-type Falha = { ok: false; status: 400 | 404 | 409; error: string };
+type Falha = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 type Resultado = { ok: true } | Falha;
 export const OBRA_MAX_DIAS = 90;
 
@@ -93,15 +93,16 @@ const LIMPA_OBRA = 'obra_ate = NULL, obra_justificativa = NULL, obra_renovada = 
 export async function aprovarBase(db: D1Database, ator: Ator, projectId: string, siteId: string): Promise<{ ok: true; fechouObra: boolean } | Falha> {
   const antes = await db.prepare(`SELECT obra_ate FROM ot_sites WHERE id = ? AND project_id = ?`).bind(siteId, projectId).first<{ obra_ate: string | null }>();
   const r = await db.prepare(`UPDATE ot_sites SET fase = 'em_operacao', base_aprovada_em = CURRENT_TIMESTAMP, base_aprovada_por = ?, ${LIMPA_OBRA}, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND project_id = ? AND status = 'ativo' AND fase = 'base_em_aprovacao'
+    WHERE id = ? AND project_id = ? AND status = 'ativo' AND fase = 'base_em_aprovacao' AND base_pedida_por IS NOT ?
     AND NOT EXISTS (SELECT 1 FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
       WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = 'rascunho'${SEM_SONDA})
     AND NOT EXISTS (SELECT 1 FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao')
     AND id IN (${sitesComZonas411('site_id = ?')})`)
-    .bind(ator.id, siteId, projectId, projectId, siteId, projectId, siteId, projectId, siteId).run();
+    .bind(ator.id, siteId, projectId, ator.id, projectId, siteId, projectId, siteId, projectId, siteId).run();
   if (r.meta.changes) return { ok: true, fechouObra: !!antes?.obra_ate };
-  const site = await db.prepare(`SELECT fase FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`).bind(siteId, projectId).first<{ fase: Fase }>();
+  const site = await db.prepare(`SELECT fase, base_pedida_por FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`).bind(siteId, projectId).first<{ fase: Fase; base_pedida_por: string | null }>();
   if (!site) return { ok: false, status: 404, error: 'Site não encontrado' };
+  if (site.fase === 'base_em_aprovacao' && site.base_pedida_por === ator.id) return { ok: false, status: 403, error: 'Quem pediu a base não a aprova. Peça a outra pessoa.' };
   return { ok: false, status: 409, error: site.fase === 'base_em_aprovacao' ? 'As condições da base mudaram desde o pedido' : 'A base não está em aprovação' };
 }
 

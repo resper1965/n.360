@@ -744,7 +744,7 @@ otApp.get('/conformidade', async (c) => {
 });
 
 // ─── assessment da RO-CB.BR.01 (spec fluidez §5) ────────────────────────────
-const respostaAvaliacao = (c: C, r: { ok: true } | { ok: false; status: 400 | 404 | 409; error: string }) => r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+const respostaAvaliacao = (c: C, r: { ok: true } | { ok: false; status: 400 | 403 | 404 | 409; error: string }) => r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
 
 otApp.get('/assessment', async (c) => {
   try {

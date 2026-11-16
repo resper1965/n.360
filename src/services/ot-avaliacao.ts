@@ -13,7 +13,7 @@ const MAC = /\b[0-9a-f]{2}(?:[:-][0-9a-f]{2}){5}\b/gi;
 /** Tira IP e MAC do texto livre que vai ao relatório e à tela; código de item (4.5.1.1) tem a forma de IP e fica. */
 const semRede = (t: string | null, codigos: Set<string>) => t && t.replace(IPV4, (m) => (codigos.has(m) ? m : '[omitido]')).replace(MAC, '[omitido]');
 type Ator = { id: string };
-type Falha = { ok: false; status: 400 | 404 | 409; error: string };
+type Falha = { ok: false; status: 400 | 403 | 404 | 409; error: string };
 type Resultado = { ok: true } | Falha;
 // milissegundos: o updated_at é a versão que o Gestor confirma, e duas gravações no mesmo segundo não podem empatar
 const AGORA_MS = `strftime('%Y-%m-%d %H:%M:%f', 'now')`;
@@ -132,10 +132,11 @@ export async function confirmarAvaliacao(db: D1Database, ator: Ator, projectId: 
   const rq = await requisito(db, codigo);
   if (!rq) return falha(404, 'Requisito não encontrado');
   const r = await db.prepare(`UPDATE ot_avaliacoes SET confirmado_por = ?, confirmado_em = CURRENT_TIMESTAMP, proxima_revisao = coalesce(proxima_revisao, ?)
-    WHERE project_id = ? AND requisito_id = ? AND confirmado_em IS NULL AND updated_at = ?`).bind(ator.id, mesesMaisSP(12), projectId, rq.id, visto).run();
+    WHERE project_id = ? AND requisito_id = ? AND confirmado_em IS NULL AND updated_at = ? AND atualizado_por IS NOT ?`).bind(ator.id, mesesMaisSP(12), projectId, rq.id, visto, ator.id).run();
   if (r.meta.changes) return { ok: true };
-  const a = await db.prepare('SELECT confirmado_em FROM ot_avaliacoes WHERE project_id = ? AND requisito_id = ?').bind(projectId, rq.id).first<{ confirmado_em: string | null }>();
+  const a = await db.prepare('SELECT confirmado_em, atualizado_por FROM ot_avaliacoes WHERE project_id = ? AND requisito_id = ?').bind(projectId, rq.id).first<{ confirmado_em: string | null; atualizado_por: string | null }>();
   if (!a) return falha(404, 'Avaliação não encontrada');
+  if (!a.confirmado_em && a.atualizado_por === ator.id) return falha(403, 'Quem avaliou o item não o confirma. Peça a outra pessoa.');
   return falha(409, a.confirmado_em ? 'A avaliação já está confirmada' : 'A avaliação mudou depois que você abriu o item. Recarregue, revise e confirme de novo');
 }
 
