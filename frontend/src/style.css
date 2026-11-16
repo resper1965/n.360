@@ -1730,12 +1730,12 @@ td .mais-acoes-botao { padding: 4px 10px; }
 
 /* n.360: uma linha por módulo */
 .pn-modulos { display: grid; margin-bottom: 20px; border: 1px solid var(--border); background: var(--surface); }
-.pn-m { display: grid; grid-template-columns: 210px minmax(0, 1fr) auto auto; gap: 18px; align-items: center; padding: 16px 20px; }
+.pn-m { display: grid; grid-template-columns: 210px minmax(220px, 1fr) auto auto; gap: 18px; align-items: center; padding: 16px 20px; }
 .pn-m + .pn-m { border-top: 1px solid var(--border); }
 .pn-m h3 { margin: 0; font: 500 17px var(--font-head); color: var(--text); }
 .pn-m-frase { margin-top: 4px; font-size: 13.5px; color: var(--text-2); }
 .pn-m-desc { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; }
-.pn-fig { display: flex; gap: 22px; margin: 0; }
+.pn-fig { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 0; }
 .pn-fig div { display: flex; flex-direction: column-reverse; font-size: 12px; color: var(--text-dim); }
 .pn-fig dd { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
 @container (max-width: 900px) { .pn-m { grid-template-columns: minmax(0, 1fr) auto; } .pn-fig { grid-column: 1 / -1; } }
