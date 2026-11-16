@@ -91,6 +91,12 @@ describe('state.js — hidratacao a partir do localStorage', () => {
         expect(S.phaseChecks).toBeUndefined();
     });
 
+    it('apaga a escolha da vista Projeto/Carteira, que saiu do Início (n360_vista)', async () => {
+        localStorage.setItem('n360_vista', 'carteira');
+        await carregaEstado();
+        expect(localStorage.getItem('n360_vista')).toBeNull();
+    });
+
     it('expoe S em window para o codigo global legado', async () => {
         const S = await carregaEstado();
         expect(window.S).toBe(S);
