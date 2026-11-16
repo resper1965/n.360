@@ -239,3 +239,26 @@ test('cliente: o projeto dele já aberto, "Esperando a sua decisão" em cima, se
   expect(carteira).toEqual([]);
   expect(new Set(paineis)).toEqual(new Set(['/api/v1/projects/proj-e2e/painel']));
 });
+
+// O projeto lembrado de uma visita anterior não pode aparecer como ativo no seletor ao recarregar o Início, nem por um instante.
+test('recarregar o Início com projeto lembrado: o seletor nunca mostra o nome dele', async ({ page }) => {
+  await mockApi(page, ['iso', 'privacy']);
+  await page.addInitScript(() => {
+    window.__nomes = [];
+    new MutationObserver(() => {
+      const n = document.getElementById('tenant-name');
+      const t = n ? n.textContent : null;
+      if (t !== null && window.__nomes[window.__nomes.length - 1] !== t) window.__nomes.push(t);
+    }).observe(document, { subtree: true, childList: true, characterData: true });
+  });
+  await entrar(page);
+  await page.getByRole('button', { name: 'Abrir Cliente E2E no n.iso' }).click();
+  await expect(page.locator('#tenant-name')).toHaveText('Projeto E2E');
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('niso_activeProject'))).id).toBe('proj-e2e');
+  await page.goto('/login.html');
+  await expect(page.getByRole('button', { name: 'Ver situação de Cliente E2E' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  expect(await page.evaluate(() => window.__nomes.filter((n) => n.includes('E2E')))).toEqual([]);
+  await expect(page.locator('#tenant-name')).toHaveText('Nenhum projeto escolhido');
+  expect(await page.locator('#sidebar-project-select option').evaluateAll((os) => os.map((o) => o.value))).toEqual(['', 'proj-e2e']);
+});

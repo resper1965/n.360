@@ -91,6 +91,28 @@ describe('initApp no n.360: sempre o Início, sem escolher projeto nem redirecio
         expect(navigate).toHaveBeenCalledWith('inicio');
         expect(irPara).not.toHaveBeenCalled();
     });
+    it('projeto lembrado no storage: o seletor nunca o vê como ativo no Início (nem o do cliente), mas ele segue oferecido', async () => {
+        projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['iso'] }];
+        for (const eCliente of [false, true]) {
+            papel = eCliente ? { role: 'org_admin', client_project_id: 'p2' } : { role: 'consultor' };
+            S.activeProject = projetos[1]; // hidratado do storage pelo state
+            localStorage.setItem('niso_activeProject', JSON.stringify(projetos[1]));
+            const orig = window.updateSidebarProjectSelector;
+            const vistos = [];
+            window.updateSidebarProjectSelector = vi.fn(() => { vistos.push(S.activeProject); });
+            try { await window.initApp(); } finally { window.updateSidebarProjectSelector = orig; }
+            expect(vistos.length).toBeGreaterThan(0);
+            expect(vistos.every((v) => v === null), `cliente=${eCliente}`).toBe(true);
+            expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
+        }
+    });
+    it('num módulo o projeto lembrado continua sendo o ativo', async () => {
+        projetos = [{ id: 'p1', modulos: ['iso'] }, { id: 'p2', modulos: ['iso'] }];
+        history.replaceState(null, '', '/iso');
+        S.activeProject = projetos[1];
+        await window.initApp();
+        expect(S.activeProject && S.activeProject.id).toBe('p2');
+    });
     it('stakeholder continua indo aos pedidos dele', async () => {
         papel = { role: 'stakeholder' };
         await window.initApp();

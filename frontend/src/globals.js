@@ -1614,6 +1614,12 @@ window.initApp = async function initApp() {
         S.painel = {};
         mostrarEntrada(false);
         const ehStakeholder = S.user && S.user.role === 'stakeholder';
+        // O Início do n.360 (mesmo critério do destino abaixo) não tem projeto ativo: solta o hidratado do storage ANTES de
+        // loadAll, senão o seletor o mostra por um instante. O lembrado fica no storage, só para o seletor oferecê-lo primeiro.
+        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida em vez do Início (lida uma vez: telaPedida limpa o endereço).
+        const tela = produtoAtual() === 'n360' && !ehStakeholder ? telaPedida() : null;
+        const noInicio = produtoAtual() === 'n360' && !ehStakeholder && !tela;
+        if (noInicio) { S.activeProject = null; S.currentProject = null; }
         // Stakeholder não alcança leads, projetos nem controles (403 em todos): não os pede.
         if (!ehStakeholder) await loadAll();
 
@@ -1622,7 +1628,7 @@ window.initApp = async function initApp() {
             if (S.projects && S.projects.length > 0) {
                 const myProj = S.projects.find(p => p.id === S.user.client_project_id);
                 if (myProj) {
-                    S.activeProject = myProj;
+                    if (!noInicio) S.activeProject = myProj; // no Início o cliente usa o client_project_id, não o ativo
                     // Persiste sob a MESMA chave que o state hidrata no reload
                     // (niso_activeProject), senão o projeto ativo se perdia ao recarregar.
                     localStorage.setItem('niso_activeProject', JSON.stringify(myProj));
@@ -1634,8 +1640,6 @@ window.initApp = async function initApp() {
         updateActiveProjectWidget();
 
         const produto = produtoAtual();
-        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida em vez do Início.
-        const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
         const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
         // A Bancada abre no passo do endereço (`?fase=&passo=`); a própria tela o consome e mantém o endereço em dia.
