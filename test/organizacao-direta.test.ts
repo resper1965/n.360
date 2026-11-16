@@ -315,3 +315,48 @@ describe('equipe da organização direta', () => {
     expect(cli.status, await cli.clone().text()).toBe(201);
   });
 });
+
+describe('equipe direta: rodada de correção (agente e consultor)', () => {
+  const comoAgente = (metodo: string, caminho: string, props: Record<string, unknown>, headers: Record<string, string> = {}) =>
+    app.fetch(new Request('http://localhost' + caminho, { method: metodo, headers: { ...json, ...headers } }), { ...workerEnv(), COMERCIAL_ATIVO: 'false', AGENTE: props } as any);
+  const prop = (u: string, email: string, p: string) => ({ userId: u, email, projectId: p, concessaoId: 'c-' + u });
+  const DEC = { 'X-Agente-Ferramenta': 'niso_encerrar_incidente', 'X-Agente-Confirmado': '1', 'X-Agente-Motivo': 'ok' };
+  const inc = (id: string, por: string) => env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, risco_titular, status, criado_por)
+    VALUES (?, 'p-d', ?, 'V', '2026-10-01', 'baixo', 'avaliado', ?)`).bind(id, 'IN-2026-' + id, por).run();
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-u-beto','u-beto','p-d',datetime('now','+30 days')),('c-u-ana','u-ana','p-d',datetime('now','+30 days')),('c-u-cris','u-cris','p-c',datetime('now','+30 days'))`),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id, ativo) VALUES ('u-cd','cd@d.lat','x','CD','consultor','org_d',1),('u-cc','cc@c.lat','x','CC','consultor','org_c',1)`),
+      env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p-d','CD','cd@d.lat','consultor','Consultor'),('p-c','CC','cc@c.lat','consultor','Consultor')`),
+    ]);
+    S.cd = await sessionFor({ id: 'u-cd', email: 'cd@d.lat', role: 'consultor', org_id: 'org_d' } as any);
+    S.cc = await sessionFor({ id: 'u-cc', email: 'cc@c.lat', role: 'consultor', org_id: 'org_c' } as any);
+  });
+  it('agente de admin direto não alcança leads; o de consultoria alcança', async () => {
+    expect((await comoAgente('GET', '/api/v1/leads', prop('u-beto', 'beto@d.lat', 'p-d'))).status).toBe(403);
+    expect((await comoAgente('GET', '/api/v1/leads', prop('u-cris', 'cris@c.lat', 'p-c'))).status).toBe(200);
+  });
+  it('incidente: o agente de quem registrou não encerra; outra pessoa encerra', async () => {
+    await inc('a1', 'ana@d.lat');
+    const r = await comoAgente('POST', '/api/v1/projects/p-d/incidentes/a1/encerrar', prop('u-ana', 'ana@d.lat', 'p-d'), DEC);
+    expect(r.status, await r.clone().text()).toBe(403);
+    const ok = await chamar('POST', '/api/v1/projects/p-d/incidentes/a1/encerrar', S.beto, {});
+    expect(ok.status, await ok.clone().text()).toBe(200);
+  });
+  it('incidente registrado por agente: quem concedeu não encerra; outra pessoa encerra', async () => {
+    await inc('a2', 'agente de ana@d.lat (D / D)');
+    expect((await chamar('POST', '/api/v1/projects/p-d/incidentes/a2/encerrar', S.ana, {})).status).toBe(403);
+    const ok = await chamar('POST', '/api/v1/projects/p-d/incidentes/a2/encerrar', S.beto, {});
+    expect(ok.status, await ok.clone().text()).toBe(200);
+  });
+  it('contas: consultor da direta não cria cliente (POST e PUT); consultor de consultoria cria', async () => {
+    const corpo = { email: 'cli2@d.lat', name: 'Cli', role: 'org_admin', client_project_id: 'p-d' };
+    expect((await chamar('POST', '/api/v1/users', S.cd, corpo)).status).toBe(403);
+    expect(await um('SELECT 1 x FROM users WHERE email = ?', 'cli2@d.lat')).toBeNull();
+    const eq = await chamar('POST', '/api/v1/users', S.beto, { email: 'eq@d.lat', name: 'Eq', role: 'consultor' });
+    const id = (await eq.json() as any).id;
+    expect((await chamar('PUT', `/api/v1/users/${id}`, S.cd, { role: 'client', client_project_id: 'p-d' })).status).toBe(403);
+    const ok = await chamar('POST', '/api/v1/users', S.cc, { email: 'cli2@c.lat', name: 'Cli', role: 'org_admin', client_project_id: 'p-c' });
+    expect(ok.status, await ok.clone().text()).toBe(201);
+  });
+});

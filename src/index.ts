@@ -175,6 +175,8 @@ export type Variables = {
     client_project_id?: string | null;
     /** Principal do agente MCP (middleware/agente.ts): paridade de consultor, preso ao projeto. */
     agente?: boolean;
+    /** E-mail REAL da conta que concedeu o agente (o `email` do agente é um rótulo): regras de "quem registrou não decide". */
+    agente_conta?: string;
     /** Papel do agente, relido da concessão a cada chamada: consultor implementa, auditor só lê e audita. */
     agente_papel?: import('./middleware/agente').PapelAgente;
     /** Decisão confirmada do agente consultor (src/middleware/decisoes-agente.ts): a rota a trata como da equipe. */

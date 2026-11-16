@@ -227,12 +227,13 @@ usersApp.post('/', async (c) => {
     if (ehAdminDaOrg(admin) && ehCliente && (!targetProject || await orgDoProjeto(c.env.DB, targetProject) !== orgCriador)) {
       return c.json({ error: 'Forbidden: projeto fora da sua consultoria' }, 403);
     }
-    // Organização direta (decisão 8): só equipe; conta de cliente não.
-    if (ehAdminDaOrg(admin) && ehCliente && await tipoDaOrg(c.env.DB, orgCriador) === 'direta') {
-      return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
-    }
     const orgNovo = ehCliente ? (await orgDoProjeto(c.env.DB, targetProject)) ?? orgCriador : orgCriador;
     if (!orgNovo) return c.json(SEM_ORG, 403);
+    // Organização direta (decisão 8): só equipe. Vale para QUALQUER criador que não seja o platform_admin (o consultor
+    // designado também gerencia conta de cliente), pelo tipo da organização do projeto de destino.
+    if (admin.role !== 'platform_admin' && ehCliente && await tipoDaOrg(c.env.DB, orgNovo) === 'direta') {
+      return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
+    }
     // O limite do plano conta só a EQUIPE da consultoria; conta de cliente não entra.
     if (!ehCliente && await limiteDoPlanoAtingido(c.env.DB, orgNovo, 'usuarios')) return c.json(LIMITE_USUARIOS, 409);
     // O UNIQUE da coluna é sensível a caixa: conta antiga `CEO@x.com` não barraria `ceo@x.com`.
@@ -323,6 +324,11 @@ usersApp.put('/:id', async (c) => {
     const ficaCliente = PAPEIS_CLIENTE_GERIVEIS.has(papelFinal);
     if (!ficaCliente && client_project_id) return c.json(EQUIPE_SEM_PROJETO, 400);
     const projetoFinal = client_project_id !== undefined ? client_project_id : user.client_project_id;
+    // Organização direta (decisão 8): equipe não vira cliente, por quem for que edite (exceto o platform_admin).
+    if (admin.role !== 'platform_admin' && ficaCliente && !PAPEIS_CLIENTE_GERIVEIS.has(user.role)
+        && await tipoDaOrg(c.env.DB, (projetoFinal ? await orgDoProjeto(c.env.DB, projetoFinal) : null) ?? user.org) === 'direta') {
+      return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
+    }
     if (ehAdminDaOrg(admin)) {
       const minha = orgDoUsuario(admin);
       if (user.org !== minha) return c.json(NAO_ENCONTRADO, 404);
@@ -330,10 +336,6 @@ usersApp.put('/:id', async (c) => {
       // troca de papel de equipe para cliente sem mandar o projeto.
       if (ficaCliente && (!projetoFinal || await orgDoProjeto(c.env.DB, projetoFinal) !== minha)) {
         return c.json({ error: 'Forbidden: projeto fora da sua consultoria' }, 403);
-      }
-      // Organização direta (decisão 8): a troca de papel de equipe para cliente é o mesmo bypass do POST.
-      if (ficaCliente && !PAPEIS_CLIENTE_GERIVEIS.has(user.role) && await tipoDaOrg(c.env.DB, minha) === 'direta') {
-        return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
       }
       // A senha de outro administrador da consultoria só o dono (pelo fluxo de senha) ou o
       // platform_admin trocam: senão um administrador toma a conta do outro.

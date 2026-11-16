@@ -40,9 +40,9 @@ export const NOME_CLIENTE_SQL = `COALESCE(NULLIF(trim(p.client_name), ''), p.pro
 export async function concessaoValida(
   db: D1Database,
   p: PropsAgente
-): Promise<{ email: string; client_name: string; project_name: string; papel: PapelAgente; role: string; org_id: string | null } | null> {
+): Promise<{ email: string; client_name: string; project_name: string; papel: PapelAgente; role: string; org_id: string | null; org_direta: boolean } | null> {
   const row = await db.prepare(
-    `SELECT u.email, u.role, u.org_id, u.ativo, ac.papel, ${NOME_CLIENTE_SQL} AS client_name,
+    `SELECT u.email, u.role, u.org_id, u.ativo, ac.papel, (SELECT o.tipo FROM organizations o WHERE o.id = u.org_id) AS tipo, ${NOME_CLIENTE_SQL} AS client_name,
             COALESCE(NULLIF(trim(p.project_name), ''), p.id) AS project_name
        FROM agente_concessoes ac
        JOIN users u ON u.id = ac.user_id
@@ -57,7 +57,7 @@ export async function concessaoValida(
         -- já recusa o segundo; se os dois coexistirem (corrida), nenhum vale: falha fechada.
         AND NOT EXISTS (SELECT 1 FROM agente_concessoes o WHERE o.user_id = ac.user_id AND o.project_id = ac.project_id
                           AND o.papel <> ac.papel AND o.revogado_em IS NULL AND o.expira_em > datetime('now'))`
-  ).bind(p.concessaoId, p.userId, p.projectId).first<{ email: string; role: string; org_id: string | null; ativo: number | null; papel: PapelAgente; client_name: string; project_name: string }>();
+  ).bind(p.concessaoId, p.userId, p.projectId).first<{ email: string; role: string; org_id: string | null; tipo: string | null; ativo: number | null; papel: PapelAgente; client_name: string; project_name: string }>();
   if (!row || row.ativo === 0 || (row.role !== 'consultor' && row.role !== 'consultant' && row.role !== 'consultoria_admin')) return null;
   // O papel vale pelo BANCO; o do token só confere. Token sem papel é anterior à 0070, quando só havia consultor.
   if ((p.papel ?? 'consultor') !== row.papel) return null;
@@ -67,7 +67,7 @@ export async function concessaoValida(
   // Mesma regra do consultor humano (D5): uma fonte só.
   // consultoria_admin: o projeto da própria organização (p.org_id = u.org_id, acima) basta, sem designação.
   const alcanca = row.role === 'consultoria_admin' || await consultorDesignado(db, row.email, p.projectId);
-  return alcanca ? { email: row.email, client_name: row.client_name, project_name: row.project_name, papel: row.papel, role: row.role, org_id: row.org_id } : null;
+  return alcanca ? { email: row.email, client_name: row.client_name, project_name: row.project_name, papel: row.papel, role: row.role, org_id: row.org_id, org_direta: row.tipo === 'direta' } : null;
 }
 
 /** Só `resolverAgente` lê; ele só roda com `env.AGENTE`, então de fora o cabeçalho é inerte. */
@@ -211,7 +211,7 @@ export async function resolverAgente(
   // herda o isolamento de tenant; o que é destrutivo exige confirmação.
   // Área comercial (allow-list): só o agente consultor de quem É do comercial agora; o de quem não é segue recusado por
   // `FORA_DO_AGENTE`, como sempre foi.
-  const comercial = row.papel === 'consultor' && comercialDoAgente(method, path) && ehComercial({ role: row.role });
+  const comercial = row.papel === 'consultor' && comercialDoAgente(method, path) && ehComercial({ role: row.role, org_direta: row.org_direta });
   for (const [re, motivo, metodos] of FORA_DO_AGENTE) {
     if (!comercial && re.test(path) && (!metodos || metodos.includes(method))) return c.json({ error: `Forbidden: fora do alcance do agente (${motivo}) — use a interface` }, 403);
   }
@@ -253,13 +253,14 @@ export async function resolverAgente(
   }
   // Área comercial (allow-list acima): o papel e a organização REAIS de quem concedeu, relidos agora, para `somenteComercial` e
   // `exigirOrg` cortarem pela organização dela. Só nestas rotas: no resto o agente segue `client` preso ao projeto.
-  if (comercial) return { id: p.userId, email, role: row.role, org_id: row.org_id ?? undefined, client_project_id: null, agente: true, agente_papel: row.papel, ...(decisao ? { agente_decisao: decisao } : {}) };
+  if (comercial) return { id: p.userId, email, role: row.role, org_id: row.org_id ?? undefined, client_project_id: null, agente: true, agente_conta: row.email, org_direta: row.org_direta, agente_papel: row.papel, ...(decisao ? { agente_decisao: decisao } : {}) };
   return {
     id: p.userId,
     email,
     role: 'client',
     client_project_id: p.projectId,
     agente: true,
+    agente_conta: row.email,
     agente_papel: row.papel,
     ...(decisao ? { agente_decisao: decisao } : {}),
   };
