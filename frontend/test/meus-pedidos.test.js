@@ -127,6 +127,29 @@ describe('abrir e decidir', () => {
     expect(JSON.parse(init.body)).toEqual({ senha: 'certa', motivo: 'Falta o fluxo' });
   });
 
+  it('decidida a aprovação ou a recusa, o cache do Início é invalidado; erro de senha não invalida', async () => {
+    window.invalidarInicio = vi.fn();
+    await abrir();
+    el('pd-senha').value = 'errada';
+    fetchMock.mockResolvedValueOnce(json({ error: 'Senha incorreta' }, 401));
+    window.aprovarPedido(null, 'pd1');
+    await espera();
+    expect(window.invalidarInicio).not.toHaveBeenCalled();
+    el('pd-senha').value = 'certa';
+    fetchMock.mockResolvedValueOnce(json({ ok: true, status: 'aprovado' }));
+    window.aprovarPedido(null, 'pd1');
+    await espera();
+    expect(window.invalidarInicio).toHaveBeenCalledTimes(1);
+    await abrir();
+    el('pd-senha').value = 'certa';
+    el('pd-motivo').value = 'Falta o fluxo';
+    fetchMock.mockResolvedValueOnce(json({ ok: true, status: 'recusado' }));
+    window.recusarPedido('pd1');
+    await espera();
+    expect(window.invalidarInicio).toHaveBeenCalledTimes(2);
+    delete window.invalidarInicio;
+  });
+
   it('pedido substituído: avisa e não oferece decisão', async () => {
     await abrir({ ...PEDIDO, status: 'substituido' }, { status: 'pendente' });
     expect(el('modal-content').textContent).toMatch(/documento mudou/);

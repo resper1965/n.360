@@ -399,6 +399,13 @@ function semModulo(c, entrada, proj) {
 const chaveDe = (k) => `${S.user ? S.user.id : ''}|${k}`;
 const valido = (x) => x && Date.now() - x.t < VALIDADE_MS;
 
+/** Decidir um pedido muda o Início: apaga o que a pessoa atual guardou (carteira com os pedidos, painéis de projeto) para a próxima entrada recarregar. */
+window.invalidarInicio = function invalidarInicio() {
+    if (!S.painel) return;
+    const meu = chaveDe('');
+    for (const k of Object.keys(S.painel)) if (k.startsWith(meu)) delete S.painel[k];
+};
+
 async function carregar(c, a, entrada, proj, chave, buscar, desenho) {
     S.painel = S.painel || {};
     const guardado = S.painel[chave];

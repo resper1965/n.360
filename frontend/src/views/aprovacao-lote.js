@@ -140,5 +140,6 @@ window.enviarLoteAprovacao = async function () {
                 <button type="button" class="btn btn-sm" style="margin-left:8px" data-action="abrirPedido" data-args='${args(x.id)}'>Abrir o pedido</button></li>`).join('')}</ul></section>` : ''}
         <div style="display:flex;justify-content:flex-end"><button type="button" class="btn btn-secondary" data-action="forceCloseModal">Fechar</button></div>`;
     for (const x of feitos) vistos.delete(x.id);
+    if (typeof window.invalidarInicio === 'function') window.invalidarInicio(); // o Início guarda a lista por 60 s
     if (typeof window.render === 'function') window.render();
 };

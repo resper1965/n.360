@@ -22,6 +22,7 @@ beforeEach(() => {
   initDelegation();
   window.showToast = vi.fn();
   window.render = vi.fn();
+  window.invalidarInicio = vi.fn();
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -83,6 +84,7 @@ describe('enviar', () => {
     expect(el('modal-content').textContent).toContain('1 de 2 decisões registradas');
     expect(el('modal-content').textContent).toContain('O conteúdo mudou');
     expect(el('lote-senha')).toBeNull(); // a senha não fica no DOM depois de enviada
+    expect(window.invalidarInicio).toHaveBeenCalledTimes(1); // o Início não mostra mais o que foi decidido
   });
 
   it('senha errada: mostra o erro e mantém o modal para tentar de novo', async () => {

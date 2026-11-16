@@ -421,6 +421,44 @@ describe('início do n.360', () => {
         expect(el('pn-aprov')).toBeNull();
         expect(el('c').querySelector('[data-action="painelVerSituacao"]')).not.toBeNull();
     });
+
+    // Corpo de GET /api/v1/pedidos (src/routes/pedidos.ts:182-191).
+    const PENDENTE = (i) => ({ id: `pd${i}`, project_id: 'p8', titulo: `Pedido ${i}`, papel_exigido: 'ciso', status: 'aberto', meu_status: 'pendente', criado_em: '2026-11-10 10:00:00' });
+
+    it('"Minhas aprovações": no máximo 3 itens, e "Ver todas" conta todas (5 pendentes: mostra 3 e "Ver todas (5)")', async () => {
+        servir({ 'GET /api/v1/carteira': CARTEIRA, 'GET /api/v1/pedidos': { pedidos: [1, 2, 3, 4, 5].map(PENDENTE) } });
+        await abrir('n360');
+        const q = el('pn-aprov').closest('section');
+        expect(q.querySelectorAll('[data-action="abrirPedido"]')).toHaveLength(3);
+        expect(q.querySelector('[data-action="navigate"]').textContent).toBe('Ver todas (5)');
+    });
+
+    it('"Minhas aprovações": 403 explícito em /pedidos tira só o quadro; a lista de projetos segue', async () => {
+        const f = vi.fn(async (url) => {
+            const k = new URL(url, 'http://localhost').pathname;
+            if (k === '/api/v1/carteira') return resposta(CARTEIRA);
+            if (k === '/api/v1/pedidos') return resposta({ error: 'Sem permissão' }, 403);
+            return resposta({ error: 'API route not found' }, 404);
+        });
+        vi.stubGlobal('fetch', f);
+        await abrir('n360');
+        expect(el('pn-aprov')).toBeNull();
+        expect(el('c').textContent).not.toContain('Não foi possível');
+        expect(el('c').querySelectorAll('[data-action="painelVerSituacao"]')).toHaveLength(2);
+    });
+
+    it('invalidarInicio apaga o cache da carteira da pessoa: voltar ao Início pede a carteira e os pedidos de novo', async () => {
+        const f = servir({ 'GET /api/v1/carteira': CARTEIRA, 'GET /api/v1/pedidos': { pedidos: [PENDENTE(1)] } });
+        await abrir('n360');
+        await abrir('n360'); // dentro dos 60 s: do cache
+        expect(chamadas(f).filter((x) => x === 'GET /api/v1/pedidos')).toHaveLength(1);
+        S.painel['outra|carteira'] = { t: Date.now(), dados: { projetos: [], pedidos: [] } };
+        window.invalidarInicio();
+        expect(S.painel['u1|carteira']).toBeUndefined();
+        expect(S.painel['outra|carteira']).toBeDefined(); // só a da pessoa atual
+        await abrir('n360');
+        expect(chamadas(f).filter((x) => x === 'GET /api/v1/pedidos')).toHaveLength(2);
+    });
 });
 
 describe('gráficos', () => {
