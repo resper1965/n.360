@@ -8,7 +8,6 @@ import { adminDireto } from './organizacao';
  *  shortcut: um site (ou projeto) com mais de 20.000 linhas fica cortado aqui; ao chegar perto disso, paginar ou indexar no banco. */
 export const TETO_LEITURA_OT = 20000;
 
-
 export interface AtorOt { id: string; email: string; role: string; agente?: boolean; org_id?: string | null }
 
 /** Cargo do Gestor ARCiber em `project_governance` (spec §3): a mesma regra no 4.2.1 e no aviso do step-up (ot-stepup.ts). */
@@ -17,7 +16,8 @@ export const CARGO_GESTOR_ARCIBER = `lower(trim(job_title)) = 'gestor arciber'`;
 /** Gestor ARCiber da organização direta: o admin direto que também consta no cargo (titular ou suplente), pelo e-mail. */
 export async function gestorArciberDireto(db: D1Database, u: AtorOt, projectId: string): Promise<boolean> {
   if (!await adminDireto(db, u, projectId)) return false;
-  return !!await db.prepare(`SELECT 1 FROM project_governance WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER} AND lower(email) = lower(?)`)
+  if (!u.email?.trim()) return false;
+  return !!await db.prepare(`SELECT 1 FROM project_governance WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER} AND coalesce(trim(email), '') <> '' AND lower(email) = lower(?)`)
     .bind(projectId, u.email).first();
 }
 

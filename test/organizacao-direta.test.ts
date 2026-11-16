@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { hashPassword } from '../src/helpers';
+import { adminDireto, tipoDaOrg } from '../src/services/organizacao';
+import { gestorArciberDireto } from '../src/services/ot-inventario';
 import { applySchema, workerEnv, sessionFor } from './helpers/d1';
 
 const SENHA = 'Senha-forte-123!';
@@ -48,9 +50,6 @@ describe('criação de organização com tipo', () => {
   });
 });
 
-import { adminDireto } from '../src/services/organizacao';
-import { gestorArciberDireto } from '../src/services/ot-inventario';
-
 describe('adminDireto / gestorArciberDireto', () => {
   beforeAll(async () => {
     await env.DB.batch([
@@ -70,11 +69,29 @@ describe('adminDireto / gestorArciberDireto', () => {
   });
   it('organização suspensa não passa', async () => {
     await env.DB.prepare(`UPDATE organizations SET status = 'Suspended' WHERE id = 'org_d'`).run();
-    expect(await adminDireto(env.DB, ad, 'p-d')).toBe(false);
-    await env.DB.prepare(`UPDATE organizations SET status = 'Active' WHERE id = 'org_d'`).run();
+    try { expect(await adminDireto(env.DB, ad, 'p-d')).toBe(false); }
+    finally { await env.DB.prepare(`UPDATE organizations SET status = 'Active' WHERE id = 'org_d'`).run(); }
   });
   it('gestor: admin direto que consta no cargo (e-mail igual)', async () => {
     expect(await gestorArciberDireto(env.DB, ad, 'p-d')).toBe(true);
     expect(await gestorArciberDireto(env.DB, { ...ad, email: 'outro@d.lat' }, 'p-d')).toBe(false);
+  });
+  it('gestor: e-mail vazio ou ausente não passa, mesmo com linha de governança sem e-mail', async () => {
+    await env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title, is_primary) VALUES ('p-d','Sem email','','operacoes','Gestor ARCiber',0)`).run();
+    expect(await gestorArciberDireto(env.DB, { ...ad, email: '' }, 'p-d')).toBe(false);
+    expect(await gestorArciberDireto(env.DB, { ...ad, email: undefined as any }, 'p-d')).toBe(false);
+  });
+  it('gestor: e-mail sem diferenciar maiúsculas', async () => expect(await gestorArciberDireto(env.DB, { ...ad, email: 'ANA@D.LAT' }, 'p-d')).toBe(true));
+  it('sessão nova sem org_id, org_id vazio ou projeto inexistente não passam', async () => {
+    const iat = Date.parse('2026-10-04T00:00:00Z'); // ms, como compara orgDoUsuario
+    expect(await adminDireto(env.DB, { ...ad, org_id: undefined, iat } as any, 'p-d')).toBe(false);
+    expect(await adminDireto(env.DB, { ...ad, org_id: '', iat } as any, 'p-d')).toBe(false);
+    expect(await adminDireto(env.DB, ad, 'p-inexistente')).toBe(false);
+  });
+  it('tipoDaOrg', async () => {
+    expect(await tipoDaOrg(env.DB, 'org_d')).toBe('direta');
+    expect(await tipoDaOrg(env.DB, 'org_c')).toBe('consultoria');
+    expect(await tipoDaOrg(env.DB, 'org_nope')).toBeNull();
+    expect(await tipoDaOrg(env.DB, null)).toBeNull();
   });
 });
