@@ -740,7 +740,8 @@ CREATE TABLE IF NOT EXISTS organizations (
     -- Chave do logo no R2 (migration 0040).
     logo_chave TEXT,
     -- Módulos que a consultoria contratou: o teto do que cada projeto pode habilitar (migration 0047).
-    modulos_contratados TEXT NOT NULL DEFAULT '["iso"]'
+    modulos_contratados TEXT NOT NULL DEFAULT '["iso"]',
+    tipo TEXT NOT NULL DEFAULT 'consultoria' CHECK (tipo IN ('consultoria', 'direta'))
 );
 -- Prefixo de proposta único entre organizações (migration 0040): a conferência na rota tem corrida,
 -- o índice decide. Parcial: organização sem prefixo (NULL) não conflita com outra.

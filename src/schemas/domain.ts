@@ -547,6 +547,8 @@ export const criarOrgSchema = z.object({
   maxProjetos: z.number().int().min(1).max(10000),
   maxUsuarios: z.number().int().min(1).max(10000),
   termoVersao: z.string().trim().min(1).max(60),
+  tipo: z.enum(['consultoria', 'direta']).default('consultoria'),
+  modulos: z.array(z.enum(['iso', 'privacy', 'ot'])).min(1).optional(),
 }).strict();
 
 export const atualizarOrgSchema = z.object({

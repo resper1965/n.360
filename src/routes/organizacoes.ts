@@ -50,14 +50,15 @@ organizacoesApp.post('/', async (c) => {
     try {
       await db.batch([
         db.prepare(`INSERT INTO organizations (id, name, slug, plan, max_projects, max_users, owner_id, status, cnpj, prefixo_proposta,
-          proximo_numero, termo_aceito_em, termo_versao) VALUES (?, ?, ?, 'consultoria', ?, ?, ?, 'Active', ?, ?, 1, datetime('now'), ?)`)
+          proximo_numero, termo_aceito_em, termo_versao, tipo, modulos_contratados) VALUES (?, ?, ?, 'consultoria', ?, ?, ?, 'Active', ?, ?, 1, datetime('now'), ?, ?, ?)`)
           // Sem prefixo grava NULL: o índice único parcial deixa várias organizações sem prefixo.
-          .bind(id, b.nome, b.slug, b.maxProjetos, b.maxUsuarios, adminId, b.cnpj ?? null, b.prefixoProposta ?? null, b.termoVersao),
+          .bind(id, b.nome, b.slug, b.maxProjetos, b.maxUsuarios, adminId, b.cnpj ?? null, b.prefixoProposta ?? null, b.termoVersao, b.tipo,
+            JSON.stringify(b.modulos ?? ['iso'])),
         db.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change)
           VALUES (?, ?, ?, ?, 'consultoria_admin', NULL, ?, 1)`).bind(adminId, b.adminEmail, SEM_SENHA, b.adminNome, id),
         db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
           VALUES (?, 'org.criada', ?, ?, '', ?, NULL, datetime('now'))`)
-          .bind(genId(), ator, `Organização ${id} (${b.slug}) criada por ${ator}; administrador ${b.adminEmail}; termo de uso ${b.termoVersao}`,
+          .bind(genId(), ator, `Organização ${id} (${b.slug}) criada por ${ator}; administrador ${b.adminEmail}; tipo ${b.tipo}; termo de uso ${b.termoVersao}`,
             c.req.header('CF-Connecting-IP') ?? ''),
       ]);
     } catch (e) {
