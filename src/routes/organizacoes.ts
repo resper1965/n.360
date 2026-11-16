@@ -58,7 +58,7 @@ organizacoesApp.post('/', async (c) => {
           VALUES (?, ?, ?, ?, 'consultoria_admin', NULL, ?, 1)`).bind(adminId, b.adminEmail, SEM_SENHA, b.adminNome, id),
         db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
           VALUES (?, 'org.criada', ?, ?, '', ?, NULL, datetime('now'))`)
-          .bind(genId(), ator, `Organização ${id} (${b.slug}) criada por ${ator}; administrador ${b.adminEmail}; tipo ${b.tipo}; termo de uso ${b.termoVersao}`,
+          .bind(genId(), ator, `Organização ${id} (${b.slug}) criada por ${ator}; administrador ${b.adminEmail}; tipo ${b.tipo}; módulos ${(b.modulos ?? ['iso']).join(',')}; termo de uso ${b.termoVersao}`,
             c.req.header('CF-Connecting-IP') ?? ''),
       ]);
     } catch (e) {

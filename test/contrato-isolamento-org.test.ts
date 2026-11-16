@@ -509,7 +509,7 @@ describe('contrato de isolamento entre organizações', () => {
     }
     expect(entregou, `rotas que entregaram recurso de outra organização:\n  ${entregou.join('\n  ')}`).toEqual([]);
     expect([...naoChegou], 'rotas que pararam no 400/429 sem chegar à guarda: corpo em CORPOS ou entrada em NAO_PROVADAS_POR_CORPO').toEqual([]);
-  }, 1_800_000);
+  }, 900_000);
 
   it('a notificação alheia não é marcada como lida (a exceção prova pela linha)', async () => {
     for (const p of PRINCIPAIS) await chamar(p, 'PUT', `/api/v1/notifications/${p.alheio.m}-notif-cons/read`);
@@ -575,6 +575,6 @@ describe('contrato de isolamento entre organizações', () => {
     }
     expect(vazou, `respostas com dado de outra organização:\n  ${vazou.join('\n  ')}`).toEqual([]);
     // Se quase tudo responde 4xx, a varredura não olhou dado nenhum. Em 2026-10-02: 670 de 1200.
-    expect(respostas2xx, 'a varredura de listas quase não recebeu 2xx').toBeGreaterThan(500);
-  }, 1_800_000);
+    expect(respostas2xx, 'a varredura de listas quase não recebeu 2xx').toBeGreaterThan(Math.floor(PRINCIPAIS.length * 500 / 16));
+  }, 900_000);
 });

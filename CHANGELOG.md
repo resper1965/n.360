@@ -15,6 +15,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ### n.360, onda 1: organização direta (spec 2026-11-16)
 - **Organização direta** (migração 0113, `organizations.tipo`): a empresa que usa o n.360 por conta própria. O administrador dela (`consultoria_admin`) exerce, no projeto da própria organização, os atos que eram só do `org_admin`: Gestor ARCiber do n.ot (se constar no cargo), ver IP/MAC, painel e avisos do n.ot, assinatura e revogação de aprovação, titular. Sem área comercial e sem conta de cliente; agente e chave de API não passam. O tipo é lido do banco e nunca muda.
 - **Mudança de comportamento, vale também para consultorias:** quem criou não decide. Pedido, base do site e avaliação do n.ot não são decididos por quem os criou; encerrar incidente também não (o agente conta como quem o concedeu). Mensagem de recusa sem revelar quem criou.
+- **Muda consultorias existentes:** um consultor sozinho, designado no projeto, não encerra mais o próprio incidente (o `criado_por` do agente conta como a conta de quem o concedeu); é preciso outra pessoa da equipe.
 - **Minhas aprovações** e `decisoes` do painel não listam mais o pedido que a própria pessoa criou.
 - **Esperando a sua decisão:** `decisoes` também vai à equipe que é destinatária de pedido.
 - **Consultorias → Organizações** no menu e nas telas; criação com Tipo (Consultoria/Direta) e Módulos contratados; lista com coluna Tipo. `GET /auth/me` devolve `org_tipo`; `GET /platform/orgs` devolve `tipo`. Na direta somem Comercial, Levantamentos, Preços e margens e Identidade.

@@ -1,6 +1,6 @@
 # Onda 1: organização direta
 
-Data: 16/11/2026. Situação: **rascunho para aprovação do dono**. Onda 1 da spec guarda-chuva
+Data: 16/11/2026. Situação: **aprovada pelo dono em 16/11/2026**. Onda 1 da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md`. Base: levantamento somente leitura sobre o HEAD `7c62670`.
 
 ## O pedido
@@ -17,7 +17,7 @@ aprova. O n.360 hoje assume que quem presta o serviço (equipe) e quem o recebe 
 | 4 | Colega aprova o que outro criou | Sim; só a mesma pessoa é barrada |
 | 5 | Criador diferente de decisor | Em **toda** organização (uma regra só) |
 
-### A rever (recomendação minha, ainda não respondida)
+### A rever (recomendação adotada com a aprovação da spec)
 
 | # | Tema | Recomendação |
 |---|---|---|
@@ -98,3 +98,6 @@ produção (o README dizia 0109; a última no disco é 0113, ainda não aplicada
 - A regra criador ≠ decisor vale em toda organização, inclusive no encerramento de incidente. O agente é resolvido para quem o concedeu (`agente_conta`).
 - SSO/SCIM e convite de stakeholder ficam fora da onda 1 (não checam o tipo da organização).
 - O pedido criado pela própria pessoa nunca aparece em "Minhas aprovações" nem em `decisoes`.
+- `transferirProjeto` (`src/services/transferencia-projeto.ts`) não checa `tipo`: mover um projeto de consultoria para uma organização direta leva as contas de cliente junto. Só o `platform_admin` faz isso, da mesma família do break-glass acima.
+- A organização direta é criada com `plan = 'consultoria'` (cosmético: o plano não é lido para decidir nada).
+- `PUT /org/config` e `POST /org/logo` seguem abertos ao admin da direta para a identidade (nome, CNPJ, cor, selo, logo); prefixo, numeração, preço, textos e seções da proposta são 403 (`user.org_direta`).

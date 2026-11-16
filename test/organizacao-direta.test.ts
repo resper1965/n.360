@@ -134,7 +134,7 @@ describe('n.ot: Gestor ARCiber na organização direta', () => {
     expect((await (await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.beto)).json() as any).pode_ligar).toBe(false);
   });
   it('projeto da organização direta não é alcançável por admin de outra organização', async () => {
-    expect((await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.cris)).status).toBeGreaterThanOrEqual(403);
+    expect((await chamar('GET', '/api/v1/projects/p-d/ot/agente', S.cris)).status).toBe(403);
   });
   it('podeVerCompleto: admin direto sim; consultoria_admin sem designação, agente e chave de API não', async () => {
     const { podeVerCompleto } = await import('../src/services/ot-inventario');
@@ -176,7 +176,7 @@ describe('privacy: matriz de assinatura, revogação, titular', () => {
     const ok = await chamar('POST', '/api/v1/projects/p-d/governance', S.beto, corpo);
     expect(ok.status, await ok.clone().text()).toBeLessThan(300);
     expect((await chamar('POST', '/api/v1/projects/p-c/governance', S.cris, corpo)).status).toBe(403);
-    expect((await chamar('POST', '/api/v1/projects/p-c/governance', S.beto, corpo)).status).toBeGreaterThanOrEqual(403);
+    expect((await chamar('POST', '/api/v1/projects/p-c/governance', S.beto, corpo)).status).toBe(403);
     const id = (await um<{ id: string }>(`SELECT id FROM project_governance WHERE project_id='p-d' AND email='dir@d.lat'`))!.id;
     expect((await chamar('DELETE', `/api/v1/projects/p-d/governance/${id}`, S.beto)).status).toBeLessThan(300);
   });
@@ -194,20 +194,20 @@ describe('privacy: matriz de assinatura, revogação, titular', () => {
   });
   it('revogar aprovação do ROPA: direto passa; consultoria e outra org, não', async () => {
     expect((await chamar('POST', '/api/v1/projects/p-c/ropa/ro-c/revoke-approval', S.cris, motivo)).status).toBe(403);
-    expect((await chamar('POST', '/api/v1/projects/p-c/ropa/ro-c/revoke-approval', S.beto, motivo)).status).toBeGreaterThanOrEqual(403);
+    expect((await chamar('POST', '/api/v1/projects/p-c/ropa/ro-c/revoke-approval', S.beto, motivo)).status).toBe(403);
     const r = await chamar('POST', '/api/v1/projects/p-d/ropa/ro-d/revoke-approval', S.beto, motivo);
     expect(r.status, await r.clone().text()).toBe(200);
   });
   it('revogar aprovação do DPIA: direto passa; consultoria e outra org, não', async () => {
     const u = (p: string, d: string) => `/api/v1/projects/${p}/dpia/${d}/revoke-approval`;
     expect((await chamar('POST', u('p-c', 'dp-c'), S.cris, { reason: 'motivo suficiente' })).status).toBe(403);
-    expect((await chamar('POST', u('p-c', 'dp-c'), S.beto, { reason: 'motivo suficiente' })).status).toBeGreaterThanOrEqual(403);
+    expect((await chamar('POST', u('p-c', 'dp-c'), S.beto, { reason: 'motivo suficiente' })).status).toBe(403);
     const r = await chamar('POST', u('p-d', 'dp-d'), S.beto, { reason: 'motivo suficiente' });
     expect(r.status, await r.clone().text()).toBe(200);
   });
   it('excluir análise crítica: direto passa; consultoria e outra org, não', async () => {
     expect((await chamar('DELETE', '/api/v1/management-reviews/mr-c', S.cris)).status).toBe(403);
-    expect((await chamar('DELETE', '/api/v1/management-reviews/mr-c', S.beto)).status).toBeGreaterThanOrEqual(403);
+    expect((await chamar('DELETE', '/api/v1/management-reviews/mr-c', S.beto)).status).toBe(403);
     const r = await chamar('DELETE', '/api/v1/management-reviews/mr-d', S.beto);
     expect(r.status, await r.clone().text()).toBe(200);
   });
@@ -215,7 +215,7 @@ describe('privacy: matriz de assinatura, revogação, titular', () => {
     const q = (p: string, s: any) => chamar('GET', `/api/v1/projects/${p}/data-subject?identificador=x@y.lat`, s);
     expect((await q('p-d', S.beto)).status).toBe(200);
     expect((await q('p-c', S.cris)).status).toBe(403);
-    expect((await q('p-c', S.beto)).status).toBeGreaterThanOrEqual(403);
+    expect((await q('p-c', S.beto)).status).toBe(403);
     expect((await chamar('GET', '/api/v1/projects/p-c/data-subject/retencao', S.cris)).status).toBe(403);
     expect((await chamar('GET', '/api/v1/projects/p-d/data-subject/retencao', S.beto)).status).toBe(200);
   });
@@ -270,7 +270,7 @@ describe('quem criou não decide', () => {
 describe('equipe da organização direta', () => {
   it('incidente: quem registrou não encerra (403); outra pessoa encerra (200)', async () => {
     await env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, risco_titular, status, criado_por)
-      VALUES ('in-e','p-d','IN-2026-0900','Vaz','2026-10-01','baixo','avaliado','Beto@D.lat')`).run();
+      VALUES ('in-e','p-d','IN-2026-0977','Vaz','2026-10-01','baixo','avaliado','Beto@D.lat')`).run();
     const r = await chamar('POST', '/api/v1/projects/p-d/incidentes/in-e/encerrar', S.beto, {});
     expect(r.status, await r.clone().text()).toBe(403);
     expect((await um('SELECT status FROM incidentes WHERE id = ?', 'in-e')).status).not.toBe('encerrado');
@@ -375,5 +375,50 @@ describe('telas: org_tipo em /auth/me e tipo na lista de organizações', () => 
     const l = (await (await chamar('GET', '/api/v1/platform/orgs', S.pa)).json()) as any[];
     expect(l.find((o) => o.id === 'org_empresa-direta')?.tipo).toBe('direta');
     expect(l.find((o) => o.id === 'org_cons-x')?.tipo).toBe('consultoria');
+  });
+});
+
+describe('direta: sem escrita comercial em /org/config', () => {
+  const put = (s: any, corpo: unknown) => chamar('PUT', '/api/v1/org/config', s, corpo);
+  const campos: [string, unknown][] = [['prefixoProposta', 'ACME'], ['proximoNumero', 5], ['preco', { tetoDesconto: 10 }], ['textos', { sobre: 'x' }], ['secoesDesligadas', ['como_trabalhamos']]];
+  it('admin direto: cada campo comercial é 403 e nada é gravado; identidade segue 200', async () => {
+    for (const [k, v] of campos) {
+      const r = await put(S.beto, { [k]: v });
+      expect(r.status, k).toBe(403);
+      expect((await r.json() as any).error).toMatch(/não tem área comercial/);
+    }
+    expect((await um('SELECT prefixo_proposta p FROM organizations WHERE id = ?', 'org_d')).p).toBeNull();
+    expect((await put(S.beto, { nome: 'Direta SA', corDestaque: '#112233' })).status).toBe(200);
+  });
+  it('admin de consultoria: prefixo e preço seguem 200', async () => {
+    const r = await put(S.cris, { prefixoProposta: 'CONSC', preco: { tetoDesconto: 10 } });
+    expect(r.status, await r.clone().text()).toBe(200);
+  });
+});
+
+describe('criação: módulos', () => {
+  it('módulos repetidos são gravados uma vez e a trilha registra a escolha', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"id":"x"}'));
+    const r = await chamar('POST', '/api/v1/platform/orgs', S.pa, novaOrg({ nome: 'M', slug: 'mod-dup', adminEmail: 'a@mod.lat', modulos: ['iso', 'iso', 'ot'] }));
+    expect(r.status).toBe(201);
+    expect((await um('SELECT modulos_contratados m FROM organizations WHERE id = ?', 'org_mod-dup')).m).toBe('["iso","ot"]');
+    expect((await um(`SELECT details d FROM audit_logs WHERE action = 'org.criada' AND details LIKE '%org_mod-dup%'`)).d).toContain('módulos iso,ot');
+  });
+});
+
+describe('titular: encerrar incidente com agente sem conta', () => {
+  it('agente sem agente_conta é 403; com conta igual a quem registrou segue 403 pela regra de dono', async () => {
+    const { Hono } = await import('hono');
+    const { incidentesApp } = await import('../src/routes/titular');
+    await env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, risco_titular, status, criado_por) VALUES ('in-ag','p-d','IN-2026-0988','T','2026-10-01','baixo','avaliado','agente de x@y.lat (z)')`).run();
+    const montar = (user: any) => { const a = new Hono<any>(); a.use('*', async (c, n) => { c.set('user', user); await n(); }); a.route('/projects/:projectId/incidentes', incidentesApp); return a; };
+    const go = (user: any) => montar(user).fetch(new Request('http://localhost/projects/p-d/incidentes/in-ag/encerrar', { method: 'POST' }), workerEnv() as any);
+    const base = { id: 'u-x', email: 'agente de x@y.lat (z)', role: 'consultor', org_id: 'org_d', agente: true };
+    const sem = await go(base);
+    expect(sem.status).toBe(403);
+    expect((await sem.json() as any).error).toMatch(/Conta do agente/);
+    const dono = await go({ ...base, agente_conta: 'x@y.lat' });
+    expect(dono.status).toBe(403);
+    expect((await dono.json() as any).error).toMatch(/Quem registrou/);
   });
 });

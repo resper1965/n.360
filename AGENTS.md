@@ -85,16 +85,6 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
   ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
   nem agente MCP** (`otApp` responde 403 a `apikey:` e a `agente`; `/projects/:id/ot` esta em `FORA_DO_AGENTE`). Frontend:
-  **Organizacao direta (spec `2026-11-16-onda1-organizacao-direta-design`, migration 0113):** `organizations.tipo` e `'consultoria'` ou `'direta'`,
-  definido na criacao (so `platform_admin`) e imutavel. E lido SO do banco, da organizacao da SESSAO (`org_id`), nunca do `X-Org-Id`:
-  `tipoDaOrg` e `adminDireto(db, user, projectId)` em `src/services/organizacao.ts`; `gestorArciberDireto` em `src/services/ot-inventario.ts`
-  (re-exportado por `ot-conformidade.ts`; admin direto que consta como Gestor ARCiber em `project_governance`, por e-mail). O `authMiddleware`
-  poe `user.org_direta` (so UX e `ehComercial`; nunca confiar no que vem do cliente). O admin direto e o `consultoria_admin` e exerce os atos
-  so de `org_admin` apenas em projeto da propria direta; as travas: Gestor ARCiber (obra, base, desvio), `podeVerCompleto`, `painel-ot`, avisos
-  de prazo, `podeMexerEmAssinaturaDe`, `podeRevogarAprovacao` e `data-subject`. **Quem criou nao decide** (vale em toda organizacao): pedido,
-  base do site, avaliacao do n.ot e encerrar incidente; o agente conta como quem o concedeu (`agente_conta`). A direta nao tem area comercial
-  (`ehComercial` nega com `org_direta`), nem conta de cliente (so `platform_admin`, break-glass), nem SSO/SCIM por ora, e fica sem tela de
-  identidade (`GET /org/config` e comercial). Agente e chave de API nunca passam por essas travas.
   casca `/ot` com uma tela (`views/ot.js`) em abas: catalogo, inventario (sites, zonas, ativos), fluxos, coleta (`views/ot-coleta.js`),
   saidas (`views/ot-saidas.js`) e acesso por site (so quem edita); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
   a API recusaria. IP/MAC aparecem como a API devolve e ficam so na memoria da tela; "Revelar" (platform_admin, ativo mascarado) pede o
@@ -133,6 +123,20 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   Fase do site e base (migracao 0110, `src/services/ot-fase.ts`, `GET /ot/sites/:id/situacao`, `POST /ot/sites/:id/base/{pedir,aprovar,devolver}`, `frontend/src/views/ot-base.js`): `ot_sites.fase` (`em_levantamento`, `base_em_aprovacao`, `em_operacao`, `em_obra`) mais `base_pedida_em/por` e `base_aprovada_em/por`. A equipe pede; so o Gestor ARCiber (`ehGestorArciber`) aprova (corpo `{declaracao:true}`, condicoes no WHERE do UPDATE) ou devolve com motivo. `detectarDesvios` so roda em site `em_operacao`. O tecnico (`org_user`) escreve so o que esta em `ESCRITAS_DO_TECNICO` (`src/services/ot-inventario.ts`), nos sites concedidos. "Trazer dados" substituiu o multipart `POST /ot/lotes`. O cabecalho do site (regua e Proximo passo) leva o unico `.btn-primary`; com lote ou levantamento aberto, o primario e o da tela de dentro.
   Obra (migracao 0111, `ot_sites.obra_*`; `abrirObra`/`renovarObra`/`vencerObras` em `src/services/ot-fase.ts`, `POST /ot/sites/:id/obra/{abrir,renovar}`): so o Gestor ARCiber abre (`{justificativa, ate}`, ate 90 dias) e renova UMA vez; `pedirBase` vale tambem a partir de `em_obra` e `aprovarBase` limpa a obra. REGRA: em `em_obra`, ou em `base_em_aprovacao` com `obra_ate`, `detectarDesvios` roda `silencioso` (grava, sem webhook); os abertos saem num unico webhook ao fechar (`decidirBase`) ou vencer (`encerrarObrasVencidas` no `CRON_AVISOS`, que tambem grava `ot.site.obra_vencida` e avisa o Gestor). Obra valida ate o fim do dia `obra_ate` (dia de SP).
   Assessment da RO-CB.BR.01 (migracao 0112, `ot_avaliacoes` e `ot_requisito_evidencias`; `src/services/ot-avaliacao.ts`, rotas `/ot/assessment*` e `GET /ot/relatorio/conformidade` em `src/routes/ot.ts`, `frontend/src/views/ot-assessment.js` e `ot-relatorio.js`, guia `docs/n-ot-assessment.md`): item tecnico vem do inventario (pior caso dos sites que contam) e nao se edita; item de politica e autoavaliado por quem edita o n.ot. REGRA: so o Gestor ARCiber (`ehGestorArciber`) confirma; editar tira a confirmacao; justificativa obrigatoria salvo em `atende` (CHECK na tabela); confirmar vale so para a versao vista (o corpo leva o `updated_at` lido; mudou, 409); desligar evidencia tira a confirmacao, ligar nao; ao confirmar, `proxima_revisao` fica a data que o consultor gravou e, so se vazia, vira hoje (SP) + 12 meses; a data gravada e dia real e >= hoje (SP). No relatorio, IP e MAC sao mascarados na justificativa e no nome do arquivo de evidencia (este tambem na tela); nao cite nome de ativo (a tela avisa). O relatorio grava `ot.relatorio.conformidade` na trilha. O 5.1.1 (excecoes) fica fora deste ciclo.
+- **Organizacao direta (spec `2026-11-16-onda1-organizacao-direta-design`, migration 0113):** `organizations.tipo` e `'consultoria'` ou
+  `'direta'`, definido na criacao (so `platform_admin`) e imutavel. E lido SO do banco, da organizacao da SESSAO (`org_id`), nunca do
+  `X-Org-Id`: `tipoDaOrg` e `adminDireto(db, user, projectId)` em `src/services/organizacao.ts`; `gestorArciberDireto` em
+  `src/services/ot-inventario.ts` (`ot-conformidade.ts` re-exporta so `CARGO_GESTOR_ARCIBER`; admin direto que consta como Gestor ARCiber
+  em `project_governance`, por e-mail). O `authMiddleware` poe `user.org_direta` (UX, `ehComercial` e a excecao do achado de auditoria em
+  `src/middleware/auth.ts` (`isAuditWrite`: o `consultoria_admin` direto registra achado); nunca confiar no que vem do cliente). O admin
+  direto e o `consultoria_admin` e exerce os atos so de `org_admin` apenas em projeto da propria direta; as travas: Gestor ARCiber (obra,
+  base, desvio), `podeVerCompleto`, `painel-ot`, `adminDireto` em `ropa-abas/ficha.ts` e `situacao.ts` (`papelDe` direto), avisos de
+  prazo, `podeMexerEmAssinaturaDe`, `podeRevogarAprovacao` e `data-subject`. **Quem criou nao decide** (vale em toda organizacao):
+  pedido, base do site, avaliacao do n.ot e encerrar incidente. O agente conta como quem o concedeu: no incidente a comparacao e pela
+  conta (`agente_conta`, o e-mail real, porque `criado_por` leva o rotulo "agente de X"; sem `agente_conta` o encerramento e negado); em
+  base e avaliacao compara-se `users.id`, e o agente carrega o id real de quem concedeu (`userId` em `src/middleware/agente.ts`). A
+  direta nao tem area comercial (`ehComercial` nega com `org_direta`), nem conta de cliente (so `platform_admin`, break-glass), nem
+  SSO/SCIM por ora, e fica sem tela de identidade (`GET /org/config` e comercial; `PUT /org/config` da direta recusa com 403 prefixo, numeracao, preco, textos e secoes da proposta). Agente e chave de API nunca passam por essas travas.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.

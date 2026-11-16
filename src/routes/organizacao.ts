@@ -19,6 +19,8 @@ organizacaoApp.get('/config', async (c) => {
   } catch (e) { return erro500(c, 'Erro ao ler a configuração da consultoria', e); }
 });
 
+const CAMPOS_COMERCIAIS = ['prefixoProposta', 'proximoNumero', 'preco', 'textos', 'secoesDesligadas'] as const;
+
 // Grava: o platform_admin (qualquer organização, por X-Org-Id) e o consultoria_admin (só a dele).
 organizacaoApp.put('/config', async (c) => {
   try {
@@ -28,6 +30,10 @@ organizacaoApp.put('/config', async (c) => {
     const v = await validateBody(c, configOrgSchema);
     if (!v.success) return v.response;
     const b = v.data;
+    // Direta não tem área comercial (decisão 11): nada de prefixo (reserva global), numeração, preço ou textos de proposta.
+    if (user.org_direta === true && CAMPOS_COMERCIAIS.some((k) => b[k] !== undefined)) {
+      return c.json({ error: 'Forbidden: a organização direta não tem área comercial' }, 403);
+    }
     // O prefixo é o "nome" da organização no número da proposta: único entre organizações, como no
     // provisionamento (uma consultoria não emite proposta NESS-2026-001).
     if (b.prefixoProposta && await c.env.DB.prepare('SELECT 1 FROM organizations WHERE upper(prefixo_proposta) = ? AND id <> ?')
