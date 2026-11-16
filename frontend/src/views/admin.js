@@ -221,7 +221,8 @@ window.__adminCopiarApiKey = () => {
     async function renderAuditTrail(c, h, a) {
         h.textContent = tituloDaTela('nav-audit-trail', 'Trilha de auditoria');
         a.innerHTML = '';
-        const proj = S.activeProject || S.projects[0];
+        // Sem cair no primeiro projeto: no n.360 (Início sem projeto ativo) a trilha é a do projeto que a pessoa escolher.
+        const proj = S.activeProject;
         if (!proj) { 
             c.innerHTML = window.renderSemProjeto(); 
             return; 

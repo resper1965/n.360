@@ -727,19 +727,18 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
 window.updateSidebarProjectSelector = function updateSidebarProjectSelector() {
         const selectEl = document.getElementById('sidebar-project-select');
         if (!selectEl) return;
+        // Sem projeto ativo (o Início do n.360), o último usado vem primeiro: lembrado para oferecer, nunca aplicado sozinho.
+        let lembrado = null;
+        if (!S.activeProject) { try { lembrado = (JSON.parse(localStorage.getItem('niso_activeProject') || 'null') || {}).id || null; } catch (e) { lembrado = null; } }
+        const todos = Array.isArray(S.projects) ? S.projects : [];
+        const lista = [...todos.filter((p) => p.id === lembrado), ...todos.filter((p) => p.id !== lembrado)];
         const optionsHtml = ['<option value="">Selecione um projeto...</option>'];
-        if (Array.isArray(S.projects)) {
-            S.projects.forEach(p => {
-                const name = p.project_name || p.client_name || p.id;
-                optionsHtml.push(`<option value="${p.id}">${escapeHTML(name)}</option>`);
-            });
-        }
+        lista.forEach(p => {
+            const name = p.project_name || p.client_name || p.id;
+            optionsHtml.push(`<option value="${escapeHTML(p.id)}">${escapeHTML(name)}</option>`);
+        });
         selectEl.innerHTML = optionsHtml.join('');
-        if (S.activeProject) {
-            selectEl.value = S.activeProject.id;
-        } else {
-            selectEl.value = '';
-        }
+        selectEl.value = S.activeProject ? S.activeProject.id : '';
         updateTenantFace();
     }
 
@@ -753,13 +752,13 @@ window.updateTenantFace = function updateTenantFace() {
         const normEl = document.getElementById('tenant-norm');
         const initialsEl = document.getElementById('tenant-initials');
         const p = S.activeProject;
-        const name = p ? (p.project_name || p.client_name || 'Projeto') : 'Selecione um projeto';
+        const name = p ? (p.project_name || p.client_name || 'Projeto') : 'Nenhum projeto escolhido';
         nameEl.textContent = name;
         // O corte do nome é só visual (duas linhas no CSS): o nome inteiro fica no title e no rótulo do select.
         const face = nameEl.closest('.tenant-face');
         if (face) { if (p) face.setAttribute('title', name); else face.removeAttribute('title'); }
         const sel = document.getElementById('sidebar-project-select');
-        if (sel) sel.setAttribute('aria-label', p ? `Projeto ativo: ${name}. Trocar de projeto` : 'Escolher o projeto');
+        if (sel) sel.setAttribute('aria-label', p ? `Projeto ativo: ${name}. Trocar de projeto` : 'Nenhum projeto escolhido. Escolher o projeto');
         // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
         const prod = produtoAtual();
         if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod !== 'n360' ? `n.${prod}` : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
