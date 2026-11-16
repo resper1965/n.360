@@ -38,6 +38,8 @@ const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 type Org = { org: string; m: string; proj: string; rec: string };
 const NESS: Org = { org: 'org_ness', m: 'zzn', proj: 'zzn-proj', rec: 'zzn-rec' };
 const B: Org = { org: 'org_b', m: 'zzb', proj: 'zzb-proj', rec: 'zzb-rec' };
+/** Organização `direta` (onda 1): a empresa é a própria cliente; terceira ponta do isolamento, nos dois sentidos. */
+const DIR: Org = { org: 'org_dir', m: 'zzd', proj: 'zzd-proj', rec: 'zzd-rec' };
 /**
  * O marcador como palavra: o semeado o traz sempre separado (`zzb-rec`, `@zzb.lat`, `Cliente zzb`), e um id aleatório
  * em base 36 (`genId`) pode conter as mesmas três letras no meio, cercadas de letra ou dígito (`…1dzzb32…`, visto em 05/11/2026).
@@ -363,9 +365,11 @@ beforeAll(async () => {
   await applySchema();
   await env.DB.prepare(`INSERT INTO organizations (id, name, slug) VALUES ('org_b', 'Consultoria zzb', 'zzb')`).run()
     .catch(() => undefined);
+  await env.DB.prepare(`INSERT INTO organizations (id, name, slug, tipo) VALUES ('org_dir', 'Direta zzd', 'zzd', 'direta')`).run()
+    .catch(() => undefined);
   await env.DB.prepare(`UPDATE organizations SET name = 'Consultoria zzn' WHERE id = 'org_ness'`).run();
   const senha = await hashPassword(SENHA);
-  for (const [o, neutro] of [[NESS, 'neutro-1'], [B, 'neutro-2']] as const) {
+  for (const [o, neutro] of [[NESS, 'neutro-1'], [B, 'neutro-2'], [DIR, 'neutro-3']] as const) {
     await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, ?, 'ISO 27001', 'controller', 'Active', ?)`)
       .bind(o.proj, `Cliente ${o.m}`, o.org).run();
     await semearOrganizacao(o, neutro);
@@ -387,34 +391,43 @@ beforeAll(async () => {
   // e-mail com o marcador alheio aqui seria acusado como vazamento sem ser.
   await env.DB.prepare(`INSERT INTO pedido_destinatarios (id, pedido_id, email, user_id) VALUES ('cruz-1', ?, 'cruz@neutro.lat', ?), ('cruz-2', ?, 'cruz@neutro.lat', ?)`)
     .bind(B.rec, `${NESS.m}-stk`, NESS.rec, `${B.m}-stk`).run();
-  for (const [de, alheio] of [[NESS, B], [B, NESS]] as const) {
+  await env.DB.prepare(`INSERT INTO pedido_destinatarios (id, pedido_id, email, user_id) VALUES ('cruz-3', ?, 'cruz@neutro.lat', ?), ('cruz-4', ?, 'cruz@neutro.lat', ?)`)
+    .bind(DIR.rec, `${NESS.m}-stk`, NESS.rec, `${DIR.m}-stk`).run();
+  // Os seis sentidos (de → alheio): a direta é alvo de todos e origem para todos.
+  const sentidos = [[NESS, B], [B, NESS], [DIR, NESS], [DIR, B], [NESS, DIR], [B, DIR]] as const;
+  const semeados = new Set<string>();
+  for (const [de, alheio] of sentidos) {
     const m = de.m;
+    const sufixo = de === DIR || alheio === DIR ? ` -> ${alheio.org}` : '';
     for (const [papel, uid] of [['consultor', 'cons'], ['comercial', 'com'], ['consultoria_admin', 'cadm']] as const) {
       PRINCIPAIS.push({
-        nome: `${papel}@${de.org}`, de, alheio,
+        nome: `${papel}@${de.org}${sufixo}`, de, alheio,
         headers: await sessionFor({ id: `${m}-${uid}`, email: `${uid}@${m}.lat`, role: papel, org_id: de.org }),
       });
     }
     // Stakeholder (fatia 1 do acesso de stakeholders): preso ao projeto da própria organização; o
     // allow-list de caminhos o deixa em perfil/senha/MFA, então toda rota por id alheio é 403.
     PRINCIPAIS.push({
-      nome: `stakeholder@${de.org}`, de, alheio,
+      nome: `stakeholder@${de.org}${sufixo}`, de, alheio,
       headers: await sessionFor({ id: `${m}-stk`, email: `stk@${m}.lat`, role: 'stakeholder', client_project_id: de.proj, org_id: de.org }),
     });
     PRINCIPAIS.push({
-      nome: `agente@${de.org}`, de, alheio, headers: { 'X-Agente-Confirmado': '1' },
+      nome: `agente@${de.org}${sufixo}`, de, alheio, headers: { 'X-Agente-Confirmado': '1' },
       extraEnv: { AGENTE: { concessaoId: `${m}-conc`, userId: `${m}-cons`, email: `cons@${m}.lat`, projectId: de.proj } },
     });
-    PRINCIPAIS.push({ nome: `chave-api@${de.org}`, de, alheio, headers: { 'X-API-Key': `chave-${m}` } });
+    PRINCIPAIS.push({ nome: `chave-api@${de.org}${sufixo}`, de, alheio, headers: { 'X-API-Key': `chave-${m}` } });
     // Cliente dono do projeto (fatia 5 do acesso de stakeholders): pede e acompanha pedidos.
     PRINCIPAIS.push({
-      nome: `org_admin@${de.org}`, de, alheio,
+      nome: `org_admin@${de.org}${sufixo}`, de, alheio,
       headers: await sessionFor({ id: `${m}-cli`, email: `cli@${m}.lat`, role: 'org_admin', client_project_id: de.proj, org_id: de.org }),
     });
     // Auditor externo: token VÁLIDO do projeto da própria organização (portal `/api/v1/public/auditor/*`, token no corpo).
-    await env.DB.prepare(`INSERT INTO auditor_tokens (id, project_id, token_hash, expires_at) VALUES (?, ?, ?, '2099-01-01T00:00:00Z')`)
-      .bind(`${m}-aud`, de.proj, await sha256Hex(`tok-aud-${m}`)).run();
-    PRINCIPAIS.push({ nome: `auditor@${de.org}`, de, alheio, headers: {}, token: `tok-aud-${m}` });
+    if (!semeados.has(de.org)) {
+      semeados.add(de.org);
+      await env.DB.prepare(`INSERT INTO auditor_tokens (id, project_id, token_hash, expires_at) VALUES (?, ?, ?, '2099-01-01T00:00:00Z')`)
+        .bind(`${m}-aud`, de.proj, await sha256Hex(`tok-aud-${m}`)).run();
+    }
+    PRINCIPAIS.push({ nome: `auditor@${de.org}${sufixo}`, de, alheio, headers: {}, token: `tok-aud-${m}` });
   }
 }, 120_000);
 
@@ -442,8 +455,15 @@ describe('contrato de isolamento entre organizações', () => {
       org_admin: ['/api/v1/projects/:p/risks', '/api/v1/projects/:p/pedidos'],
       auditor: [],
     };
+    // Direta (decisão 11): sem área comercial; o papel comercial e o consultoria_admin dela são recusados em servicos/leads.
+    const semComercial = (p: Principal, molde: string) => p.de === DIR && /servicos|leads|org\/config/.test(molde);
     for (const p of PRINCIPAIS) {
       for (const molde of proprio[p.nome.split('@')[0]]) {
+        if (semComercial(p, molde)) {
+          const r = await chamar(p, 'GET', molde.replace(':r', p.de.rec));
+          expect(r.status, `${p.nome} ${molde}: área comercial não existe na direta`).toBe(403);
+          continue;
+        }
         const res = await chamar(p, 'GET', molde.replace(':p', p.de.proj).replace(':r', p.de.rec).replace(':t', p.token ?? ''));
         expect(res.status, `${p.nome} ${molde}: ${await res.clone().text()}`).toBe(200);
       }
@@ -489,12 +509,12 @@ describe('contrato de isolamento entre organizações', () => {
     }
     expect(entregou, `rotas que entregaram recurso de outra organização:\n  ${entregou.join('\n  ')}`).toEqual([]);
     expect([...naoChegou], 'rotas que pararam no 400/429 sem chegar à guarda: corpo em CORPOS ou entrada em NAO_PROVADAS_POR_CORPO').toEqual([]);
-  }, 600_000);
+  }, 1_800_000);
 
   it('a notificação alheia não é marcada como lida (a exceção prova pela linha)', async () => {
     for (const p of PRINCIPAIS) await chamar(p, 'PUT', `/api/v1/notifications/${p.alheio.m}-notif-cons/read`);
     const { results } = await env.DB.prepare(`SELECT id, read FROM notifications WHERE id LIKE '%-notif-cons'`).all<any>();
-    expect(results.map((n) => [n.id, n.read])).toEqual([['zzn-notif-cons', 0], ['zzb-notif-cons', 0]]);
+    expect(results.map((n) => [n.id, n.read])).toEqual([['zzn-notif-cons', 0], ['zzb-notif-cons', 0], ['zzd-notif-cons', 0]]);
   });
 
   it('criação com referência alheia no corpo é recusada', async () => {
@@ -556,5 +576,5 @@ describe('contrato de isolamento entre organizações', () => {
     expect(vazou, `respostas com dado de outra organização:\n  ${vazou.join('\n  ')}`).toEqual([]);
     // Se quase tudo responde 4xx, a varredura não olhou dado nenhum. Em 2026-10-02: 670 de 1200.
     expect(respostas2xx, 'a varredura de listas quase não recebeu 2xx').toBeGreaterThan(500);
-  }, 600_000);
+  }, 1_800_000);
 });
