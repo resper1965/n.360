@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.360, onda 3: o n.ot aponta para o núcleo (migração 0115, spec 2026-11-17)
+- **Muda para quem já usa:** quem não tem o módulo `ot` (na pessoa e no projeto) deixa de ver as ações `ot.%` no histórico (`audit-trail`), no `audit-pack`, no CSV do log de auditoria e na exportação do projeto. Agente e chave de API também não as recebem.
+- **Referência núcleo → OT:** risco, ação corretiva e incidente podem apontar para um site ou ativo do n.ot (tabela satélite `ot_referencias`, migração 0115; rotas `/ot/referencias`). Bloco "Vínculo com o n.ot" nos detalhes, só para quem tem o `ot`.
+- **Botão "Criar ação corretiva" no desvio:** o desvio vira ação do n.iso (exige o n.iso no projeto; título escrito pela pessoa, sem IP/MAC nem nome de ativo, zona ou site) e passa a `tratado` com a nota "Ação corretiva aberta". Idempotente; o vínculo não se remove.
+- **Quem criou a ação a partir do desvio não a conclui**, nem pela ação do incidente.
+- Pendente: a migração 0115 ainda não foi aplicada em produção. Fornecedor de OT (`ot_fornecedores`) está planejado, ainda não entregue.
+
 ### Remediação dos gaps das ondas 1 e 2 (2026-11-17)
 - **Organização direta edita a própria identidade:** o `consultoria_admin` da direta vê a tela "Identidade da organização" e edita nome, CNPJ, cor e logo; `GET /org/config` devolve para ele só nome, CNPJ, cor e selo (nunca preço, margem ou prefixo).
 - **SSO, SCIM e transferência recusam a direta:** gerar token SCIM, criar usuário por SCIM, reativar conta por SCIM (`PUT`/`PATCH` com `active: true`; desativar segue valendo) e ligar o SSO dão 403 na direta (desligar o SSO segue permitido); o provisionamento por SSO lança erro e o callback falha fechado com o erro genérico de login federado (não é um 403); transferir para uma direta um projeto com contas de cliente dá 409 (`destino_direta_com_clientes`).

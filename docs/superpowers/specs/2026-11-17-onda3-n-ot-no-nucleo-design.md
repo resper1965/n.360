@@ -1,6 +1,6 @@
 # Onda 3: o n.ot aponta para o núcleo
 
-Data: 17/11/2026. Situação: **rascunho para aprovação do dono**. Onda 3 da spec guarda-chuva
+Data: 17/11/2026. Situação: **aprovada pelo dono em 17/11/2026**. Onda 3 da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md`. Base: levantamento somente leitura sobre a `main` com o PR #593 da remediação
 (`/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda3-levantamento.md`, com arquivo:linha e o comando de cada
 número). As specs e o modelo de ameaças do n.ot estão em `/home/user/ot2net/docs/superpowers/specs/` (P0-1 a P0-8 em
@@ -25,9 +25,9 @@ regredir nenhuma proteção do n.ot.
 
 | # | Decisão | Resposta |
 |---|---|---|
-| 1 | Faixa da ação vinda do desvio | **Exigir o n.iso no projeto.** `corrective_actions` continua do n.iso; o botão "Criar ação corretiva" só funciona se o projeto tem n.iso (senão, 409 "habilite o n.iso"). Não muda a faixa de ninguém |
+| 1 | Faixa da ação vinda do desvio | **Exigir o n.iso no projeto.** `corrective_actions` continua do n.iso; o botão "Criar ação corretiva" só funciona se o projeto tem n.iso (senão, 409 "habilite o n.iso"). Não muda a faixa de ninguém. **Respondida pelo dono em 17/11/2026** |
 
-### A rever (recomendação minha, ainda não respondida)
+### A rever (recomendação minha; a 2 a 6 foram seguidas na execução, ver "Rulings da execução")
 
 | # | Tema | Recomendação |
 |---|---|---|
@@ -97,3 +97,23 @@ A `0115` segue o procedimento de `migrations/README.md` (backup, apply remoto, c
 Módulos dos projetos em produção (quantos com `ot` têm `iso`/`privacy`); se o D1 de produção aplica `PRAGMA foreign_keys` (o CASCADE
 depende); o volume de `ot.%` em `audit_logs` em produção; se a carteira (`painel.ts:571-582`) filtra por módulo antes de listar títulos
 de ações; importação/mesclar/padronizar-nomes (se recriam ações).
+
+## Rulings da execução
+
+Tasks 1 a 6 (PR1 a PR3). Tasks 7 e 8 (fornecedor de OT, `ot_fornecedores`) estão **planejadas, não feitas**. A migração 0115 está **pendente de aplicar em produção**.
+
+- **Satélite escolhido** (decisão 2): `ot_referencias`, sem colunas novas em `risks`, `corrective_actions` ou `incidentes`; só as rotas `/ot/referencias` a leem.
+- **Regra do texto seguro** (`citaNomeOt`): o título/descrição da ação não pode conter IP/MAC nem o nome de ativo, zona ou site ativo do projeto (sem caixa e sem acento; nomes com menos de 3 letras não contam). Limites conhecidos: a comparação é por substring (falso positivo possível) e hífen/espaço não são normalizados (o nome "PLC-01" não pega "PLC 01").
+- **Desvio vira `tratado`** com a nota "Ação corretiva aberta", na mesma operação (decisão 5).
+- **Quem criou não conclui** (decisão 4): recusa 403 ao passar a ação a `Closed`. Também foi fechado o desvio encontrado na execução: o `PUT` da ação do incidente (`titular.ts`) não passava pela trava. O vínculo nascido do desvio não se remove (`DELETE` da referência responde 409).
+- **Trilha, exportação e CSV** (decisão 6): `audit-trail`, `audit-pack`, CSV do log de auditoria e `exportarProjeto` omitem `ot.%` de quem não tem o `ot` (`podeVerOt`).
+
+### O que ficou em aberto (menores adiados)
+
+- Verificação do nome sem fronteira de palavra (substring) e sem normalizar hífen/espaço.
+- `assigned_to` livre (até 200 caracteres).
+- `capaUpdateSchema.status` é `z.string()`.
+- O painel "último movimento" (`painel.ts`, `max(created_at)`) ainda conta linhas `ot.%` (só um timestamp, sem conteúdo).
+- `DELETE /ot/referencias/:id` não filtra por site (só papéis que veem todos os sites o alcançam).
+- Contrato MCP das referências com `obrigatorios: []`.
+- Releitura após perder a corrida (dois cliques no mesmo desvio) sem teste.
