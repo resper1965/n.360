@@ -175,7 +175,7 @@ const DOC_REQ: Record<OrigemDocumentoReq, { pai: string; ligacao: string; coluna
   arquivo: { pai: 'documentos_arquivo', ligacao: 'documentos_arquivo_requisitos', coluna: 'documento_arquivo_id' },
 };
 
-export async function requisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, origem: OrigemDocumentoReq = 'documento', ve = false) {
+export async function requisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, origem: OrigemDocumentoReq = 'documento', ve: boolean) {
   const t = DOC_REQ[origem];
   const { results } = await db.prepare(
     `SELECT r.id, r.fonte_id, r.referencia, r.titulo FROM ${t.ligacao} dr JOIN requisitos r ON r.id = dr.requisito_id
@@ -185,7 +185,7 @@ export async function requisitosDoDocumento(db: D1Database, projectId: string, d
 }
 
 /** Troca o conjunto de requisitos do documento. null = documento não é do projeto; `desconhecidos` = ids que não existem. */
-export async function definirRequisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, ids: string[], origem: OrigemDocumentoReq = 'documento', ve = false) {
+export async function definirRequisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, ids: string[], origem: OrigemDocumentoReq = 'documento', ve: boolean) {
   const t = DOC_REQ[origem];
   const doc = await db.prepare(`SELECT id FROM ${t.pai} WHERE id = ? AND project_id = ?`).bind(documentoId, projectId).first();
   if (!doc) return null;
@@ -205,7 +205,7 @@ export async function definirRequisitosDoDocumento(db: D1Database, projectId: st
 }
 
 /** Requisitos a que a evidência do projeto serve. */
-export async function requisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ve = false) {
+export async function requisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ve: boolean) {
   const { results } = await db.prepare(
     `SELECT r.id, r.fonte_id, r.referencia, r.titulo FROM evidencia_requisitos er JOIN requisitos r ON r.id = er.requisito_id
       WHERE er.project_id = ?1 AND er.evidencia_id = ?2 AND ${VISIVEL('r.fonte_id', 3)} ORDER BY r.fonte_id, r.rowid`
@@ -214,7 +214,7 @@ export async function requisitosDaEvidencia(db: D1Database, projectId: string, e
 }
 
 /** Troca o conjunto de requisitos da evidência. null = evidência não é do projeto; `desconhecidos` = ids que não existem no catálogo. */
-export async function definirRequisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ids: string[], ve = false) {
+export async function definirRequisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ids: string[], ve: boolean) {
   if (!(await db.prepare('SELECT 1 FROM evidence WHERE id = ? AND project_id = ?').bind(evidenciaId, projectId).first())) return null;
   const unicos = [...new Set(ids)];
   // id de fonte oculta conta como inexistente, na MESMA lista `desconhecidos` (não revela que existe)
@@ -430,7 +430,7 @@ export async function previaDeValidacao(db: D1Database, de: string, para: string
        JOIN requisitos r ON r.id = c.requisito_id AND r.fonte_id = ?3
        JOIN requisito_mapeamentos m ON c.requisito_id IN (m.de_id, m.para_id)
       WHERE m.estado = 'proposto' AND m.tipo IN ('equivalente', 'parcial') AND ${parDeFontes('?1', '?2')}
-      LIMIT ?4`
+      ORDER BY c.project_id LIMIT ?4`
   ).bind(de, para, origem, LIMITE_PREVIA + 1).all<{ id: string }>()).results;
   const truncado = projetos.length > LIMITE_PREVIA;
   let projetos_afetados = 0;

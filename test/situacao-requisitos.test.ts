@@ -151,7 +151,7 @@ describe('técnico por site (sitesPermitidos)', () => {
 
 describe('acesso à rota', () => {
   it('consultor de OUTRA organização é negado', async () => {
-    expect([403, 404]).toContain((await chamar(outraOrg)).status);
+    expect((await chamar(outraOrg)).status).toBe(403);
   });
   it('pessoa de outro projeto e sem sessão são negadas', async () => {
     expect([403, 404]).toContain((await chamar(vizinho)).status);

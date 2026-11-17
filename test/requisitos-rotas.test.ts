@@ -222,4 +222,25 @@ describe('documento e requisitos', () => {
     const r = await json<{ itens: { requisito_id: string; situacao: string }[] }>(await chamar(consultor, 'GET', `/api/v1/projects/${P}/requisitos/lacunas?fonte=lgpd`));
     expect(r.itens.find((i) => i.requisito_id === 'lgpd:art7')!.situacao).toBe('lacuna');
   });
+
+  it('requisito ONS (avaliação OT) e requisito de evidência: 409, não 500', async () => {
+    const ons = (await env.DB.prepare(`SELECT id FROM ot_requisitos LIMIT 1`).first<{ id: string }>())!.id;
+    expect((await chamar(admin, 'DELETE', `/api/v1/requisitos/${ons}`)).status).toBe(409);
+    await env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES ('ev-del', ?, 'a.md', 'k-del', 'h', 'x')`).bind(P).run();
+    await env.DB.prepare(`INSERT INTO evidencia_requisitos (evidencia_id, requisito_id, project_id) VALUES ('ev-del', 'lgpd:art46', ?)`).bind(P).run();
+    expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/lgpd:art46')).status).toBe(409);
+  });
+
+  it('PUT: título da ONS não se edita (400); ONS aceita texto + fonte_texto; fonte_texto sozinho é 400', async () => {
+    const ons = (await env.DB.prepare(`SELECT id FROM ot_requisitos LIMIT 1`).first<{ id: string }>())!.id;
+    expect((await chamar(admin, 'PUT', `/api/v1/requisitos/${ons}`, { titulo: 'outro' })).status).toBe(400);
+    expect((await chamar(admin, 'PUT', '/api/v1/requisitos/lgpd:art8', { titulo: 'Consentimento', fonte_texto: 'Lei 13.709/2018' })).status).toBe(400);
+    const t = (await env.DB.prepare(`SELECT titulo FROM requisitos WHERE id = ?`).bind(ons).first<{ titulo: string }>())!.titulo;
+    const o = await chamar(admin, 'PUT', `/api/v1/requisitos/${ons}`, { titulo: t, texto: 'Texto ONS', fonte_texto: 'RO-CB.BR.01 rev00' });
+    expect(o.status).toBe(200);
+    expect((await env.DB.prepare(`SELECT texto FROM requisitos WHERE id = ?`).bind(ons).first<{ texto: string }>())!.texto).toBe('Texto ONS');
+    const r = await chamar(admin, 'PUT', '/api/v1/requisitos/lgpd:art8', { titulo: 'Consentimento', texto: 'Texto', fonte_texto: 'Lei 13.709/2018' });
+    expect(r.status).toBe(200);
+    expect((await env.DB.prepare(`SELECT texto FROM requisitos WHERE id = 'lgpd:art8'`).first<{ texto: string }>())!.texto).toBe('Texto');
+  });
 });

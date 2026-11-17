@@ -332,6 +332,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `tipo = 'excecao'` (`ref_id` = a excecao, congela escopo/motivo/prazo, papel `ciso`/`ceo`); a situacao e DERIVADA (revogada,
   vencida, aprovada, aguardando, sem_pedido) e mudar escopo/motivo/prazo invalida a aprovacao sozinho. Revogar cancela o pedido
   aberto; o agente revoga pela ferramenta `niso_revisar_documento`, com confirmacao e motivo. A fonte `excecao` dos avisos de prazo avisa o vencimento.
+- Mapeamento: `PUT /requisitos/mapeamentos` com `validado_juridico` recarimba validado_por/validado_em pela sessao mesmo se so tipo/nota mudou (editar = revalidar; carimbo = ultimo validador).
 - **Catalogo de requisitos (fatia 2, migration 0053)**: `requisito_fontes`, `requisitos` e `requisito_mapeamentos` sao GLOBAIS (sem
   `project_id`); `documento_requisitos` liga documento a requisito (por projeto) e `compliance_controls.requisito_id` liga o controle.
   Servico em `src/services/requisitos.ts` (`semearCatalogo`, `ligarControles`, `lacunasDaFonte`), rotas em `src/routes/requisitos.ts`

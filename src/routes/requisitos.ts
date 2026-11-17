@@ -9,7 +9,7 @@ import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, r
 import { BASES_GDPR } from '../data/ropa-abas/gdpr';
 import { definirValidade } from '../services/evidencia-validade';
 import { hojeEmSaoPaulo } from '../services/hoje';
-import { fonteVisivel, modulosDaPessoa, veFontesDoOt } from '../modulos';
+import { FONTES_DO_OT, fonteVisivel, modulosDaPessoa, veFontesDoOt } from '../modulos';
 import { requisitosOcultos } from '../services/requisitos';
 import { leituraUnica } from '../services/situacao-requisitos';
 
@@ -82,7 +82,7 @@ requisitosApp.post('/mapeamentos/validar', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao validar os mapeamentos', e); }
 });
 
-/** Quem valida é a sessão, nunca o corpo: validado_por/validado_em do corpo são ignorados. */
+/** Quem valida é a sessão, nunca o corpo: validado_por/validado_em do corpo são ignorados. Editar um par já validado (tipo/nota) é revalidar: o carimbo é o de quem validou por último. */
 const carimbo = (c: { get: (k: 'user') => { email: string } }, estado: string): [string | null, string | null] =>
   estado === 'validado_juridico' ? [c.get('user').email, hojeEmSaoPaulo()] : [null, null];
 
@@ -149,6 +149,8 @@ requisitosApp.put('/:id', async (c) => {
     const antes = await c.env.DB.prepare('SELECT titulo, fonte_id FROM requisitos WHERE id = ?').bind(id).first<{ titulo: string; fonte_id: string }>();
     if (!antes) return c.json({ error: 'Requisito não encontrado' }, 404);
     const { texto, fonte_texto } = v.data;
+    // ot_requisitos.titulo é a cópia da norma; editar só requisitos.titulo faria a leitura única e o n.ot divergirem
+    if ((FONTES_DO_OT as readonly string[]).includes(antes.fonte_id) && v.data.titulo !== antes.titulo) return c.json({ error: 'o título dos requisitos da ONS é o da norma e não se edita aqui' }, 400);
     if (texto !== undefined && !fonteAceitaTexto(antes.fonte_id)) return c.json({ error: 'O texto da ISO é protegido por licença; use só o título' }, 400);
     // só platform_admin chega aqui, e ele vê a ONS (modulosDaPessoa dá todos os módulos): não há edição de requisito oculto
     if (texto !== undefined) await c.env.DB.prepare(`UPDATE requisitos SET titulo = ?, texto = ?, fonte_texto = ?, updated_at = datetime('now') WHERE id = ?`).bind(v.data.titulo, texto, fonte_texto!, id).run();
@@ -166,10 +168,14 @@ requisitosApp.delete('/:id', async (c) => {
     const uso = await c.env.DB.prepare(
       `SELECT (SELECT count(*) FROM documento_requisitos WHERE requisito_id = ?1) AS documentos,
               (SELECT count(*) FROM compliance_controls WHERE requisito_id = ?1) AS controles,
-              (SELECT count(*) FROM requisitos WHERE pai_id = ?1) AS filhos`
-    ).bind(id).first<{ documentos: number; controles: number; filhos: number }>();
-    if (uso && (uso.documentos || uso.controles || uso.filhos)) {
-      return c.json({ error: 'Requisito em uso: há documento, controle ou requisito filho apontando para ele', ...uso }, 409);
+              (SELECT count(*) FROM requisitos WHERE pai_id = ?1) AS filhos,
+              (SELECT count(*) FROM ot_requisitos WHERE requisito_id = ?1) AS ot,
+              (SELECT count(*) FROM evidencia_requisitos WHERE requisito_id = ?1) AS evidencias,
+              (SELECT count(*) FROM documentos_arquivo_requisitos WHERE requisito_id = ?1) AS arquivos,
+              (SELECT count(*) FROM tratamento_bases WHERE requisito_id = ?1) AS tratamentos`
+    ).bind(id).first<Record<string, number>>();
+    if (uso && Object.values(uso).some(Boolean)) {
+      return c.json({ error: 'Requisito em uso: há documento, controle, evidência, tratamento, avaliação OT ou requisito filho apontando para ele', ...uso }, 409);
     }
     await c.env.DB.prepare('DELETE FROM requisitos WHERE id = ?').bind(id).run();
     await logAudit(c.env.DB, 'requisitos.remover', c.get('user').email, `Requisito ${id} removido`);

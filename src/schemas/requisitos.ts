@@ -9,6 +9,7 @@ export const requisitoAtualizarSchema = z.object({
   fonte_texto: z.string().trim().min(5).max(500).optional(),
 }).strict().superRefine((v, ctx) => {
   if (v.texto !== undefined && v.fonte_texto === undefined) ctx.addIssue({ code: 'custom', path: ['fonte_texto'], message: 'Informe a origem do texto (fonte_texto)' });
+  if (v.fonte_texto !== undefined && v.texto === undefined) ctx.addIssue({ code: 'custom', path: ['texto'], message: 'fonte_texto só vale junto com o texto' });
 });
 
 /** Requisito "não aplicável" no projeto (migration 0107): a justificativa barra o "não se aplica" genérico. */
