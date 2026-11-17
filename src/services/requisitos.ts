@@ -395,7 +395,7 @@ export async function validarMapeamentosPropostos(db: D1Database, validadoPor: s
 const ALVOS_DE_COBERTURA = ['lgpd', 'anpd'];
 
 /** Máximo de projetos avaliados na prévia de validação (ver o orçamento do D1 em `previaDeValidacao`). */
-export const LIMITE_PREVIA = 200;
+export const LIMITE_PREVIA = 100;
 
 /**
  * Prévia EXATA de validar o par: quantos `proposto` e de que tipo, e a soma, nos projetos, da mudança em
@@ -416,9 +416,10 @@ export async function previaDeValidacao(db: D1Database, de: string, para: string
   // Só pode mudar o resultado o projeto com controle ligado a uma ponta (do lado `origem`) de par `proposto` equivalente/parcial
   // entre as duas fontes: os demais dariam diferença zero, então ficam de fora sem perder a exatidão. Sem filtro de projects.status:
   // a cobertura real (GET /requisitos/lacunas, ponto de partida) também não filtra.
-  // Orçamento do D1: cada projeto custa 2 db.batch (5 consultas cada); 200 projetos ≈ 400 batches, abaixo do limite de 1.000
-  // subrequisições por invocação do Worker (pago) mesmo se o batch contar uma vez; se contar por consulta, o corte é que salva.
-  // shortcut: 200 projetos, paginar se a base crescer
+  // Orçamento do D1 (1.000 subrequisições por invocação do Worker, plano pago): cada projeto custa 2 db.batch de 5 consultas.
+  // 100 projetos = 200 subrequisições se o batch conta uma vez, ou 100 × 2 × 5 = 1.000 se conta por consulta (mais as 2 consultas da
+  // prévia e as da autenticação: no pior caso fica no limite, não abaixo; baixar para 90 se o D1 contar por consulta).
+  // shortcut: 100 projetos, paginar se a base crescer
   const projetos = (await db.prepare(
     `SELECT DISTINCT c.project_id AS id FROM compliance_controls c
        JOIN requisitos r ON r.id = c.requisito_id AND r.fonte_id = ?3

@@ -73,7 +73,7 @@ function previaHtml(p) {
     const { equivalente, parcial, relacionado } = p.por_tipo;
     const alvo = ALVO[validando.para] || ALVO[validando.de];
     const cobertura = p.cobertura_calculada
-        ? `cobertura da ${alvo}: ${sinal(p.efeito.cobertos)} cobertos, ${sinal(p.efeito.parciais)} parciais em ${p.projetos_afetados} ${p.projetos_afetados === 1 ? 'projeto' : 'projetos'}${p.truncado ? ' (só os primeiros 200 projetos)' : ''}`
+        ? `cobertura da ${alvo}: ${sinal(p.efeito.cobertos)} cobertos, ${sinal(p.efeito.parciais)} parciais em ${p.projetos_afetados} ${p.projetos_afetados === 1 ? 'projeto' : 'projetos'}${p.truncado ? ' (só os primeiros 100 projetos)' : ''}`
         : 'cobertura não calculada (nenhuma das fontes é LGPD ou ANPD)';
     const nota = ALVO[validando.de] && ALVO[validando.para] ? `<p class="rj-aviso">Só a cobertura da ${alvo} é calculada neste par.</p>` : '';
     return nota + `<p class="rj-aviso" role="status">Vai validar <strong>${p.propostos}</strong> mapeamentos (${equivalente} equivalentes, ${parcial} parciais, ${relacionado} relacionados); ${cobertura}.</p>`;
