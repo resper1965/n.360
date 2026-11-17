@@ -163,3 +163,44 @@ describe('migrate-27701(.2025): controles sem requisito ficam visíveis', () => 
     expect(await auditoria('migration.27701')).toContain('0 sem requisito');
   });
 });
+
+describe('n.ot: quem pediu a base / avaliou o item sabe que não pode aprovar (booleanos, sem id)', () => {
+  const U = '/api/v1/projects/pgx/ot';
+  let ga: Record<string, string>, gb: Record<string, string>;
+  beforeAll(async () => {
+    const { habilitarOt, concederModulos } = await import('./helpers/d1');
+    const req = (await import('../migrations/0090_ot_requisitos.sql?raw')).default;
+    const { execSql } = await import('./helpers/d1');
+    await execSql(req);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('pgx','PGX','ISO 27001','controller','Active')`),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES
+        ('u-ga','ga@pgx.teste','x','GA','org_admin','pgx'), ('u-gb','gb@pgx.teste','x','GB','org_admin','pgx')`),
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase, base_pedida_em, base_pedida_por) VALUES ('sx','pgx','SE X','base_em_aprovacao', CURRENT_TIMESTAMP, 'u-ga')`),
+    ]);
+    await habilitarOt('pgx');
+    await concederModulos(['u-ga', 'u-gb'], ['ot']);
+    ga = await sessionFor({ id: 'u-ga', email: 'ga@pgx.teste', role: 'org_admin', client_project_id: 'pgx' });
+    gb = await sessionFor({ id: 'u-gb', email: 'gb@pgx.teste', role: 'org_admin', client_project_id: 'pgx' });
+  });
+  const sit = async (h: Record<string, string>) => (await (await chamar('GET', `${U}/sites/sx/situacao`, h)).json()) as any;
+  const item = async (h: Record<string, string>) => ((await (await chamar('GET', `${U}/assessment`, h)).json()) as any).itens.find((i: any) => i.codigo === '4.4.1');
+
+  it('base: quem pediu lê eu_pedi_a_base true, outra pessoa false, e nenhum id de pessoa sai', async () => {
+    const a = await sit(ga);
+    expect(a.eu_pedi_a_base).toBe(true);
+    expect((await sit(gb)).eu_pedi_a_base).toBe(false);
+    expect(JSON.stringify(a)).not.toContain('u-ga');
+    expect(Object.keys(a).filter((k) => /_por$|_id$/.test(k))).toEqual(['lote_em_revisao_id']);
+  });
+
+  it('avaliação: quem salvou lê eu_avaliei true até a confirmação; outra pessoa false', async () => {
+    expect((await chamar('PUT', `${U}/assessment/4.4.1`, ga, { situacao: 'atende' })).status).toBe(200);
+    expect((await item(ga)).avaliacao.eu_avaliei).toBe(true);
+    const b = await item(gb);
+    expect(b.avaliacao.eu_avaliei).toBe(false);
+    expect(JSON.stringify(b)).not.toContain('atualizado_por');
+    expect((await chamar('POST', `${U}/assessment/4.4.1/confirmar`, gb, { updated_at: b.avaliacao.updated_at })).status).toBe(200);
+    expect((await item(ga)).avaliacao.eu_avaliei).toBe(false);
+  });
+});

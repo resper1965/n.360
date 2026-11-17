@@ -10,6 +10,7 @@ export interface SituacaoSite {
   rascunhos: number; rascunhos_bloqueiam: number; lotes_em_revisao: number; zonas_4_1_1: boolean; tem_conteudo: boolean;
   proximo_passo: ProximoPasso; lote_em_revisao_id: string | null;
   obra: { ate: string; renovada: boolean; justificativa: string | null } | null; revalidar_em: string | null;
+  eu_pedi_a_base: boolean;
 }
 type Ator = { id: string };
 type Falha = { ok: false; status: 400 | 403 | 404 | 409; error: string };
@@ -30,9 +31,9 @@ export async function contarAchados(db: D1Database, projectId: string, siteId: s
   return n?.n ?? 0;
 }
 
-export async function situacaoDoSite(db: D1Database, projectId: string, siteId: string): Promise<SituacaoSite | null> {
-  const row = await db.prepare(`SELECT fase, base_pedida_em, base_aprovada_em, obra_ate, obra_renovada, obra_justificativa FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`)
-    .bind(siteId, projectId).first<{ fase: Fase; base_pedida_em: string | null; base_aprovada_em: string | null; obra_ate: string | null; obra_renovada: number; obra_justificativa: string | null }>();
+export async function situacaoDoSite(db: D1Database, projectId: string, siteId: string, quemId?: string): Promise<SituacaoSite | null> {
+  const row = await db.prepare(`SELECT fase, base_pedida_por, base_pedida_em, base_aprovada_em, obra_ate, obra_renovada, obra_justificativa FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`)
+    .bind(siteId, projectId).first<{ fase: Fase; base_pedida_por: string | null; base_pedida_em: string | null; base_aprovada_em: string | null; obra_ate: string | null; obra_renovada: number; obra_justificativa: string | null }>();
   if (!row) return null;
   const site = { fase: row.fase, base_pedida_em: row.base_pedida_em, base_aprovada_em: row.base_aprovada_em };
   const obra = row.obra_ate ? { ate: row.obra_ate, renovada: !!row.obra_renovada, justificativa: row.obra_justificativa } : null;
@@ -58,7 +59,8 @@ export async function situacaoDoSite(db: D1Database, projectId: string, siteId: 
           : rascunhos_bloqueiam > 0 ? 'revisar'
             : lotes_em_revisao > 0 ? 'aguardar_lote'
               : zonas_4_1_1 ? 'pedir_base' : 'revisar';
-  return { ...site, rascunhos, rascunhos_bloqueiam, lotes_em_revisao, zonas_4_1_1, tem_conteudo, proximo_passo, lote_em_revisao_id: lotes?.primeiro ?? null, obra, revalidar_em };
+  return { ...site, rascunhos, rascunhos_bloqueiam, lotes_em_revisao, zonas_4_1_1, tem_conteudo, proximo_passo, lote_em_revisao_id: lotes?.primeiro ?? null, obra, revalidar_em,
+    eu_pedi_a_base: !!quemId && row.fase === 'base_em_aprovacao' && row.base_pedida_por === quemId };
 }
 
 /** A primeira condição da base que falha, em texto para a tela; null se todas valem. */

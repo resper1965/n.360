@@ -749,7 +749,7 @@ const respostaAvaliacao = (c: C, r: { ok: true } | { ok: false; status: 400 | 40
 otApp.get('/assessment', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
-    return c.json(await montarAssessment(db, projectId, JSON.parse(sites)));
+    return c.json(await montarAssessment(db, projectId, JSON.parse(sites), user.id));
   } catch (e) { return erro500(c, 'Falha ao montar o assessment', e); }
 });
 
@@ -984,8 +984,8 @@ otApp.delete('/sensores/:id', async (c) => {
 // ─── base do site (spec fluidez §3 e §6) ────────────────────────────────────
 otApp.get('/sites/:id/situacao', async (c) => {
   try {
-    const { db, projectId, sites } = await contexto(c);
-    const s = daLista(sites, c.req.param('id')) ? await situacaoDoSite(db, projectId, c.req.param('id')) : null;
+    const { db, user, projectId, sites } = await contexto(c);
+    const s = daLista(sites, c.req.param('id')) ? await situacaoDoSite(db, projectId, c.req.param('id'), user.id) : null;
     return s ? c.json(s) : NAO_ENCONTRADO(c, 'Site');
   } catch (e) { return erro500(c, 'Falha ao ler a situação do site', e); }
 });
