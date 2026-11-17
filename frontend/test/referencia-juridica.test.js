@@ -144,7 +144,20 @@ describe('referência jurídica', () => {
         await window.verEfeitoValidacaoJuridica();
         expect(el('rj-validacao').textContent).toContain('Nenhum mapeamento proposto entre essas fontes');
         expect(validar().disabled).toBe(true);
+        expect(el('rj-validacao').textContent).not.toContain('Só a cobertura');
         window.cancelarValidacaoJuridica();
         expect(document.querySelector('[data-action="pedirValidacaoJuridica"]')).not.toBeNull();
+    });
+
+    it('par LGPD ↔ ANPD: avisa que só a cobertura da ANPD é calculada', async () => {
+        S.user = { role: 'platform_admin', email: 'adm@ness.lat' };
+        servir(rotas({ 'GET /api/v1/requisitos/fontes': [...FONTES, { id: 'anpd', nome: 'ANPD', versao: null, vigente_desde: null, requisitos: 9 }], 'GET /api/v1/requisitos/mapeamentos/previa': PREVIA }));
+        await abrir();
+        await window.pedirValidacaoJuridica();
+        window.parValidacaoJuridica('de', 'lgpd');
+        window.parValidacaoJuridica('para', 'anpd');
+        await window.verEfeitoValidacaoJuridica();
+        expect(el('rj-validacao').textContent).toContain('Só a cobertura da ANPD é calculada neste par.');
+        expect(el('rj-validacao').textContent).toContain('cobertura da ANPD: +2 cobertos');
     });
 });

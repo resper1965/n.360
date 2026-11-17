@@ -394,6 +394,9 @@ export async function validarMapeamentosPropostos(db: D1Database, validadoPor: s
 /** Fontes cuja cobertura `lacunasDaFonte` calcula a partir de controle mapeado (as telas de LGPD e ANPD). */
 const ALVOS_DE_COBERTURA = ['lgpd', 'anpd'];
 
+/** Máximo de projetos avaliados na prévia de validação (ver o orçamento do D1 em `previaDeValidacao`). */
+export const LIMITE_PREVIA = 200;
+
 /**
  * Prévia EXATA de validar o par: quantos `proposto` e de que tipo, e a soma, nos projetos, da mudança em
  * `resumoDeLacunas(lacunasDaFonte(projeto, alvo))` se o par fosse validado agora (a mesma conta, com `simular`).
@@ -410,13 +413,22 @@ export async function previaDeValidacao(db: D1Database, de: string, para: string
   const efeito = { cobertos: 0, parciais: 0 };
   if (!alvo || !propostos) return { propostos, por_tipo, projetos_afetados: 0, efeito, truncado: false, cobertura_calculada: !!alvo };
   const origem = alvo === para ? de : para; // a cobertura chega pelo controle ligado ao requisito do OUTRO lado do par
-  // shortcut: 500 projetos, paginar se a base crescer
+  // Só pode mudar o resultado o projeto com controle ligado a uma ponta (do lado `origem`) de par `proposto` equivalente/parcial
+  // entre as duas fontes: os demais dariam diferença zero, então ficam de fora sem perder a exatidão. Sem filtro de projects.status:
+  // a cobertura real (GET /requisitos/lacunas, ponto de partida) também não filtra.
+  // Orçamento do D1: cada projeto custa 2 db.batch (5 consultas cada); 200 projetos ≈ 400 batches, abaixo do limite de 1.000
+  // subrequisições por invocação do Worker (pago) mesmo se o batch contar uma vez; se contar por consulta, o corte é que salva.
+  // shortcut: 200 projetos, paginar se a base crescer
   const projetos = (await db.prepare(
-    `SELECT DISTINCT c.project_id AS id FROM compliance_controls c JOIN requisitos r ON r.id = c.requisito_id WHERE r.fonte_id = ? LIMIT 501`
-  ).bind(origem).all<{ id: string }>()).results;
-  const truncado = projetos.length > 500;
+    `SELECT DISTINCT c.project_id AS id FROM compliance_controls c
+       JOIN requisitos r ON r.id = c.requisito_id AND r.fonte_id = ?3
+       JOIN requisito_mapeamentos m ON c.requisito_id IN (m.de_id, m.para_id)
+      WHERE m.estado = 'proposto' AND m.tipo IN ('equivalente', 'parcial') AND ${parDeFontes('?1', '?2')}
+      LIMIT ?4`
+  ).bind(de, para, origem, LIMITE_PREVIA + 1).all<{ id: string }>()).results;
+  const truncado = projetos.length > LIMITE_PREVIA;
   let projetos_afetados = 0;
-  for (const { id } of projetos.slice(0, 500)) {
+  for (const { id } of projetos.slice(0, LIMITE_PREVIA)) {
     const antes = resumoDeLacunas(await lacunasDaFonte(db, id, alvo));
     const depois = resumoDeLacunas(await lacunasDaFonte(db, id, alvo, { simular: { de, para } }));
     const [dc, dp] = [depois.cobertos - antes.cobertos, depois.parciais - antes.parciais];

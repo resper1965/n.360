@@ -3,7 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
-import { lacunasDaFonte, resumoDeLacunas } from '../src/services/requisitos';
+import { LIMITE_PREVIA, lacunasDaFonte, previaDeValidacao, resumoDeLacunas } from '../src/services/requisitos';
 
 /**
  * Onda 2, Task 8: validação de mapeamento por PAR de fontes, com prévia EXATA do efeito na cobertura.
@@ -26,7 +26,7 @@ beforeAll(async () => {
   await applySchema();
   const lote: D1PreparedStatement[] = [
     db().prepare(`INSERT INTO requisito_fontes (id, nome) VALUES ('iso27001:2022', 'ISO 27001'), ('iso27701:2025', 'ISO 27701'), ('lgpd', 'LGPD'), ('anpd', 'ANPD')`),
-    db().prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('pp', 'Cliente', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness'), ('pq', 'Outro', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness')`),
+    db().prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('pp', 'Cliente', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness'), ('pq', 'Outro', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness'), ('pr', 'Alheio', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness')`),
     db().prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id) VALUES ('u-cons', 'cons@ness.lat', 'x', 'Cons', 'consultor', 'org_ness')`),
     db().prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-pp', 'pp', 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`),
     db().prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-pp', 'u-cons', 'pp', datetime('now','+30 days'))`),
@@ -44,6 +44,8 @@ beforeAll(async () => {
   // l4 ← lgpd→iso no sentido inverso (de_id = lgpd), equivalente, com controle Planned: nada. pq: sem controle ligado à ISO.
   ctrl('c1', 'pp', 'Implemented', 'iso:i1'); ctrl('c2', 'pp', 'Implemented', 'iso:i2'); ctrl('c3', 'pp', 'Implemented', 'iso:i3'); ctrl('c4', 'pp', 'Planned', 'iso:i4');
   ctrl('c5', 'pp', 'Implemented', 'p1'); ctrl('c6', 'pq', 'Implemented', 'p1');
+  // pr: controle feito ligado à ISO, mas só a um par `relacionado` (i3): não pode mudar a cobertura, então nem é avaliado.
+  ctrl('c7', 'pr', 'Implemented', 'iso:i3');
   map('iso:i1', 'lgpd:l1', 'equivalente'); map('iso:i2', 'lgpd:l2', 'parcial'); map('iso:i3', 'lgpd:l3', 'relacionado'); map('lgpd:l4', 'iso:i4', 'equivalente');
   // Outros pares: iso27701→lgpd e iso27001→anpd seguem propostos e fora da prévia.
   map('p1', 'lgpd:l5', 'equivalente'); map('iso:i1', 'anpd:a1', 'equivalente');
@@ -81,6 +83,20 @@ describe('validação por par de fontes', () => {
     expect(await lacunasDaFonte(db(), 'pp', 'lgpd')).toEqual(base);
   });
 
+  it('só avalia projeto com controle numa ponta de par proposto equivalente/parcial do par pedido', async () => {
+    let batches = 0;
+    const contado = new Proxy(db(), {
+      get(t, k) {
+        if (k === 'batch') return (...a: Parameters<D1Database['batch']>) => { batches++; return t.batch(...a); };
+        const v = (t as any)[k];
+        return typeof v === 'function' ? v.bind(t) : v;
+      },
+    });
+    const p = await previaDeValidacao(contado, 'iso27001:2022', 'lgpd');
+    expect(batches).toBe(2); // só pp (antes e depois); pr (só relacionado) e pq (só 27701) ficam de fora
+    expect(p).toMatchObject({ projetos_afetados: 1, efeito: { cobertos: 1, parciais: 1 }, truncado: false });
+  });
+
   it('a prévia bate com o efeito real da validação, e validar só toca o par', async () => {
     const p = await json<Previa>(await chamar(admin, 'GET', PREVIA));
     expect(p).toEqual({
@@ -106,4 +122,19 @@ describe('validação por par de fontes', () => {
     expect((await json<{ validados: number }>(await chamar(admin, 'POST', VALIDAR, PAR))).validados).toBe(0);
     expect((await json<Previa>(await chamar(admin, 'GET', PREVIA))).efeito).toEqual({ cobertos: 0, parciais: 0 });
   });
+});
+
+describe('prévia com mais de LIMITE_PREVIA projetos relevantes', () => {
+  it(`avalia só ${LIMITE_PREVIA} e devolve truncado`, async () => {
+    const n = LIMITE_PREVIA + 1;
+    const seq = `WITH RECURSIVE s(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM s WHERE i < ${n})`;
+    await db().batch([
+      db().prepare(`INSERT INTO requisitos (id, fonte_id, referencia, titulo) VALUES ('iso:t', 'iso27001:2022', 't', 'x'), ('lgpd:lt', 'lgpd', 'lt', 'x')`),
+      db().prepare(`INSERT INTO requisito_mapeamentos (de_id, para_id, tipo, estado) VALUES ('iso:t', 'lgpd:lt', 'equivalente', 'proposto')`),
+      db().prepare(`${seq} INSERT INTO projects (id, client_name, standards, org_role, status, org_id) SELECT 'pt' || i, 'T', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness' FROM s`),
+      db().prepare(`${seq} INSERT INTO compliance_controls (id, project_id, standard, title, status, requisito_id) SELECT 'ct' || i, 'pt' || i, 'ISO 27001:2022', 'c', 'Implemented', 'iso:t' FROM s`),
+    ]);
+    const p = await previaDeValidacao(db(), 'iso27001:2022', 'lgpd');
+    expect(p).toMatchObject({ propostos: 1, truncado: true, projetos_afetados: LIMITE_PREVIA, efeito: { cobertos: LIMITE_PREVIA, parciais: 0 } });
+  }, 60_000);
 });
