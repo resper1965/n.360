@@ -1008,13 +1008,19 @@ projectsApp.post('/:id/migrate-27701', async (c) => {
     }
 
     if (created) await ligarControles(c.env.DB, projectId);
-    await logAudit(c.env.DB, 'migration.27701', c.get('user')?.email ?? 'system', `27701 migration (2013->2022): ${gaps.length} gaps, ${created} new controls, project ${projectId}`, '', '', projectId);
+    // ids grossos do mapa sem linha no catálogo: visíveis, não inventados; decisão de produto pendente (spec onda 2, ruling e)
+    const { results: soltos } = await c.env.DB.prepare(
+      `SELECT id FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27001:2022' AND requisito_id IS NULL ORDER BY id`
+    ).bind(projectId).all<{ id: string }>();
+    const sem_requisito = (soltos || []).map((x) => x.id);
+    await logAudit(c.env.DB, 'migration.27701', c.get('user')?.email ?? 'system', `27701 migration (2013->2022): ${gaps.length} gaps, ${created} new controls, ${sem_requisito.length} sem requisito, project ${projectId}`, '', '', projectId);
 
     return c.json({
       ok: true,
       gaps,
       transformation_ratio: +transformationRatio.toFixed(2),
       new_controls_created: created,
+      sem_requisito,
     });
   } catch (e: any) {
     return erro500(c, 'Falha na migração 27701', e);
@@ -1052,13 +1058,19 @@ projectsApp.post('/:id/migrate-27701-2025', async (c) => {
     }
 
     if (created) await ligarControles(c.env.DB, projectId);
-    await logAudit(c.env.DB, 'migration.27701.2025', c.get('user')?.email ?? 'system', `27701:2025 migration: ${gaps.length} gaps, ${created} new controls, project ${projectId}`, '', '', projectId);
+    // ids grossos do mapa sem linha no catálogo: visíveis, não inventados; decisão de produto pendente (spec onda 2, ruling e)
+    const { results: soltos } = await c.env.DB.prepare(
+      `SELECT id FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27701:2025' AND requisito_id IS NULL ORDER BY id`
+    ).bind(projectId).all<{ id: string }>();
+    const sem_requisito = (soltos || []).map((x) => x.id);
+    await logAudit(c.env.DB, 'migration.27701.2025', c.get('user')?.email ?? 'system', `27701:2025 migration: ${gaps.length} gaps, ${created} new controls, ${sem_requisito.length} sem requisito, project ${projectId}`, '', '', projectId);
 
     return c.json({
       ok: true,
       gaps,
       transformation_ratio: +transformationRatio.toFixed(2),
       new_controls_created: created,
+      sem_requisito,
     });
   } catch (e: any) {
     return erro500(c, 'Falha na migração 27701:2025', e);

@@ -126,3 +126,40 @@ describe('direta não tem conta de cliente: SSO, SCIM e transferência', () => {
     expect((await env.DB.prepare(`SELECT role FROM users WHERE lower(email) = 'ana@parte.com'`).first<any>()).role).toBe('stakeholder');
   });
 });
+
+describe('migrate-27701(.2025): controles sem requisito ficam visíveis', () => {
+  const ctrl = (proj: string, id: string, std: string) =>
+    env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description) VALUES (?, ?, ?, ?, 'Implemented', '')`).bind(id, proj, std, id + ' — x');
+  const auditoria = async (acao: string) => (await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = ? ORDER BY rowid DESC LIMIT 1`).bind(acao).first<{ details: string }>())!.details;
+
+  beforeAll(async () => {
+    const { semearCatalogo } = await import('../src/services/requisitos');
+    await semearCatalogo(env.DB);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('pmx', 'X', 'ISO 27001, ISO 27701', 'Controller', 'Active', 'org_d')`),
+      ctrl('pmx', '7.2.1', 'ISO 27701:2019'), // -> A.1.1 (grosso, fora do catálogo)
+      ctrl('pmx', '5.4', 'ISO 27701:2019'), // -> A.3.3 (existe no catálogo)
+      ctrl('pmx', 'A.5.1.1', 'ISO 27001:2013'), // -> A.5.1 (existe no catálogo 27001:2022)
+    ]);
+  });
+
+  it('27701:2025 lista o id grosso, liga o real, e não muda os números', async () => {
+    const r = await chamar('POST', '/api/v1/projects/pmx/migrate-27701-2025', S.beto);
+    const b: any = await r.json();
+    expect(r.status).toBe(200);
+    expect(b.sem_requisito).toEqual(['A.1.1']);
+    expect({ criados: b.new_controls_created, gaps: b.gaps }).toEqual({ criados: 2, gaps: ['A.1.18', 'A.1.20', 'A.2.14', 'A.2.15', 'A.3.33', 'A.3.36'] });
+    const lig = await env.DB.prepare(`SELECT requisito_id FROM compliance_controls WHERE project_id = 'pmx' AND standard = 'ISO 27701:2025' AND id = 'A.3.3'`).first<{ requisito_id: string | null }>();
+    expect(lig?.requisito_id).toBeTruthy();
+    expect(await auditoria('migration.27701.2025')).toContain('1 sem requisito');
+  });
+
+  it('27001:2022 informa sem_requisito (vazio quando tudo liga) e cita na auditoria', async () => {
+    const r = await chamar('POST', '/api/v1/projects/pmx/migrate-27701', S.beto);
+    const b: any = await r.json();
+    expect(r.status).toBe(200);
+    expect(b.sem_requisito).toEqual([]);
+    expect(b.new_controls_created).toBe(1);
+    expect(await auditoria('migration.27701')).toContain('0 sem requisito');
+  });
+});
