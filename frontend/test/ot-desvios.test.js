@@ -126,6 +126,25 @@ describe('aba Desvios', () => {
             expect(el('modal-content').textContent).toContain('Ação criada');
             expect(JSON.parse(el('modal-content').querySelector('[data-action="otAbrirAcaoCriada"]').getAttribute('data-args'))).toEqual(['a77']);
         });
+        it('Ver a ação só abre o detalhe depois de ler a lista (carga lenta) e nunca com registro vazio', async () => {
+            const { navigate } = await import('../src/router.js');
+            let solta; const lenta = new Promise((r) => { solta = r; });
+            await abrir('desvios', { [`GET ${B.replace('/ot', '')}/capa`]: [200, []] });
+            window.openCAPADetailsModal = vi.fn();
+            vi.stubGlobal('fetch', vi.fn(async () => { await lenta; return resposta([{ id: 'a77', title: 'X' }]); }));
+            const p = window.otAbrirAcaoCriada('a77');
+            await pausa(); await pausa();
+            expect(window.openCAPADetailsModal).not.toHaveBeenCalled();
+            solta(); await p;
+            expect(S.capa.map((x) => x.id)).toEqual(['a77']);
+            expect(window.openCAPADetailsModal).toHaveBeenCalledWith('a77');
+            expect(navigate).toHaveBeenCalledWith('capa');
+            // ação que a lista não traz: não abre
+            window.openCAPADetailsModal.mockClear();
+            vi.stubGlobal('fetch', vi.fn(async () => resposta([])));
+            await window.otAbrirAcaoCriada('zzz');
+            expect(window.openCAPADetailsModal).not.toHaveBeenCalled();
+        });
         it('200 ja_existia também é sucesso', async () => {
             await abrir('desvios', { [ROTA]: [200, { ok: true, acao_id: 'a1', ja_existia: true }] });
             window.otCriarAcaoDesvio('d1');

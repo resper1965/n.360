@@ -136,7 +136,14 @@ window.otCriarAcaoDesvio = (id) => modal('Criar ação corretiva', `<div class="
     <div class="form-group"><label class="form-label" for="des-acao-prazo">Prazo</label><input class="form-input" type="date" id="des-acao-prazo" min="${hojeSP()}"></div>
     <div id="des-acao-erro" class="org-dica" role="alert"></div>`, 'otSalvarAcaoDesvio', id, 'Criar ação');
 
-window.otAbrirAcaoCriada = (acao) => { window.closeModal?.(); navigate('capa'); setTimeout(() => window.openCAPADetailsModal?.(acao), 150); };
+// Só abre depois de ler a lista de ações (S.capa): o detalhe lê dela e a tela de CAPA a recarrega por conta própria.
+window.otAbrirAcaoCriada = async (acao) => {
+    if (!acao) return;
+    let itens;
+    try { itens = await api('GET', `/api/v1/projects/${proj().id}/capa`); } catch (e) { falhou(e, 'Não foi possível abrir a ação.'); return; }
+    if (!Array.isArray(itens) || !itens.some((x) => x.id === acao)) { showToast('Não foi possível abrir a ação.', 'error'); return; }
+    S.capa = itens; window.closeModal?.(); navigate('capa'); window.openCAPADetailsModal?.(acao);
+};
 
 window.otSalvarAcaoDesvio = (id) => semRepetir('otSalvarAcaoDesvio', async () => {
     const titulo = el('des-acao-titulo').value.trim();
@@ -150,6 +157,6 @@ window.otSalvarAcaoDesvio = (id) => semRepetir('otSalvarAcaoDesvio', async () =>
     catch (e) { erro(mensagemDeErro(e, 'Não foi possível criar a ação corretiva.')); return; } // 409 (n.iso, desvio já tratado), 400, 403: o texto é do servidor
     openModal(`<div class="modal-header"><span class="modal-title">Ação criada</span></div>
         <p>A ação corretiva foi criada${r?.ja_existia ? ' antes (este desvio já tinha uma)' : ''}.</p>
-        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Fechar</button><button class="btn btn-primary" data-action="otAbrirAcaoCriada" data-args='${args(r?.acao_id)}'>Ver a ação</button></div>`);
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Fechar</button>${r?.acao_id ? `<button class="btn btn-primary" data-action="otAbrirAcaoCriada" data-args='${args(r.acao_id)}'>Ver a ação</button>` : ''}</div>`);
     window.render();
 });

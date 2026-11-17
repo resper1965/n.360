@@ -70,4 +70,26 @@ describe.each([['risco', () => window.openRiskDetailsModal('k1'), 'risk_id=k1'],
         await abrir(); await vi.waitFor(() => expect(el('ot-vinculo').textContent).toContain('Vínculo'));
         expect(el('ot-vinculo').querySelector('button')).toBeNull();
     });
+
+    it('duplo clique: um POST e um DELETE; site já vinculado fora da lista; 404 no Remover só atualiza', async () => {
+        servir({ ot: true });
+        await abrir(); await vi.waitFor(() => expect(el('ot-vinculo-site')).not.toBeNull());
+        expect([...el('ot-vinculo-site').options].map((o) => o.value)).toEqual(['s2']); // s1 já vinculado
+        await Promise.all([window.otAdicionarReferencia(), window.otAdicionarReferencia()]);
+        expect(chamadas.filter(([m]) => m === 'POST')).toHaveLength(1);
+        await Promise.all([window.otRemoverReferencia('r1'), window.otRemoverReferencia('r1')]);
+        expect(chamadas.filter(([m]) => m === 'DELETE')).toHaveLength(1);
+        const antes = apiMock.getMockImplementation();
+        apiMock.mockImplementation(async (m, u, c) => { if (m === 'DELETE') throw Object.assign(new Error('nao'), { status: 404 }); return antes(m, u, c); });
+        await window.otRemoverReferencia('r1');
+        expect(document.body.textContent).not.toContain('Não foi possível remover');
+    });
+
+    it('remover não aparece em referência ligada a desvio', async () => {
+        servir({ ot: true });
+        const antes = apiMock.getMockImplementation();
+        apiMock.mockImplementation(async (m, u, c) => (m === 'GET' && /referencias/.test(u) ? { referencias: [{ id: 'r3', ot_site_id: 's1', ot_desvio_id: 'd1' }] } : antes(m, u, c)));
+        await abrir(); await vi.waitFor(() => expect(el('ot-vinculo').textContent).toContain('Vínculo'));
+        expect(el('ot-vinculo').querySelector('[data-action="otRemoverReferencia"]')).toBeNull();
+    });
 });
