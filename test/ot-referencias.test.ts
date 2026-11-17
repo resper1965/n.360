@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { applySchema, resetData, seedTwoProjects } from './helpers/d1';
 import { criarReferencia, lerReferencias, apagarReferencia } from '../src/services/ot-referencias';
 
+const TODOS = JSON.stringify(['site1', 'site2', 'siteB']);
 const A = 'proj-a', B = 'proj-b';
 const run = (sql: string, ...b: unknown[]) => env.DB.prepare(sql).bind(...b).run();
 const ins = (id: string, cols: Record<string, string | null>) =>
@@ -67,25 +68,25 @@ describe('ot_referencias (0115)', () => {
   });
 
   it('serviço: recusa alvo de outro projeto, alvo removido, alvo duplo e desvio já ligado', async () => {
-    const ok = await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u');
+    const ok = await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u', TODOS);
     expect(ok.ok).toBe(true);
     const f = (r: Awaited<ReturnType<typeof criarReferencia>>) => (r.ok ? 'ok' : r.status);
-    expect(f(await criarReferencia(env.DB, A, { tipo: 'risk', id: 'riskB' }, { ot_site_id: 'site1' }, 'u'))).toBe(404);
-    expect(f(await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'siteB' }, 'u'))).toBe(404);
-    expect(f(await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1', ot_ativo_id: 'at1' }, 'u'))).toBe(400);
+    expect(f(await criarReferencia(env.DB, A, { tipo: 'risk', id: 'riskB' }, { ot_site_id: 'site1' }, 'u', TODOS))).toBe(404);
+    expect(f(await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'siteB' }, 'u', TODOS))).toBe(404);
+    expect(f(await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1', ot_ativo_id: 'at1' }, 'u', TODOS))).toBe(400);
     await run(`UPDATE ot_sites SET status = 'removido' WHERE id = 'site2'`);
     await run(`UPDATE ot_ativos SET status = 'removido' WHERE id = 'at1'`);
-    expect(f(await criarReferencia(env.DB, A, { tipo: 'acao', id: 'acao1' }, { ot_site_id: 'site2' }, 'u'))).toBe(404);
-    expect(f(await criarReferencia(env.DB, A, { tipo: 'acao', id: 'acao1' }, { ot_ativo_id: 'at1' }, 'u'))).toBe(404);
-    expect(f(await criarReferencia(env.DB, A, { tipo: 'acao', id: 'acao1' }, { ot_desvio_id: 'd1' }, 'u'))).toBe('ok');
-    expect(f(await criarReferencia(env.DB, A, { tipo: 'incidente', id: 'inc1' }, { ot_desvio_id: 'd1' }, 'u'))).toBe(409);
+    expect(f(await criarReferencia(env.DB, A, { tipo: 'acao', id: 'acao1' }, { ot_site_id: 'site2' }, 'u', TODOS))).toBe(404);
+    expect(f(await criarReferencia(env.DB, A, { tipo: 'acao', id: 'acao1' }, { ot_ativo_id: 'at1' }, 'u', TODOS))).toBe(404);
+    expect(f(await criarReferencia(env.DB, A, { tipo: 'acao', id: 'acao1' }, { ot_desvio_id: 'd1' }, 'u', TODOS))).toBe('ok');
+    expect(f(await criarReferencia(env.DB, A, { tipo: 'incidente', id: 'inc1' }, { ot_desvio_id: 'd1' }, 'u', TODOS))).toBe(409);
     expect(f(await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_ativo_id: 'at2' }, 'u', JSON.stringify(['site1'])))).toBe(404);
   });
 
   it('leitura: filtra por sites permitidos (ativo e desvio pelo site deles) e esconde removidos', async () => {
-    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u');
-    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_ativo_id: 'at2' }, 'u');
-    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_desvio_id: 'd1' }, 'u');
+    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u', TODOS);
+    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_ativo_id: 'at2' }, 'u', TODOS);
+    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_desvio_id: 'd1' }, 'u', TODOS);
     const todos = JSON.stringify(['site1', 'site2']);
     expect(await lerReferencias(env.DB, A, { nucleo: { tipo: 'risk', id: 'risk1' } }, todos)).toHaveLength(3);
     expect(await lerReferencias(env.DB, A, {}, JSON.stringify(['site1']))).toHaveLength(2);
@@ -97,8 +98,27 @@ describe('ot_referencias (0115)', () => {
     expect(await lerReferencias(env.DB, A, {}, todos)).toHaveLength(2);
   });
 
+  it('serviço: site fora do escopo do técnico, tipo inválido, ativo em site removido', async () => {
+    const r = await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_ativo_id: 'at2' }, 'u', JSON.stringify(['site1']));
+    expect(r).toMatchObject({ ok: false, status: 404 });
+    expect(!r.ok && r.error).toMatch(/não encontrado/);
+    for (const tipo of ['constructor', '__proto__'])
+      expect(await criarReferencia(env.DB, A, { tipo, id: 'x' } as never, { ot_site_id: 'site1' }, 'u', TODOS)).toMatchObject({ ok: false, status: 400, error: 'Tipo de alvo inválido' });
+    expect(await lerReferencias(env.DB, A, { nucleo: { tipo: 'constructor', id: 'x' } as never }, TODOS)).toEqual([]);
+    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_ativo_id: 'at2' }, 'u', TODOS);
+    await run(`UPDATE ot_sites SET status = 'removido' WHERE id = 'site2'`);
+    expect(await lerReferencias(env.DB, A, {}, TODOS)).toHaveLength(0);
+    expect(await criarReferencia(env.DB, A, { tipo: 'acao', id: 'acao1' }, { ot_ativo_id: 'at2' }, 'u', TODOS)).toMatchObject({ ok: false, status: 404 });
+  });
+
+  it('leitura por site inclui referências a ativos daquele site', async () => {
+    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_ativo_id: 'at1' }, 'u', TODOS);
+    await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_ativo_id: 'at2' }, 'u', TODOS);
+    expect(await lerReferencias(env.DB, A, { ot_site_id: 'site1' }, TODOS)).toHaveLength(1);
+  });
+
   it('apagar: só no próprio projeto', async () => {
-    const r = await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u');
+    const r = await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u', TODOS);
     if (!r.ok) throw new Error();
     expect(await apagarReferencia(env.DB, B, r.id)).toBe(false);
     expect(await apagarReferencia(env.DB, A, r.id)).toBe(true);
