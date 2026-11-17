@@ -189,3 +189,8 @@ export const otReferenciaCriarSchema = z.object({
   ot_site_id: id.optional(), ot_ativo_id: id.optional(),
 }).strict().refine((v) => [v.risk_id, v.acao_id, v.incidente_id].filter(Boolean).length === 1, 'Informe exatamente um entre risk_id, acao_id e incidente_id')
   .refine((v) => !!(v.ot_site_id || v.ot_ativo_id), 'Informe ot_site_id e/ou ot_ativo_id');
+
+/** Fornecedor de OT: uma parte fornecedora com papel, em um site e/ou fluxo. */
+export const otFornecedorCriarSchema = z.object({
+  parte_id: id, papel: z.enum(['integrador', 'fabricante', 'acesso_remoto']), ot_site_id: id.optional(), ot_fluxo_id: id.optional(),
+}).strict().refine((v) => !!(v.ot_site_id || v.ot_fluxo_id), 'Informe ot_site_id e/ou ot_fluxo_id');

@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0115** (`ls migrations/*.sql | tail -1`). São 116 arquivos
+- Última migration no repositório: **0116** (`ls migrations/*.sql | tail -1`). São 117 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -777,6 +777,10 @@ $ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1
 $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
+
+## 0116 — fornecedor de OT (2026-11-17)
+
+Cria `ot_fornecedores` (satélite `ot_*`, fora da exportação: liga uma `parte` fornecedora do cadastro comum a um site e/ou fluxo do n.ot com o papel `integrador`, `fabricante` ou `acesso_remoto`; CHECK de ao menos um site ou fluxo, CASCADE nos três lados; FK composta `(id, project_id)` para o site; `partes` e `ot_fluxos` não têm `UNIQUE (id, project_id)`, então o projeto da parte e do fluxo é conferido no serviço), um índice único com `COALESCE(..., '')` (o `UNIQUE` comum não barra duplicata com NULL) e 2 índices. Aditiva e repetível. Spec `2026-11-17-onda3-n-ot-no-nucleo-design`. **Status: PENDENTE de aplicar em produção** (não aplicada). Conferência depois de aplicar: `SELECT name FROM sqlite_master WHERE name = 'ot_fornecedores'` (1 linha). Aplicar: `npm run db:backup` e então `npx wrangler d1 migrations apply niso-db --remote` (ou o workflow manual `db-migrate.yml` na `main`), só com o "sim" do dono.
 
 ## 0115 — referência núcleo → OT (2026-11-17)
 

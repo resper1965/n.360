@@ -94,6 +94,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/ot/desvios/{id}/tratar': { obrigatorios: ['nota'] },
   'POST /api/v1/projects/{projectId}/ot/exportacao': { obrigatorios: ['formato', 'justificativa', 'site_id'] },
   'POST /api/v1/projects/{projectId}/ot/fluxos': { obrigatorios: ['site_id'] },
+  'POST /api/v1/projects/{projectId}/ot/fornecedores': { obrigatorios: ['papel', 'parte_id'] },
   'POST /api/v1/projects/{projectId}/ot/ia/completude': { obrigatorios: ['descricao'] },
   'POST /api/v1/projects/{projectId}/ot/ia/zona-sugerida': { obrigatorios: ['ativo_id'] },
   'POST /api/v1/projects/{projectId}/ot/levantamentos': { obrigatorios: ['realizado_em', 'site_id', 'tipo'] },

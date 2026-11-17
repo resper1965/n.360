@@ -136,7 +136,7 @@ import {
 } from './schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema, otReferenciaCriarSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema, otReferenciaCriarSchema, otFornecedorCriarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
   otDesvioTratarSchema, otDesvioAcaoSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema,
 } from './schemas/ot';
@@ -325,6 +325,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/exportacao', schema: otExportarSchema, nome: 'otExportarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/fluxos/:id', schema: otFluxoAtualizarSchema, nome: 'otFluxoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/fluxos', schema: otFluxoCriarSchema, nome: 'otFluxoCriarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/fornecedores', schema: otFornecedorCriarSchema, nome: 'otFornecedorCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ia/completude', schema: otIaCompletudeSchema, nome: 'otIaCompletudeSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ia/zona-sugerida', schema: otIaZonaSchema, nome: 'otIaZonaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/levantamentos/:id/achados/:aid', schema: otAchadoAtualizarSchema, nome: 'otAchadoAtualizarSchema' },

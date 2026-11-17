@@ -6,7 +6,7 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema, otReferenciaCriarSchema, otDesvioAcaoSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema, otReferenciaCriarSchema, otDesvioAcaoSchema, otFornecedorCriarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
@@ -17,6 +17,7 @@ import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
+import { apagarFornecedor, criarFornecedor, lerFornecedores } from '../services/ot-fornecedores';
 import { apagarReferencia, ehVinculoDoDesvio, MSG_VINCULO_DO_DESVIO, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
 import { criarAcaoDoDesvio, citaNomeOt, MSG_NOME_OT } from '../services/ot-desvio-acao';
 import { MSG_RESPONSAVEL, temResponsavel } from './capa';
@@ -1210,4 +1211,36 @@ otApp.delete('/referencias/:id', async (c) => {
     await trilha(c, 'ot.referencia.removida', projectId, 'Referência removida', { tipo: 'ot_referencia', id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao remover a referência', e); }
+});
+
+// ─── fornecedor de OT (0116) ────────────────────────────────────────────────
+// Satélite: a parte segue no cadastro comum, sem campo de OT. Escrita: guarda do topo (podeEditarOt). Leitura, escrita e DELETE sempre com `sites`.
+otApp.get('/fornecedores', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const q = c.req.query();
+    return c.json({ fornecedores: await lerFornecedores(db, projectId, sites, { ot_site_id: q.ot_site_id, parte_id: q.parte_id }) });
+  } catch (e) { return erro500(c, 'Falha ao listar os fornecedores de OT', e); }
+});
+
+otApp.post('/fornecedores', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otFornecedorCriarSchema);
+    if (!v.success) return v.response;
+    const r = await criarFornecedor(db, projectId, v.data, user.id, sites);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    if (r.criado) await trilha(c, 'ot.fornecedor.criado', projectId, 'Fornecedor de OT criado', { tipo: 'ot_fornecedor', id: r.id });
+    return c.json({ ok: true, id: r.id }, r.criado ? 201 : 200);
+  } catch (e) { return erro500(c, 'Falha ao criar o fornecedor de OT', e); }
+});
+
+otApp.delete('/fornecedores/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const id = c.req.param('id');
+    if (!await apagarFornecedor(db, projectId, id, sites)) return NAO_ENCONTRADO(c, 'Fornecedor de OT');
+    await trilha(c, 'ot.fornecedor.removido', projectId, 'Fornecedor de OT removido', { tipo: 'ot_fornecedor', id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao remover o fornecedor de OT', e); }
 });
