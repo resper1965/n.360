@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
+import { SQL_FONTES_DO_OT } from '../modulos';
 import { Bindings, Variables } from '../index';
-import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
+import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, podeRevogarAprovacao, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
@@ -49,7 +50,7 @@ projectRopaApp.use('/:recordId/*', async (c, next) => {
 
 /** A base legal é um requisito do catálogo global (fatia 4.1): existe ou não, sem tenant. */
 const baseLegalInexistente = async (db: D1Database, id: unknown) =>
-  typeof id === 'string' && id !== '' && !(await db.prepare('SELECT 1 FROM requisitos WHERE id = ?').bind(id).first());
+  typeof id === 'string' && id !== '' && !(await db.prepare(`SELECT 1 FROM requisitos WHERE id = ? AND fonte_id NOT IN (${SQL_FONTES_DO_OT})`).bind(id).first());
 
 /**
  * Riscos que a importação de programa não trouxe: o INSERT grava 0 nas três colunas (NOT NULL) quando o item não tinha o campo, e
@@ -542,10 +543,10 @@ projectRopaApp.delete('/:recordId/transferencias/:transferenciaId', async (c) =>
 projectRopaApp.post('/:recordId/revoke-approval', async (c) => {
   try {
     const user = c.get('user');
-    if (!PODE_REVOGAR_APROVACAO.has(user?.role ?? '')) {
+    const projectId = c.req.param('projectId')!;
+    if (!(await podeRevogarAprovacao(c.env.DB, user, projectId))) {
       return c.json({ error: 'Forbidden: revogar aprovação é do administrador do cliente ou da plataforma' }, 403);
     }
-    const projectId = c.req.param('projectId');
     const recordId = c.req.param('recordId');
     const valid = await validateBody(c, revogarRopaSchema);
     if (!valid.success) return valid.response;

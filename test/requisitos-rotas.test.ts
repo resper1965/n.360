@@ -65,7 +65,8 @@ describe('leitura do catálogo', () => {
   it('fontes e lista valem para todos os papéis; fonte filtra', async () => {
     for (const h of [admin, consultor, cliente]) {
       const f = await json<{ id: string; requisitos: number }[]>(await chamar(h, 'GET', '/api/v1/requisitos/fontes'));
-      expect(f.map((x) => x.id)).toEqual(['iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd']);
+      // A ONS (migration 0114) só aparece para a pessoa com o módulo ot (P0-2): o cliente e o consultor deste arquivo não a veem; o admin vê.
+      expect(f.map((x) => x.id)).toEqual(h === admin ? ['ons-ro-cb-br-01', 'iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd'] : ['iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd']);
       expect(f.find((x) => x.id === 'lgpd')!.requisitos).toBe(LGPD.length);
     }
     const lista = await json<{ fonte_id: string }[]>(await chamar(cliente, 'GET', '/api/v1/requisitos?fonte=lgpd'));
@@ -117,13 +118,34 @@ describe('escrita no catálogo', () => {
     expect(r).toMatchObject({ ok: true, fontes: 0, requisitos: 0 });
   });
 
-  it('mapeamento: validado exige quem e quando; auto-referência, duplicata e requisito inexistente são recusados', async () => {
+  it('mapeamento: auto-referência, duplicata e requisito inexistente são recusados', async () => {
     const post = (b: object) => chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', b);
-    expect((await post({ de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'equivalente', estado: 'validado_juridico' })).status).toBe(400);
     expect((await post({ de_id: 'lgpd:art8', para_id: 'lgpd:art8', tipo: 'equivalente' })).status).toBe(400);
     expect((await post({ de_id: A51, para_id: 'lgpd:art46', tipo: 'parcial' })).status).toBe(409);
     expect((await post({ de_id: A51, para_id: 'nao-existe', tipo: 'parcial' })).status).toBe(404);
     expect((await post({ de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'igual' })).status).toBe(400);
+  });
+
+  it('quem valida é a sessão: corpo ignorado em POST e PUT; proposto limpa; consultor/agente 403', async () => {
+    const lin = (a: string, b: string) => env.DB.prepare(`SELECT estado, validado_por, validado_em FROM requisito_mapeamentos WHERE de_id = ? AND para_id = ?`).bind(a, b).first();
+    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const falso = { validado_por: 'Fulano Qualquer', validado_em: '2020-01-01' };
+    const m = { de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'equivalente' };
+    expect((await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'validado_juridico', ...falso })).status).toBe(201);
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'validado_juridico', validado_por: 'adm@ness.lat', validado_em: hoje });
+    expect((await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'proposto', ...falso })).status).toBe(200);
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'proposto', validado_por: null, validado_em: null });
+    expect((await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'validado_juridico', ...falso })).status).toBe(200);
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'validado_juridico', validado_por: 'adm@ness.lat', validado_em: hoje });
+    await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9');
+    await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'proposto', ...falso });
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'proposto', validado_por: null, validado_em: null });
+    await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9');
+    const corpo = { ...m, estado: 'validado_juridico' };
+    for (const [h, extra] of [[consultor, {}], [{}, { AGENTE }]] as const) {
+      expect((await chamar(h, 'POST', '/api/v1/requisitos/mapeamentos', corpo, extra)).status).toBe(403);
+      expect((await chamar(h, 'PUT', '/api/v1/requisitos/mapeamentos', corpo, extra)).status).toBe(403);
+    }
   });
 
   it('altera e remove o mapeamento; o que não existe é 404', async () => {
@@ -131,7 +153,7 @@ describe('escrita no catálogo', () => {
     const put = await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'parcial', ...validado });
     expect(put.status).toBe(200);
     expect(await env.DB.prepare(`SELECT tipo, estado, validado_por FROM requisito_mapeamentos WHERE de_id = 'lgpd:art8'`).first())
-      .toEqual({ tipo: 'parcial', estado: 'validado_juridico', validado_por: 'Dra. Teste' });
+      .toEqual({ tipo: 'parcial', estado: 'validado_juridico', validado_por: 'adm@ness.lat' });
     expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9')).status).toBe(200);
     expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9')).status).toBe(404);
     expect((await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'parcial' })).status).toBe(404);
@@ -199,5 +221,26 @@ describe('documento e requisitos', () => {
     await env.DB.prepare(`INSERT OR IGNORE INTO documento_requisitos (documento_id, requisito_id, project_id) VALUES (?, 'lgpd:art7', ?)`).bind(docOutro, OUTRO).run();
     const r = await json<{ itens: { requisito_id: string; situacao: string }[] }>(await chamar(consultor, 'GET', `/api/v1/projects/${P}/requisitos/lacunas?fonte=lgpd`));
     expect(r.itens.find((i) => i.requisito_id === 'lgpd:art7')!.situacao).toBe('lacuna');
+  });
+
+  it('requisito ONS (avaliação OT) e requisito de evidência: 409, não 500', async () => {
+    const ons = (await env.DB.prepare(`SELECT id FROM ot_requisitos LIMIT 1`).first<{ id: string }>())!.id;
+    expect((await chamar(admin, 'DELETE', `/api/v1/requisitos/${ons}`)).status).toBe(409);
+    await env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES ('ev-del', ?, 'a.md', 'k-del', 'h', 'x')`).bind(P).run();
+    await env.DB.prepare(`INSERT INTO evidencia_requisitos (evidencia_id, requisito_id, project_id) VALUES ('ev-del', 'lgpd:art46', ?)`).bind(P).run();
+    expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/lgpd:art46')).status).toBe(409);
+  });
+
+  it('PUT: título da ONS não se edita (400); ONS aceita texto + fonte_texto; fonte_texto sozinho é 400', async () => {
+    const ons = (await env.DB.prepare(`SELECT id FROM ot_requisitos LIMIT 1`).first<{ id: string }>())!.id;
+    expect((await chamar(admin, 'PUT', `/api/v1/requisitos/${ons}`, { titulo: 'outro' })).status).toBe(400);
+    expect((await chamar(admin, 'PUT', '/api/v1/requisitos/lgpd:art8', { titulo: 'Consentimento', fonte_texto: 'Lei 13.709/2018' })).status).toBe(400);
+    const t = (await env.DB.prepare(`SELECT titulo FROM requisitos WHERE id = ?`).bind(ons).first<{ titulo: string }>())!.titulo;
+    const o = await chamar(admin, 'PUT', `/api/v1/requisitos/${ons}`, { titulo: t, texto: 'Texto ONS', fonte_texto: 'RO-CB.BR.01 rev00' });
+    expect(o.status).toBe(200);
+    expect((await env.DB.prepare(`SELECT texto FROM requisitos WHERE id = ?`).bind(ons).first<{ texto: string }>())!.texto).toBe('Texto ONS');
+    const r = await chamar(admin, 'PUT', '/api/v1/requisitos/lgpd:art8', { titulo: 'Consentimento', texto: 'Texto', fonte_texto: 'Lei 13.709/2018' });
+    expect(r.status).toBe(200);
+    expect((await env.DB.prepare(`SELECT texto FROM requisitos WHERE id = 'lgpd:art8'`).first<{ texto: string }>())!.texto).toBe('Texto');
   });
 });

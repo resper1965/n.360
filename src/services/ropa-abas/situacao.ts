@@ -1,4 +1,5 @@
 import { logAudit, PODE_REVOGAR_APROVACAO, ehEquipeNess, genId } from '../../helpers';
+import { adminDireto } from '../organizacao';
 import { aprovacoesDoProjeto } from '../documentos';
 import { podePedir } from '../pedidos';
 import { atividadeDoProjeto, falha, type Falha } from './comum';
@@ -47,8 +48,8 @@ export function acoesDoMenu(s: Situacao, p: Papel): Record<AcaoId, AcaoDoMenu> {
   };
 }
 
-export const papelDe = (user: { role?: string } | undefined | null, podePedirAprovacao: boolean, bloqueios: number): Papel => ({
-  equipe: ehEquipeNess(user), orgAdmin: user?.role === 'org_admin', podeRevogar: PODE_REVOGAR_APROVACAO.has(user?.role ?? ''), podePedir: podePedirAprovacao, bloqueios,
+export const papelDe = (user: { role?: string } | undefined | null, podePedirAprovacao: boolean, bloqueios: number, direto = false): Papel => ({
+  equipe: ehEquipeNess(user), orgAdmin: user?.role === 'org_admin', podeRevogar: PODE_REVOGAR_APROVACAO.has(user?.role ?? '') || direto, podePedir: podePedirAprovacao, bloqueios,
 });
 
 /** Papel com todas as permissões: separa "a situação não permite" (409) de "você não pode" (403). */
@@ -73,14 +74,14 @@ const ID_DO_MENU: Record<Corpo['acao'], AcaoId> = { enviar_revisao: 'alterar_par
  * aprovação (src/services/pedidos.ts), que esta função não toca, exceto cancelar o pedido ABERTO ao cancelar a atividade. Nada aqui
  * grava assinatura (`ciso_approved_*`) para aprovar; reabrir só LIMPA a assinatura direta antiga, como a revogação de `ropa.ts`.
  */
-export async function transicionar(db: D1Database, projectId: string, ropaId: string, user: { email?: string; role?: string }, corpo: Corpo, ip = ''):
+export async function transicionar(db: D1Database, projectId: string, ropaId: string, user: { email?: string; role?: string; id?: string | null; org_id?: string | null; agente?: boolean }, corpo: Corpo, ip = ''):
   Promise<Falha | { ok: true; de: string | null; para: string }> {
   const lido = await situacaoGravada(db, projectId, ropaId);
   if (!lido) return falha(404, 'Registro do RoPA não encontrado');
   const { at, situacao } = lido;
   const id = ID_DO_MENU[corpo.acao];
   if (!acoesDoMenu(situacao, TUDO)[id].habilitada) return falha(409, 'Ação indisponível para a situação atual');
-  const menu = acoesDoMenu(situacao, papelDe(user, true, 0))[id];
+  const menu = acoesDoMenu(situacao, papelDe(user, true, 0, await adminDireto(db, user, projectId)))[id];
   if (!menu.habilitada) return falha(403, String(menu.motivo));
 
   const stmts: D1PreparedStatement[] = [];

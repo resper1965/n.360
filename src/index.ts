@@ -44,7 +44,7 @@ import { nucleoApp } from './routes/nucleo';
 import { documentosApp } from './routes/documentos';
 import { politicasApp } from './routes/politicas';
 import { documentosArquivoApp } from './routes/documentos-arquivo';
-import { requisitosApp, projetoRequisitosApp } from './routes/requisitos';
+import { requisitosApp, projetoRequisitosApp, situacaoRequisitosApp } from './routes/requisitos';
 import { terceirosApp } from './routes/terceiros';
 import { homologacoesApp } from './routes/homologacoes';
 import { importacaoApp } from './routes/importacao';
@@ -175,6 +175,8 @@ export type Variables = {
     client_project_id?: string | null;
     /** Principal do agente MCP (middleware/agente.ts): paridade de consultor, preso ao projeto. */
     agente?: boolean;
+    /** E-mail REAL da conta que concedeu o agente (o `email` do agente é um rótulo): regras de "quem registrou não decide". */
+    agente_conta?: string;
     /** Papel do agente, relido da concessão a cada chamada: consultor implementa, auditor só lê e audita. */
     agente_papel?: import('./middleware/agente').PapelAgente;
     /** Decisão confirmada do agente consultor (src/middleware/decisoes-agente.ts): a rota a trata como da equipe. */
@@ -189,6 +191,8 @@ export type Variables = {
     seen?: number;
     /** `users.org_id`, gravado pelo login (migration 0040). Ausente em sessão anterior a ela. */
     org_id?: string;
+    /** Definido pelo authMiddleware a cada requisição, lido do banco: a organização da equipe é do tipo `direta`. */
+    org_direta?: boolean;
   };
   /** Organização da requisição, resolvida por `exigirOrg` (services/organizacao.ts). */
   orgId: string;
@@ -489,6 +493,7 @@ app.route('/api/v1/projects/:projectId/documentos-arquivo', documentosArquivoApp
 app.route('/api/v1/projects/:projectId', exportacaoApp);
 app.route('/api/v1/requisitos', requisitosApp);
 app.route('/api/v1/projects/:projectId', projetoRequisitosApp);
+app.route('/api/v1/projects/:projectId/requisitos-situacao', situacaoRequisitosApp);
 app.route('/api/v1/projects/:projectId/terceiros', terceirosApp);
 app.route('/api/v1/projects/:projectId/homologacoes', homologacoesApp);
 app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);

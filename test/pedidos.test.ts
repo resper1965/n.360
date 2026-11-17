@@ -175,6 +175,14 @@ describe('meus pedidos', () => {
     expect((await chamar(consultor, 'GET', `/api/v1/pedidos/${meu}`)).status).toBe(404);
   });
 
+  it('quem criou o pedido não o vê em "Minhas aprovações", mesmo sendo destinatário (não pode decidir)', async () => {
+    await env.DB.prepare(`INSERT INTO pedido_destinatarios (id, pedido_id, email, user_id) VALUES ('pdd-criador', ?, 'cons@ness.lat', 'u-cons')`).bind(meu).run();
+    try {
+      const { pedidos } = await (await chamar(consultor, 'GET', '/api/v1/pedidos')).json<any>();
+      expect(pedidos.map((p: any) => p.id)).not.toContain(meu);
+    } finally { await env.DB.prepare(`DELETE FROM pedido_destinatarios WHERE id = 'pdd-criador'`).run(); }
+  });
+
   it('pedido de outro projeto/org, mesmo com o meu e-mail: não aparece nem abre (404)', async () => {
     expect((await chamar(stDpo, 'GET', `/api/v1/pedidos/${alheio}`)).status).toBe(404);
     expect((await chamar(stDpo, 'POST', `/api/v1/pedidos/${alheio}/aprovar`, { senha: SENHA })).status).toBe(404);

@@ -4,6 +4,9 @@ import { api } from './api.js';
 import { showToast, openModal, escapeHTML, renderEmptyState } from './ui.js';
 import { filtroValido } from './filtro-painel.js';
 
+/** A pessoa é de organização direta (`org_tipo` do /auth/me, lido do banco): só escolhe textos; quem autoriza é o servidor. */
+export const orgDireta = () => S.user?.org_tipo === 'direta';
+
 // O n.360 é a plataforma-mãe; n.iso, n.privacy e n.ot são módulos dele sobre o mesmo cadastro (decisão de 11/10/2026; n.ot em
 // 30/10/2026). Tudo responde em n360.ness.com.br e o CAMINHO decide a casca: /iso… → n.iso, /privacy… → n.privacy, /ot… → n.ot,
 // o resto → o início do n.360. A trava
@@ -365,11 +368,11 @@ function semProjetoNenhum() {
         criaProjeto ? '<button type="button" class="btn btn-primary" data-action="abrirNovoProjeto">Novo projeto</button>' : '',
         // Com a área comercial ligada, o funil é o caminho do comercial (primário) ou o alternativo de quem também cria (secundário).
         doComercial ? `<a class="btn ${criaProjeto ? 'btn-secondary' : 'btn-primary'}" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
-        S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver consultorias</a>' : '',
+        S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver organizações</a>' : '',
     ].join('');
     return renderEmptyState({ id, titulo: 'Nenhum projeto ainda',
         texto: comercial ? 'O projeto nasce quando a proposta é aprovada, no funil comercial do n.iso: lead, diagnóstico e proposta.'
-            : criaProjeto ? 'Crie o primeiro: o assistente pede a empresa, o programa e as pessoas.' : 'Quem administra a consultoria cria o projeto e designa você nele.', acao });
+            : criaProjeto ? 'Crie o primeiro: o assistente pede a empresa, o programa e as pessoas.' : `Quem administra a ${orgDireta() ? 'organização' : 'consultoria'} cria o projeto e designa você nele.`, acao });
 }
 
 /** Tela de quem entrou num módulo que nenhum projeto seu tem (ou no n.360 sem módulo em projeto nenhum). */
@@ -512,12 +515,12 @@ window.abrirProdutosDoProjeto = async function (projectId) {
     const linha = (m) => {
         const ligado = hab.includes(m);
         const pode = podeGerir() && (ligado || contr.includes(m));
-        return `<tr><td><strong>n.${m}</strong></td><td>${ligado ? 'Habilitado' : 'Desligado'}${contr.includes(m) ? '' : ' · não contratado pela consultoria'}</td>
+        return `<tr><td><strong>n.${m}</strong></td><td>${ligado ? 'Habilitado' : 'Desligado'}${contr.includes(m) ? '' : orgDireta() ? ' · não contratado' : ' · não contratado pela consultoria'}</td>
             <td style="text-align:right">${pode ? `<button class="btn btn-sm ${ligado ? 'btn-ghost' : 'btn-primary'}" data-action="alternarProdutoDoProjeto" data-args='${escapeHTML(JSON.stringify([projectId, m, !ligado]))}'>${ligado ? 'Desligar' : 'Habilitar'}</button>` : ''}</td></tr>`;
     };
     openModal(`<h3>Produtos do projeto</h3>
         <p style="color:var(--text-dim)">Os produtos usam o mesmo cadastro (partes, itens, documentos, RoPA, DPIA, evidências). Desligar um produto não apaga dado: ele volta ao religar.</p>
-        <p id="produtos-aviso-pessoas" style="color:var(--text-dim)">Os usuários do cliente deste projeto recebem o módulo; a equipe da consultoria precisa recebê-lo na tela Usuários.</p>
+        <p id="produtos-aviso-pessoas" style="color:var(--text-dim)">${orgDireta() ? 'Cada pessoa da equipe precisa receber o módulo na tela Usuários.' : 'Os usuários do cliente deste projeto recebem o módulo; a equipe da consultoria precisa recebê-lo na tela Usuários.'}</p>
         <p id="produtos-aviso-ot" class="org-dica">O n.ot é a exceção: não é concedido automaticamente a ninguém, nem ao cliente; dê o módulo a cada pessoa na tela Usuários.</p>
         <table class="data-table" id="produtos-do-projeto"><tbody>${MODULOS.map(linha).join('')}</tbody></table>`);
 };

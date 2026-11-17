@@ -83,20 +83,81 @@ describe('referência jurídica', () => {
         expect(document.querySelector('[data-action="pedirValidacaoJuridica"]')).not.toBeNull();
     });
 
-    it('validar: mostra a contagem, pede confirmação, e o POST não leva nome de quem valida', async () => {
+    // Corpos de src/routes/requisitos.ts: GET /fontes (listarFontes), GET /mapeamentos/previa (previaDeValidacao), POST /mapeamentos/validar.
+    const FONTES = [
+        { id: 'iso27001:2022', nome: 'ISO/IEC 27001:2022', versao: '2022', vigente_desde: null, requisitos: 93 },
+        { id: 'iso27701:2025', nome: 'ISO/IEC 27701:2025', versao: '2025', vigente_desde: null, requisitos: 80 },
+        { id: 'lgpd', nome: 'Lei <i>Geral</i>', versao: '2018', vigente_desde: null, requisitos: 60 },
+    ];
+    const PREVIA = { propostos: 7, por_tipo: { equivalente: 2, parcial: 4, relacionado: 1 }, projetos_afetados: 3, efeito: { cobertos: 2, parciais: -1 }, truncado: false, cobertura_calculada: true };
+    const validar = () => el('rj-validacao').querySelector('[data-action="confirmarValidacaoJuridica"]');
+
+    it('validar por par: padrão ISO 27001 → LGPD, "Validar" só depois da prévia do mesmo par, e o POST leva o par e nenhum nome', async () => {
         S.user = { role: 'platform_admin', email: 'adm@ness.lat' };
         const f = servir(rotas({
-            'GET /api/v1/requisitos/mapeamentos/resumo': { propostos: 7, validados: 3 },
+            'GET /api/v1/requisitos/fontes': FONTES,
+            'GET /api/v1/requisitos/mapeamentos/previa': PREVIA,
             'POST /api/v1/requisitos/mapeamentos/validar': { ok: true, validados: 7, propostos_restantes: 0, validados_total: 10 },
         }));
         await abrir();
         await window.pedirValidacaoJuridica();
-        expect(el('rj-validacao').textContent).toContain('7 mapeamentos propostos e 3 já validados');
+        expect(el('rj-par-de').value).toBe('iso27001:2022');
+        expect(el('rj-par-para').value).toBe('lgpd');
+        expect(el('rj-par-para').innerHTML).toContain('Lei &lt;i&gt;Geral&lt;/i&gt;');
+        expect(validar().disabled).toBe(true);
+        await window.confirmarValidacaoJuridica();
         expect(f.mock.calls.some(([, o]) => o?.method === 'POST')).toBe(false);
+
+        await window.verEfeitoValidacaoJuridica();
+        const previa = f.mock.calls.find(([u]) => String(u).includes('/previa'));
+        expect(previa[0]).toContain('de=iso27001%3A2022&para=lgpd');
+        expect(el('rj-validacao').textContent.replace(/\s+/g, ' ')).toContain('Vai validar 7 mapeamentos (2 equivalentes, 4 parciais, 1 relacionados); cobertura da LGPD: +2 cobertos, -1 parciais em 3 projetos');
+        expect(validar().disabled).toBe(false);
+
+        // Trocar o par apaga a prévia: "Validar" volta a ficar desabilitado.
+        window.parValidacaoJuridica('de', 'iso27701:2025');
+        expect(validar().disabled).toBe(true);
+        expect(el('rj-validacao').textContent).not.toContain('Vai validar');
+        await window.verEfeitoValidacaoJuridica();
         await window.confirmarValidacaoJuridica();
         const post = f.mock.calls.find(([, o]) => o?.method === 'POST');
         expect(post[0]).toContain('/api/v1/requisitos/mapeamentos/validar');
-        expect(JSON.parse(post[1].body)).toEqual({});
+        expect(JSON.parse(post[1].body)).toEqual({ de_fonte: 'iso27701:2025', para_fonte: 'lgpd' });
         expect(window.render).toHaveBeenCalled();
+    });
+
+    it('par sem LGPD/ANPD: diz que a cobertura não foi calculada; nenhum proposto: "Validar" fica desabilitado; Cancelar fecha', async () => {
+        S.user = { role: 'platform_admin', email: 'adm@ness.lat' };
+        const previas = [
+            { ...PREVIA, propostos: 2, por_tipo: { equivalente: 0, parcial: 2, relacionado: 0 }, projetos_afetados: 0, efeito: { cobertos: 0, parciais: 0 }, cobertura_calculada: false },
+            { ...PREVIA, propostos: 0, por_tipo: { equivalente: 0, parcial: 0, relacionado: 0 }, projetos_afetados: 0, efeito: { cobertos: 0, parciais: 0 } },
+        ];
+        servir(rotas({ 'GET /api/v1/requisitos/fontes': FONTES, 'GET /api/v1/requisitos/mapeamentos/previa': previas[0] }));
+        await abrir();
+        await window.pedirValidacaoJuridica();
+        window.parValidacaoJuridica('para', 'iso27701:2025');
+        await window.verEfeitoValidacaoJuridica();
+        expect(el('rj-validacao').textContent).toContain('cobertura não calculada');
+        expect(validar().disabled).toBe(false);
+        servir(rotas({ 'GET /api/v1/requisitos/fontes': FONTES, 'GET /api/v1/requisitos/mapeamentos/previa': previas[1] }));
+        window.parValidacaoJuridica('para', 'lgpd');
+        await window.verEfeitoValidacaoJuridica();
+        expect(el('rj-validacao').textContent).toContain('Nenhum mapeamento proposto entre essas fontes');
+        expect(validar().disabled).toBe(true);
+        expect(el('rj-validacao').textContent).not.toContain('Só a cobertura');
+        window.cancelarValidacaoJuridica();
+        expect(document.querySelector('[data-action="pedirValidacaoJuridica"]')).not.toBeNull();
+    });
+
+    it('par LGPD ↔ ANPD: avisa que só a cobertura da ANPD é calculada', async () => {
+        S.user = { role: 'platform_admin', email: 'adm@ness.lat' };
+        servir(rotas({ 'GET /api/v1/requisitos/fontes': [...FONTES, { id: 'anpd', nome: 'ANPD', versao: null, vigente_desde: null, requisitos: 9 }], 'GET /api/v1/requisitos/mapeamentos/previa': PREVIA }));
+        await abrir();
+        await window.pedirValidacaoJuridica();
+        window.parValidacaoJuridica('de', 'lgpd');
+        window.parValidacaoJuridica('para', 'anpd');
+        await window.verEfeitoValidacaoJuridica();
+        expect(el('rj-validacao').textContent).toContain('Só a cobertura da ANPD é calculada neste par.');
+        expect(el('rj-validacao').textContent).toContain('cobertura da ANPD: +2 cobertos');
     });
 });

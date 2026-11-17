@@ -185,9 +185,10 @@ pedidosApp.get('/', async (c) => {
          FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
         WHERE (d.user_id = ? OR (d.user_id IS NULL AND d.email = lower(?)))
           AND p.status NOT IN ('substituido', 'cancelado')
+          AND lower(p.criado_por) <> lower(?) -- quem pediu não decide (o painel usa a mesma regra)
           ${vis ? `AND p.project_id IN (${vis.sql})` : ''}
         ORDER BY p.criado_em DESC LIMIT 200`
-    ).bind(user.id ?? '', user.email ?? '', ...(vis ? [vis.bind] : [])).all();
+    ).bind(user.id ?? '', user.email ?? '', user.email ?? '', ...(vis ? [vis.bind] : [])).all();
     return c.json({ pedidos: results });
   } catch (e: any) {
     return erro500(c, 'Erro ao listar pedidos', e);
@@ -231,6 +232,10 @@ export async function decidirPedido(
   const meu = await meuPedido(db, user, pedidoId);
   if (!meu) return { status: 404, corpo: { error: 'Pedido não encontrado' } };
   const { pedido, dest } = meu;
+  // Segregação de funções (spec onda 1): quem pediu não decide o que pediu. `criado_por` é o e-mail de quem criou.
+  if (pedido.criado_por.toLowerCase() === (user.email ?? '').toLowerCase()) {
+    return { status: 403, corpo: { error: 'Quem pediu a aprovação não a decide. Peça a outra pessoa.' } };
+  }
 
   const vig = await conferirEAvisar(c, pedido);
   if (!vig.vigente) {

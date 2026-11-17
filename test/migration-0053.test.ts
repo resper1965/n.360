@@ -19,7 +19,7 @@ describe('migration 0053 — catálogo de requisitos', () => {
 
   it('o schema canônico tem as tabelas e a coluna do controle', async () => {
     expect(await colunas('requisito_fontes')).toEqual(['id', 'nome', 'versao', 'vigente_desde', 'created_at']);
-    expect(await colunas('requisitos')).toEqual(['id', 'fonte_id', 'referencia', 'titulo', 'pai_id', 'papel', 'created_at', 'updated_at']);
+    expect(await colunas('requisitos')).toEqual(['id', 'fonte_id', 'referencia', 'titulo', 'pai_id', 'papel', 'created_at', 'updated_at', 'texto', 'fonte_texto', 'categoria']);
     expect(await colunas('requisito_mapeamentos')).toEqual(['de_id', 'para_id', 'tipo', 'estado', 'validado_por', 'validado_em', 'nota', 'created_at']);
     expect(await colunas('documento_requisitos')).toEqual(['documento_id', 'requisito_id', 'project_id', 'created_at']);
     expect(await colunas('compliance_controls')).toContain('requisito_id');

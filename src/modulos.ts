@@ -22,7 +22,8 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   '': 'nucleo', agentes: 'nucleo', 'api-keys': 'nucleo', assets: 'nucleo', 'audit-trail': 'nucleo', chat: 'nucleo',
   'company-profile': 'nucleo', context: 'nucleo', 'data-subject': 'nucleo', departamentos: 'nucleo', documentos: 'nucleo', 'documentos-arquivo': 'nucleo',
   documents: 'nucleo', dpia: 'nucleo', empresa: 'nucleo', evidence: 'nucleo', export: 'nucleo', governance: 'nucleo', modulos: 'nucleo',
-  partes: 'nucleo', 'padronizar-nomes': 'nucleo', mesclar: 'nucleo', pedidos: 'nucleo', politicas: 'nucleo',
+  // situação única por requisito: núcleo (n.iso-only também lê); as linhas do n.ot são filtradas no serviço (fonteVisivel)
+  'requisitos-situacao': 'nucleo', partes: 'nucleo', 'padronizar-nomes': 'nucleo', mesclar: 'nucleo', pedidos: 'nucleo', politicas: 'nucleo',
   // painel: a faixa depende do `?modulo=` (iso ou privacy), que o middleware não lê; a rota faz a mesma recusa (routes/painel.ts).
   painel: 'nucleo', 'ponto-de-partida': 'nucleo', ropa: 'nucleo', 'scim-token': 'nucleo', 'security-policy': 'nucleo', similares: 'nucleo', sso: 'nucleo',
   incidentes: 'nucleo', stakeholders: 'nucleo', training: 'nucleo', vendors: 'nucleo', webhooks: 'nucleo',
@@ -134,6 +135,22 @@ export async function modulosDaPessoa(db: D1Database, user: PrincipalDeModulo): 
   // ponytail: principal sem `id` não tem módulo nenhum, de propósito (falha fechada): `''` não casa com conta alguma.
   const { results } = await db.prepare('SELECT modulo FROM usuario_modulos WHERE user_id = ? ORDER BY modulo').bind(user.id ?? '').all<{ modulo: Modulo }>();
   return results.map((r) => r.modulo);
+}
+
+/** Fontes do catálogo de requisitos que são do n.ot (P0-2): só a PESSOA com o módulo `ot` as vê; agente e chave de API nunca. */
+export const FONTES_DO_OT = ['ons-ro-cb-br-01'] as const;
+/** SQL estático (constante nossa, nunca entrada): `fonte_id NOT IN (${...})`. */
+export const SQL_FONTES_DO_OT = FONTES_DO_OT.map((f) => `'${f}'`).join(', ');
+
+/** platform_admin vê a fonte do n.ot: `modulosDaPessoa` lhe dá todos os módulos (decisão aceita; ele também edita o catálogo). */
+export function fonteVisivel(fonteId: string, modulos: readonly Modulo[], principal: { agente?: boolean; id?: string }): boolean {
+  if (!(FONTES_DO_OT as readonly string[]).includes(fonteId)) return true;
+  return principal.agente !== true && !principal.id?.startsWith('apikey:') && modulos.includes('ot');
+}
+
+/** A pessoa pode ver as fontes do n.ot? ASYNC: todo ponto de uso precisa de `await` (uma Promise é truthy e falharia aberto). */
+export async function veFontesDoOt(db: D1Database, user: PrincipalDeModulo & { agente?: boolean }): Promise<boolean> {
+  return fonteVisivel(FONTES_DO_OT[0], await modulosDaPessoa(db, user), user);
 }
 
 /** A recusa se o projeto ou a pessoa não têm o módulo da faixa (as duas travas de `projectAccessMiddleware`); null se pode. */

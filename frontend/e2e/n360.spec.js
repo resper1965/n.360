@@ -264,9 +264,9 @@ test('recarregar o Início com projeto lembrado: o seletor nunca mostra o nome d
 });
 
 // "Ver consultorias" e o rodapé "Conta e acessos (n.360)" levam a `/?tela=`: o menu da conta só aparece depois do boot do papel.
-test('platform_admin sem projeto: /?tela=organizacoes abre Consultorias, não o Início', async ({ page }) => {
+test('platform_admin sem projeto: /?tela=organizacoes abre Organizações, não o Início', async ({ page }) => {
   await mockApi(page, ['iso'], { user: { ...USER, role: 'platform_admin' } });
   await page.route('**/api/v1/projects', (route) => (route.request().method() === 'GET' ? route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }) : route.fallback()));
   await entrar(page, '/login.html?tela=organizacoes');
-  await expect(page.locator('#header-title')).toHaveText('Consultorias');
+  await expect(page.locator('#header-title')).toHaveText('Organizações');
 });

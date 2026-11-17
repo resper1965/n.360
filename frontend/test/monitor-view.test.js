@@ -31,6 +31,26 @@ beforeEach(() => {
 });
 
 describe('renderMonitor', () => {
+    it('detalhe por norma só com mais de uma norma', async () => {
+        const rodar = async (por_norma) => {
+            apiMock.mockImplementation(async (m, url) => {
+                if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'] }];
+                if (url === '/api/v1/projects/p1/bancada') return bancada([{ numero: 1, situacao: 'completed' }]);
+                if (url === '/api/v1/passos/catalogo') return CATALOGO;
+                if (url === '/api/v1/projects/p1/prontidao') return { ...PRONTIDAO, indicador_por_norma: por_norma };
+                return [];
+            });
+            const [c, h, a] = tela();
+            await window.renderMonitor(c, h, a);
+            return c.textContent;
+        };
+        const duas = await rodar([{ rotulo: 'ISO 27001:2022', implementados: 20, aplicaveis: 70 }, { rotulo: 'ISO 27701:2025', implementados: 11, aplicaveis: 20 }]);
+        expect(duas).toContain('31 de 90');
+        expect(duas).toContain('ISO 27001:2022: 20 de 70');
+        expect(duas).toContain('O número acima soma as normas do projeto.');
+        expect(await rodar([{ rotulo: 'ISO 27001:2022', implementados: 31, aplicaveis: 90 }])).not.toContain('soma as normas');
+    });
+
     it('usa /projects do módulo, como o Dashboard, e não /portfolio', async () => {
         apiMock.mockImplementation(async (m, url) => {
             if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'] }];

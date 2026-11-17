@@ -12,6 +12,26 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.360, onda 2: catálogo único de requisitos (migração 0114, spec 2026-11-17)
+- **Catálogo único:** a ONS RO-CB.BR.01 entra em `requisitos` (fonte `ons-ro-cb-br-01`, mesmos ids de `ot_requisitos`, que ganha `requisito_id`); `requisitos` ganha `texto`, `fonte_texto` e `categoria`. `ot_avaliacoes` e `ot_requisito_evidencias` continuam como estão.
+- **Situação única derivada, sem regravar nada:** `Planned` vale `nao_atende`; o item técnico do n.ot nunca vale `atende`. Rota nova de leitura `GET /projects/:projectId/requisitos-situacao` (n.iso exige o módulo `iso` na pessoa e no projeto; n.ot exige `ot`).
+- **Muda para quem já usa:** o "validar tudo" dos mapeamentos acabou. `POST /requisitos/mapeamentos/validar` passa a exigir o par de fontes (`de_fonte`, `para_fonte`) e há uma prévia exata do efeito na cobertura em `GET /requisitos/mapeamentos/previa` (até 100 projetos, com `truncado`).
+- **Muda para quem já usa:** `POST` e `PUT /requisitos/mapeamentos` carimbam `validado_por` e `validado_em` pela sessão e ignoram esses campos do corpo. Editar tipo ou nota de um par já `validado_juridico` conta como revalidação: o carimbo é o de quem validou por último.
+- **Muda para quem já usa:** o catálogo ONS só aparece em `GET /requisitos` e `GET /requisitos/fontes` para quem tem o módulo `ot`; agente e chave de API nunca o veem. `POST /politicas` recusa requisito ONS a quem não vê a fonte (como inexistente) e a base legal do RoPA nunca é ONS.
+- **Muda para quem já usa:** `migrate-27701` e `migrate-27701-2025` passam a ligar os controles aos requisitos (`ligarControles`).
+- **Indicador:** `indicador` do n.iso não muda; o detalhe por norma vem ao lado, em `indicador_por_norma`.
+- **Texto normativo só onde a licença permite:** `PUT /requisitos/:id` aceita `texto` com `fonte_texto` (só `platform_admin`); ISO recusa (400, texto protegido por licença); a trilha registra só "texto atualizado (N caracteres)". `GET /requisitos` e `GET /requisitos/:id` devolvem `texto`, `fonte_texto` e `categoria`, sempre nulos para ISO.
+- **Pendente:** a migração 0114 ainda não foi aplicada em produção; rodar antes `scripts/sonda-onda2.sql` (só leitura).
+
+### n.360, onda 1: organização direta (spec 2026-11-16)
+- **Organização direta** (migração 0113, `organizations.tipo`): a empresa que usa o n.360 por conta própria. O administrador dela (`consultoria_admin`) exerce, no projeto da própria organização, os atos que eram só do `org_admin`: Gestor ARCiber do n.ot (se constar no cargo), ver IP/MAC, painel e avisos do n.ot, assinatura e revogação de aprovação, titular. Sem área comercial e sem conta de cliente; agente e chave de API não passam. O tipo é lido do banco e nunca muda.
+- **Mudança de comportamento, vale também para consultorias:** quem criou não decide. Pedido, base do site e avaliação do n.ot não são decididos por quem os criou; encerrar incidente também não (o agente conta como quem o concedeu). Mensagem de recusa sem revelar quem criou.
+- **Muda consultorias existentes:** um consultor sozinho, designado no projeto, não encerra mais o próprio incidente (o `criado_por` do agente conta como a conta de quem o concedeu); é preciso outra pessoa da equipe.
+- **Minhas aprovações** e `decisoes` do painel não listam mais o pedido que a própria pessoa criou.
+- **Esperando a sua decisão:** `decisoes` também vai à equipe que é destinatária de pedido.
+- **Consultorias → Organizações** no menu e nas telas; criação com Tipo (Consultoria/Direta) e Módulos contratados; lista com coluna Tipo. `GET /auth/me` devolve `org_tipo`; `GET /platform/orgs` devolve `tipo`. Na direta somem Comercial, Levantamentos, Preços e margens e Identidade.
+- **Pendente:** a migração 0113 ainda não foi aplicada em produção.
+
 ### n.360: o Início é a lista dos projetos e ninguém é redirecionado na entrada
 - **Início sem projeto ativo:** lista dos projetos com "Ver situação" (abre na linha e não muda o projeto) e "Abrir no n.x" (entrar é só por clique). O seletor mostra "Nenhum projeto escolhido"; a alternância Projeto/Carteira saiu. O cliente vê o projeto dele já aberto.
 - **Minhas aprovações** no topo do Início quando há pedido esperando a pessoa; decidir um pedido (individual ou em lote) atualiza o Início na hora.

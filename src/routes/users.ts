@@ -10,7 +10,7 @@ import { genId, hashPassword, logAudit, rateLimitD1, sendEmail, invalidateUserSe
 import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema, ativoDaContaSchema } from '../schemas';
 import { MODULOS_PRODUTO, NOME_DO_PRODUTO, modulosContratados, modulosDaPessoa, modulosDoProjeto, type Modulo } from '../modulos';
 import { appUrl } from '../config/url';
-import { orgDoUsuario, resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_USUARIOS } from '../services/organizacao';
+import { orgDoUsuario, tipoDaOrg, resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_USUARIOS } from '../services/organizacao';
 
 export const usersApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -229,6 +229,11 @@ usersApp.post('/', async (c) => {
     }
     const orgNovo = ehCliente ? (await orgDoProjeto(c.env.DB, targetProject)) ?? orgCriador : orgCriador;
     if (!orgNovo) return c.json(SEM_ORG, 403);
+    // Organização direta (decisão 8): só equipe. Vale para QUALQUER criador que não seja o platform_admin (o consultor
+    // designado também gerencia conta de cliente), pelo tipo da organização do projeto de destino.
+    if (admin.role !== 'platform_admin' && ehCliente && await tipoDaOrg(c.env.DB, orgNovo) === 'direta') {
+      return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
+    }
     // O limite do plano conta só a EQUIPE da consultoria; conta de cliente não entra.
     if (!ehCliente && await limiteDoPlanoAtingido(c.env.DB, orgNovo, 'usuarios')) return c.json(LIMITE_USUARIOS, 409);
     // O UNIQUE da coluna é sensível a caixa: conta antiga `CEO@x.com` não barraria `ceo@x.com`.
@@ -319,6 +324,11 @@ usersApp.put('/:id', async (c) => {
     const ficaCliente = PAPEIS_CLIENTE_GERIVEIS.has(papelFinal);
     if (!ficaCliente && client_project_id) return c.json(EQUIPE_SEM_PROJETO, 400);
     const projetoFinal = client_project_id !== undefined ? client_project_id : user.client_project_id;
+    // Organização direta (decisão 8): equipe não vira cliente, por quem for que edite (exceto o platform_admin).
+    if (admin.role !== 'platform_admin' && ficaCliente && !PAPEIS_CLIENTE_GERIVEIS.has(user.role)
+        && await tipoDaOrg(c.env.DB, (projetoFinal ? await orgDoProjeto(c.env.DB, projetoFinal) : null) ?? user.org) === 'direta') {
+      return c.json({ error: 'Forbidden: a organização direta tem só equipe; não cria conta de cliente.' }, 403);
+    }
     if (ehAdminDaOrg(admin)) {
       const minha = orgDoUsuario(admin);
       if (user.org !== minha) return c.json(NAO_ENCONTRADO, 404);

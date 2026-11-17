@@ -5,7 +5,7 @@ import { projetosDoProduto } from '../produto.js';
 
 // Espelho de `ehComercial` (src/helpers.ts): o funil de leads é do comercial.
 // Local, e não `window.ehComercial`, para a view não depender da ordem de carga.
-const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role) && S.user.comercial_ativo === true);
+const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role) && S.user.org_tipo !== 'direta' && S.user.comercial_ativo === true);
 const comercialAtivo = () => !!(S.user && S.user.comercial_ativo === true);
 
     /**

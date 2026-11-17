@@ -28,8 +28,9 @@ export     function navigate(view, data) {
         }
         // O comercial não alcança projeto: a entrada dele no n.iso é a tela Comercial, não o painel do projeto.
         if (S.user && S.user.role === 'comercial' && view === 'dashboard') targetView = 'comercial';
-        // Área comercial desligada (COMERCIAL_ATIVO): tela comercial pedida por link, aviso ou atalho antigo cai no painel.
-        if (TELAS_COMERCIAIS.includes(targetView) && !(typeof window.comercialAtivo === 'function' && window.comercialAtivo())) targetView = 'dashboard';
+        // Área comercial desligada (COMERCIAL_ATIVO) ou organização direta (sem área comercial; o servidor recusa): tela comercial
+        // pedida por link, aviso ou atalho antigo cai no painel.
+        if (TELAS_COMERCIAIS.includes(targetView) && (!(typeof window.comercialAtivo === 'function' && window.comercialAtivo()) || S.user?.org_tipo === 'direta')) targetView = 'dashboard';
         const produto = produtoAtual();
         // O n.360 é o hub: tela de módulo leva ao módulo, na própria tela (`?tela=`, lido no boot dele); a dos dois módulos vai a um
         // que o projeto tem. Sem módulo para ela, fica no início do portal. Nada de tela de módulo desenhada dentro do portal.

@@ -2,12 +2,16 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, logAudit } from '../helpers';
 import {
-  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, excluirRequisito, reincluirRequisito, lacunasDaFonte, resumoDeLacunas, lerRequisito, ligarControles, listarFontes, listarRequisitos,
-  requisitosDaEvidencia, requisitosDoDocumento, resumoDeMapeamentos, semearCatalogo, validarMapeamentosPropostos, veMapeamentoProposto,
+  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, excluirRequisito, reincluirRequisito, lacunasDaFonte, resumoDeLacunas, lerRequisito, fonteAceitaTexto, ligarControles, listarFontes, listarRequisitos,
+  previaDeValidacao, requisitosDaEvidencia, requisitosDoDocumento, resumoDeMapeamentos, semearCatalogo, validarMapeamentosPropostos, veMapeamentoProposto,
 } from '../services/requisitos';
 import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, requisitoExclusaoSchema, validarMapeamentosSchema, validateBody } from '../schemas';
 import { BASES_GDPR } from '../data/ropa-abas/gdpr';
 import { definirValidade } from '../services/evidencia-validade';
+import { hojeEmSaoPaulo } from '../services/hoje';
+import { FONTES_DO_OT, fonteVisivel, modulosDaPessoa, veFontesDoOt } from '../modulos';
+import { requisitosOcultos } from '../services/requisitos';
+import { leituraUnica } from '../services/situacao-requisitos';
 
 type Ctx = { Bindings: Bindings; Variables: Variables };
 
@@ -20,12 +24,15 @@ export const requisitosApp = new Hono<Ctx>();
 const soAdmin = (c: { get: (k: 'user') => Variables['user'] }) => c.get('user')?.role === 'platform_admin';
 const NEGADO = { error: 'Forbidden: só o administrador da plataforma edita o catálogo de requisitos' };
 
-requisitosApp.get('/fontes', async (c) => c.json(await listarFontes(c.env.DB)));
+// P0-2: a fonte do n.ot só aparece para a pessoa com o módulo `ot` (`veFontesDoOt`, ASYNC: sempre com `await`). Invisível = inexistente (404/vazio).
+const ve = (c: { env: Bindings; get: (k: 'user') => Variables['user'] }) => veFontesDoOt(c.env.DB, c.get('user'));
+
+requisitosApp.get('/fontes', async (c) => c.json(await listarFontes(c.env.DB, await ve(c))));
 
 // As seis bases legais do GDPR (art. 6), só leitura, para a Referência jurídica.
 requisitosApp.get('/gdpr-bases', (c) => c.json(Object.entries(BASES_GDPR).map(([id, b]) => ({ id, ...b }))));
 
-requisitosApp.get('/', async (c) => c.json(await listarRequisitos(c.env.DB, c.req.query('fonte') || undefined)));
+requisitosApp.get('/', async (c) => c.json(await listarRequisitos(c.env.DB, c.req.query('fonte') || undefined, await ve(c))));
 
 requisitosApp.post('/semear', async (c) => {
   try {
@@ -41,14 +48,24 @@ requisitosApp.post('/semear', async (c) => {
 
 const existe = async (db: D1Database, id: string) => !!(await db.prepare('SELECT 1 FROM requisitos WHERE id = ?').bind(id).first());
 
-// Contagem para o botão "Validar mapeamentos propostos"; quem não vê `proposto` não vê nem a contagem.
+// Contagem de propostos e validados; quem não vê `proposto` não vê nem a contagem.
 requisitosApp.get('/mapeamentos/resumo', async (c) => {
   if (!veMapeamentoProposto(c.get('user')?.role)) return c.json(NEGADO, 403);
   return c.json(await resumoDeMapeamentos(c.env.DB, c.req.query('fonte') || undefined));
 });
 
+// Prévia exata de validar um par de fontes: o que muda na cobertura dos projetos, sem gravar nada. Só o platform_admin.
+requisitosApp.get('/mapeamentos/previa', async (c) => {
+  try {
+    if (!soAdmin(c)) return c.json(NEGADO, 403);
+    const de = c.req.query('de'), para = c.req.query('para');
+    if (!de || !para) return c.json({ error: 'Informe as duas fontes (de e para)' }, 400);
+    return c.json(await previaDeValidacao(c.env.DB, de, para));
+  } catch (e) { return erro500(c, 'Falha ao calcular a prévia da validação', e); }
+});
+
 /**
- * Validação jurídica em lote. É um ato de QUEM ESTÁ LOGADO: `validado_por` é o e-mail da sessão, nunca algo do corpo
+ * Validação jurídica em lote, por PAR de fontes. É um ato de QUEM ESTÁ LOGADO: `validado_por` é o e-mail da sessão, nunca algo do corpo
  * (o esquema é estrito e recusa o campo). Só o platform_admin; o agente não chama (`FORA_DO_AGENTE`).
  */
 requisitosApp.post('/mapeamentos/validar', async (c) => {
@@ -57,12 +74,17 @@ requisitosApp.post('/mapeamentos/validar', async (c) => {
     const v = await validateBody(c, validarMapeamentosSchema);
     if (!v.success) return v.response;
     const email = c.get('user').email;
-    const validados = await validarMapeamentosPropostos(c.env.DB, email, v.data.fonte);
-    await logAudit(c.env.DB, 'requisitos.mapeamento', email, `Validação jurídica de ${validados} mapeamentos propostos${v.data.fonte ? ` (fonte ${v.data.fonte})` : ''}`);
-    const depois = await resumoDeMapeamentos(c.env.DB, v.data.fonte);
+    const { de_fonte, para_fonte } = v.data;
+    const validados = await validarMapeamentosPropostos(c.env.DB, email, de_fonte, para_fonte);
+    await logAudit(c.env.DB, 'requisitos.mapeamento', email, `Validação jurídica de ${validados} mapeamentos propostos entre as fontes ${de_fonte} e ${para_fonte}`);
+    const depois = await resumoDeMapeamentos(c.env.DB);
     return c.json({ ok: true, validados, propostos_restantes: depois.propostos, validados_total: depois.validados });
   } catch (e) { return erro500(c, 'Falha ao validar os mapeamentos', e); }
 });
+
+/** Quem valida é a sessão, nunca o corpo: validado_por/validado_em do corpo são ignorados. Editar um par já validado (tipo/nota) é revalidar: o carimbo é o de quem validou por último. */
+const carimbo = (c: { get: (k: 'user') => { email: string } }, estado: string): [string | null, string | null] =>
+  estado === 'validado_juridico' ? [c.get('user').email, hojeEmSaoPaulo()] : [null, null];
 
 requisitosApp.post('/mapeamentos', async (c) => {
   try {
@@ -74,12 +96,12 @@ requisitosApp.post('/mapeamentos', async (c) => {
     try {
       await c.env.DB.prepare(
         `INSERT INTO requisito_mapeamentos (de_id, para_id, tipo, estado, validado_por, validado_em, nota) VALUES (?, ?, ?, ?, ?, ?, ?)`
-      ).bind(m.de_id, m.para_id, m.tipo, m.estado, m.validado_por ?? null, m.validado_em ?? null, m.nota ?? null).run();
+      ).bind(m.de_id, m.para_id, m.tipo, m.estado, ...carimbo(c, m.estado), m.nota ?? null).run();
     } catch (e) {
       if (/UNIQUE|PRIMARY KEY/i.test(String((e as Error)?.message))) return c.json({ error: 'Esse mapeamento já existe' }, 409);
       throw e;
     }
-    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} (${m.tipo}, ${m.estado}) criado`);
+    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} (${m.tipo}, ${m.estado}${m.estado === 'validado_juridico' ? ` por ${c.get('user').email}` : ''}) criado`);
     return c.json({ ok: true }, 201);
   } catch (e) { return erro500(c, 'Falha ao criar o mapeamento', e); }
 });
@@ -92,9 +114,9 @@ requisitosApp.put('/mapeamentos', async (c) => {
     const m = v.data;
     const r = await c.env.DB.prepare(
       `UPDATE requisito_mapeamentos SET tipo = ?, estado = ?, validado_por = ?, validado_em = ?, nota = ? WHERE de_id = ? AND para_id = ?`
-    ).bind(m.tipo, m.estado, m.validado_por ?? null, m.validado_em ?? null, m.nota ?? null, m.de_id, m.para_id).run();
+    ).bind(m.tipo, m.estado, ...carimbo(c, m.estado), m.nota ?? null, m.de_id, m.para_id).run();
     if (!r.meta.changes) return c.json({ error: 'Mapeamento não encontrado' }, 404);
-    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} alterado para ${m.tipo}, ${m.estado}`);
+    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} alterado para ${m.tipo}, ${m.estado}${m.estado === 'validado_juridico' ? ` por ${c.get('user').email}` : ''}`);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao atualizar o mapeamento', e); }
 });
@@ -114,7 +136,7 @@ requisitosApp.delete('/mapeamentos', async (c) => {
 // ─── Requisito ───────────────────────────────────────────────────────────────────────────────────────
 
 requisitosApp.get('/:id', async (c) => {
-  const r = await lerRequisito(c.env.DB, c.req.param('id'), veMapeamentoProposto(c.get('user')?.role));
+  const r = await lerRequisito(c.env.DB, c.req.param('id'), veMapeamentoProposto(c.get('user')?.role), await ve(c));
   return r ? c.json(r) : c.json({ error: 'Requisito não encontrado' }, 404);
 });
 
@@ -124,10 +146,16 @@ requisitosApp.put('/:id', async (c) => {
     const v = await validateBody(c, requisitoAtualizarSchema);
     if (!v.success) return v.response;
     const id = c.req.param('id');
-    const antes = await c.env.DB.prepare('SELECT titulo FROM requisitos WHERE id = ?').bind(id).first<{ titulo: string }>();
+    const antes = await c.env.DB.prepare('SELECT titulo, fonte_id FROM requisitos WHERE id = ?').bind(id).first<{ titulo: string; fonte_id: string }>();
     if (!antes) return c.json({ error: 'Requisito não encontrado' }, 404);
-    await c.env.DB.prepare(`UPDATE requisitos SET titulo = ?, updated_at = datetime('now') WHERE id = ?`).bind(v.data.titulo, id).run();
-    await logAudit(c.env.DB, 'requisitos.titulo', c.get('user').email, `Requisito ${id}: título "${antes.titulo}" → "${v.data.titulo}"`);
+    const { texto, fonte_texto } = v.data;
+    // ot_requisitos.titulo é a cópia da norma; editar só requisitos.titulo faria a leitura única e o n.ot divergirem
+    if ((FONTES_DO_OT as readonly string[]).includes(antes.fonte_id) && v.data.titulo !== antes.titulo) return c.json({ error: 'o título dos requisitos da ONS é o da norma e não se edita aqui' }, 400);
+    if (texto !== undefined && !fonteAceitaTexto(antes.fonte_id)) return c.json({ error: 'O texto da ISO é protegido por licença; use só o título' }, 400);
+    // só platform_admin chega aqui, e ele vê a ONS (modulosDaPessoa dá todos os módulos): não há edição de requisito oculto
+    if (texto !== undefined) await c.env.DB.prepare(`UPDATE requisitos SET titulo = ?, texto = ?, fonte_texto = ?, updated_at = datetime('now') WHERE id = ?`).bind(v.data.titulo, texto, fonte_texto!, id).run();
+    else await c.env.DB.prepare(`UPDATE requisitos SET titulo = ?, updated_at = datetime('now') WHERE id = ?`).bind(v.data.titulo, id).run();
+    await logAudit(c.env.DB, 'requisitos.titulo', c.get('user').email, `Requisito ${id}: título "${antes.titulo}" → "${v.data.titulo}"${texto !== undefined ? `; texto atualizado (${texto.length} caracteres)` : ''}`);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao atualizar o requisito', e); }
 });
@@ -140,10 +168,14 @@ requisitosApp.delete('/:id', async (c) => {
     const uso = await c.env.DB.prepare(
       `SELECT (SELECT count(*) FROM documento_requisitos WHERE requisito_id = ?1) AS documentos,
               (SELECT count(*) FROM compliance_controls WHERE requisito_id = ?1) AS controles,
-              (SELECT count(*) FROM requisitos WHERE pai_id = ?1) AS filhos`
-    ).bind(id).first<{ documentos: number; controles: number; filhos: number }>();
-    if (uso && (uso.documentos || uso.controles || uso.filhos)) {
-      return c.json({ error: 'Requisito em uso: há documento, controle ou requisito filho apontando para ele', ...uso }, 409);
+              (SELECT count(*) FROM requisitos WHERE pai_id = ?1) AS filhos,
+              (SELECT count(*) FROM ot_requisitos WHERE requisito_id = ?1) AS ot,
+              (SELECT count(*) FROM evidencia_requisitos WHERE requisito_id = ?1) AS evidencias,
+              (SELECT count(*) FROM documentos_arquivo_requisitos WHERE requisito_id = ?1) AS arquivos,
+              (SELECT count(*) FROM tratamento_bases WHERE requisito_id = ?1) AS tratamentos`
+    ).bind(id).first<Record<string, number>>();
+    if (uso && Object.values(uso).some(Boolean)) {
+      return c.json({ error: 'Requisito em uso: há documento, controle, evidência, tratamento, avaliação OT ou requisito filho apontando para ele', ...uso }, 409);
     }
     await c.env.DB.prepare('DELETE FROM requisitos WHERE id = ?').bind(id).run();
     await logAudit(c.env.DB, 'requisitos.remover', c.get('user').email, `Requisito ${id} removido`);
@@ -158,7 +190,7 @@ export const projetoRequisitosApp = new Hono<Ctx>();
 projetoRequisitosApp.get('/documentos/:id/requisitos', async (c) => {
   const projectId = c.req.param('projectId')!;
   const doc = await c.env.DB.prepare('SELECT id FROM documentos WHERE id = ? AND project_id = ?').bind(c.req.param('id'), projectId).first();
-  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'))) : c.json({ error: 'Documento não encontrado' }, 404);
+  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), 'documento', await ve(c))) : c.json({ error: 'Documento não encontrado' }, 404);
 });
 
 projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
@@ -166,7 +198,7 @@ projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
-    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos);
+    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'documento', await ve(c));
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
     await logAudit(c.env.DB, 'documento.requisitos', c.get('user').email, `Documento ${c.req.param('id')}: ${r.total} requisitos ligados`, '', '', projectId);
@@ -178,7 +210,7 @@ projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
 projetoRequisitosApp.get('/documentos-arquivo/:id/requisitos', async (c) => {
   const projectId = c.req.param('projectId')!;
   const doc = await c.env.DB.prepare('SELECT id FROM documentos_arquivo WHERE id = ? AND project_id = ?').bind(c.req.param('id'), projectId).first();
-  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), 'arquivo')) : c.json({ error: 'Documento não encontrado' }, 404);
+  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), 'arquivo', await ve(c))) : c.json({ error: 'Documento não encontrado' }, 404);
 });
 
 projetoRequisitosApp.put('/documentos-arquivo/:id/requisitos', async (c) => {
@@ -186,7 +218,7 @@ projetoRequisitosApp.put('/documentos-arquivo/:id/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
-    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'arquivo');
+    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'arquivo', await ve(c));
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
     await logAudit(c.env.DB, 'documento_arquivo.requisitos', c.get('user').email, `Documento em arquivo ${c.req.param('id')}: ${r.total} requisitos ligados`, '', '', projectId);
@@ -198,7 +230,7 @@ projetoRequisitosApp.get('/evidence/:evidenceId/requisitos', async (c) => {
   const projectId = c.req.param('projectId')!;
   const ev = await c.env.DB.prepare('SELECT valido_ate FROM evidence WHERE id = ? AND project_id = ?').bind(c.req.param('evidenceId'), projectId).first<{ valido_ate: string | null }>();
   if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
-  return c.json({ valido_ate: ev.valido_ate, requisitos: await requisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId')) });
+  return c.json({ valido_ate: ev.valido_ate, requisitos: await requisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), await ve(c)) });
 });
 
 projetoRequisitosApp.put('/evidence/:evidenceId/requisitos', async (c) => {
@@ -206,7 +238,7 @@ projetoRequisitosApp.put('/evidence/:evidenceId/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
-    const r = await definirRequisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), v.data.requisitos);
+    const r = await definirRequisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), v.data.requisitos, await ve(c));
     if (!r) return c.json({ error: 'Evidência não encontrada' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
     await logAudit(c.env.DB, 'evidencia.requisitos', c.get('user').email, `Evidência ${c.req.param('evidenceId')}: ${r.total} requisitos ligados`, '', '', projectId);
@@ -226,7 +258,9 @@ projetoRequisitosApp.put('/evidence/:evidenceId/validade', async (c) => {
 projetoRequisitosApp.get('/requisitos/lacunas', async (c) => {
   try {
     const fonte = c.req.query('fonte') || 'lgpd';
-    const itens = await lacunasDaFonte(c.env.DB, c.req.param('projectId')!, fonte);
+    // fonte invisível = fonte inexistente: 200 com lista vazia (igual a uma fonte que não existe)
+    const visivel = fonteVisivel(fonte, await modulosDaPessoa(c.env.DB, c.get('user')), c.get('user'));
+    const itens = visivel ? await lacunasDaFonte(c.env.DB, c.req.param('projectId')!, fonte) : [];
     return c.json({ fonte, resumo: resumoDeLacunas(itens), itens });
   } catch (e) { return erro500(c, 'Falha ao calcular as lacunas', e); }
 });
@@ -241,6 +275,7 @@ projetoRequisitosApp.put('/requisitos/:requisitoId/exclusao', async (c) => {
     if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
     const v = await validateBody(c, requisitoExclusaoSchema);
     if (!v.success) return v.response;
+    if ((await requisitosOcultos(c.env.DB, [c.req.param('requisitoId')], await ve(c))).length) return c.json({ error: 'Requisito não encontrado' }, 404);
     const r = await excluirRequisito(c.env.DB, c.req.param('projectId')!, c.req.param('requisitoId'), v.data.justificativa, c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao marcar o requisito como não aplicável', e); }
@@ -249,7 +284,18 @@ projetoRequisitosApp.put('/requisitos/:requisitoId/exclusao', async (c) => {
 projetoRequisitosApp.delete('/requisitos/:requisitoId/exclusao', async (c) => {
   try {
     if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
+    if ((await requisitosOcultos(c.env.DB, [c.req.param('requisitoId')], await ve(c))).length) return c.json({ error: 'Requisito não encontrado' }, 404);
     const r = await reincluirRequisito(c.env.DB, c.req.param('projectId')!, c.req.param('requisitoId'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao voltar a aplicar o requisito', e); }
+});
+
+/**
+ * Leitura única de situação por requisito (onda 2). Faixa `nucleo`: quem só tem n.iso também a lê. As linhas do n.ot NÃO dependem da faixa:
+ * `leituraUnica` as filtra por `fonteVisivel` (pessoa com `ot`; agente e chave de API nunca). O agente só lê, o que `FORA_DO_AGENTE` já permite.
+ */
+export const situacaoRequisitosApp = new Hono<Ctx>();
+situacaoRequisitosApp.get('/', async (c) => {
+  try { return c.json(await leituraUnica(c.env.DB, c.req.param('projectId')!, c.get('user'))); }
+  catch (e) { return erro500(c, 'Falha ao ler a situação dos requisitos', e); }
 });

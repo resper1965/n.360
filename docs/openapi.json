@@ -7625,6 +7625,26 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 60
+                  },
+                  "tipo": {
+                    "default": "consultoria",
+                    "type": "string",
+                    "enum": [
+                      "consultoria",
+                      "direta"
+                    ]
+                  },
+                  "modulos": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "iso",
+                        "privacy",
+                        "ot"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -38812,6 +38832,16 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 300
+                  },
+                  "texto": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  },
+                  "fonte_texto": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500
                   }
                 },
                 "required": [
@@ -38911,12 +38941,21 @@
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
-                  "fonte": {
+                  "de_fonte": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "para_fonte": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
                   }
                 },
+                "required": [
+                  "de_fonte",
+                  "para_fonte"
+                ],
                 "additionalProperties": false
               }
             }

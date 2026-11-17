@@ -56,10 +56,12 @@ import { montarLista, colunasDe } from '../lista.js';
             const n = pr.numeros || {};
             const ctrl = n.controles || { implementados: 0, aplicaveis: 0 };
             const fases = n.fases || { concluidas: phases.filter(ph => ph.situacao === 'completed').length, total: phases.length };
-            const cartao = (titulo, valor, texto) => `<div class="monitor-card"><div class="monitor-card-title">${escapeHTML(titulo)}</div>
-                <div class="monitor-card-value">${escapeHTML(String(valor))}</div><div class="monitor-card-texto">${escapeHTML(texto)}</div></div>`;
+            const pn = pr.indicador_por_norma && pr.indicador_por_norma.length > 1 ? pr.indicador_por_norma : null;   // detalhe só com mais de uma norma
+            const detalhe = pn ? `<div class="monitor-card-texto">${pn.map((x) => `${escapeHTML(x.rotulo)}: ${x.implementados} de ${x.aplicaveis}`).join('<br>')}<br>O número acima soma as normas do projeto.</div>` : '';
+            const cartao = (titulo, valor, texto, extra = '') => `<div class="monitor-card"><div class="monitor-card-title">${escapeHTML(titulo)}</div>
+                <div class="monitor-card-value">${escapeHTML(String(valor))}</div><div class="monitor-card-texto">${escapeHTML(texto)}</div>${extra}</div>`;
             const metricsHtml = `<div class="monitor-grid fade-in">
-                ${cartao('Controles aplicáveis implementados', `${ctrl.implementados} de ${ctrl.aplicaveis}`, 'O indicador de progresso do n.iso: controles da SoA implementados, sem os não aplicáveis.')}
+                ${cartao('Controles aplicáveis implementados', `${ctrl.implementados} de ${ctrl.aplicaveis}`, 'O indicador de progresso do n.iso: controles da SoA implementados, sem os não aplicáveis.', detalhe)}
                 ${cartao('Fases da jornada concluídas', `${fases.concluidas} de ${fases.total}`, 'Andamento do plano de trabalho, não da conformidade.')}
                 ${cartao('Riscos avaliados', n.riscos ?? 0, 'Riscos do n.iso no registro, o mesmo número do Painel.')}
                 ${cartao('Evidências enviadas', n.evidencias ?? 0, 'Arquivos de evidência do projeto, de qualquer situação.')}

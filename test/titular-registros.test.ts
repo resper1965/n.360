@@ -224,7 +224,7 @@ describe('incidente', () => {
 
   it('encerrar: sem risco avaliado 409; risco relevante sem ANPD 409; com tudo, 200 e depois não muda', async () => {
     const id = await novo();
-    const enc = () => chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`);
+    const enc = () => chamar(admin, 'POST', `${B}/incidentes/${id}/encerrar`);
     expect((await enc()).status).toBe(409);
     await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'relevante' });
     const r = await enc();
@@ -240,7 +240,7 @@ describe('incidente', () => {
   it('risco sem_risco encerra sem comunicação', async () => {
     const id = await novo();
     await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' });
-    expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`)).status).toBe(200);
+    expect((await chamar(admin, 'POST', `${B}/incidentes/${id}/encerrar`)).status).toBe(200);
   });
 
   it('corrigir o registro: título, descrição, ocorrência e responsável mudam; a ciência e os prazos não; encerrado não muda', async () => {
@@ -259,7 +259,7 @@ describe('incidente', () => {
     expect(trilha?.details).not.toContain('Link público');
     expect((await put({ titulo: 'x' }, 'tr-i-nao-existe')).status).toBe(404);
     await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' });
-    await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`);
+    await chamar(admin, 'POST', `${B}/incidentes/${id}/encerrar`);
     expect((await put({ titulo: 'Depois de encerrado' })).status).toBe(409);
   });
 

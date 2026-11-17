@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 
 import { recusaDoModulo } from '../modulos';
-import { redactProject, semRastros, logAudit, requireResourceAccess, escapeHtml, erro500, registraErro, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, ehComercial, projetosVisiveis, somenteNess, somenteComercial, PODE_REVOGAR_APROVACAO, refForaDoProjeto, setParcial, valoresParciais } from '../helpers';
+import { redactProject, semRastros, logAudit, requireResourceAccess, escapeHtml, erro500, registraErro, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, ehComercial, projetosVisiveis, somenteNess, somenteComercial, podeRevogarAprovacao, refForaDoProjeto, setParcial, valoresParciais } from '../helpers';
 import { atualizarAtivo, removerAtivo } from '../services/itens';
 import { validateBody, assetSchema, dpiaSchema, revogarDpiaSchema, dpiaApprovalSchema, transferirProjetoSchema, precificacaoConfigSchema } from '../schemas';
 import { transferirProjeto, MSG_CORRIDA } from '../services/transferencia-projeto';
@@ -148,10 +148,10 @@ platformApp.delete('/dpia/:id', async (c) => {
 platformApp.post('/projects/:id/dpia/:assessmentId/revoke-approval', async (c) => {
   try {
     const user = c.get('user');
-    if (!PODE_REVOGAR_APROVACAO.has(user?.role ?? '')) {
+    const projectId = c.req.param('id');
+    if (!(await podeRevogarAprovacao(c.env.DB, user, projectId))) {
       return c.json({ error: 'Forbidden: revogar aprovação é do administrador do cliente ou da plataforma' }, 403);
     }
-    const projectId = c.req.param('id');
     const assessmentId = c.req.param('assessmentId');
     const valid = await validateBody(c, revogarDpiaSchema);
     if (!valid.success) return valid.response;

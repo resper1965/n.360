@@ -5,7 +5,12 @@ const id = z.string().trim().min(1).max(200);
 /** Título do requisito (paráfrase curta própria; nunca o texto da norma). */
 export const requisitoAtualizarSchema = z.object({
   titulo: z.string().trim().min(1).max(300),
-}).strict();
+  texto: z.string().trim().min(1).max(20000).optional(),
+  fonte_texto: z.string().trim().min(5).max(500).optional(),
+}).strict().superRefine((v, ctx) => {
+  if (v.texto !== undefined && v.fonte_texto === undefined) ctx.addIssue({ code: 'custom', path: ['fonte_texto'], message: 'Informe a origem do texto (fonte_texto)' });
+  if (v.fonte_texto !== undefined && v.texto === undefined) ctx.addIssue({ code: 'custom', path: ['texto'], message: 'fonte_texto só vale junto com o texto' });
+});
 
 /** Requisito "não aplicável" no projeto (migration 0107): a justificativa barra o "não se aplica" genérico. */
 export const requisitoExclusaoSchema = z.object({
@@ -16,8 +21,8 @@ export const TIPOS_MAPEAMENTO = ['equivalente', 'parcial', 'relacionado'] as con
 export const ESTADOS_MAPEAMENTO = ['proposto', 'validado_juridico'] as const;
 
 /**
- * Mapeamento entre requisitos. `validado_juridico` exige quem validou (texto) e quando (AAAA-MM-DD): a validação
- * é um ato do jurídico registrado à mão, nunca preenchido com o e-mail de quem digitou.
+ * Mapeamento entre requisitos. `validado_por`/`validado_em` são aceitos só por compatibilidade e IGNORADOS: o servidor
+ * carimba a sessão e a data quando `estado = 'validado_juridico'`.
  */
 export const mapeamentoSchema = z.object({
   de_id: id,
@@ -29,15 +34,13 @@ export const mapeamentoSchema = z.object({
   nota: z.string().trim().max(2000).nullish(),
 }).strict().superRefine((v, ctx) => {
   if (v.de_id === v.para_id) ctx.addIssue({ code: 'custom', path: ['para_id'], message: 'Um requisito não se mapeia a si mesmo' });
-  if (v.estado === 'validado_juridico' && (!v.validado_por || !v.validado_em)) {
-    ctx.addIssue({ code: 'custom', path: ['validado_por'], message: 'Validação jurídica exige quem validou e quando' });
-  }
 });
 export type Mapeamento = z.infer<typeof mapeamentoSchema>;
 
-/** Validar os mapeamentos propostos: só o recorte por fonte. Quem valida é quem está logado, nunca vem do corpo (`strict`). */
+/** Validar os mapeamentos propostos de UM par de fontes (não há "validar tudo"). Quem valida é quem está logado, nunca vem do corpo (`strict`). */
 export const validarMapeamentosSchema = z.object({
-  fonte: id.optional(),
+  de_fonte: id,
+  para_fonte: id,
 }).strict();
 
 export const documentoRequisitosSchema = z.object({

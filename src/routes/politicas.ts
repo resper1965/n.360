@@ -3,7 +3,8 @@ import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, logAudit, registraErro } from '../helpers';
 import { politicaCriarSchema, politicaSecaoGerarSchema, politicaIncorporarSchema, politicaPromoverSchema, validateBody } from '../schemas';
 import { criarDocumento, lerDocumento, salvarRascunho } from '../services/documentos';
-import { definirRequisitosDoDocumento, requisitosDoDocumento } from '../services/requisitos';
+import { definirRequisitosDoDocumento, requisitosDoDocumento, requisitosOcultos, VISIVEL } from '../services/requisitos';
+import { veFontesDoOt } from '../modulos';
 import { coberturaDePoliticas } from '../services/cobertura-politicas';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { contextoDaPolitica } from '../services/contexto-politica';
@@ -41,12 +42,13 @@ politicasApp.post('/politicas', async (c) => {
     }
     if (requisitos.length) {
       const { results: ok } = await c.env.DB.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(requisitos)).all<{ id: string }>();
-      const desconhecidos = requisitos.filter((q) => !ok.some((o) => o.id === q));
+      const ocultos = await requisitosOcultos(c.env.DB, requisitos, await veFontesDoOt(c.env.DB, c.get('user')));
+      const desconhecidos = requisitos.filter((q) => !ok.some((o) => o.id === q) || ocultos.includes(q));
       if (desconhecidos.length) return c.json({ error: 'Requisito inexistente', desconhecidos }, 400);
     }
     const r = await criarDocumento(c.env.DB, projectId, ator, { tipo: 'politica', titulo, texto: montarEsqueleto(titulo, esqueleto) });
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    const lig = await definirRequisitosDoDocumento(c.env.DB, projectId, r.id, requisitos);
+    const lig = await definirRequisitosDoDocumento(c.env.DB, projectId, r.id, requisitos, 'documento', await veFontesDoOt(c.env.DB, c.get('user')));
     if (lig && !lig.ok) return c.json({ error: 'Requisito inexistente', desconhecidos: lig.desconhecidos, id: r.id }, 400);
     await logAudit(c.env.DB, 'politica.criada', ator, `Documento ${r.id} criado: ${titulo}`, '', '', projectId);
     return c.json({ id: r.id }, 201);
@@ -86,14 +88,17 @@ politicasApp.post('/politicas/organizar/incorporar', async (c) => {
     if (d.origem_control_id || d.status === 'obsoleto') return c.json({ error: 'O destino tem de ser uma política temática em uso' }, 400);
     const ctl = await db.prepare('SELECT requisito_id FROM compliance_controls WHERE id = ? AND project_id = ?').bind(o.origem_control_id, projectId).first<{ requisito_id: string | null }>();
     if (!ctl?.requisito_id) return c.json({ error: 'O controle não está no catálogo de requisitos; ligue a mão' }, 409);
-    const ids = [...new Set([...(await requisitosDoDocumento(db, projectId, destino)).map((r) => r.id), ctl.requisito_id])];
-    const { results: ok } = await db.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(ids)).all<{ id: string }>();
-    const desconhecidos = ids.filter((q) => !ok.some((o) => o.id === q));
+    const ve = await veFontesDoOt(db, c.get('user'));
+    // só os vínculos que o chamador vê entram em `ids`; os ocultos (n.ot) ficam como estão (o DELETE abaixo os preserva) e nunca são citados
+    const ids = [...new Set([...(await requisitosDoDocumento(db, projectId, destino, 'documento', ve)).map((r) => r.id), ctl.requisito_id])];
+    const { results: ok } = await db.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify([ctl.requisito_id])).all<{ id: string }>();
+    const ocultos = await requisitosOcultos(db, [ctl.requisito_id], ve);
+    const desconhecidos = [ctl.requisito_id].filter((q) => !ok.some((o) => o.id === q) || ocultos.includes(q));
     if (desconhecidos.length) return c.json({ error: 'Requisito inexistente', desconhecidos }, 400);
     // Um batch só: ligar e aposentar juntos; a origem já obsoleta (corrida) não liga nada e dá 409.
     const emUso = `EXISTS (SELECT 1 FROM documentos WHERE id = ?3 AND project_id = ?2 AND status <> 'obsoleto')`;
     const rs = await db.batch([
-      db.prepare(`DELETE FROM documento_requisitos WHERE documento_id = ?1 AND project_id = ?2 AND ${emUso}`).bind(destino, projectId, origem),
+      db.prepare(`DELETE FROM documento_requisitos WHERE documento_id = ?1 AND project_id = ?2 AND ${emUso} AND ${VISIVEL('requisito_id', 4, true)}`).bind(destino, projectId, origem, ve ? 1 : 0),
       db.prepare(`INSERT INTO documento_requisitos (documento_id, requisito_id, project_id) SELECT ?1, value, ?2 FROM json_each(?4) WHERE ${emUso}`).bind(destino, projectId, origem, JSON.stringify(ids)),
       db.prepare(`UPDATE documentos SET status = 'obsoleto', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'obsoleto'`).bind(origem, projectId),
     ]);
@@ -113,13 +118,15 @@ politicasApp.post('/documentos/:id/promover', async (c) => {
     if (!doc) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!doc.origem_control_id || doc.status === 'obsoleto') return c.json({ error: 'Só política por controle em uso pode ser promovida' }, 400);
     const { results: ok } = await db.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(v.data.requisitos)).all<{ id: string }>();
-    const desconhecidos = v.data.requisitos.filter((q) => !ok.some((o) => o.id === q));
+    const ocultos = await requisitosOcultos(db, v.data.requisitos, await veFontesDoOt(db, c.get('user')));
+    const desconhecidos = v.data.requisitos.filter((q) => !ok.some((o) => o.id === q) || ocultos.includes(q));
     if (desconhecidos.length) return c.json({ error: 'Requisito inexistente', desconhecidos }, 400);
     // Título, requisitos e origem num batch só: ou muda tudo ou nada.
     const reqs = JSON.stringify([...new Set(v.data.requisitos)]);
+    const ve = await veFontesDoOt(db, c.get('user'));
     await db.batch([
       db.prepare('UPDATE documentos SET titulo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?').bind(v.data.titulo, id, projectId),
-      db.prepare('DELETE FROM documento_requisitos WHERE documento_id = ? AND project_id = ?').bind(id, projectId),
+      db.prepare(`DELETE FROM documento_requisitos WHERE documento_id = ?1 AND project_id = ?2 AND ${VISIVEL('requisito_id', 3, true)}`).bind(id, projectId, ve ? 1 : 0),
       db.prepare('INSERT INTO documento_requisitos (documento_id, requisito_id, project_id) SELECT ?1, value, ?2 FROM json_each(?3)').bind(id, projectId, reqs),
       db.prepare('UPDATE documentos SET origem_control_id = NULL WHERE id = ? AND project_id = ?').bind(id, projectId),
     ]);

@@ -329,8 +329,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
     db.prepare(`SELECT title FROM compliance_controls WHERE project_id = ?1 AND status = 'Not Applicable' AND trim(COALESCE(description, '')) = '' ORDER BY title`).bind(projectId),
     db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1${escopoRopa('programa')} GROUP BY probability, impact`).bind(projectId),
     // Pedidos à espera da decisão DESTA pessoa (o mesmo destinatário de GET /api/v1/pedidos, que "meus-pedidos" lista).
-    db.prepare(`SELECT count(DISTINCT p.id) AS n FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
-      WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente' AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3)))`)
+    db.prepare(`SELECT count(DISTINCT p.id) AS n FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id WHERE ${SQL_ESPERA_A_PESSOA}`)
       .bind(projectId, quem.id ?? '', quem.email ?? ''),
     // Primeiros passos: o diagnóstico existe para gerar a jornada, então jornada carregada conta como feito.
     db.prepare(`SELECT ${SQL_ESCOPO_DEFINIDO} AS escopo, EXISTS (SELECT 1 FROM project_phases WHERE project_id = ?1) AS jornada,
@@ -431,8 +430,15 @@ export const SQL_MARCO_DO_PROGRAMA = `SELECT min(d) AS d FROM (
     UNION ALL SELECT min(pd.decidido_em) FROM pedido_destinatarios pd JOIN pedidos pe ON pe.id = pd.pedido_id
       WHERE pe.project_id = ?1 AND pe.papel_exigido IN ('ciso', 'ceo') AND pd.status = 'aprovado')`;
 
+/**
+ * Pedido aberto que espera a decisão da pessoa (?1 projeto, ?2 id, ?3 e-mail): o destinatário de GET /api/v1/pedidos ("Minhas
+ * aprovações"), menos o que ela mesma criou, que não pode decidir (403 em decidir).
+ */
+const SQL_ESPERA_A_PESSOA = `p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente'
+  AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3))) AND lower(p.criado_por) <> lower(?3)`;
+
 /** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu. */
-export type QuemPede = { id?: string; email?: string; cliente: boolean; role?: string; client_project_id?: string | null };
+export type QuemPede = { id?: string; email?: string; cliente: boolean; agente?: boolean; role?: string; client_project_id?: string | null; org_id?: string | null };
 
 export async function painelDoProjeto(db: D1Database, projectId: string, modulos: Modulo[], quem: QuemPede) {
   const dia = hoje();
@@ -442,11 +448,10 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
       db.prepare(SQL_MARCO_DO_PROGRAMA).bind(projectId),
       db.prepare(`SELECT (SELECT count(*) FROM ropa_records WHERE project_id = ?1 AND COALESCE(status, '') <> 'Inactive') AS tratamentos,
           (SELECT count(*) FROM compliance_controls WHERE project_id = ?1 AND (${SQL_CLASSE_CONTROLE}) <> 'falta') AS controles`).bind(projectId),
-      // Para o cliente: o que espera a decisão DELE neste projeto (a mesma leitura de GET /api/v1/pedidos).
-      quem.cliente
-        ? db.prepare(`SELECT p.id, p.tipo, p.titulo, p.papel_exigido, p.criado_em FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
-            WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente' AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3)))
-            ORDER BY p.criado_em LIMIT 50`).bind(projectId, quem.id ?? '', quem.email ?? '')
+      // O que espera a decisão DESTA pessoa neste projeto (cliente ou equipe; o agente MCP não decide pedido).
+      !quem.agente
+        ? db.prepare(`SELECT DISTINCT p.id, p.tipo, p.titulo, p.papel_exigido, p.criado_em FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
+            WHERE ${SQL_ESPERA_A_PESSOA} ORDER BY p.criado_em LIMIT 50`).bind(projectId, quem.id ?? '', quem.email ?? '')
         : db.prepare('SELECT 1 WHERE 0'),
       db.prepare(`SELECT p.nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
           WHERE v.project_id = ?1 AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto' AND p.status = 'ativa' ORDER BY p.nome`).bind(projectId),
@@ -460,7 +465,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, quem) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
   const ot = modulos.includes('ot') && quem.id
-    ? await blocoOt(db, projectId, { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', client_project_id: quem.client_project_id }, dia, new Date()) : null;
+    ? await blocoOt(db, projectId, { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', org_id: quem.org_id, client_project_id: quem.client_project_id }, dia, new Date()) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
   const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0 || (!!ot && !ot.comecando));
   const decisoes = (pedidos.results as { id: string; tipo: string; titulo: string; papel_exigido: string; criado_em: string }[]).map((p) => ({
@@ -496,7 +501,8 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     saude: saudeDoProjeto({ itens: todos, comecando: Object.values(blocos).every((b) => b.comecando), decisoes: decisoes.length, cliente: quem.cliente,
       proximo: proximoDe(Object.values(blocos).map((b) => b.proximo)) }),
     modulos: modulosResp,
-    ...(quem.cliente ? { decisoes } : {}),
+    // A equipe recebe a lista só quando há pedido para ela; a frase de saúde ("Sua vez") continua só do cliente.
+    ...(quem.cliente || decisoes.length ? { decisoes } : {}),
     ...(privacy ? { selos: privacy.selos } : {}),
   };
 }

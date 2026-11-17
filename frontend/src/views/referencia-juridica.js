@@ -14,7 +14,11 @@ const BASES_LGPD = ['lgpd:art7', 'lgpd:art11'];
 
 // A tela guarda o que carregou: buscar e trocar de aba redesenham só o painel, sem nova chamada e sem tirar o foco da busca.
 let carga = null;
-let validando = null; // null | { propostos, validados }: a confirmação em duas etapas (o app não usa confirm())
+// null | { fontes, de, para, previa }: escolher o par, ver o efeito e só então validar (o app não usa confirm()). Trocar o par apaga a prévia.
+let validando = null;
+const PAR_PADRAO = ['iso27001:2022', 'lgpd'];
+const ALVO = { lgpd: 'LGPD', anpd: 'ANPD' }; // fontes cuja cobertura o servidor calcula (src/services/requisitos.ts, previaDeValidacao)
+const sinal = (n) => (n >= 0 ? `+${n}` : String(n));
 
 /** Linhas que casam com a busca (referência e título, sem caixa nem acento); o pai fica se algum filho casa. */
 export function filtrarLinhas(reqs, busca) {
@@ -64,15 +68,33 @@ function painelHtml() {
         + (demais.length ? `<h2 class="cob-titulo">Demais artigos</h2>${tabelaHtml(demais, 'Artigos da LGPD')}` : '');
 }
 
+function previaHtml(p) {
+    if (!p.propostos) return '<p class="rj-aviso" role="status">Nenhum mapeamento proposto entre essas fontes.</p>';
+    const { equivalente, parcial, relacionado } = p.por_tipo;
+    const alvo = ALVO[validando.para] || ALVO[validando.de];
+    const cobertura = p.cobertura_calculada
+        ? `cobertura da ${alvo}: ${sinal(p.efeito.cobertos)} cobertos, ${sinal(p.efeito.parciais)} parciais em ${p.projetos_afetados} ${p.projetos_afetados === 1 ? 'projeto' : 'projetos'}${p.truncado ? ' (só os primeiros 100 projetos)' : ''}`
+        : 'cobertura não calculada (nenhuma das fontes é LGPD ou ANPD)';
+    const nota = ALVO[validando.de] && ALVO[validando.para] ? `<p class="rj-aviso">Só a cobertura da ${alvo} é calculada neste par.</p>` : '';
+    return nota + `<p class="rj-aviso" role="status">Vai validar <strong>${p.propostos}</strong> mapeamentos (${equivalente} equivalentes, ${parcial} parciais, ${relacionado} relacionados); ${cobertura}.</p>`;
+}
+
+function seletorHtml(lado, rotulo) {
+    const opcoes = validando.fontes.map((f) => `<option value="${escapeHTML(f.id)}"${f.id === validando[lado] ? ' selected' : ''}>${escapeHTML(f.nome)}</option>`).join('');
+    return `<div class="form-group"><label class="form-label" for="rj-par-${lado}">${rotulo}</label>
+        <select class="form-select" id="rj-par-${lado}" data-action-change="parValidacaoJuridica" data-args='${escapeHTML(JSON.stringify([lado]))}' data-arg-val>${opcoes}</select></div>`;
+}
+
 function validacaoHtml() {
     if (!ehAdmin()) return '';
     if (!validando) return '<button type="button" class="btn" data-action="pedirValidacaoJuridica">Validar mapeamentos propostos</button>';
-    const { propostos, validados } = validando;
-    if (!propostos) return `<p class="rj-aviso" role="status">Nenhum mapeamento proposto. ${validados} já validados.</p>
-        <button type="button" class="btn btn-ghost" data-action="cancelarValidacaoJuridica">Fechar</button>`;
-    return `<div class="rj-confirma" role="group" aria-label="Confirmar a validação jurídica">
-        <p><strong>${propostos}</strong> mapeamentos propostos e <strong>${validados}</strong> já validados. Validar registra seu e-mail e a data de hoje como quem validou.</p>
-        <button type="button" class="btn btn-primary" data-action="confirmarValidacaoJuridica">Validar ${propostos} mapeamentos</button>
+    const pronto = !!validando.previa && validando.previa.propostos > 0;
+    return `<div class="rj-confirma" role="group" aria-label="Validar os mapeamentos de um par de fontes">
+        <p>Escolha o par de fontes e veja o efeito antes de validar. Validar registra seu e-mail e a data de hoje como quem validou.</p>
+        ${seletorHtml('de', 'De')}${seletorHtml('para', 'Para')}
+        ${validando.previa ? previaHtml(validando.previa) : ''}
+        <button type="button" class="btn" data-action="verEfeitoValidacaoJuridica">Ver o efeito</button>
+        <button type="button" class="btn btn-primary" data-action="confirmarValidacaoJuridica"${pronto ? '' : ' disabled'}>Validar</button>
         <button type="button" class="btn btn-ghost" data-action="cancelarValidacaoJuridica">Cancelar</button></div>`;
 }
 
@@ -126,17 +148,37 @@ window.buscarReferenciaJuridica = function (valor) {
 
 window.pedirValidacaoJuridica = async function () {
     if (!ehAdmin()) return;
-    try { validando = await api('GET', '/api/v1/requisitos/mapeamentos/resumo'); } catch (e) { showToast((e && e.message) || 'Não foi possível contar os mapeamentos', 'error'); return; }
+    let fontes;
+    try { fontes = lista(await api('GET', '/api/v1/requisitos/fontes')); } catch (e) { showToast((e && e.message) || 'Não foi possível carregar as fontes', 'error'); return; }
+    const ou = (id, i) => (fontes.some((f) => f.id === id) ? id : fontes[i]?.id ?? '');
+    validando = { fontes, de: ou(PAR_PADRAO[0], 0), para: ou(PAR_PADRAO[1], 1), previa: null };
+    redesenhar();
+};
+
+window.parValidacaoJuridica = function (lado, valor) {
+    if (!validando || (lado !== 'de' && lado !== 'para')) return;
+    validando[lado] = String(valor || '');
+    validando.previa = null; // a prévia vale só para o par em que foi pedida
+    redesenhar();
+};
+
+window.verEfeitoValidacaoJuridica = async function () {
+    if (!ehAdmin() || !validando) return;
+    const { de, para } = validando;
+    let previa;
+    try { previa = await api('GET', `/api/v1/requisitos/mapeamentos/previa?de=${encodeURIComponent(de)}&para=${encodeURIComponent(para)}`); } catch (e) { showToast((e && e.message) || 'Não foi possível calcular o efeito', 'error'); return; }
+    if (!validando || validando.de !== de || validando.para !== para) return; // o par mudou enquanto a prévia carregava
+    validando.previa = previa;
     redesenhar();
 };
 
 window.cancelarValidacaoJuridica = function () { validando = null; redesenhar(); };
 
-// Sem nome no corpo: quem valida é o e-mail da sessão, gravado pelo servidor.
+// Sem nome no corpo: quem valida é o e-mail da sessão, gravado pelo servidor. Só depois da prévia do mesmo par.
 window.confirmarValidacaoJuridica = async function () {
-    if (!ehAdmin()) return;
+    if (!ehAdmin() || !validando || !validando.previa || !validando.previa.propostos) return;
     try {
-        const r = await api('POST', '/api/v1/requisitos/mapeamentos/validar', {});
+        const r = await api('POST', '/api/v1/requisitos/mapeamentos/validar', { de_fonte: validando.de, para_fonte: validando.para });
         showToast(`${r.validados} mapeamentos validados.`, 'success');
     } catch (e) { showToast((e && e.message) || 'Não foi possível validar os mapeamentos', 'error'); return; }
     validando = null;

@@ -10,6 +10,7 @@ import { genId, enviarEmail } from '../helpers';
 import { montarEmail, type EmailMontado } from './email-layout';
 import { appUrl } from '../config/url';
 import { vencerEvidencias } from './evidencia-validade';
+import { gestorArciberDireto } from './ot-inventario';
 import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, type Faixa, type Modulo } from '../modulos';
 import { log } from '../observability';
 import { passoPorId } from '../data/passos/catalogo';
@@ -190,7 +191,7 @@ export async function itensDoDia(db: D1Database, hoje: string): Promise<{ itens:
   return { itens, falhas };
 }
 
-export type Pessoa = { id: string; email: string; name: string | null; role: string };
+export type Pessoa = { id: string; email: string; name: string | null; role: string; org_id?: string | null };
 
 /*
  * Quem alcança o projeto, pela MESMA regra de requireProjectAccess (src/helpers.ts), escrita em SQL para
@@ -206,11 +207,20 @@ const ALCANCA_O_PROJETO = `COALESCE(u.ativo, 1) <> 0 AND (
     OR (u.role IN ('consultor', 'consultant') AND u.org_id = p.org_id AND EXISTS (
       SELECT 1 FROM project_governance g
        WHERE g.project_id = p.id AND g.role_category = 'consultor' AND lower(g.email) = lower(u.email))))`;
-const PESSOAS_DO_PROJETO = `SELECT u.id, u.email, u.name, u.role FROM users u JOIN projects p ON p.id = ?1
+const PESSOAS_DO_PROJETO = `SELECT u.id, u.email, u.name, u.role, u.org_id FROM users u JOIN projects p ON p.id = ?1
   WHERE ${ALCANCA_O_PROJETO} ORDER BY u.id`;
 
 export async function pessoasDoProjeto(db: D1Database, projectId: string): Promise<Pessoa[]> {
   return (await db.prepare(PESSOAS_DO_PROJETO).bind(projectId).all<Pessoa>()).results;
+}
+
+/** org_admin do projeto (pessoasDoProjeto já prende o cliente ao client_project_id) ou o admin direto designado Gestor ARCiber. */
+async function filtrarGestores(db: D1Database, projectId: string, pessoas: Pessoa[]): Promise<Pessoa[]> {
+  const r: Pessoa[] = [];
+  for (const p of pessoas) {
+    if (p.role === 'org_admin' || (p.role === 'consultoria_admin' && await gestorArciberDireto(db, p, projectId))) r.push(p);
+  }
+  return r;
 }
 
 const normalizar = (s: string | null | undefined) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -319,9 +329,9 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
       const faixa: Faixa = tela === '/ropa' ? 'privacy' : FAIXA_DA_FONTE[item.fonte];
       const comModulo: Pessoa[] = [];
       for (const p of pessoas) if (!recusaDaPessoa(faixa, await modulosDe(p))) comModulo.push(p);
-      // Aceite e obra do n.ot: só o Gestor ARCiber (org_admin do projeto). `pessoasDoProjeto` já prende o cliente ao client_project_id.
+      // Aceite e obra do n.ot: só o Gestor ARCiber (org_admin do projeto ou o admin direto designado no cargo). `pessoasDoProjeto` já prende o cliente ao client_project_id.
       // A revisão do assessment vai a todos que têm o n.ot e alcançam o projeto (spec da onda 0); o texto leva só o código do requisito.
-      const destinos = SO_GESTOR.has(item.fonte) ? comModulo.filter((p) => p.role === 'org_admin')
+      const destinos = SO_GESTOR.has(item.fonte) ? await filtrarGestores(db, item.project_id, comModulo)
         : item.fonte === 'ot_revisao' ? comModulo : escolherDestinatarios(comModulo, item.responsavel);
       if (!destinos.length) { r.sem_destinatario++; continue; }
       // Atraso na mesma semana do vencimento só sai se o D0 não saiu (a rotina não rodou no dia).

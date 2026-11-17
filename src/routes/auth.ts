@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { emailRedefinicaoSenha } from '../services/emails';
 import { genId, genToken, genNumericCode, rateLimit, rateLimitD1, hashPassword, verifyPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, SESSION_TTL_SEC, erro500, comercialAtivo, constantTimeEqual } from '../helpers';
-import { equipeDeOrgSuspensa, ORG_SUSPENSA } from '../services/organizacao';
+import { equipeDeOrgSuspensa, ORG_SUSPENSA, tipoDaOrg } from '../services/organizacao';
 
 /** IP do cliente para rate limiting (Cloudflare popula CF-Connecting-IP) */
 export function clientIp(c: any): string {
@@ -459,7 +459,9 @@ authApp.post('/logout', async (c) => {
 authApp.get('/me', async (c) => {
   const user = c.get('user');
   // `comercial_ativo`: a interface esconde a área comercial quando o interruptor está desligado (o servidor já dá 404).
-  return c.json({ user: { ...user, modulos: await modulosDaPessoa(c.env.DB, user), comercial_ativo: comercialAtivo(c.env) } });
+  // `org_tipo` ('consultoria' | 'direta' | null), lido do banco: só para a tela escolher textos e esconder o comercial; quem autoriza é o servidor.
+  const [modulos, org_tipo] = await Promise.all([modulosDaPessoa(c.env.DB, user), tipoDaOrg(c.env.DB, user.org_id)]);
+  return c.json({ user: { ...user, modulos, org_tipo, comercial_ativo: comercialAtivo(c.env) } });
 });
 
 authApp.post('/change-password', async (c) => {

@@ -50,14 +50,15 @@ organizacoesApp.post('/', async (c) => {
     try {
       await db.batch([
         db.prepare(`INSERT INTO organizations (id, name, slug, plan, max_projects, max_users, owner_id, status, cnpj, prefixo_proposta,
-          proximo_numero, termo_aceito_em, termo_versao) VALUES (?, ?, ?, 'consultoria', ?, ?, ?, 'Active', ?, ?, 1, datetime('now'), ?)`)
+          proximo_numero, termo_aceito_em, termo_versao, tipo, modulos_contratados) VALUES (?, ?, ?, 'consultoria', ?, ?, ?, 'Active', ?, ?, 1, datetime('now'), ?, ?, ?)`)
           // Sem prefixo grava NULL: o índice único parcial deixa várias organizações sem prefixo.
-          .bind(id, b.nome, b.slug, b.maxProjetos, b.maxUsuarios, adminId, b.cnpj ?? null, b.prefixoProposta ?? null, b.termoVersao),
+          .bind(id, b.nome, b.slug, b.maxProjetos, b.maxUsuarios, adminId, b.cnpj ?? null, b.prefixoProposta ?? null, b.termoVersao, b.tipo,
+            JSON.stringify(b.modulos ?? ['iso'])),
         db.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change)
           VALUES (?, ?, ?, ?, 'consultoria_admin', NULL, ?, 1)`).bind(adminId, b.adminEmail, SEM_SENHA, b.adminNome, id),
         db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
           VALUES (?, 'org.criada', ?, ?, '', ?, NULL, datetime('now'))`)
-          .bind(genId(), ator, `Organização ${id} (${b.slug}) criada por ${ator}; administrador ${b.adminEmail}; termo de uso ${b.termoVersao}`,
+          .bind(genId(), ator, `Organização ${id} (${b.slug}) criada por ${ator}; administrador ${b.adminEmail}; tipo ${b.tipo}; módulos ${(b.modulos ?? ['iso']).join(',')}; termo de uso ${b.termoVersao}`,
             c.req.header('CF-Connecting-IP') ?? ''),
       ]);
     } catch (e) {
@@ -82,7 +83,7 @@ organizacoesApp.get('/', async (c) => {
   try {
     const db = c.env.DB;
     const [orgs, props] = await db.batch<any>([
-      db.prepare(`SELECT o.id, o.name, o.slug, o.plan, o.status, o.max_projects, o.max_users, o.termo_aceito_em, o.termo_versao, o.created_at, o.modulos_contratados,
+      db.prepare(`SELECT o.id, o.name, o.slug, o.plan, o.status, o.max_projects, o.max_users, o.termo_aceito_em, o.termo_versao, o.created_at, o.modulos_contratados, o.tipo,
         (SELECT COUNT(*) FROM projects p WHERE p.org_id = o.id) AS projetos,
         (SELECT COUNT(*) FROM users WHERE org_id = o.id AND ${SQL_EQUIPE}) AS usuarios,
         EXISTS (SELECT 1 FROM users WHERE ${ADMIN_PENDENTE}) AS admin_pendente
@@ -95,7 +96,7 @@ organizacoesApp.get('/', async (c) => {
       id: o.id, nome: o.name, slug: o.slug, plano: o.plan, status: o.status,
       maxProjetos: o.max_projects, maxUsuarios: o.max_users, termoAceitoEm: o.termo_aceito_em, termoVersao: o.termo_versao,
       criadaEm: o.created_at, projetos: o.projetos, usuarios: o.usuarios, propostas: porOrg[o.id] ?? {},
-      adminPendente: !!o.admin_pendente, modulosContratados: parseModulos(o.modulos_contratados),
+      adminPendente: !!o.admin_pendente, modulosContratados: parseModulos(o.modulos_contratados), tipo: o.tipo,
     })));
   } catch (e) { return erro500(c, 'Erro ao listar as consultorias', e); }
 });

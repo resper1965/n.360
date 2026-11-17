@@ -2,12 +2,24 @@
 // nem site por conta própria: perguntam aqui.
 import { PROJETOS_DO_CONSULTOR_SQL, ehConsultor } from '../helpers';
 import { aadOt, decifrarOt, mascararMac, type ChavesOt } from './ot-cifra';
+import { adminDireto } from './organizacao';
 
 /** LIMIT explícito das leituras que decidem (acesso, deduplicação, confronto, zonas): sem ele o query-cap corta em 500 em silêncio.
  *  shortcut: um site (ou projeto) com mais de 20.000 linhas fica cortado aqui; ao chegar perto disso, paginar ou indexar no banco. */
 export const TETO_LEITURA_OT = 20000;
 
-export interface AtorOt { id: string; email: string; role: string; agente?: boolean }
+export interface AtorOt { id: string; email: string; role: string; agente?: boolean; org_id?: string | null }
+
+/** Cargo do Gestor ARCiber em `project_governance` (spec §3): a mesma regra no 4.2.1 e no aviso do step-up (ot-stepup.ts). */
+export const CARGO_GESTOR_ARCIBER = `lower(trim(job_title)) = 'gestor arciber'`;
+
+/** Gestor ARCiber da organização direta: o admin direto que também consta no cargo (titular ou suplente), pelo e-mail. */
+export async function gestorArciberDireto(db: D1Database, u: AtorOt, projectId: string): Promise<boolean> {
+  if (!await adminDireto(db, u, projectId)) return false;
+  if (!u.email?.trim()) return false;
+  return !!await db.prepare(`SELECT 1 FROM project_governance WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER} AND coalesce(trim(email), '') <> '' AND lower(email) = lower(?)`)
+    .bind(projectId, u.email).first();
+}
 
 const naoEhPessoa = (u: AtorOt) => u.agente === true || u.id.startsWith('apikey:');
 
@@ -34,6 +46,7 @@ export async function podeVerCompleto(db: D1Database, u: AtorOt, projectId: stri
   if (naoEhPessoa(u)) return false;
   if (u.role === 'org_admin' || ehConsultor(u)) return true;
   if (u.role !== 'consultoria_admin') return false;
+  if (await adminDireto(db, u, projectId)) return true;
   return !!await db.prepare(`SELECT 1 FROM projects WHERE id = ? AND id IN (${PROJETOS_DO_CONSULTOR_SQL})`).bind(projectId, u.email).first();
 }
 

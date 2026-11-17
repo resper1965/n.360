@@ -421,6 +421,16 @@ incidentesApp.post('/:id/rascunho-comunicacao', async (c) => {
 incidentesApp.post('/:id/encerrar', async (c) => {
   try {
     if (!ehEquipeNess(c.get('user'))) return c.json({ error: 'Encerrar o incidente é feito pela equipe da consultoria' }, 403);
+    // Quem registrou não encerra: precisa de outra pessoa (decisão 6).
+    const inc = await c.env.DB.prepare('SELECT criado_por FROM incidentes WHERE id = ? AND project_id = ?').bind(c.req.param('id'), c.req.param('projectId')).first<{ criado_por: string | null }>();
+    // Compara a CONTA real: o agente tem rótulo "agente de X (...)" no e-mail e grava assim em criado_por (legado e novo).
+    const u = c.get('user');
+    if (u.agente && !u.agente_conta) return c.json({ error: 'Conta do agente não identificada' }, 403);
+    const conta = (u.agente ? u.agente_conta! : u.email ?? '').toLowerCase();
+    const dono = (inc?.criado_por ?? '').toLowerCase().replace(/^agente (?:auditor )?de (.+?) \(.*\)$/, '$1');
+    if (dono && dono === conta) {
+      return c.json({ error: 'Quem registrou o incidente não o encerra. Peça a outra pessoa.' }, 403);
+    }
     const r = await encerrarIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao encerrar o incidente', e); }

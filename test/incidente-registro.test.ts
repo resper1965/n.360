@@ -8,6 +8,7 @@ const P = 'ir-proj';
 const OUTRO = 'ir-outro';
 const B = `/api/v1/projects/${P}`;
 let consultor: Record<string, string>;
+let fecha: Record<string, string>;
 let cliente: Record<string, string>;
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown) =>
   app.fetch(new Request(`http://localhost${caminho}`, { method: metodo, headers: { ...h, ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}) }, body: corpo !== undefined ? JSON.stringify(corpo) : undefined }), workerEnv());
@@ -26,6 +27,7 @@ beforeAll(async () => {
   await habilitarPrivacy(P, OUTRO);
   await concederModulos('ir-cli', ['privacy']);
   consultor = await sessionFor({ id: 'ir-cons', email: 'cons-ir@ness.lat', role: 'consultor' });
+  fecha = await sessionFor({ id: 'ir-adm', email: 'adm-ir@ness.lat', role: 'platform_admin' }); // quem registrou não encerra
   cliente = await sessionFor({ id: 'ir-cli', email: 'cli-ir@cliente.com', role: 'org_user', client_project_id: P });
 });
 
@@ -116,7 +118,7 @@ describe('registro completo do incidente', () => {
     expect((await chamar(consultor, 'DELETE', `${B}/incidentes/${id}/anexos/${anexo}`)).status).toBe(200);
     expect((await json(await chamar(consultor, 'GET', `${B}/incidentes/${id}/anexos`))).anexos).toEqual([]);
     await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' });
-    await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`);
+    await chamar(fecha, 'POST', `${B}/incidentes/${id}/encerrar`);
     expect((await envia(consultor, PDF, 'depois.pdf')).status).toBe(409);
     expect((await chamar(consultor, 'PUT', `${B}/incidentes/${id}`, { severidade: 'baixa' })).status).toBe(409);
   });
@@ -124,7 +126,7 @@ describe('registro completo do incidente', () => {
   it('banco: incidente encerrado não ganha área, dado nem evidência; evidência não aponta para incidente de outro projeto', async () => {
     const id = await novo();
     await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' });
-    await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`);
+    await chamar(fecha, 'POST', `${B}/incidentes/${id}/encerrar`);
     await expect(env.DB.prepare(`INSERT INTO incidente_departamentos (incidente_id, departamento_id, project_id) VALUES (?, 'ir-d1', ?)`).bind(id, P).run()).rejects.toThrow(/encerrado/);
     await expect(env.DB.prepare(`INSERT INTO incidente_dados (incidente_id, titular_id, dado_id, project_id) VALUES (?, 'ir-t1', 'ir-dd1', ?)`).bind(id, P).run()).rejects.toThrow(/encerrado/);
     await expect(env.DB.prepare(`INSERT INTO incidente_anexos (id, project_id, incidente_id, file_name, r2_key, file_hash, file_type, file_size, uploaded_by) VALUES ('ir-x1', ?, ?, 'a.pdf', 'k', 'h', 'pdf', 1, 'x')`).bind(P, id).run()).rejects.toThrow(/encerrado/);

@@ -34,7 +34,7 @@ const ORGS = [
   { id: 'org_alfa', nome: 'Alfa Consultoria', slug: 'alfa', plano: 'consultoria', status: 'Active', maxProjetos: 10, maxUsuarios: 5,
     termoAceitoEm: '2026-10-02 12:00:00', termoVersao: 'v1-2026', projetos: 3, usuarios: 2, propostas: {}, adminPendente: true },
   { id: 'org_beta', nome: 'Beta <b>Seg</b>', slug: 'beta', plano: 'consultoria', status: 'Suspended', maxProjetos: 4, maxUsuarios: 3,
-    termoAceitoEm: '2026-09-30 09:00:00', termoVersao: 'v1-2026', projetos: 1, usuarios: 1, propostas: {} },
+    termoAceitoEm: '2026-09-30 09:00:00', termoVersao: 'v1-2026', projetos: 1, usuarios: 1, propostas: {}, tipo: 'direta' },
 ];
 const PROJETOS = [
   { id: 'p1', client_name: 'Cliente Um', org_id: 'org_alfa' },
@@ -105,6 +105,8 @@ describe('lista', () => {
     expect(c.querySelectorAll('tbody tr')).toHaveLength(3);
     const alfa = linha('org_alfa').textContent;
     expect(alfa).toContain('Alfa Consultoria');
+    expect(alfa).toContain('Consultoria');
+    expect(linha('org_ness').textContent).toContain('Consultoria');
     expect(alfa).toContain('alfa');
     expect(alfa).toContain('consultoria');
     expect(alfa).toContain('3 de 10');
@@ -113,6 +115,8 @@ describe('lista', () => {
     expect(alfa).toContain('v1-2026');
     expect(alfa).toContain('02/10/2026');
     expect(linha('org_beta').textContent).toContain('Suspensa');
+    expect(linha('org_beta').querySelectorAll('td')[1].textContent).toBe('Direta');
+    expect(linha('org_alfa').querySelectorAll('td')[1].textContent).toBe('Consultoria');
     expect(c.querySelector('b')).toBeNull();
     expect(linha('org_beta').textContent).toContain('Beta <b>Seg</b>');
   });
@@ -120,7 +124,7 @@ describe('lista', () => {
   it('lista vazia: mensagem, sem tabela; Transferir projeto é ghost e Nova organização é a primária', async () => {
     servidor({ 'GET /api/v1/platform/orgs': () => json([]) });
     const c = await monta();
-    expect(c.textContent).toContain('Nenhuma consultoria');
+    expect(c.textContent).toContain('Nenhuma organização');
     expect(c.querySelector('table')).toBeNull();
     expect($('act').querySelector('[data-action="__orgTransferir"]').className).toContain('btn-ghost');
     expect($('act').querySelector('[data-action="__orgNova"]').className).toContain('btn-primary');
@@ -213,7 +217,7 @@ describe('nova organização', () => {
     envia('org-n-form');
     await espera();
     expect(corpo('POST', '/api/v1/platform/orgs')).toEqual({
-      nome: 'Gama Consultoria', slug: 'gama', prefixoProposta: 'GAMA', adminEmail: 'ana@gama.test', adminNome: 'Ana Gama',
+      nome: 'Gama Consultoria', slug: 'gama', prefixoProposta: 'GAMA', tipo: 'consultoria', modulos: ['iso'], adminEmail: 'ana@gama.test', adminNome: 'Ana Gama',
       maxProjetos: 8, maxUsuarios: 4, termoVersao: 'v1-2026',
     });
     const modal = $('modal-content').textContent;
@@ -221,6 +225,40 @@ describe('nova organização', () => {
     expect(modal).not.toContain('SENHA-SECRETA-123');
     expect(document.body.innerHTML).not.toContain('SENHA-SECRETA-123');
     expect(document.querySelector('#modal-content input[type="password"]')).toBeNull();
+  });
+
+  it('Tipo (Consultoria por padrão, com a ajuda da Direta) e módulos (n.iso por padrão); Direta esconde o prefixo e não o envia', async () => {
+    rotas['POST /api/v1/platform/orgs'] = () => json({ id: 'org_gama', adminEmail: 'ana@gama.test', emailEnviado: true }, 201);
+    await monta();
+    await clica('__orgNova');
+    expect($('org-n-tipo').value).toBe('consultoria');
+    expect([...$('org-n-tipo').options].map((o) => o.textContent)).toEqual(['Consultoria', 'Direta']);
+    expect($('org-n-tipo-dica').textContent).toBe('Direta: a empresa usa o n.360 por conta própria.');
+    const caixas = [...document.querySelectorAll('#org-n-modulos .n-modulo')];
+    expect(caixas.map((x) => [x.value, x.checked])).toEqual([['iso', true], ['privacy', false], ['ot', false]]);
+    expect($('org-n-prefixo-caixa').hidden).toBe(false);
+    preenche();
+    troca('org-n-tipo', 'direta');
+    expect($('org-n-prefixo-caixa').hidden).toBe(true);
+    caixas[1].checked = true;
+    semInline($('modal-content').innerHTML);
+    envia('org-n-form');
+    await espera();
+    const b = corpo('POST', '/api/v1/platform/orgs');
+    expect(b).toMatchObject({ tipo: 'direta', modulos: ['iso', 'privacy'] });
+    expect(b).not.toHaveProperty('prefixoProposta');
+  });
+
+  it('nenhum módulo: o erro do servidor aparece junto dos módulos', async () => {
+    rotas['POST /api/v1/platform/orgs'] = () => json({ error: 'Payload invalido', details: [{ path: 'modulos', message: 'Escolha ao menos um módulo' }] }, 400);
+    await monta();
+    await clica('__orgNova');
+    preenche();
+    document.querySelector('#org-n-modulos .n-modulo').checked = false;
+    envia('org-n-form');
+    await espera();
+    expect(corpo('POST', '/api/v1/platform/orgs').modulos).toEqual([]);
+    expect($('org-n-modulos-erro').textContent).toBe('Escolha ao menos um módulo');
   });
 
   it('CNPJ preenchido vai no corpo; emailEnviado false aponta para "Reenviar convite"', async () => {

@@ -426,7 +426,7 @@ export async function handlerMcp(req: Request, env: any, ctx: any, fetchHono: Fe
   // Papel relido do banco agora (e de novo em cada chamada interna, por resolverAgente).
   const papel = concessao.papel;
   // Comercial: o agente consultor de quem é do comercial vê as niso_comercial_* (o servidor confere de novo a cada chamada).
-  const comComercial = papel === 'consultor' && ehComercial({ role: concessao.role });
+  const comComercial = papel === 'consultor' && ehComercial({ role: concessao.role, org_direta: concessao.org_direta });
   const ferramentas = comComercial ? [...DISPONIVEIS[papel], ...COMERCIAL] : DISPONIVEIS[papel];
   const bruto = requisicaoInterna(req, env, ctx, props, fetchHono);
   const t = transporteInterno(bruto);

@@ -740,7 +740,8 @@ CREATE TABLE IF NOT EXISTS organizations (
     -- Chave do logo no R2 (migration 0040).
     logo_chave TEXT,
     -- Módulos que a consultoria contratou: o teto do que cada projeto pode habilitar (migration 0047).
-    modulos_contratados TEXT NOT NULL DEFAULT '["iso"]'
+    modulos_contratados TEXT NOT NULL DEFAULT '["iso"]',
+    tipo TEXT NOT NULL DEFAULT 'consultoria' CHECK (tipo IN ('consultoria', 'direta'))
 );
 -- Prefixo de proposta único entre organizações (migration 0040): a conferência na rota tem corrida,
 -- o índice decide. Parcial: organização sem prefixo (NULL) não conflita com outra.
@@ -1416,6 +1417,9 @@ CREATE TABLE IF NOT EXISTS requisitos (
     papel TEXT CHECK (papel IS NULL OR papel IN ('controlador', 'operador')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    texto TEXT,
+    fonte_texto TEXT,
+    categoria TEXT,
     UNIQUE (fonte_id, referencia)
 );
 CREATE INDEX IF NOT EXISTS idx_requisitos_fonte ON requisitos(fonte_id, referencia);
@@ -2246,6 +2250,7 @@ CREATE TABLE IF NOT EXISTS ot_requisitos (
     versao TEXT NOT NULL,
     prazo_meses INTEGER CHECK (prazo_meses IS NULL OR prazo_meses > 0),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    requisito_id TEXT REFERENCES requisitos(id),
     UNIQUE (framework, codigo)
 );
 
@@ -2300,6 +2305,18 @@ INSERT OR IGNORE INTO ot_requisitos (id, framework, codigo, titulo, descricao, c
   ('ons-ro-cb-br-01-rev00-4.6.5', 'ONS-RO-CB.BR.01', '4.6.5', 'Testes do plano de resposta', 'Testes de ativação dos planos de resposta a incidentes cibernéticos devem ser realizados periodicamente, em ciclos definidos na política de segurança cibernética da organização, cobrindo minimamente as listas de ativação (call tree) e a revisão dos procedimentos. Os exercícios deverão gerar documentos de lições aprendidas e as respectivas ações corretivas e de melhorias.', 'Monitoramento e resposta a incidentes', 'Rev.00', 27),
   ('ons-ro-cb-br-01-rev00-4.6.6', 'ONS-RO-CB.BR.01', '4.6.6', 'Comunicação de incidentes ao ONS', 'Incidentes cibernéticos que afetem ativos do ARCiber devem ser informados ao ONS.', 'Monitoramento e resposta a incidentes', 'Rev.00', 27),
   ('ons-ro-cb-br-01-rev00-5.1.1', 'ONS-RO-CB.BR.01', '5.1.1', 'Tratamento de exceções', 'Os casos em que requisitos não possam ser implementados devem ser tratados com uma exceção. Cada exceção deve ser documentada detalhadamente, incluindo a data em que foi identificada, o motivo pelo qual precisa ser tratada como exceção, os itens da RO que deixarão de ser atendidos e os impactos esperados, e aprovada pelo gestor responsável pela segurança cibernética do ARCiber.', 'Tratamento de exceções', 'Rev.00', NULL);
+
+-- onda 2 (migration 0114): a ONS entra no catálogo único com os mesmos ids de ot_requisitos
+INSERT OR IGNORE INTO requisito_fontes (id, nome, versao, vigente_desde)
+  VALUES ('ons-ro-cb-br-01', 'ONS RO-CB.BR.01 (requisitos mínimos de segurança cibernética)', 'Rev.00', '2021-07-09');
+
+-- Mesmo id de ot_requisitos: nenhuma FK nem URL existente muda. O texto é o da norma pública, portado e conferido na 0090.
+INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo, papel, pai_id, texto, fonte_texto, categoria)
+  SELECT id, 'ons-ro-cb-br-01', codigo, titulo, NULL, NULL, descricao,
+         'ONS RO-CB.BR.01 Rev.00, vigência 09/07/2021; texto portado de OT2net e conferido contra o PDF (migration 0090)', categoria
+    FROM ot_requisitos;
+
+UPDATE ot_requisitos SET requisito_id = id WHERE requisito_id IS NULL;
 
 -- ─── n.ot: inventário — sites, zonas, ativos, fluxos e acesso por site (migration 0091) ───
 CREATE TABLE IF NOT EXISTS ot_sites (
