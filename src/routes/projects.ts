@@ -26,6 +26,7 @@ import { registerAssetRoutes } from './project-assets';
 import { encryptSecret, decryptSecret, isEncrypted } from '../secret-crypto';
 import { COLUNAS_REVOGACAO } from './controls';
 import { exportarProjeto } from '../portabilidade';
+import { podeVerOt, SEM_ACAO_OT } from '../services/ot-visibilidade';
 import { ipPermitido } from '../politica-tenant';
 import { papelValidoParaSso } from '../sso';
 import { appUrl } from '../config/url';
@@ -281,7 +282,7 @@ projectsApp.get('/:projectId/export', async (c) => {
     const recusa = (await modulosDoProjeto(c.env.DB, projectId)).map((m) => recusaDaPessoa(m, daPessoa)).find(Boolean);
     if (recusa) return c.json({ error: `${recusa}: a exportação completa inclui os dados dele.` }, 403);
 
-    const conteudo = await exportarProjeto(c.env, projectId, ehEquipeNess(c.get('user')));
+    const conteudo = await exportarProjeto(c.env, projectId, ehEquipeNess(c.get('user')), await podeVerOt(c.env.DB, c.get('user'), projectId));
 
     await logAudit(
       c.env.DB,
@@ -1272,11 +1273,12 @@ projectsApp.get('/:id/audit-pack', async (c) => {
     const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first<any>();
     if (!project) return c.json({ error: 'Project not found' }, 404);
 
+    const veOt = await podeVerOt(c.env.DB, c.get('user'), projectId);
     const [phases, controls, evidence, logs] = await Promise.all([
       c.env.DB.prepare('SELECT * FROM project_phases WHERE project_id = ? ORDER BY phase_number ASC').bind(projectId).all(),
       c.env.DB.prepare('SELECT * FROM compliance_controls WHERE project_id = ?').bind(projectId).all(),
       c.env.DB.prepare('SELECT * FROM evidence WHERE project_id = ?').bind(projectId).all(),
-      c.env.DB.prepare('SELECT * FROM audit_logs WHERE project_id = ? OR (project_id IS NULL AND details LIKE ?) ORDER BY created_at DESC LIMIT 100').bind(projectId, `%${projectId}%`).all()
+      c.env.DB.prepare(`SELECT * FROM audit_logs WHERE (project_id = ? OR (project_id IS NULL AND details LIKE ?))${veOt ? '' : SEM_ACAO_OT} ORDER BY created_at DESC LIMIT 100`).bind(projectId, `%${projectId}%`).all()
     ]);
 
     return c.json({
@@ -1297,8 +1299,9 @@ projectsApp.get('/:id/audit-pack', async (c) => {
 
 projectsApp.get('/:id/audit-trail', async (c) => {
   const projectId = c.req.param('id');
+  const veOt = await podeVerOt(c.env.DB, c.get('user'), projectId);
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM audit_logs WHERE project_id = ? ORDER BY created_at DESC LIMIT 500`
+    `SELECT * FROM audit_logs WHERE project_id = ?${veOt ? '' : SEM_ACAO_OT} ORDER BY created_at DESC LIMIT 500`
   ).bind(projectId).all();
   // IP, navegador, detalhes, justificativa e valores antes/depois (texto livre, às vezes de outras pessoas)
   // só a consultoria vê. Quem não é da equipe recebe quem, o quê e quando.

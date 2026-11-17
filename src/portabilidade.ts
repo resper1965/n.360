@@ -189,7 +189,7 @@ export async function tabelasExportaveis(env: Bindings): Promise<string[]> {
   return comProjeto;
 }
 
-export async function exportarProjeto(env: Bindings, projectId: string, comRastro = false): Promise<Export> {
+export async function exportarProjeto(env: Bindings, projectId: string, comRastro = false, veOt = false): Promise<Export> {
   const tabelas = await tabelasExportaveis(env);
 
   const dados: Record<string, unknown[]> = {};
@@ -204,7 +204,9 @@ export async function exportarProjeto(env: Bindings, projectId: string, comRastr
       `SELECT * FROM "${t}" WHERE project_id = ? ORDER BY rowid`
     ).bind(projectId).all();
     // n.ot (P0-2): o título do aviso de prazo leva nome de site; `notifications` não tem project_id e nem entra aqui.
-    const results = t === 'avisos_prazo' ? todas?.filter((l) => !String(l.fonte).startsWith('ot_')) : todas;
+    // Ações `ot.%` da trilha: as tabelas ot_* não saem, então estas linhas são o único rastro do n.ot; só quem vê o n.ot as leva (padrão fechado).
+    const results = t === 'avisos_prazo' ? todas?.filter((l) => !String(l.fonte).startsWith('ot_'))
+      : t === 'audit_logs' && !veOt ? todas?.filter((l) => !String(l.action).startsWith('ot.')) : todas;
     dados[t] = comRastro ? semSegredos(t, results ?? []) : semRastroDePessoa(semSegredos(t, results ?? []));
     contagem[t] = dados[t].length;
     total += dados[t].length;
