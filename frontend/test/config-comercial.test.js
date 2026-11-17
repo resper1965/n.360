@@ -300,6 +300,9 @@ describe('identidade da organização (identidade-org)', () => {
       envia();
       await espera();
       expect(Object.keys(JSON.parse(put()[1].body)).sort()).toEqual(['cnpj', 'corDestaque', 'nome']);
+      // a resposta do PUT da direta traz só 4 chaves: a tela redesenha sem erro
+      expect($('cfg-nome').value).toBe('ness.');
+      expect($('cfg-prefixoProposta')).toBeNull();
     } finally { S.view = null; }
   });
 });

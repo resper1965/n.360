@@ -14,10 +14,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ### Remediação dos gaps das ondas 1 e 2 (2026-11-17)
 - **Organização direta edita a própria identidade:** o `consultoria_admin` da direta vê a tela "Identidade da organização" e edita nome, CNPJ, cor e logo; `GET /org/config` devolve para ele só nome, CNPJ, cor e selo (nunca preço, margem ou prefixo).
-- **SSO, SCIM e transferência recusam a direta:** gerar token SCIM, criar usuário por SCIM, ligar o SSO e provisionar por SSO dão 403 na direta (desligar o SSO segue permitido); transferir para uma direta um projeto com contas de cliente dá 409 (`destino_direta_com_clientes`).
+- **SSO, SCIM e transferência recusam a direta:** gerar token SCIM, criar usuário por SCIM, reativar conta por SCIM (`PUT`/`PATCH` com `active: true`; desativar segue valendo) e ligar o SSO dão 403 na direta (desligar o SSO segue permitido); o provisionamento por SSO lança erro e o callback falha fechado com o erro genérico de login federado (não é um 403); transferir para uma direta um projeto com contas de cliente dá 409 (`destino_direta_com_clientes`).
 - **Migrações de 27701:** a resposta de `migrate-27701` e `migrate-27701-2025` ganha `sem_requisito`, a lista dos controles que ficaram sem requisito do catálogo.
 - **Quem pediu ou avaliou não aprova:** quem pediu a base do site (`eu_pedi_a_base`) ou avaliou o item (`eu_avaliei`) não vê mais o botão de aprovar/confirmar.
 - **Plano da direta:** a organização direta nasce com plano `direta`.
+- **Identidade da direta sem vazamento:** `PUT /org/config` do `consultoria_admin` da direta devolve só `nome`, `cnpj`, `corDestaque` e `seloNiso` (como o GET), nunca o modelo de custo da ness; `POST /org/logo` já devolvia só `ok`, `chave` e `tamanho`. O Início do n.ot não lista a base que a própria pessoa pediu nem os itens que ela avaliou entre as esperas por ela.
 - **Produção:** as migrações 0113 e 0114 foram aplicadas em 17/11/2026 (o "Pendente" da onda 2 abaixo está superado); o limite do D1 da prévia foi verificado na documentação (spec da onda 2, ruling (d)).
 
 ### n.360, onda 2: catálogo único de requisitos (migração 0114, spec 2026-11-17)
@@ -38,7 +39,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Minhas aprovações** e `decisoes` do painel não listam mais o pedido que a própria pessoa criou.
 - **Esperando a sua decisão:** `decisoes` também vai à equipe que é destinatária de pedido.
 - **Consultorias → Organizações** no menu e nas telas; criação com Tipo (Consultoria/Direta) e Módulos contratados; lista com coluna Tipo. `GET /auth/me` devolve `org_tipo`; `GET /platform/orgs` devolve `tipo`. Na direta somem Comercial, Levantamentos, Preços e margens e Identidade.
-- **Pendente:** a migração 0113 ainda não foi aplicada em produção.
+- **Migração 0113 aplicada em produção em 17/11/2026** (junto com a 0114, run `44149022784`).
 
 ### n.360: o Início é a lista dos projetos e ninguém é redirecionado na entrada
 - **Início sem projeto ativo:** lista dos projetos com "Ver situação" (abre na linha e não muda o projeto) e "Abrir no n.x" (entrar é só por clique). O seletor mostra "Nenhum projeto escolhido"; a alternância Projeto/Carteira saiu. O cliente vê o projeto dele já aberto.

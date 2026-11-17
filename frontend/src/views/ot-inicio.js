@@ -28,7 +28,8 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rasc
         for (const [s, n] of Object.entries(porSite)) out.push({ tipo: 'desvio', texto: `${plural(n, 'desvio aberto', 'desvios abertos')} em ${nome(s)}`, acao: { ...alvo(s, 'operacao'), extra: { otSub: 'desvios' } } });
     }
     if (gestor) {
-        for (const [s] of Object.entries(situacoes).filter(([, x]) => x?.proximo_passo === 'aguardar_base')) out.push({ tipo: 'base', texto: `Base de ${nome(s)} aguardando sua aprovação`, acao: alvo(s, 'projeto') });
+        // quem pediu a base não a aprova: não espera por essa pessoa
+        for (const [s] of Object.entries(situacoes).filter(([, x]) => x?.proximo_passo === 'aguardar_base' && !x.eu_pedi_a_base)) out.push({ tipo: 'base', texto: `Base de ${nome(s)} aguardando sua aprovação`, acao: alvo(s, 'projeto') });
     }
     if (gestor) {
         const hoje = hojeSP(); const limite = emDiasSP(PRAZO_DIAS);
@@ -52,7 +53,9 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rasc
     // assessment: mesma regra do "Só o que espera por mim" da tela (ot-assessment.js). O Gestor confirma e revisa; quem edita preenche.
     const ass = (texto, filtro) => out.push({ tipo: 'assessment', texto, acao: { tela: 'assessment', filtro } });
     if (assessment && gestor) {
-        const { a_confirmar: conf = 0, revisar: rev = 0 } = assessment.resumo || {};
+        const { a_confirmar: total = 0, revisar: rev = 0 } = assessment.resumo || {};
+        // quem avaliou o item não o confirma: sai da conta
+        const conf = total - (assessment.itens || []).filter((i) => i.avaliacao?.eu_avaliei && !i.avaliacao.confirmado).length;
         if (conf > 0) ass(`${plural(conf, 'item do assessment', 'itens do assessment')} para confirmar`, 'meus');
         if (rev > 0) ass(`${plural(rev, 'item do assessment', 'itens do assessment')} para revisar`, 'revisar');
     } else if (assessment && podeEditar) {

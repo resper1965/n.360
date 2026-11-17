@@ -204,3 +204,66 @@ describe('n.ot: quem pediu a base / avaliou o item sabe que não pode aprovar (b
     expect((await item(ga)).avaliacao.eu_avaliei).toBe(false);
   });
 });
+
+describe('PUT /api/v1/org/config e POST /org/logo: a direta nunca recebe o modelo de custo da ness', () => {
+  it('admin da direta: PUT devolve só a identidade e grava', async () => {
+    const r = await chamar('PUT', '/api/v1/org/config', S.beto, { corDestaque: '#112233' });
+    expect(r.status).toBe(200);
+    const corpo = await r.json() as any;
+    expect(Object.keys(corpo).sort()).toEqual(['cnpj', 'corDestaque', 'nome', 'seloNiso']);
+    expect(corpo.corDestaque).toBe('#112233');
+    expect((await env.DB.prepare(`SELECT cor_destaque FROM organizations WHERE id = 'org_d'`).first<any>()).cor_destaque).toBe('#112233');
+  });
+  it('admin da direta com campo comercial segue 403', async () => {
+    expect((await chamar('PUT', '/api/v1/org/config', S.beto, { prefixoProposta: 'DIR' })).status).toBe(403);
+  });
+  it('admin de consultoria: PUT segue devolvendo a config completa', async () => {
+    const r = await chamar('PUT', '/api/v1/org/config', S.cris, { corDestaque: '#445566' });
+    expect(r.status).toBe(200);
+    expect(Object.keys(await r.json() as object)).toContain('preco');
+  });
+  it('POST /org/logo da direta devolve só ok, chave e tamanho', async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    const r = await app.fetch(new Request('http://localhost/api/v1/org/logo', { method: 'POST', headers: { ...S.beto, 'Content-Type': 'image/png' }, body: png }), workerEnv() as any);
+    expect(r.status).toBe(200);
+    expect(Object.keys(await r.json() as object).sort()).toEqual(['chave', 'ok', 'tamanho']);
+  });
+});
+
+describe('SCIM PUT/PATCH não reativa conta de cliente em projeto direto', () => {
+  const H = (t: string) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/scim+json' });
+  const ativo = async (id: string) => (await env.DB.prepare('SELECT ativo FROM users WHERE id = ?').bind(id).first<any>()).ativo;
+  const PATCH = (v: boolean) => ({ schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'], Operations: [{ op: 'replace', path: 'active', value: v }] });
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-sd','SD','ISO 27001','controller','Active','org_d'), ('p-sc','SC','ISO 27001','controller','Active','org_c')`),
+      env.DB.prepare(`INSERT INTO project_scim (project_id, token_hash) VALUES ('p-sd', ?), ('p-sc', ?)`).bind(await sha256Hex('tok-sd'), await sha256Hex('tok-sc')),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, ativo) VALUES
+        ('sd-put','sd-put@x.com','x','A','org_user','p-sd','org_d',0), ('sd-pat','sd-pat@x.com','x','B','org_user','p-sd','org_d',0),
+        ('sd-on','sd-on@x.com','x','C','org_user','p-sd','org_d',1), ('sd-on2','sd-on2@x.com','x','D','org_user','p-sd','org_d',1),
+        ('sc-put','sc-put@x.com','x','E','org_user','p-sc','org_c',0), ('sc-pat','sc-pat@x.com','x','F','org_user','p-sc','org_c',0)`),
+    ]);
+  });
+  it('direta: PUT active:true = 403 e a conta segue inativa', async () => {
+    const r = await chamar('PUT', '/scim/v2/Users/sd-put', H('tok-sd'), { active: true });
+    expect(r.status).toBe(403);
+    expect((await r.json() as any).detail).toBe(MSG_DIRETA_SEM_CLIENTE.error);
+    expect(await ativo('sd-put')).toBe(0);
+  });
+  it('direta: PATCH active:true = 403 e a conta segue inativa', async () => {
+    expect((await chamar('PATCH', '/scim/v2/Users/sd-pat', H('tok-sd'), PATCH(true))).status).toBe(403);
+    expect(await ativo('sd-pat')).toBe(0);
+  });
+  it('direta: active:false segue funcionando (desprovisionamento)', async () => {
+    expect((await chamar('PUT', '/scim/v2/Users/sd-on', H('tok-sd'), { active: false })).status).toBe(200);
+    expect(await ativo('sd-on')).toBe(0);
+    expect((await chamar('PATCH', '/scim/v2/Users/sd-on2', H('tok-sd'), PATCH(false))).status).toBe(200);
+    expect(await ativo('sd-on2')).toBe(0);
+  });
+  it('consultoria: reativar por PUT e PATCH segue valendo', async () => {
+    expect((await chamar('PUT', '/scim/v2/Users/sc-put', H('tok-sc'), { active: true })).status).toBe(200);
+    expect((await chamar('PATCH', '/scim/v2/Users/sc-pat', H('tok-sc'), PATCH(true))).status).toBe(200);
+    expect(await ativo('sc-put')).toBe(1);
+    expect(await ativo('sc-pat')).toBe(1);
+  });
+});

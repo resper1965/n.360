@@ -6,6 +6,8 @@ import { lerConfigOrg, exigirOrg, formatarNumeroProposta, mesclarPreco } from '.
 import { LOGO_MAX_BYTES, MIME_LOGO, tipoPelosBytes, type TipoLogo } from '../services/logo-org';
 import { lerBytesComTeto } from '../middleware/body-guard';
 
+const soIdentidade = ({ nome, cnpj, corDestaque, seloNiso }: Awaited<ReturnType<typeof lerConfigOrg>>) => ({ nome, cnpj, corDestaque, seloNiso });
+
 export const organizacaoApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 organizacaoApp.use('*', exigirOrg);
 
@@ -16,8 +18,7 @@ organizacaoApp.get('/config', async (c) => {
     const orgId = c.get('orgId');
     // A direta não tem área comercial, mas administra a própria identidade: devolve só isso, nunca preço/margem/prefixo/textos.
     if (user.org_direta === true && podeAdministrarOrg(user, orgId)) {
-      const { nome, cnpj, corDestaque, seloNiso } = await lerConfigOrg(c.env.DB, orgId);
-      return c.json({ nome, cnpj, corDestaque, seloNiso });
+      return c.json(soIdentidade(await lerConfigOrg(c.env.DB, orgId)));
     }
     if (!ehComercial(user)) return c.json({ error: 'Forbidden: Área comercial restrita ao comercial da ness.' }, 403);
     const cfg = await lerConfigOrg(c.env.DB, orgId);
@@ -73,7 +74,9 @@ organizacaoApp.put('/config', async (c) => {
     }
     await logAudit(c.env.DB, 'org.config_atualizada', user.email ?? 'system',
       `Configuração comercial da organização ${orgId} atualizada: ${Object.keys(b).join(', ') || 'nenhum campo'}`);
-    return c.json(await lerConfigOrg(c.env.DB, orgId));
+    const cfg = await lerConfigOrg(c.env.DB, orgId);
+    // A direta nao ve o modelo de custo da ness: so a identidade, como no GET.
+    return c.json(user.org_direta === true ? soIdentidade(cfg) : cfg);
   } catch (e) { return erro500(c, 'Erro ao gravar a configuração da consultoria', e); }
 });
 

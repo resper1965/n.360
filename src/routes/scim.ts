@@ -273,6 +273,9 @@ scimApp.put('/Users/:id', async (c) => {
     const corpo = await c.req.json<any>().catch(() => null);
     if (!corpo) return erroScim(c, 400, 'Corpo JSON inválido.');
 
+    // Reativar conta de cliente em projeto direto fica barrado como o POST; desativar segue valendo (desprovisionamento).
+    if (corpo.active === true && u.ativo !== 1 && await tipoDoProjeto(c.env.DB, projetoDe(c)) === 'direta') return erroScim(c, 403, MSG_DIRETA_SEM_CLIENTE.error);
+
     const nome = String(corpo.displayName ?? corpo.name?.formatted ?? u.name);
     await c.env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(nome, u.id).run();
 
@@ -324,6 +327,7 @@ scimApp.patch('/Users/:id', async (c) => {
       }
     }
 
+    if (ativoDesejado === true && u.ativo !== 1 && await tipoDoProjeto(c.env.DB, projetoDe(c)) === 'direta') return erroScim(c, 403, MSG_DIRETA_SEM_CLIENTE.error);
     if (nomeDesejado !== undefined) {
       await c.env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(nomeDesejado, u.id).run();
     }
