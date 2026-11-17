@@ -16,8 +16,8 @@ export const TIPOS_MAPEAMENTO = ['equivalente', 'parcial', 'relacionado'] as con
 export const ESTADOS_MAPEAMENTO = ['proposto', 'validado_juridico'] as const;
 
 /**
- * Mapeamento entre requisitos. `validado_juridico` exige quem validou (texto) e quando (AAAA-MM-DD): a validação
- * é um ato do jurídico registrado à mão, nunca preenchido com o e-mail de quem digitou.
+ * Mapeamento entre requisitos. `validado_por`/`validado_em` são aceitos só por compatibilidade e IGNORADOS: o servidor
+ * carimba a sessão e a data quando `estado = 'validado_juridico'`.
  */
 export const mapeamentoSchema = z.object({
   de_id: id,
@@ -29,9 +29,6 @@ export const mapeamentoSchema = z.object({
   nota: z.string().trim().max(2000).nullish(),
 }).strict().superRefine((v, ctx) => {
   if (v.de_id === v.para_id) ctx.addIssue({ code: 'custom', path: ['para_id'], message: 'Um requisito não se mapeia a si mesmo' });
-  if (v.estado === 'validado_juridico' && (!v.validado_por || !v.validado_em)) {
-    ctx.addIssue({ code: 'custom', path: ['validado_por'], message: 'Validação jurídica exige quem validou e quando' });
-  }
 });
 export type Mapeamento = z.infer<typeof mapeamentoSchema>;
 

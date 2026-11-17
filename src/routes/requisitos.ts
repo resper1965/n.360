@@ -8,6 +8,7 @@ import {
 import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, requisitoExclusaoSchema, validarMapeamentosSchema, validateBody } from '../schemas';
 import { BASES_GDPR } from '../data/ropa-abas/gdpr';
 import { definirValidade } from '../services/evidencia-validade';
+import { hojeEmSaoPaulo } from '../services/hoje';
 
 type Ctx = { Bindings: Bindings; Variables: Variables };
 
@@ -64,6 +65,10 @@ requisitosApp.post('/mapeamentos/validar', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao validar os mapeamentos', e); }
 });
 
+/** Quem valida é a sessão, nunca o corpo: validado_por/validado_em do corpo são ignorados. */
+const carimbo = (c: { get: (k: 'user') => { email: string } }, estado: string): [string | null, string | null] =>
+  estado === 'validado_juridico' ? [c.get('user').email, hojeEmSaoPaulo()] : [null, null];
+
 requisitosApp.post('/mapeamentos', async (c) => {
   try {
     if (!soAdmin(c)) return c.json(NEGADO, 403);
@@ -74,12 +79,12 @@ requisitosApp.post('/mapeamentos', async (c) => {
     try {
       await c.env.DB.prepare(
         `INSERT INTO requisito_mapeamentos (de_id, para_id, tipo, estado, validado_por, validado_em, nota) VALUES (?, ?, ?, ?, ?, ?, ?)`
-      ).bind(m.de_id, m.para_id, m.tipo, m.estado, m.validado_por ?? null, m.validado_em ?? null, m.nota ?? null).run();
+      ).bind(m.de_id, m.para_id, m.tipo, m.estado, ...carimbo(c, m.estado), m.nota ?? null).run();
     } catch (e) {
       if (/UNIQUE|PRIMARY KEY/i.test(String((e as Error)?.message))) return c.json({ error: 'Esse mapeamento já existe' }, 409);
       throw e;
     }
-    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} (${m.tipo}, ${m.estado}) criado`);
+    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} (${m.tipo}, ${m.estado}${m.estado === 'validado_juridico' ? ` por ${c.get('user').email}` : ''}) criado`);
     return c.json({ ok: true }, 201);
   } catch (e) { return erro500(c, 'Falha ao criar o mapeamento', e); }
 });
@@ -92,9 +97,9 @@ requisitosApp.put('/mapeamentos', async (c) => {
     const m = v.data;
     const r = await c.env.DB.prepare(
       `UPDATE requisito_mapeamentos SET tipo = ?, estado = ?, validado_por = ?, validado_em = ?, nota = ? WHERE de_id = ? AND para_id = ?`
-    ).bind(m.tipo, m.estado, m.validado_por ?? null, m.validado_em ?? null, m.nota ?? null, m.de_id, m.para_id).run();
+    ).bind(m.tipo, m.estado, ...carimbo(c, m.estado), m.nota ?? null, m.de_id, m.para_id).run();
     if (!r.meta.changes) return c.json({ error: 'Mapeamento não encontrado' }, 404);
-    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} alterado para ${m.tipo}, ${m.estado}`);
+    await logAudit(c.env.DB, 'requisitos.mapeamento', c.get('user').email, `Mapeamento ${m.de_id} → ${m.para_id} alterado para ${m.tipo}, ${m.estado}${m.estado === 'validado_juridico' ? ` por ${c.get('user').email}` : ''}`);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao atualizar o mapeamento', e); }
 });

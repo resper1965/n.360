@@ -291,14 +291,13 @@ describe('validação dos mapeamentos', () => {
         expect(el('modal-content').querySelector('[data-action="recusarMapeamento"]')).toBeNull();
     });
 
-    it('validar envia PUT com validador e data de hoje e reabre', async () => {
+    it('validar envia PUT sem validador nem data (quem valida é a sessão) e reabre', async () => {
         const f = servir(rotas({ [GET]: REQ, 'PUT /api/v1/requisitos/mapeamentos': { ok: true } }));
         S.user = { role: 'platform_admin', name: 'Ana Jurídico' };
         await abrir();
-        vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-11T01:30:00Z'));
-        try { await window.validarMapeamento(MAP.de_id, MAP.para_id, 'equivalente', 'lgpd:art37', 'nota <b>jurídica</b>'); } finally { vi.useRealTimers(); }
+        await window.validarMapeamento(MAP.de_id, MAP.para_id, 'equivalente', 'lgpd:art37', 'nota <b>jurídica</b>');
         const [[, o]] = corpos(f, 'PUT');
-        expect(JSON.parse(o.body)).toEqual({ de_id: MAP.de_id, para_id: MAP.para_id, tipo: 'equivalente', estado: 'validado_juridico', validado_por: 'Ana Jurídico', validado_em: '2026-10-10', nota: 'nota <b>jurídica</b>' });
+        expect(JSON.parse(o.body)).toEqual({ de_id: MAP.de_id, para_id: MAP.para_id, tipo: 'equivalente', estado: 'validado_juridico', nota: 'nota <b>jurídica</b>' });
         expect(chamadas(f).filter((k) => k === `GET ${new URL('/api/v1/requisitos/lgpd%3Aart37', 'http://localhost').pathname}`).length).toBe(1);
     });
 

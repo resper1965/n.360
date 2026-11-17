@@ -117,13 +117,34 @@ describe('escrita no catálogo', () => {
     expect(r).toMatchObject({ ok: true, fontes: 0, requisitos: 0 });
   });
 
-  it('mapeamento: validado exige quem e quando; auto-referência, duplicata e requisito inexistente são recusados', async () => {
+  it('mapeamento: auto-referência, duplicata e requisito inexistente são recusados', async () => {
     const post = (b: object) => chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', b);
-    expect((await post({ de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'equivalente', estado: 'validado_juridico' })).status).toBe(400);
     expect((await post({ de_id: 'lgpd:art8', para_id: 'lgpd:art8', tipo: 'equivalente' })).status).toBe(400);
     expect((await post({ de_id: A51, para_id: 'lgpd:art46', tipo: 'parcial' })).status).toBe(409);
     expect((await post({ de_id: A51, para_id: 'nao-existe', tipo: 'parcial' })).status).toBe(404);
     expect((await post({ de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'igual' })).status).toBe(400);
+  });
+
+  it('quem valida é a sessão: corpo ignorado em POST e PUT; proposto limpa; consultor/agente 403', async () => {
+    const lin = (a: string, b: string) => env.DB.prepare(`SELECT estado, validado_por, validado_em FROM requisito_mapeamentos WHERE de_id = ? AND para_id = ?`).bind(a, b).first();
+    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const falso = { validado_por: 'Fulano Qualquer', validado_em: '2020-01-01' };
+    const m = { de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'equivalente' };
+    expect((await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'validado_juridico', ...falso })).status).toBe(201);
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'validado_juridico', validado_por: 'adm@ness.lat', validado_em: hoje });
+    expect((await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'proposto', ...falso })).status).toBe(200);
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'proposto', validado_por: null, validado_em: null });
+    expect((await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'validado_juridico', ...falso })).status).toBe(200);
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'validado_juridico', validado_por: 'adm@ness.lat', validado_em: hoje });
+    await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9');
+    await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', { ...m, estado: 'proposto', ...falso });
+    expect(await lin(m.de_id, m.para_id)).toEqual({ estado: 'proposto', validado_por: null, validado_em: null });
+    await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9');
+    const corpo = { ...m, estado: 'validado_juridico' };
+    for (const [h, extra] of [[consultor, {}], [{}, { AGENTE }]] as const) {
+      expect((await chamar(h, 'POST', '/api/v1/requisitos/mapeamentos', corpo, extra)).status).toBe(403);
+      expect((await chamar(h, 'PUT', '/api/v1/requisitos/mapeamentos', corpo, extra)).status).toBe(403);
+    }
   });
 
   it('altera e remove o mapeamento; o que não existe é 404', async () => {
@@ -131,7 +152,7 @@ describe('escrita no catálogo', () => {
     const put = await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'parcial', ...validado });
     expect(put.status).toBe(200);
     expect(await env.DB.prepare(`SELECT tipo, estado, validado_por FROM requisito_mapeamentos WHERE de_id = 'lgpd:art8'`).first())
-      .toEqual({ tipo: 'parcial', estado: 'validado_juridico', validado_por: 'Dra. Teste' });
+      .toEqual({ tipo: 'parcial', estado: 'validado_juridico', validado_por: 'adm@ness.lat' });
     expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9')).status).toBe(200);
     expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/mapeamentos?de=lgpd:art8&para=lgpd:art9')).status).toBe(404);
     expect((await chamar(admin, 'PUT', '/api/v1/requisitos/mapeamentos', { de_id: 'lgpd:art8', para_id: 'lgpd:art9', tipo: 'parcial' })).status).toBe(404);
