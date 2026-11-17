@@ -121,7 +121,7 @@ export type Requisito = { id: string; fonte_id: string; referencia: string; titu
 export type MapeamentoLido = { de_id: string; para_id: string; tipo: string; estado: string; validado_por: string | null; validado_em: string | null; nota: string | null };
 
 /** Fontes do n.ot (P0-2) só para quem as vê (`veFontesDoOt`); `col` é uma coluna nossa, `?N` o booleano. */
-const VISIVEL = (col: string, n: number, porRequisito = false) =>
+export const VISIVEL = (col: string, n: number, porRequisito = false) =>
   `(?${n} = 1 OR ${porRequisito ? `${col} NOT IN (SELECT id FROM requisitos WHERE fonte_id IN (${SQL_FONTES_DO_OT}))` : `${col} NOT IN (${SQL_FONTES_DO_OT})`})`;
 
 /** Dos `ids`, os que são de fonte do n.ot que quem pede não vê: tratados como inexistentes (nunca confirma que existem). */
@@ -185,7 +185,8 @@ export async function definirRequisitosDoDocumento(db: D1Database, projectId: st
   const doc = await db.prepare(`SELECT id FROM ${t.pai} WHERE id = ? AND project_id = ?`).bind(documentoId, projectId).first();
   if (!doc) return null;
   const unicos = [...new Set(ids)];
-  const { results } = await db.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(unicos)).all<{ id: string }>();
+  // id de fonte oculta conta como inexistente, na MESMA lista `desconhecidos` (não revela que existe)
+  const { results } = await db.prepare(`SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?1)) AND ${VISIVEL('fonte_id', 2)}`).bind(JSON.stringify(unicos), ve ? 1 : 0).all<{ id: string }>();
   const existentes = new Set(results.map((x) => x.id));
   const desconhecidos = unicos.filter((x) => !existentes.has(x));
   if (desconhecidos.length) return { ok: false as const, desconhecidos };
@@ -211,7 +212,8 @@ export async function requisitosDaEvidencia(db: D1Database, projectId: string, e
 export async function definirRequisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ids: string[], ve = false) {
   if (!(await db.prepare('SELECT 1 FROM evidence WHERE id = ? AND project_id = ?').bind(evidenciaId, projectId).first())) return null;
   const unicos = [...new Set(ids)];
-  const { results } = await db.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(unicos)).all<{ id: string }>();
+  // id de fonte oculta conta como inexistente, na MESMA lista `desconhecidos` (não revela que existe)
+  const { results } = await db.prepare(`SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?1)) AND ${VISIVEL('fonte_id', 2)}`).bind(JSON.stringify(unicos), ve ? 1 : 0).all<{ id: string }>();
   const existentes = new Set(results.map((x) => x.id));
   const desconhecidos = unicos.filter((x) => !existentes.has(x));
   if (desconhecidos.length) return { ok: false as const, desconhecidos };

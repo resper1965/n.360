@@ -185,6 +185,50 @@ describe('substituição do conjunto preserva ligações ONS de quem não as vê
   }
 });
 
+describe('400 de requisito oculto é igual ao de requisito inexistente', () => {
+  it('PUT com [oculto] e com [inexistente] (e misturados): mesmo status e mesmo formato, uma lista só', async () => {
+    for (const url of [`${base}/documentos/${doc}/requisitos`, `${base}/documentos-arquivo/da-ons/requisitos`, `${base}/evidence/ev-ons/requisitos`]) {
+      const a = await chamar(semOt, 'PUT', url, { requisitos: [R1] });
+      const b = await chamar(semOt, 'PUT', url, { requisitos: ['nao-existe'] });
+      expect(a.status).toBe(400);
+      expect(b.status).toBe(400);
+      expect(await json(a)).toEqual({ error: 'Requisito não encontrado', desconhecidos: [R1] });
+      expect(await json(b)).toEqual({ error: 'Requisito não encontrado', desconhecidos: ['nao-existe'] });
+      const m = await chamar(semOt, 'PUT', url, { requisitos: [R1, 'nao-existe'] });
+      expect((await json(m)).desconhecidos).toEqual([R1, 'nao-existe']);
+    }
+  });
+});
+
+describe('políticas: incorporar e promover preservam ligações ONS ocultas', () => {
+  const doc2 = (id: string, controle: string | null) => env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status, origem_control_id) VALUES (?, ?, 'politica', ?, 'vigente', ?)`).bind(id, P, id, controle);
+  const lig = (d: string, r: string) => env.DB.prepare(`INSERT INTO documento_requisitos (documento_id, requisito_id, project_id) VALUES (?, ?, ?)`).bind(d, r, P);
+  const ligados = async (d: string) => ((await env.DB.prepare(`SELECT requisito_id FROM documento_requisitos WHERE documento_id = ?`).bind(d).all<{ requisito_id: string }>()).results.map((x) => x.requisito_id)).sort();
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, requisito_id) VALUES ('c-i1', ?1, 'ISO 27001', 'x', 'Missing', 'lgpd:art7'), ('c-i2', ?1, 'ISO 27001', 'y', 'Missing', 'lgpd:art7'), ('c-p1', ?1, 'ISO 27001', 'z', 'Missing', 'lgpd:art9')`).bind(P),
+      doc2('d-o1', 'c-i1'), doc2('d-o2', 'c-i2'), doc2('d-t1', null), doc2('d-t2', null), doc2('d-pr', 'c-p1'),
+      lig('d-t1', R1), lig('d-t1', 'lgpd:art8'), lig('d-t2', 'lgpd:art8'), lig('d-pr', R1), lig('d-pr', 'lgpd:art8'),
+    ]);
+  });
+
+  it('incorporar: sem ot recebe a mesma resposta com e sem ligação oculta, e a ligação ONS fica', async () => {
+    const com = await chamar(semOt, 'POST', `${base}/politicas/organizar/incorporar`, { origem: 'd-o1', destino: 'd-t1' });
+    const sem = await chamar(semOt, 'POST', `${base}/politicas/organizar/incorporar`, { origem: 'd-o2', destino: 'd-t2' });
+    expect(com.status).toBe(200);
+    expect(sem.status).toBe(200);
+    expect(await json(com)).toEqual(await json(sem));
+    expect(await ligados('d-t1')).toEqual(['lgpd:art7', 'lgpd:art8', R1].sort());
+    expect(await ligados('d-t2')).toEqual(['lgpd:art7', 'lgpd:art8']);
+  });
+
+  it('promover: sem ot troca só as ligações visíveis; a ONS fica', async () => {
+    const r = await chamar(semOt, 'POST', `${base}/documentos/d-pr/promover`, { titulo: 'd-pr', requisitos: ['lgpd:art7'] });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await ligados('d-pr')).toEqual(['lgpd:art7', R1].sort());
+  });
+});
+
 describe('ROPA', () => {
   it('base_legal_id de requisito ONS é recusada para todos (400), inclusive quem tem ot', async () => {
     for (const h of [ot, admin]) {

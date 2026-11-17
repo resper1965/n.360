@@ -64,13 +64,13 @@ export async function resetData(): Promise<void> {
   ]);
 }
 
-/** Apaga todas as sessoes do KV — o par de `resetData` para o storage de sessao. */
 /** `resetData` apaga também o catálogo (requisitos, fontes, ot_requisitos); o schema o semeia de novo (INSERT OR IGNORE). */
 export async function resetComCatalogo(): Promise<void> {
   await resetData();
   await applySchema();
 }
 
+/** Apaga todas as sessoes do KV — o par de `resetData` para o storage de sessao. */
 export async function resetSessions(): Promise<void> {
   const { keys } = await env.SESSIONS.list();
   await Promise.all(keys.map((k) => env.SESSIONS.delete(k.name)));

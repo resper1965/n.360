@@ -176,8 +176,6 @@ projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
-    const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
-    if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
     const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'documento', await ve(c));
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
@@ -198,8 +196,6 @@ projetoRequisitosApp.put('/documentos-arquivo/:id/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
-    const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
-    if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
     const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'arquivo', await ve(c));
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
@@ -220,8 +216,6 @@ projetoRequisitosApp.put('/evidence/:evidenceId/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
-    const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
-    if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
     const r = await definirRequisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), v.data.requisitos, await ve(c));
     if (!r) return c.json({ error: 'Evidência não encontrada' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
