@@ -11,6 +11,7 @@ import { definirValidade } from '../services/evidencia-validade';
 import { hojeEmSaoPaulo } from '../services/hoje';
 import { fonteVisivel, modulosDaPessoa, veFontesDoOt } from '../modulos';
 import { requisitosOcultos } from '../services/requisitos';
+import { leituraUnica } from '../services/situacao-requisitos';
 
 type Ctx = { Bindings: Bindings; Variables: Variables };
 
@@ -277,4 +278,14 @@ projetoRequisitosApp.delete('/requisitos/:requisitoId/exclusao', async (c) => {
     const r = await reincluirRequisito(c.env.DB, c.req.param('projectId')!, c.req.param('requisitoId'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao voltar a aplicar o requisito', e); }
+});
+
+/**
+ * Leitura única de situação por requisito (onda 2). Faixa `nucleo`: quem só tem n.iso também a lê. As linhas do n.ot NÃO dependem da faixa:
+ * `leituraUnica` as filtra por `fonteVisivel` (pessoa com `ot`; agente e chave de API nunca). O agente só lê, o que `FORA_DO_AGENTE` já permite.
+ */
+export const situacaoRequisitosApp = new Hono<Ctx>();
+situacaoRequisitosApp.get('/', async (c) => {
+  try { return c.json(await leituraUnica(c.env.DB, c.req.param('projectId')!, { ...c.get('user'), agente: c.get('user').agente })); }
+  catch (e) { return erro500(c, 'Falha ao ler a situação dos requisitos', e); }
 });

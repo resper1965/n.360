@@ -44,7 +44,7 @@ import { nucleoApp } from './routes/nucleo';
 import { documentosApp } from './routes/documentos';
 import { politicasApp } from './routes/politicas';
 import { documentosArquivoApp } from './routes/documentos-arquivo';
-import { requisitosApp, projetoRequisitosApp } from './routes/requisitos';
+import { requisitosApp, projetoRequisitosApp, situacaoRequisitosApp } from './routes/requisitos';
 import { terceirosApp } from './routes/terceiros';
 import { homologacoesApp } from './routes/homologacoes';
 import { importacaoApp } from './routes/importacao';
@@ -493,6 +493,7 @@ app.route('/api/v1/projects/:projectId/documentos-arquivo', documentosArquivoApp
 app.route('/api/v1/projects/:projectId', exportacaoApp);
 app.route('/api/v1/requisitos', requisitosApp);
 app.route('/api/v1/projects/:projectId', projetoRequisitosApp);
+app.route('/api/v1/projects/:projectId/requisitos-situacao', situacaoRequisitosApp);
 app.route('/api/v1/projects/:projectId/terceiros', terceirosApp);
 app.route('/api/v1/projects/:projectId/homologacoes', homologacoesApp);
 app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);
