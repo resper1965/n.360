@@ -304,6 +304,22 @@ describe('incidentes', () => {
         expect(el('in-faixa-anpd').textContent).toContain('Prazo da ANPD não calculado');
     });
 
+    it('ficha do incidente: bloco n.ot só com o módulo ot (pessoa e projeto); sem ele, nenhuma chamada a /ot/referencias', async () => {
+        const rota = { [`GET ${B}/incidentes/i1`]: INCIDENTES[0], [`GET ${B}/ot/referencias`]: { referencias: [] }, [`GET ${B}/ot/sites`]: { sites: [] } };
+        let f = await abrir('incidentes', rota); // pessoa sem a lista de módulos: falha fechado
+        await ficha();
+        expect(el('ot-vinculo')).toBeNull();
+        expect(chamadas(f).some((c) => c.includes('/ot/'))).toBe(false);
+        S.user = { role: 'consultor', modulos: ['iso', 'ot'] }; S.activeProject = { id: 'p9', modulos: ['iso'] };
+        f = await abrir('incidentes', rota); await ficha();
+        expect(el('ot-vinculo')).toBeNull();
+        expect(chamadas(f).some((c) => c.includes('/ot/'))).toBe(false);
+        S.activeProject = { id: 'p9', modulos: ['iso', 'ot'] };
+        f = await abrir('incidentes', rota); await ficha();
+        await vi.waitFor(() => expect(el('ot-vinculo').textContent).toContain('Vínculo com o n.ot'));
+        expect(chamadas(f)).toContain(`GET ${B}/ot/referencias`);
+    });
+
     it('faixa fixa no topo: "Comunicar à ANPD até DD/MM (faltam N dias úteis)", em --warning com folga e --danger em cima da hora', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-10-12T12:00:00Z')); // segunda-feira

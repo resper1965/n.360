@@ -7,6 +7,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 import { montarLista, colunasDe, consultaDe } from '../lista.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
 import { hojeSP } from '../hoje.js';
+import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 import { rotuloDe } from '../rotulos.js';
 
 // Titular e incidentes (fatia 7 do núcleo, só registro interno): pedidos do titular, incidentes, consentimentos e prazos legais.
@@ -545,7 +546,8 @@ function painelRegistro(i, projectId, id, editar, encerrar, semRisco) {
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
             <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>` : ''}
         ${encerrar ? `<div class="mt-4"><div id="in-encerrar"></div>
-            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button></div>` : ''}`;
+            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button></div>` : ''}
+        ${vinculoOtHTML(projectId)}`;
 }
 
 function painelComunicacao(i, projectId, id, editar, semRisco) {
@@ -606,6 +608,7 @@ async function renderIncidenteFicha(c, h, a) {
                 data-action="incidenteIrParaAba" data-action-keydown="incidenteTeclaAba" data-arg-event data-args='${args(x)}'>${escapeHTML(r)}</button>`).join('')}</div>
         <div role="tabpanel" class="tc-painel" id="in-painel" aria-labelledby="in-aba-${aba}" tabindex="0">${corpo}</div></div>`;
     if (aba === 'registro') carregarAnexosIncidente(projectId, id, editar);
+    if (aba === 'registro') montarVinculoOt('incidente', id, projectId);
     // A ação segue depois do encerramento (a correção costuma vir depois): quem registra o incidente cuida dela.
     if (aba === 'acoes') carregarAcoesIncidente(projectId, id, podeRegistrar());
     if (aba === 'analise') carregarAnalises(projectId, id, editar);

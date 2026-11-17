@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, confirmar, formatarData } from '../ui.js';
 import { mensagemDeErro, podeEditarOt, lista, opcoes, semRepetir } from '../ot-comum.js';
 import { hojeSP, emDiasSP } from '../hoje.js';
+import { navigate } from '../router.js';
 
 // n.ot, aba "Desvios" (spec n-ot-desvio §5) sobre /ot/desvios (src/routes/ot.ts). A API decide o que cada pessoa vê (IP só a quem vê
 // o inventário completo); aqui só se escondem as ações que ela recusaria. Aceitar é do Gestor ARCiber (org_admin) e não substitui a exceção 5.1.1.
@@ -53,6 +54,7 @@ function linha(d) {
     const sub = [d.ip, d.fabricante, Array.isArray(d.protocolos_portas) ? d.protocolos_portas.map((x) => (x.porta == null ? x.protocolo : `${x.protocolo}:${x.porta}`)).join(', ') : null].filter(Boolean);
     const aberto = d.situacao === 'aberto';
     const acoes = [aberto && podeEditarOt() && `<button class="btn btn-sm" data-action="otTratarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Tratar ${nome}`)}">Tratar</button>`,
+        aberto && podeEditarOt() && `<button class="btn btn-sm" data-action="otCriarAcaoDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Criar ação corretiva para ${nome}`)}">Criar ação corretiva</button>`,
         aberto && podeAceitar() && `<button class="btn btn-sm" data-action="otAceitarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Aceitar temporariamente ${nome}`)}">Aceitar temporariamente</button>`,
         aberto && podeEditarOt() && (d.achado_id ? `<button class="btn btn-sm" data-action="otRegularizarDesvio" data-args='${args(d.site_id, d.achado_id)}' aria-label="${escapeHTML(`Regularizar ${nome}`)}">Regularizar</button>`
             : '<span class="org-dica">Sem achado ligado: registre num levantamento pontual.</span>'),
@@ -126,3 +128,28 @@ window.otSalvarAceite = (id) => {
     if (!ate) { showToast(`Informe até quando (no máximo ${PRAZO_MAXIMO} dias).`, 'error'); return; }
     return enviar('otSalvarAceite', id, { justificativa, ate }, 'Desvio aceito.', 'Não foi possível aceitar o desvio.');
 };
+
+// Ação corretiva do núcleo a partir do desvio (POST /ot/desvios/:id/acao). O título vai para quem não tem o n.ot: nada do desvio entra nele.
+window.otCriarAcaoDesvio = (id) => modal('Criar ação corretiva', `<div class="form-group"><label class="form-label" for="des-acao-titulo">Título</label>
+    <input class="form-input" id="des-acao-titulo" maxlength="200" autofocus><p class="org-dica">Não use IP, e-mail nem o nome de ativos</p></div>
+    <div class="form-group"><label class="form-label" for="des-acao-resp">Responsável</label><input class="form-input" id="des-acao-resp" maxlength="200"></div>
+    <div class="form-group"><label class="form-label" for="des-acao-prazo">Prazo</label><input class="form-input" type="date" id="des-acao-prazo" min="${hojeSP()}"></div>
+    <div id="des-acao-erro" class="org-dica" role="alert"></div>`, 'otSalvarAcaoDesvio', id, 'Criar ação');
+
+window.otAbrirAcaoCriada = (acao) => { window.closeModal?.(); navigate('capa'); setTimeout(() => window.openCAPADetailsModal?.(acao), 150); };
+
+window.otSalvarAcaoDesvio = (id) => semRepetir('otSalvarAcaoDesvio', async () => {
+    const titulo = el('des-acao-titulo').value.trim();
+    const assigned_to = el('des-acao-resp').value.trim();
+    const prazo = el('des-acao-prazo').value;
+    const erro = (m) => { el('des-acao-erro').textContent = m; };
+    if (!titulo) { erro('Escreva o título da ação.'); return; }
+    if (!assigned_to) { erro('Informe o responsável.'); return; }
+    let r;
+    try { r = await api('POST', `/api/v1/projects/${proj().id}/ot/desvios/${encodeURIComponent(id)}/acao`, { titulo, assigned_to, ...(prazo ? { prazo } : {}) }); }
+    catch (e) { erro(mensagemDeErro(e, 'Não foi possível criar a ação corretiva.')); return; } // 409 (n.iso, desvio já tratado), 400, 403: o texto é do servidor
+    openModal(`<div class="modal-header"><span class="modal-title">Ação criada</span></div>
+        <p>A ação corretiva foi criada${r?.ja_existia ? ' antes (este desvio já tinha uma)' : ''}.</p>
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Fechar</button><button class="btn btn-primary" data-action="otAbrirAcaoCriada" data-args='${args(r?.acao_id)}'>Ver a ação</button></div>`);
+    window.render();
+});
