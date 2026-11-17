@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0114** (`ls migrations/*.sql | tail -1`). São 115 arquivos
+- Última migration no repositório: **0115** (`ls migrations/*.sql | tail -1`). São 116 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -777,6 +777,10 @@ $ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1
 $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
+
+## 0115 — referência núcleo → OT (2026-11-17)
+
+Cria `ot_referencias` (satélite `ot_*`, fora da exportação: liga um risco, ação corretiva ou incidente a um site, ativo ou desvio do n.ot; CHECKs de um alvo do núcleo e ao menos um alvo de OT, `UNIQUE (ot_desvio_id)`, CASCADE nos dois lados; FK composta `(id, project_id)` para site e ativo; `ot_desvios` não tem `UNIQUE (id, project_id)`, então o projeto do desvio é conferido no serviço) e 4 índices. Aditiva e repetível. Spec `2026-11-17-onda3-n-ot-no-nucleo-design`. **Status: PENDENTE de aplicar em produção** (não aplicada). Conferência depois de aplicar: `SELECT name FROM sqlite_master WHERE name = 'ot_referencias'` (1 linha). Aplicar: `npm run db:backup` e então `npx wrangler d1 migrations apply niso-db --remote` (ou o workflow manual `db-migrate.yml` na `main`), só com o "sim" do dono.
 
 ## 0114 — catálogo único de requisitos (2026-11-17)
 
