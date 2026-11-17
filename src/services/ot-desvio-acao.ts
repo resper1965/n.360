@@ -37,3 +37,15 @@ export async function criarAcaoDoDesvio(db: D1Database, projectId: string, desvi
   ]);
   return a.meta.changes && u.results[0] ? { acaoId, desvio: u.results[0] as unknown as LinhaDesvio } : null;
 }
+
+export const MSG_CRIADOR_NAO_CONCLUI = 'Quem criou a ação a partir do desvio não a conclui. Peça a outra pessoa.';
+
+/**
+ * Leitura pontual de `ot_referencias` só para RECUSAR (segregação de funções); o núcleo não lê mais nada dela.
+ * `criado_por` é o users.id de quem criou (o agente não cria); a sessão do agente carrega o id do consultor, então o agente
+ * dele cai aqui também. Erro de banco propaga: quem chama não conclui (fail-closed).
+ */
+export async function criadorDaAcaoDoDesvio(db: D1Database, acaoId: string, userId: string): Promise<boolean> {
+  const ref = await db.prepare('SELECT criado_por FROM ot_referencias WHERE acao_id = ?').bind(acaoId).first<{ criado_por: string }>();
+  return !!ref && ref.criado_por === userId;
+}

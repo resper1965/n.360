@@ -150,3 +150,78 @@ describe('POST /desvios/:id/acao', () => {
     expect(await n(`SELECT count(*) n FROM corrective_actions WHERE title = 'Segunda'`)).toBe(0);
   });
 });
+
+// Segregação: quem abriu a ação a partir do desvio não a conclui (recusa só; nunca revela a origem a quem não é o criador).
+describe('concluir a ação do desvio', () => {
+  const MSG = 'Quem criou a ação a partir do desvio não a conclui. Peça a outra pessoa.';
+  const outro = async () => { await designarConsultor('o@ness.lat', 'proj-a'); return sessionFor({ id: 'cons:o@ness.lat', email: 'o@ness.lat', role: 'consultor' }); };
+  const DEC = { 'X-Agente-Ferramenta': 'niso_concluir_acao', 'X-Agente-Confirmado': '1', 'X-Agente-Motivo': encodeURIComponent('pedido do consultor') };
+  const status = async (id: string) => (await env.DB.prepare('SELECT status FROM corrective_actions WHERE id = ?').bind(id).first<{ status: string }>())!.status;
+  async function nova(d: string) {
+    await desvio(d);
+    const j = await (await acao(cons, d, ok)).json<{ acao_id: string }>();
+    return j.acao_id;
+  }
+  const capa = (h: H, id: string, corpo: Record<string, unknown>, extra?: Record<string, unknown>) => chamar(h, 'PUT', `/api/v1/capa/${id}`, { title: 'Revisar', ...corpo }, extra);
+
+  it('o criador fecha: 403 com a mensagem e a ação segue aberta; editar sem fechar: 200', async () => {
+    const id = await nova('dc1');
+    const r = await capa(cons, id, { status: 'Closed' });
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ error: MSG });
+    expect(await status(id)).toBe('Open');
+    expect((await capa(cons, id, { status: 'In Progress' })).status).toBe(200);
+    expect(await status(id)).toBe('In Progress');
+  });
+
+  it('outra pessoa fecha: 200 e a resposta não revela a origem', async () => {
+    const id = await nova('dc2');
+    const r = await capa(await outro(), id, { status: 'Closed' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await r.text()).not.toMatch(/desvio|ot/i);
+    expect(await status(id)).toBe('Closed');
+  });
+
+  it('ação sem referência fecha normalmente pelo seu criador', async () => {
+    await run(`INSERT INTO corrective_actions (id, project_id, title, status) VALUES ('ca-livre', 'proj-a', 'Livre', 'Open')`);
+    expect((await capa(cons, 'ca-livre', { status: 'Closed' })).status).toBe(200);
+    expect(await status('ca-livre')).toBe('Closed');
+  });
+
+  it('o agente do próprio criador (mesmo id) também é recusado, mesmo com a ferramenta; o de outra pessoa conclui', async () => {
+    const id = await nova('dc3');
+    await run(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-agc', 'cons:c@ness.lat', 'proj-a', datetime('now', '+30 days'))`);
+    const r = await capa({ ...DEC }, id, { status: 'Closed' }, { AGENTE: { ...AGENTE, userId: 'cons:c@ness.lat', email: 'c@ness.lat', concessaoId: 'c-agc' } });
+    expect(r.status, await r.clone().text()).toBe(403);
+    expect(await status(id)).toBe('Open');
+    const r2 = await capa({ ...DEC }, id, { status: 'Closed' }, { AGENTE });
+    expect(r2.status, await r2.clone().text()).toBe(200);
+    expect(await status(id)).toBe('Closed');
+  });
+
+  it('falha ao ler a referência: fecha nada (fail-closed, 500)', async () => {
+    const id = await nova('dc4');
+    const orig = env.DB.prepare.bind(env.DB);
+    const spy = vi.spyOn(env.DB, 'prepare').mockImplementation(((sql: string) => {
+      if (/FROM ot_referencias WHERE acao_id/.test(sql)) throw new Error('boom');
+      return orig(sql);
+    }) as typeof env.DB.prepare);
+    const r = await capa(await outro(), id, { status: 'Closed' });
+    spy.mockRestore();
+    expect(r.status).toBe(500);
+    expect(await status(id)).toBe('Open');
+  });
+
+  it('desvio pelo outro caminho: religar a ação a um incidente e fechar pela rota do incidente também é recusado ao criador', async () => {
+    const id = await nova('dc5');
+    await run(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, risco_titular, status) VALUES ('inc-dc5', 'proj-a', 'IN-2026-0905', 'X', '2026-10-01', 'baixo', 'avaliado')`);
+    expect((await capa(cons, id, { status: 'Open', incidente_id: 'inc-dc5' })).status).toBe(200);
+    const url = `/api/v1/projects/proj-a/incidentes/inc-dc5/acoes/${id}`;
+    const r = await chamar(cons, 'PUT', url, { status: 'Closed' });
+    expect(r.status, await r.clone().text()).toBe(403);
+    expect(await r.json()).toEqual({ error: MSG });
+    expect(await status(id)).toBe('Open');
+    expect((await chamar(await outro(), 'PUT', url, { status: 'Closed' })).status).toBe(200);
+    expect(await status(id)).toBe('Closed');
+  });
+});

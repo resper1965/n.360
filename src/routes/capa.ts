@@ -4,6 +4,7 @@ import { Bindings, Variables } from '../index';
 import { logAudit, requireResourceAccess, erro500, refForaDoProjeto, setParcial } from '../helpers';
 import { validateBody, createCapaSchema, capaUpdateSchema } from '../schemas';
 import { escopoRopa } from '../services/escopo-itens';
+import { criadorDaAcaoDoDesvio, MSG_CRIADOR_NAO_CONCLUI } from '../services/ot-desvio-acao';
 
 /** Responsável da ação: a parte do cadastro ou o texto livre, como o gap. Vazio nos dois não vale. */
 export const MSG_RESPONSAVEL = 'Indique o responsável pela ação (cadastro de partes ou texto livre).';
@@ -22,6 +23,7 @@ capaApp.put('/:id', async (c) => {
     if (!v.success) return v.response;
     const body = v.data as any;
     if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && body.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
+    if (body.status === 'Closed' && await criadorDaAcaoDoDesvio(c.env.DB, id, c.get('user').id)) return c.json({ error: MSG_CRIADOR_NAO_CONCLUI }, 403);
     // O projeto vem da CAPA gravada, nunca do corpo. Sem isto, apontar para o risco de outro
     // projeto deixava o dono dele apagar esta CAPA pelo ON DELETE CASCADE.
     const atual = await c.env.DB.prepare('SELECT project_id FROM corrective_actions WHERE id = ?').bind(id).first<{ project_id: string | null }>();
