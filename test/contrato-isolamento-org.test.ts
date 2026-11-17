@@ -162,7 +162,7 @@ const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/auth/setup': 'bootstrap do primeiro admin, por SETUP_KEY; sem sessão',
   'POST /api/v1/requisitos/semear': 'catálogo global de requisitos, só platform_admin; não recebe id de recurso',
   'POST /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin; ids são de requisito, não de organização',
-  'POST /api/v1/requisitos/mapeamentos/validar': 'catálogo global de requisitos, só platform_admin; não recebe id de recurso, só o recorte por fonte',
+  'POST /api/v1/requisitos/mapeamentos/validar': 'catálogo global de requisitos, só platform_admin; não recebe id de recurso, só o par de fontes',
   'PUT /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin',
   'DELETE /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin',
   'POST /api/v1/pedidos/lote': 'cada item passa pelas funções da aprovação individual, que recusam recurso de outra organização; o lote responde 200 com o item ignorado, sem confirmar que existe (test/aprovacao-lote.test.ts)',

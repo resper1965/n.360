@@ -38931,12 +38931,21 @@
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
-                  "fonte": {
+                  "de_fonte": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "para_fonte": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
                   }
                 },
+                "required": [
+                  "de_fonte",
+                  "para_fonte"
+                ],
                 "additionalProperties": false
               }
             }

@@ -254,7 +254,10 @@ export function resumoDeLacunas(itens: Lacuna[]) {
  * **Não aplicável** (migration 0107): o requisito excluído no projeto, ou com um ancestral excluído (`herdada_de`), vence a cobertura e
  * mantém as `origens` (a tela mostra a contradição).
  */
-export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: string): Promise<Lacuna[]> {
+export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: string, opcoes?: { simular?: { de: string; para: string } }): Promise<Lacuna[]> {
+  // `simular` (prévia da validação por par de fontes): os `proposto` entre as duas fontes contam como validados, sem gravar nada.
+  const sim = opcoes?.simular;
+  const validado = `(m.estado = 'validado_juridico' OR (?3 = 1 AND m.estado = 'proposto' AND ${parDeFontes('?4', '?5')}))`;
   const [reqs, docs, ctrls, evids, excl] = await db.batch([
     db.prepare('SELECT id, referencia, titulo, pai_id FROM requisitos WHERE fonte_id = ? ORDER BY rowid').bind(fonte),
     db.prepare(
@@ -269,16 +272,16 @@ export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: s
     db.prepare(
       `SELECT m.para_id AS requisito_id, c.id AS id, c.title AS titulo, c.status AS status, m.tipo AS tipo
          FROM requisito_mapeamentos m JOIN compliance_controls c ON c.requisito_id = m.de_id
-        WHERE c.project_id = ?1 AND m.estado = 'validado_juridico' AND m.tipo IN ('equivalente', 'parcial')
+        WHERE c.project_id = ?1 AND ${validado} AND m.tipo IN ('equivalente', 'parcial')
           AND ((${sqlClasseControle('c.status')}) = 'feito' OR c.status IN ('Partial', 'In Progress'))
           AND m.para_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)
         UNION ALL
        SELECT m.de_id, c.id, c.title, c.status, m.tipo
          FROM requisito_mapeamentos m JOIN compliance_controls c ON c.requisito_id = m.para_id
-        WHERE c.project_id = ?1 AND m.estado = 'validado_juridico' AND m.tipo IN ('equivalente', 'parcial')
+        WHERE c.project_id = ?1 AND ${validado} AND m.tipo IN ('equivalente', 'parcial')
           AND ((${sqlClasseControle('c.status')}) = 'feito' OR c.status IN ('Partial', 'In Progress'))
           AND m.de_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)`
-    ).bind(projectId, fonte),
+    ).bind(projectId, fonte, sim ? 1 : 0, sim?.de ?? null, sim?.para ?? null),
     db.prepare(
       `SELECT er.requisito_id AS requisito_id, e.id AS id, e.file_name AS titulo, e.evaluation_status AS status
          FROM evidencia_requisitos er JOIN evidence e ON e.id = er.evidencia_id
@@ -359,6 +362,12 @@ export async function reincluirRequisito(db: D1Database, projectId: string, requ
 
 // ─── Referência jurídica: contagem e validação dos mapeamentos ───────────────────────────────────────
 
+/** O mapeamento `m` liga um requisito da fonte `a` a um da fonte `b`, em qualquer sentido. `a`/`b` são placeholders fixos do código. */
+function parDeFontes(a: string, b: string) {
+  return `EXISTS (SELECT 1 FROM requisitos rd, requisitos rp WHERE rd.id = m.de_id AND rp.id = m.para_id
+    AND ((rd.fonte_id = ${a} AND rp.fonte_id = ${b}) OR (rd.fonte_id = ${b} AND rp.fonte_id = ${a})))`;
+}
+
 const DA_FONTE = `(?1 IS NULL OR EXISTS (SELECT 1 FROM requisitos r WHERE r.id IN (m.de_id, m.para_id) AND r.fonte_id = ?1))`;
 
 /** Quantos mapeamentos estão propostos e quantos validados (de uma fonte, ou de todas). */
@@ -371,13 +380,48 @@ export async function resumoDeMapeamentos(db: D1Database, fonte?: string) {
 }
 
 /**
- * Valida os mapeamentos `proposto` em nome de QUEM ESTÁ LOGADO: `validadoPor` vem da sessão, nunca do corpo.
- * Só toca `proposto`, então repetir não muda nada (idempotente). Devolve quantos foram validados.
+ * Valida os mapeamentos `proposto` ENTRE as duas fontes (nos dois sentidos de `de_id`/`para_id`), em nome de QUEM ESTÁ LOGADO:
+ * `validadoPor` vem da sessão, nunca do corpo. Só toca `proposto`, então repetir não muda nada (idempotente). Devolve quantos foram validados.
  */
-export async function validarMapeamentosPropostos(db: D1Database, validadoPor: string, fonte?: string): Promise<number> {
+export async function validarMapeamentosPropostos(db: D1Database, validadoPor: string, de: string, para: string): Promise<number> {
   const r = await db.prepare(
-    `UPDATE requisito_mapeamentos AS m SET estado = 'validado_juridico', validado_por = ?2, validado_em = ?3
-      WHERE m.estado = 'proposto' AND ${DA_FONTE}`
-  ).bind(fonte ?? null, validadoPor, hojeEmSaoPaulo()).run();
+    `UPDATE requisito_mapeamentos AS m SET estado = 'validado_juridico', validado_por = ?3, validado_em = ?4
+      WHERE m.estado = 'proposto' AND ${parDeFontes('?1', '?2')}`
+  ).bind(de, para, validadoPor, hojeEmSaoPaulo()).run();
   return r.meta.changes ?? 0;
+}
+
+/** Fontes cuja cobertura `lacunasDaFonte` calcula a partir de controle mapeado (as telas de LGPD e ANPD). */
+const ALVOS_DE_COBERTURA = ['lgpd', 'anpd'];
+
+/**
+ * Prévia EXATA de validar o par: quantos `proposto` e de que tipo, e a soma, nos projetos, da mudança em
+ * `resumoDeLacunas(lacunasDaFonte(projeto, alvo))` se o par fosse validado agora (a mesma conta, com `simular`).
+ * O alvo é o lado LGPD/ANPD do par (`para` se ele for alvo); sem alvo, `cobertura_calculada: false` e efeito zero.
+ */
+export async function previaDeValidacao(db: D1Database, de: string, para: string) {
+  const { results } = await db.prepare(
+    `SELECT m.tipo AS tipo, count(*) AS n FROM requisito_mapeamentos m WHERE m.estado = 'proposto' AND ${parDeFontes('?1', '?2')} GROUP BY m.tipo`
+  ).bind(de, para).all<{ tipo: 'equivalente' | 'parcial' | 'relacionado'; n: number }>();
+  const por_tipo = { equivalente: 0, parcial: 0, relacionado: 0 };
+  for (const r of results) por_tipo[r.tipo] = r.n;
+  const propostos = por_tipo.equivalente + por_tipo.parcial + por_tipo.relacionado;
+  const alvo = ALVOS_DE_COBERTURA.includes(para) ? para : ALVOS_DE_COBERTURA.includes(de) ? de : null;
+  const efeito = { cobertos: 0, parciais: 0 };
+  if (!alvo || !propostos) return { propostos, por_tipo, projetos_afetados: 0, efeito, truncado: false, cobertura_calculada: !!alvo };
+  const origem = alvo === para ? de : para; // a cobertura chega pelo controle ligado ao requisito do OUTRO lado do par
+  // shortcut: 500 projetos, paginar se a base crescer
+  const projetos = (await db.prepare(
+    `SELECT DISTINCT c.project_id AS id FROM compliance_controls c JOIN requisitos r ON r.id = c.requisito_id WHERE r.fonte_id = ? LIMIT 501`
+  ).bind(origem).all<{ id: string }>()).results;
+  const truncado = projetos.length > 500;
+  let projetos_afetados = 0;
+  for (const { id } of projetos.slice(0, 500)) {
+    const antes = resumoDeLacunas(await lacunasDaFonte(db, id, alvo));
+    const depois = resumoDeLacunas(await lacunasDaFonte(db, id, alvo, { simular: { de, para } }));
+    const [dc, dp] = [depois.cobertos - antes.cobertos, depois.parciais - antes.parciais];
+    if (dc || dp) projetos_afetados++;
+    efeito.cobertos += dc; efeito.parciais += dp;
+  }
+  return { propostos, por_tipo, projetos_afetados, efeito, truncado, cobertura_calculada: true };
 }

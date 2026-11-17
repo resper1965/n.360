@@ -3,7 +3,7 @@ import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, logAudit } from '../helpers';
 import {
   definirRequisitosDaEvidencia, definirRequisitosDoDocumento, excluirRequisito, reincluirRequisito, lacunasDaFonte, resumoDeLacunas, lerRequisito, ligarControles, listarFontes, listarRequisitos,
-  requisitosDaEvidencia, requisitosDoDocumento, resumoDeMapeamentos, semearCatalogo, validarMapeamentosPropostos, veMapeamentoProposto,
+  previaDeValidacao, requisitosDaEvidencia, requisitosDoDocumento, resumoDeMapeamentos, semearCatalogo, validarMapeamentosPropostos, veMapeamentoProposto,
 } from '../services/requisitos';
 import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, requisitoExclusaoSchema, validarMapeamentosSchema, validateBody } from '../schemas';
 import { BASES_GDPR } from '../data/ropa-abas/gdpr';
@@ -47,14 +47,24 @@ requisitosApp.post('/semear', async (c) => {
 
 const existe = async (db: D1Database, id: string) => !!(await db.prepare('SELECT 1 FROM requisitos WHERE id = ?').bind(id).first());
 
-// Contagem para o botão "Validar mapeamentos propostos"; quem não vê `proposto` não vê nem a contagem.
+// Contagem de propostos e validados; quem não vê `proposto` não vê nem a contagem.
 requisitosApp.get('/mapeamentos/resumo', async (c) => {
   if (!veMapeamentoProposto(c.get('user')?.role)) return c.json(NEGADO, 403);
   return c.json(await resumoDeMapeamentos(c.env.DB, c.req.query('fonte') || undefined));
 });
 
+// Prévia exata de validar um par de fontes: o que muda na cobertura dos projetos, sem gravar nada. Só o platform_admin.
+requisitosApp.get('/mapeamentos/previa', async (c) => {
+  try {
+    if (!soAdmin(c)) return c.json(NEGADO, 403);
+    const de = c.req.query('de'), para = c.req.query('para');
+    if (!de || !para) return c.json({ error: 'Informe as duas fontes (de e para)' }, 400);
+    return c.json(await previaDeValidacao(c.env.DB, de, para));
+  } catch (e) { return erro500(c, 'Falha ao calcular a prévia da validação', e); }
+});
+
 /**
- * Validação jurídica em lote. É um ato de QUEM ESTÁ LOGADO: `validado_por` é o e-mail da sessão, nunca algo do corpo
+ * Validação jurídica em lote, por PAR de fontes. É um ato de QUEM ESTÁ LOGADO: `validado_por` é o e-mail da sessão, nunca algo do corpo
  * (o esquema é estrito e recusa o campo). Só o platform_admin; o agente não chama (`FORA_DO_AGENTE`).
  */
 requisitosApp.post('/mapeamentos/validar', async (c) => {
@@ -63,9 +73,10 @@ requisitosApp.post('/mapeamentos/validar', async (c) => {
     const v = await validateBody(c, validarMapeamentosSchema);
     if (!v.success) return v.response;
     const email = c.get('user').email;
-    const validados = await validarMapeamentosPropostos(c.env.DB, email, v.data.fonte);
-    await logAudit(c.env.DB, 'requisitos.mapeamento', email, `Validação jurídica de ${validados} mapeamentos propostos${v.data.fonte ? ` (fonte ${v.data.fonte})` : ''}`);
-    const depois = await resumoDeMapeamentos(c.env.DB, v.data.fonte);
+    const { de_fonte, para_fonte } = v.data;
+    const validados = await validarMapeamentosPropostos(c.env.DB, email, de_fonte, para_fonte);
+    await logAudit(c.env.DB, 'requisitos.mapeamento', email, `Validação jurídica de ${validados} mapeamentos propostos entre as fontes ${de_fonte} e ${para_fonte}`);
+    const depois = await resumoDeMapeamentos(c.env.DB);
     return c.json({ ok: true, validados, propostos_restantes: depois.propostos, validados_total: depois.validados });
   } catch (e) { return erro500(c, 'Falha ao validar os mapeamentos', e); }
 });

@@ -51,24 +51,38 @@ describe('POST /requisitos/mapeamentos/validar', () => {
     expect((await chamar(cliente, 'GET', '/api/v1/requisitos/mapeamentos/resumo')).status).toBe(403);
   });
 
-  it('valida com o e-mail da sessão e a data de hoje, registra a trilha e é idempotente', async () => {
-    const antes = await json<{ propostos: number }>(await chamar(admin, 'GET', '/api/v1/requisitos/mapeamentos/resumo'));
-    const r = await json<{ validados: number; propostos_restantes: number; validados_total: number }>(await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos/validar', {}));
-    expect(r.validados).toBe(antes.propostos);
-    expect(r.propostos_restantes).toBe(0);
-    expect(r.validados_total).toBe(antes.propostos);
-    const linha = await env.DB.prepare(`SELECT validado_por, validado_em FROM requisito_mapeamentos LIMIT 1`).first<{ validado_por: string; validado_em: string }>();
-    expect(linha!.validado_por).toBe('adm@ness.lat');
-    expect(linha!.validado_em).toBe(hojeEmSaoPaulo());
-    const trilha = await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'requisitos.mapeamento' AND actor = 'adm@ness.lat'`).first<{ n: number }>();
-    expect(trilha!.n).toBeGreaterThan(0);
-    const de_novo = await json<{ validados: number }>(await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos/validar', {}));
+  it('sem o par de fontes é 400: não existe "validar tudo"', async () => {
+    for (const corpo of [{}, { de_fonte: 'iso27001:2022' }, { para_fonte: 'lgpd' }]) {
+      expect((await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos/validar', corpo)).status).toBe(400);
+    }
+    expect((await estados()).every((e) => e.estado === 'proposto')).toBe(true);
+  });
+
+  it('valida só o par informado, com o e-mail da sessão e a data de hoje, registra a trilha e é idempotente', async () => {
+    const par = `(SELECT fonte_id FROM requisitos WHERE id = m.de_id) = 'iso27001:2022' AND (SELECT fonte_id FROM requisitos WHERE id = m.para_id) = 'lgpd'`;
+    const doPar = (await env.DB.prepare(`SELECT count(*) AS n FROM requisito_mapeamentos m WHERE ${par}`).first<{ n: number }>())!.n;
+    const total = (await env.DB.prepare(`SELECT count(*) AS n FROM requisito_mapeamentos`).first<{ n: number }>())!.n;
+    expect(doPar).toBeGreaterThan(0);
+    const r = await json<{ validados: number; propostos_restantes: number; validados_total: number }>(await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos/validar', { de_fonte: 'iso27001:2022', para_fonte: 'lgpd' }));
+    expect(r.validados).toBe(doPar);
+    expect(r.validados_total).toBe(doPar);
+    expect(r.propostos_restantes).toBe(total - doPar);
+    const fora = await env.DB.prepare(`SELECT count(*) AS n FROM requisito_mapeamentos m WHERE NOT (${par}) AND estado <> 'proposto'`).first<{ n: number }>();
+    expect(fora!.n).toBe(0); // iso27701↔lgpd, iso↔anpd seguem propostos
+    const linhas = (await env.DB.prepare(`SELECT DISTINCT validado_por, validado_em FROM requisito_mapeamentos m WHERE ${par}`).all<{ validado_por: string; validado_em: string }>()).results;
+    expect(linhas).toEqual([{ validado_por: 'adm@ness.lat', validado_em: hojeEmSaoPaulo() }]);
+    const trilha = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'requisitos.mapeamento' AND actor = 'adm@ness.lat'`).all<{ details: string }>();
+    expect(JSON.stringify(trilha.results)).toContain('iso27001:2022');
+    expect(JSON.stringify(trilha.results)).toContain('lgpd');
+    // O par vale nos dois sentidos: invertido, nada mais a validar.
+    const de_novo = await json<{ validados: number }>(await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos/validar', { de_fonte: 'lgpd', para_fonte: 'iso27001:2022' }));
     expect(de_novo.validados).toBe(0);
   });
 
   it('o agente MCP não chama', async () => {
     const AGENTE = { userId: 'u-cons', email: 'cons@ness.lat', projectId: 'vl-proj', concessaoId: 'c-vl' };
-    expect((await chamar({}, 'POST', '/api/v1/requisitos/mapeamentos/validar', {}, { AGENTE })).status).toBe(403);
+    expect((await chamar({}, 'POST', '/api/v1/requisitos/mapeamentos/validar', { de_fonte: 'iso27001:2022', para_fonte: 'lgpd' }, { AGENTE })).status).toBe(403);
+    expect((await chamar({}, 'GET', '/api/v1/requisitos/mapeamentos/previa?de=iso27001:2022&para=lgpd', undefined, { AGENTE })).status).toBe(403);
     expect((await chamar({}, 'GET', '/api/v1/requisitos/gdpr-bases', undefined, { AGENTE })).status).toBe(200);
   });
 });
