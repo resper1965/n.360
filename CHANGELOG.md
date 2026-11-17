@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Remediação dos gaps das ondas 1 e 2 (2026-11-17)
+- **Organização direta edita a própria identidade:** o `consultoria_admin` da direta vê a tela "Identidade da organização" e edita nome, CNPJ, cor e logo; `GET /org/config` devolve para ele só nome, CNPJ, cor e selo (nunca preço, margem ou prefixo).
+- **SSO, SCIM e transferência recusam a direta:** gerar token SCIM, criar usuário por SCIM, ligar o SSO e provisionar por SSO dão 403 na direta (desligar o SSO segue permitido); transferir para uma direta um projeto com contas de cliente dá 409 (`destino_direta_com_clientes`).
+- **Migrações de 27701:** a resposta de `migrate-27701` e `migrate-27701-2025` ganha `sem_requisito`, a lista dos controles que ficaram sem requisito do catálogo.
+- **Quem pediu ou avaliou não aprova:** quem pediu a base do site (`eu_pedi_a_base`) ou avaliou o item (`eu_avaliei`) não vê mais o botão de aprovar/confirmar.
+- **Plano da direta:** a organização direta nasce com plano `direta`.
+- **Produção:** as migrações 0113 e 0114 foram aplicadas em 17/11/2026 (o "Pendente" da onda 2 abaixo está superado); o limite do D1 da prévia foi verificado na documentação (spec da onda 2, ruling (d)).
+
 ### n.360, onda 2: catálogo único de requisitos (migração 0114, spec 2026-11-17)
 - **Catálogo único:** a ONS RO-CB.BR.01 entra em `requisitos` (fonte `ons-ro-cb-br-01`, mesmos ids de `ot_requisitos`, que ganha `requisito_id`); `requisitos` ganha `texto`, `fonte_texto` e `categoria`. `ot_avaliacoes` e `ot_requisito_evidencias` continuam como estão.
 - **Situação única derivada, sem regravar nada:** `Planned` vale `nao_atende`; o item técnico do n.ot nunca vale `atende`. Rota nova de leitura `GET /projects/:projectId/requisitos-situacao` (n.iso exige o módulo `iso` na pessoa e no projeto; n.ot exige `ot`).
@@ -21,7 +29,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Muda para quem já usa:** `migrate-27701` e `migrate-27701-2025` passam a ligar os controles aos requisitos (`ligarControles`).
 - **Indicador:** `indicador` do n.iso não muda; o detalhe por norma vem ao lado, em `indicador_por_norma`.
 - **Texto normativo só onde a licença permite:** `PUT /requisitos/:id` aceita `texto` com `fonte_texto` (só `platform_admin`); ISO recusa (400, texto protegido por licença); a trilha registra só "texto atualizado (N caracteres)". `GET /requisitos` e `GET /requisitos/:id` devolvem `texto`, `fonte_texto` e `categoria`, sempre nulos para ISO.
-- **Pendente:** a migração 0114 ainda não foi aplicada em produção; rodar antes `scripts/sonda-onda2.sql` (só leitura).
+- ~~Pendente: a migração 0114 ainda não foi aplicada em produção.~~ Aplicada em 17/11/2026 (`migrations/README.md`).
 
 ### n.360, onda 1: organização direta (spec 2026-11-16)
 - **Organização direta** (migração 0113, `organizations.tipo`): a empresa que usa o n.360 por conta própria. O administrador dela (`consultoria_admin`) exerce, no projeto da própria organização, os atos que eram só do `org_admin`: Gestor ARCiber do n.ot (se constar no cargo), ver IP/MAC, painel e avisos do n.ot, assinatura e revogação de aprovação, titular. Sem área comercial e sem conta de cliente; agente e chave de API não passam. O tipo é lido do banco e nunca muda.

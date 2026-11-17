@@ -134,9 +134,8 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   prazo, `podeMexerEmAssinaturaDe`, `podeRevogarAprovacao` e `data-subject`. **Quem criou nao decide** (vale em toda organizacao):
   pedido, base do site, avaliacao do n.ot e encerrar incidente. O agente conta como quem o concedeu: no incidente a comparacao e pela
   conta (`agente_conta`, o e-mail real, porque `criado_por` leva o rotulo "agente de X"; sem `agente_conta` o encerramento e negado); em
-  base e avaliacao compara-se `users.id`, e o agente carrega o id real de quem concedeu (`userId` em `src/middleware/agente.ts`). A
-  direta nao tem area comercial (`ehComercial` nega com `org_direta`), nem conta de cliente (so `platform_admin`, break-glass), nem
-  SSO/SCIM por ora, e fica sem tela de identidade (`GET /org/config` e comercial; `PUT /org/config` da direta recusa com 403 prefixo, numeracao, preco, textos e secoes da proposta). Agente e chave de API nunca passam por essas travas.
+  base e avaliacao compara-se `users.id`, e o agente carrega o id real de quem concedeu (`userId` em `src/middleware/agente.ts`). A tela recebe so booleanos, nunca ids: `eu_pedi_a_base` (situacao do site, `src/services/ot-fase.ts`) e `eu_avaliei` (avaliacao, `src/services/ot-avaliacao.ts`); com eles o botao de aprovar/confirmar some para quem pediu ou avaliou. `migrate-27701` e `migrate-27701-2025` devolvem tambem `sem_requisito` (ids dos controles do padrao-alvo ainda sem `requisito_id`). A
+  direta nao tem area comercial (`ehComercial` nega com `org_direta`), nem conta de cliente (so `platform_admin`, break-glass). **Identidade:** `GET /org/config` do `consultoria_admin` da direta devolve SO `nome`, `cnpj`, `corDestaque` e `seloNiso` (`src/routes/organizacao.ts`; nunca preco, margem, prefixo ou textos) e a tela `identidade-org` fica visivel para ele; `PUT /org/config` da direta recusa com 403 prefixo, numeracao, preco, textos e secoes da proposta. **SSO/SCIM/transferencia recusam a direta** (`tipoDoProjeto` e `MSG_DIRETA_SEM_CLIENTE` em `src/services/organizacao.ts`): `POST .../scim-token` e `POST /scim/v2/Users` dao 403, `PUT .../sso` so recusa `ativo: true` (desligar segue permitido), o `provisionar` do SSO lanca erro; `transferirProjeto` devolve `destino_direta_com_clientes` (409 em `platform.ts`) se o projeto tem conta de cliente e o destino e direta. Convite de stakeholder segue permitido na direta (travado por `test/remediacao-gaps.test.ts`). Plano: a direta nasce com `plan = 'direta'` (a consultoria, `'consultoria'`). Agente e chave de API nunca passam por essas travas.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
@@ -697,7 +696,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   API (`src/index.ts`). Nada é apagado; `"true"` religa tudo como era (a suíte roda ligada, `wrangler.test.jsonc`; o desligado
   em `test/comercial-desligado.test.ts`). `/api/v1/org` fica: com a área desligada, nome, CNPJ, cor e logo (que vão nos
   documentos Word do projeto) estão em Conta e acessos, "Identidade da consultoria" (`identidade-org`, a tela de
-  `config-comercial.js` só com identidade), para `platform_admin` e `consultoria_admin`. O projeto nasce pelo "Novo projeto" da
+  `config-comercial.js` só com identidade), para `platform_admin` e `consultoria_admin`; na direta (sem comercial) o `consultoria_admin` a vê sempre. O projeto nasce pelo "Novo projeto" da
   tela Projetos (`POST /projects`), que para o n.iso semeia fases e controles com as mesmas funções do aceite da proposta
   (`stmtsFases`, `stmtControles`, `catalogosDoProjeto` em `src/services/project-setup.ts`); o prefixo de proposta é opcional na
   criação da organização. O agente MCP NÃO passa pelo interruptor: lê e rascunha a área comercial da organização de quem

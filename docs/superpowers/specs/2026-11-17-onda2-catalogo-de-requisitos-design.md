@@ -104,9 +104,9 @@ Dois PRs: (1) base e números travados, sem migration; (2) catálogo único, com
 - (a) O detalhe do indicador por norma é o irmão `indicador_por_norma` em `/prontidao`, não `indicador.por_norma`: assim o teste de caracterização do indicador continua estrito (o objeto `indicador` não ganha chave).
 - (b) O `platform_admin` vê a fonte ONS (`modulosDaPessoa` lhe dá todos os módulos); agente e chave de API nunca.
 - (c) A leitura única é uma função de serviço e uma rota (`GET /projects/:projectId/requisitos-situacao`), não uma VIEW. As linhas `n.iso` exigem pessoa e projeto com `iso`; as `n.ot`, pessoa e projeto com `ot` e `fonteVisivel`.
-- (d) A prévia da validação corta em 100 projetos (`LIMITE_PREVIA`, com `truncado`). Premissa não verificada: se o batch do D1 conta como uma consulta só; o corte de 100 é seguro mesmo se contar por consulta.
-- (e) `migrate-27701-2025` grava ids grossos de `CONTROL_MAP_27701_2019_TO_2025` (por exemplo `A.1.1`) que não têm linha no catálogo 27701:2025 (o catálogo começa em `A.1.2.2`): esses controles ficam com `requisito_id` nulo mesmo depois de `ligarControles`. Já era assim antes; precisa de decisão de produto (mapear para referências reais ou descartar).
-- (f) A sonda de produção `scripts/sonda-onda2.sql` (só leitura) deve ser rodada pelo dono ANTES de aplicar a 0114.
+- (d) A prévia da validação corta em 100 projetos (`LIMITE_PREVIA`, com `truncado`). **Verificado em 17/11/2026** na documentação da Cloudflare (https://developers.cloudflare.com/d1/platform/limits/): um `db.batch()` conta como UMA consulta no limite por invocação (1000 no plano pago, 50 no gratuito; subrequests do Worker: 10.000 no pago desde 11/02/2026). O corte de 100 projetos (cerca de 200 consultas) é seguro no plano pago. No gratuito, até 100 estouraria os 50: se a produção estiver no plano gratuito, baixar `LIMITE_PREVIA` para 20. O plano da conta é para o dono confirmar (não foi conferido aqui).
+- (e) **ABERTO (decisão do dono sobre conteúdo normativo).** `migrate-27701-2025` grava ids grossos de `CONTROL_MAP_27701_2019_TO_2025` (por exemplo `A.1.1`) que não têm linha no catálogo 27701:2025 (o catálogo começa em `A.1.2.2`): esses controles ficam com `requisito_id` nulo mesmo depois de `ligarControles`. Já era assim antes; precisa de decisão de produto (mapear para referências reais ou descartar).
+- (f) **RESOLVIDO:** a 0114 foi aplicada em 17/11/2026 (`migrations/README.md`). A sonda de produção `scripts/sonda-onda2.sql` (só leitura) deve ser rodada pelo dono ANTES de aplicar a 0114.
 - (g) Armadilha do parâmetro `ve` (padrão `false`) em `definirRequisitosDoDocumento` e `definirRequisitosDaEvidencia`: esquecê-lo trata a ONS como inexistente (o id vira `desconhecidos`). Todos os chamadores o passam hoje; considerar torná-lo obrigatório.
 - (h) Texto normativo: `fonteAceitaTexto` (falso para fonte `iso*`); `PUT /requisitos/:id` recusa texto de ISO com 400 e exige `fonte_texto` junto de `texto`.
 - (i) `Excluded` → `nao_se_aplica` por decisão do dono em 17/11/2026, só na leitura única (`situacaoUnica`); o indicador segue contando como em andamento (1 controle em produção).
@@ -116,3 +116,10 @@ Dois PRs: (1) base e números travados, sem migration; (2) catálogo único, com
 Nada em produção (a sonda `scripts/sonda-onda2.sql` ainda não foi rodada): contagem real de `requisitos`, se `/semear` já foi chamado, valores distintos de `compliance_controls.status`,
 controles com `requisito_id` nulo, `Not Applicable` sem justificativa. Fatos da ISO 42001 e do CIS v8.1 (a confirmar com material
 revisado) e a licença do CIS. Se D1 aceita `CREATE VIEW` (a leitura única foi feita como função, então não bloqueia). A 0114 foi validada em SQLite puro e em D1 local, não reexecutada a partir do histórico completo.
+
+### Remediação dos gaps das ondas 1 e 2 (17/11/2026, plano `2026-11-17-remediacao-gaps-ondas-1-2`)
+
+- RESOLVIDO (Task 4, `299ff83`): `migrate-27701` e `migrate-27701-2025` devolvem `sem_requisito` (ids dos controles do padrão-alvo ainda sem `requisito_id`), então os ids grossos do item (e) ficam visíveis; mapeá-los continua aberto.
+- RESOLVIDO (Task 5, `1db97f7`): o botão de aprovar sai para quem pediu a base (`eu_pedi_a_base`) ou avaliou o item (`eu_avaliei`), booleanos sem ids.
+- RESOLVIDO (Task 7): limite do D1 verificado, item (d); migrações 0113/0114 aplicadas, item (f).
+- ABERTO: mapear os ids grossos de 27701:2025 (decisão do dono); ISO 42001 e CIS (material e licença).
