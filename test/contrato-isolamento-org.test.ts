@@ -455,13 +455,23 @@ describe('contrato de isolamento entre organizações', () => {
       org_admin: ['/api/v1/projects/:p/risks', '/api/v1/projects/:p/pedidos'],
       auditor: [],
     };
-    // Direta (decisão 11): sem área comercial; o papel comercial e o consultoria_admin dela são recusados em servicos/leads.
-    const semComercial = (p: Principal, molde: string) => p.de === DIR && /servicos|leads|org\/config/.test(molde);
+    // Direta (decisão 11): sem área comercial; o papel comercial e o consultoria_admin dela são recusados em servicos/leads. Em org/config o admin da direta lê só a identidade.
+    const semComercial = (p: Principal, molde: string) => p.de === DIR && /servicos|leads/.test(molde);
     for (const p of PRINCIPAIS) {
       for (const molde of proprio[p.nome.split('@')[0]]) {
         if (semComercial(p, molde)) {
           const r = await chamar(p, 'GET', molde.replace(':r', p.de.rec));
           expect(r.status, `${p.nome} ${molde}: área comercial não existe na direta`).toBe(403);
+          continue;
+        }
+        if (p.de === DIR && molde === '/api/v1/org/config') {
+          // A direta lê só a própria identidade (nada de preço/margem), e é a DELA, não a de outra organização.
+          const r = await chamar(p, 'GET', molde);
+          const texto = await r.clone().text();
+          expect(r.status, `${p.nome} ${molde}: ${texto}`).toBe(200);
+          expect(Object.keys(JSON.parse(texto)).sort(), `${p.nome} ${molde}`).toEqual(['cnpj', 'corDestaque', 'nome', 'seloNiso']);
+          expect(JSON.parse(texto).nome, `${p.nome} ${molde}`).toContain(DIR.m);
+          expect(temMarcador(texto, p.alheio.m), `${p.nome} ${molde}: ${texto}`).toBe(false);
           continue;
         }
         const res = await chamar(p, 'GET', molde.replace(':p', p.de.proj).replace(':r', p.de.rec).replace(':t', p.token ?? ''));

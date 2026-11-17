@@ -45,7 +45,7 @@ describe('GET /api/v1/org/config', () => {
   });
   it('admin da direta não lê a config de outra organização (X-Org-Id é ignorado)', async () => {
     const r = await chamar('GET', '/api/v1/org/config', { ...S.beto, 'X-Org-Id': 'org_c' });
-    expect(Object.keys(await r.json() as object)).not.toContain('preco');
+    expect(Object.keys(await r.json() as object).sort()).toEqual(['cnpj', 'corDestaque', 'nome', 'seloNiso']);
   });
   it('platform_admin com X-Org-Id de direta mantém o comportamento anterior (config completa)', async () => {
     const r = await chamar('GET', '/api/v1/org/config', { ...S.pa, 'X-Org-Id': 'org_d' });
