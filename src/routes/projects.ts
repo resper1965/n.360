@@ -13,6 +13,7 @@ import { gravarSituacoes } from '../services/passos/fase';
 import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS } from '../services/organizacao';
 import { INTERVIEW_TRACKS } from '../constants';
 import { MigrationService } from '../services/migration-service';
+import { ligarControles } from '../services/requisitos';
 import { seedPhases, semearControles, stmtsFases, stmtControles, catalogosDoProjeto } from '../services/project-setup';
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { controlsForRole, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
@@ -1004,6 +1005,7 @@ projectsApp.post('/:id/migrate-27701', async (c) => {
       }
     }
 
+    if (created) await ligarControles(c.env.DB, projectId);
     await logAudit(c.env.DB, 'migration.27701', c.get('user')?.email ?? 'system', `27701 migration (2013->2022): ${gaps.length} gaps, ${created} new controls, project ${projectId}`, '', '', projectId);
 
     return c.json({
@@ -1047,6 +1049,7 @@ projectsApp.post('/:id/migrate-27701-2025', async (c) => {
       }
     }
 
+    if (created) await ligarControles(c.env.DB, projectId);
     await logAudit(c.env.DB, 'migration.27701.2025', c.get('user')?.email ?? 'system', `27701:2025 migration: ${gaps.length} gaps, ${created} new controls, project ${projectId}`, '', '', projectId);
 
     return c.json({
