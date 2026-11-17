@@ -497,7 +497,7 @@ test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abr
   await expect(conteudo).toContainText('Espera por você');
   await expect(conteudo).toContainText('Lote de aprovação em SE Norte');
   await page.getByRole('button', { name: 'Abrir lote' }).click();
-  await expect(page.getByRole('heading', { name: 'SE Norte' })).toBeVisible();
+  await expect(conteudo.getByRole('heading', { name: 'SE Norte', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de planilha · SE Norte'); // o lote l1 do mock, aberto por otIrParaLote
   await expect(conteudo).toContainText('Em revisão');

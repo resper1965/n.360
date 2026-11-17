@@ -32,14 +32,15 @@ describe('criação de organização com tipo', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"id":"x"}'));
     const r = await chamar('POST', '/api/v1/platform/orgs', S.pa, novaOrg({ nome: 'C', slug: 'cons-x', adminEmail: 'a@cons.lat' }));
     expect(r.status).toBe(201);
-    expect((await um('SELECT tipo FROM organizations WHERE id = ?', 'org_cons-x')).tipo).toBe('consultoria');
+    expect((await um('SELECT tipo, plan FROM organizations WHERE id = ?', 'org_cons-x'))).toMatchObject({ tipo: 'consultoria', plan: 'consultoria' });
   });
   it('direta com módulos escolhidos na criação', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"id":"x"}'));
     const r = await chamar('POST', '/api/v1/platform/orgs', S.pa, novaOrg({ tipo: 'direta', modulos: ['iso', 'privacy'] }));
     expect(r.status).toBe(201);
-    const o = await um('SELECT tipo, modulos_contratados m FROM organizations WHERE id = ?', 'org_empresa-direta');
+    const o = await um('SELECT tipo, plan, modulos_contratados m FROM organizations WHERE id = ?', 'org_empresa-direta');
     expect(o.tipo).toBe('direta');
+    expect(o.plan).toBe('direta');
     expect(JSON.parse(o.m)).toEqual(['iso', 'privacy']);
   });
   it('tipo inválido é recusado e o tipo não muda depois de criado', async () => {
@@ -377,6 +378,8 @@ describe('telas: org_tipo em /auth/me e tipo na lista de organizações', () => 
     const l = (await (await chamar('GET', '/api/v1/platform/orgs', S.pa)).json()) as any[];
     expect(l.find((o) => o.id === 'org_empresa-direta')?.tipo).toBe('direta');
     expect(l.find((o) => o.id === 'org_cons-x')?.tipo).toBe('consultoria');
+    expect(l.find((o) => o.id === 'org_empresa-direta')?.plano).toBe('direta');
+    expect(l.find((o) => o.id === 'org_cons-x')?.plano).toBe('consultoria');
   });
 });
 
