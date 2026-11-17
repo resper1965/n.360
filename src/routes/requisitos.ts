@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, logAudit } from '../helpers';
 import {
-  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, excluirRequisito, reincluirRequisito, lacunasDaFonte, resumoDeLacunas, lerRequisito, ligarControles, listarFontes, listarRequisitos,
+  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, excluirRequisito, reincluirRequisito, lacunasDaFonte, resumoDeLacunas, lerRequisito, fonteAceitaTexto, ligarControles, listarFontes, listarRequisitos,
   previaDeValidacao, requisitosDaEvidencia, requisitosDoDocumento, resumoDeMapeamentos, semearCatalogo, validarMapeamentosPropostos, veMapeamentoProposto,
 } from '../services/requisitos';
 import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, requisitoExclusaoSchema, validarMapeamentosSchema, validateBody } from '../schemas';
@@ -146,10 +146,14 @@ requisitosApp.put('/:id', async (c) => {
     const v = await validateBody(c, requisitoAtualizarSchema);
     if (!v.success) return v.response;
     const id = c.req.param('id');
-    const antes = await c.env.DB.prepare('SELECT titulo FROM requisitos WHERE id = ?').bind(id).first<{ titulo: string }>();
+    const antes = await c.env.DB.prepare('SELECT titulo, fonte_id FROM requisitos WHERE id = ?').bind(id).first<{ titulo: string; fonte_id: string }>();
     if (!antes) return c.json({ error: 'Requisito não encontrado' }, 404);
-    await c.env.DB.prepare(`UPDATE requisitos SET titulo = ?, updated_at = datetime('now') WHERE id = ?`).bind(v.data.titulo, id).run();
-    await logAudit(c.env.DB, 'requisitos.titulo', c.get('user').email, `Requisito ${id}: título "${antes.titulo}" → "${v.data.titulo}"`);
+    const { texto, fonte_texto } = v.data;
+    if (texto !== undefined && !fonteAceitaTexto(antes.fonte_id)) return c.json({ error: 'O texto da ISO é protegido por licença; use só o título' }, 400);
+    // só platform_admin chega aqui, e ele vê a ONS (modulosDaPessoa dá todos os módulos): não há edição de requisito oculto
+    if (texto !== undefined) await c.env.DB.prepare(`UPDATE requisitos SET titulo = ?, texto = ?, fonte_texto = ?, updated_at = datetime('now') WHERE id = ?`).bind(v.data.titulo, texto, fonte_texto!, id).run();
+    else await c.env.DB.prepare(`UPDATE requisitos SET titulo = ?, updated_at = datetime('now') WHERE id = ?`).bind(v.data.titulo, id).run();
+    await logAudit(c.env.DB, 'requisitos.titulo', c.get('user').email, `Requisito ${id}: título "${antes.titulo}" → "${v.data.titulo}"${texto !== undefined ? `; texto atualizado (${texto.length} caracteres)` : ''}`);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao atualizar o requisito', e); }
 });

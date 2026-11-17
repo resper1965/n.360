@@ -1,6 +1,6 @@
 # Onda 2: catálogo único de requisitos
 
-Data: 17/11/2026. Situação: **rascunho para aprovação do dono**. Onda 2 da spec guarda-chuva
+Data: 17/11/2026. Situação: **aprovada pelo dono em 17/11/2026**. Onda 2 da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md`. Base: levantamento somente leitura sobre o HEAD `4a5d4ec`
 (`/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda2-levantamento.md`, com arquivo:linha e o comando de cada número).
 
@@ -18,16 +18,16 @@ resumo do assessment do n.ot).
 | 4 | Indicador do n.iso | **Mantém o "X de Y" somado** (o número de hoje) **e acrescenta o detalhe por framework**, com um aviso na tela quando o projeto tem mais de uma norma. Trocar o número principal fica para quando houver nota ao cliente |
 | 10 | Material da ISO 42001 e do CIS v8.1 | **Não está no repositório e não bloqueia a onda.** As entregas abaixo andam sem eles; 42001 e CIS entram em spec própria quando o dono fornecer o material revisado e a licença permitir reproduzir o texto |
 
-### A rever (recomendação minha, ainda não respondida)
+### A rever (recomendação adotada com a aprovação da spec)
 
 | # | Tema | Recomendação |
 |---|---|---|
-| 2 | Vocabulário no banco ou derivado | **Derivado por função** (como `classeDoControle`): `compliance_controls.status` não é regravado. O vocabulário único tem CHECK só nas tabelas novas e em `ot_avaliacoes` |
-| 3 | `Planned` | Vale `nao_atende` na leitura única (não cobre na LGPD hoje). O Painel continua mostrando "em andamento" pela classe antiga |
-| 5 | Validação de mapeamento | Em lote **por par de fontes** (de → para) com prévia do efeito na cobertura; o `PUT /mapeamentos` passa a carimbar a sessão (hoje aceita `validado_por` do corpo). Quem valida segue `platform_admin` |
-| 6 | Texto normativo | Colunas `texto` (anulável) e `fonte_texto` (URL, data da consulta, quem revisou) em `requisitos`, preenchidas só quando a licença permite (ONS e lei sim, ISO não). Um teste reprova texto em fonte ISO |
-| 7 | Catálogo ONS em `GET /api/v1/requisitos` | Filtrado pelo módulo da pessoa: sem `ot`, o catálogo ONS não aparece |
-| 8, 9 | Casca do CIS; impacto de IA da 42001 | Ficam para a spec própria dos dois (recomendação adiantada: CIS no n.iso com avaliação periódica; impacto de IA em tabela nova) |
+| 2 | Vocabulário no banco ou derivado | **Derivado por função** (como `classeDoControle`): `compliance_controls.status` não é regravado. O vocabulário único tem CHECK só nas tabelas novas e em `ot_avaliacoes` _(recomendação adotada com a aprovação da spec)_ |
+| 3 | `Planned` | Vale `nao_atende` na leitura única (não cobre na LGPD hoje). O Painel continua mostrando "em andamento" pela classe antiga _(recomendação adotada com a aprovação da spec)_ |
+| 5 | Validação de mapeamento | Em lote **por par de fontes** (de → para) com prévia do efeito na cobertura; o `PUT /mapeamentos` passa a carimbar a sessão (hoje aceita `validado_por` do corpo). Quem valida segue `platform_admin` _(recomendação adotada com a aprovação da spec)_ |
+| 6 | Texto normativo | Colunas `texto` (anulável) e `fonte_texto` (URL, data da consulta, quem revisou) em `requisitos`, preenchidas só quando a licença permite (ONS e lei sim, ISO não). Um teste reprova texto em fonte ISO _(recomendação adotada com a aprovação da spec)_ |
+| 7 | Catálogo ONS em `GET /api/v1/requisitos` | Filtrado pelo módulo da pessoa: sem `ot`, o catálogo ONS não aparece _(recomendação adotada com a aprovação da spec)_ |
+| 8, 9 | Casca do CIS; impacto de IA da 42001 | Ficam para a spec própria dos dois (recomendação adiantada: CIS no n.iso com avaliação periódica; impacto de IA em tabela nova) _(recomendação adotada com a aprovação da spec)_ |
 
 ## O que existe hoje (resumo; detalhe no levantamento)
 
@@ -99,9 +99,19 @@ resumo do assessment do n.ot).
 
 Dois PRs: (1) base e números travados, sem migration; (2) catálogo único, com migration aditiva (backup, apply remoto, conferir, só então merge).
 
+## Rulings da execução
+
+- (a) O detalhe do indicador por norma é o irmão `indicador_por_norma` em `/prontidao`, não `indicador.por_norma`: assim o teste de caracterização do indicador continua estrito (o objeto `indicador` não ganha chave).
+- (b) O `platform_admin` vê a fonte ONS (`modulosDaPessoa` lhe dá todos os módulos); agente e chave de API nunca.
+- (c) A leitura única é uma função de serviço e uma rota (`GET /projects/:projectId/requisitos-situacao`), não uma VIEW. As linhas `n.iso` exigem pessoa e projeto com `iso`; as `n.ot`, pessoa e projeto com `ot` e `fonteVisivel`.
+- (d) A prévia da validação corta em 100 projetos (`LIMITE_PREVIA`, com `truncado`). Premissa não verificada: se o batch do D1 conta como uma consulta só; o corte de 100 é seguro mesmo se contar por consulta.
+- (e) `migrate-27701-2025` grava ids grossos de `CONTROL_MAP_27701_2019_TO_2025` (por exemplo `A.1.1`) que não têm linha no catálogo 27701:2025 (o catálogo começa em `A.1.2.2`): esses controles ficam com `requisito_id` nulo mesmo depois de `ligarControles`. Já era assim antes; precisa de decisão de produto (mapear para referências reais ou descartar).
+- (f) A sonda de produção `scripts/sonda-onda2.sql` (só leitura) deve ser rodada pelo dono ANTES de aplicar a 0114.
+- (g) Armadilha do parâmetro `ve` (padrão `false`) em `definirRequisitosDoDocumento` e `definirRequisitosDaEvidencia`: esquecê-lo trata a ONS como inexistente (o id vira `desconhecidos`). Todos os chamadores o passam hoje; considerar torná-lo obrigatório.
+- (h) Texto normativo: `fonteAceitaTexto` (falso para fonte `iso*`); `PUT /requisitos/:id` recusa texto de ISO com 400 e exige `fonte_texto` junto de `texto`.
+
 ## Não conferido
 
-Nada em produção: contagem real de `requisitos`, se `/semear` já foi chamado, valores distintos de `compliance_controls.status`,
+Nada em produção (a sonda `scripts/sonda-onda2.sql` ainda não foi rodada): contagem real de `requisitos`, se `/semear` já foi chamado, valores distintos de `compliance_controls.status`,
 controles com `requisito_id` nulo, `Not Applicable` sem justificativa. Fatos da ISO 42001 e do CIS v8.1 (a confirmar com material
-revisado) e a licença do CIS. `routes/controls.ts` e `routes/projects.ts:1193` linha a linha; o formato completo de `GET /controls`
-consumido pelo MCP. Se D1 aceita `CREATE VIEW`.
+revisado) e a licença do CIS. Se D1 aceita `CREATE VIEW` (a leitura única foi feita como função, então não bloqueia). A 0114 foi validada em SQLite puro e em D1 local, não reexecutada a partir do histórico completo.

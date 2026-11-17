@@ -5,7 +5,11 @@ const id = z.string().trim().min(1).max(200);
 /** Título do requisito (paráfrase curta própria; nunca o texto da norma). */
 export const requisitoAtualizarSchema = z.object({
   titulo: z.string().trim().min(1).max(300),
-}).strict();
+  texto: z.string().trim().min(1).max(20000).optional(),
+  fonte_texto: z.string().trim().min(5).max(500).optional(),
+}).strict().superRefine((v, ctx) => {
+  if (v.texto !== undefined && v.fonte_texto === undefined) ctx.addIssue({ code: 'custom', path: ['fonte_texto'], message: 'Informe a origem do texto (fonte_texto)' });
+});
 
 /** Requisito "não aplicável" no projeto (migration 0107): a justificativa barra o "não se aplica" genérico. */
 export const requisitoExclusaoSchema = z.object({

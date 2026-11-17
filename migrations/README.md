@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0113** (`ls migrations/*.sql | tail -1`). São 114 arquivos
+- Última migration no repositório: **0114** (`ls migrations/*.sql | tail -1`). São 115 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -777,6 +777,11 @@ $ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1
 $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
+
+## 0114 — catálogo único de requisitos (2026-11-17)
+
+Quatro `ALTER TABLE ADD COLUMN` (`requisitos.texto`, `requisitos.fonte_texto`, `requisitos.categoria`, `ot_requisitos.requisito_id` com FK para `requisitos`) e `INSERT OR IGNORE` da fonte `ons-ro-cb-br-01` e dos 25 requisitos ONS com os mesmos ids de `ot_requisitos`, mais o `UPDATE` que preenche `ot_requisitos.requisito_id`. ALTER ADD COLUMN: roda uma vez (`d1_migrations` rastreia). Spec `2026-11-17-onda2-catalogo-de-requisitos-design`. **Status: PENDENTE de aplicar** (nada foi aplicado em produção; só com o "sim" do dono, a sonda `scripts/sonda-onda2.sql` rodada antes e `npm run db:backup`). Validada em SQLite puro e em D1 local, mas não reexecutada a partir do histórico completo. Aplicar: `npx wrangler d1 migrations apply niso-db --remote`. Conferência depois:
+`SELECT count(*) FROM requisitos WHERE fonte_id = 'ons-ro-cb-br-01'` (25) e `SELECT count(*) FROM ot_requisitos WHERE requisito_id IS NULL` (0). Registrar aqui a saída quando houver.
 
 ## 0113 — tipo da organização (2026-11-16)
 

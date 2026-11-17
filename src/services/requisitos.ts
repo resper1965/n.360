@@ -117,7 +117,12 @@ export async function ligarControles(db: D1Database, projectId?: string): Promis
 const VE_PROPOSTO = new Set(['platform_admin', 'consultor', 'consultant', 'consultoria_admin']);
 export const veMapeamentoProposto = (role: string | undefined) => VE_PROPOSTO.has(role ?? '');
 
-export type Requisito = { id: string; fonte_id: string; referencia: string; titulo: string; pai_id: string | null; papel: string | null };
+export type Requisito = { id: string; fonte_id: string; referencia: string; titulo: string; pai_id: string | null; papel: string | null; texto: string | null; fonte_texto: string | null; categoria: string | null };
+
+/** Texto normativo só onde a licença permite: ISO só com título próprio; LGPD/ANPD/ONS aceitam texto com origem. */
+export const fonteAceitaTexto = (fonteId: string): boolean => !fonteId.startsWith('iso');
+/** Projeção de leitura: o texto da ISO nunca sai, mesmo que um dia entre no banco. */
+const COLS_TEXTO = (a: string) => `CASE WHEN ${a}fonte_id LIKE 'iso%' THEN NULL ELSE ${a}texto END AS texto, CASE WHEN ${a}fonte_id LIKE 'iso%' THEN NULL ELSE ${a}fonte_texto END AS fonte_texto, ${a}categoria AS categoria`;
 export type MapeamentoLido = { de_id: string; para_id: string; tipo: string; estado: string; validado_por: string | null; validado_em: string | null; nota: string | null };
 
 /** Fontes do n.ot (P0-2) só para quem as vê (`veFontesDoOt`); `col` é uma coluna nossa, `?N` o booleano. */
@@ -143,7 +148,7 @@ export async function listarFontes(db: D1Database, ve: boolean) {
 export async function listarRequisitos(db: D1Database, fonte: string | undefined, ve: boolean) {
   const { results } = await db.prepare(
     // `validado_*`: o mapeamento validado mais recente do requisito (só o validado, que todo papel pode ver).
-    `SELECT r.id, r.fonte_id, r.referencia, r.titulo, r.pai_id, r.papel,
+    `SELECT r.id, r.fonte_id, r.referencia, r.titulo, r.pai_id, r.papel, ${COLS_TEXTO('r.')},
             (SELECT m.validado_por FROM requisito_mapeamentos m WHERE r.id IN (m.de_id, m.para_id) AND m.estado = 'validado_juridico' ORDER BY m.validado_em DESC LIMIT 1) AS validado_por,
             (SELECT max(m.validado_em) FROM requisito_mapeamentos m WHERE r.id IN (m.de_id, m.para_id) AND m.estado = 'validado_juridico') AS validado_em
        FROM requisitos r WHERE (?1 IS NULL OR r.fonte_id = ?1) AND ${VISIVEL('r.fonte_id', 2)} ORDER BY r.fonte_id, r.rowid`
@@ -153,7 +158,7 @@ export async function listarRequisitos(db: D1Database, fonte: string | undefined
 
 /** O requisito com os mapeamentos nos dois sentidos; quem não vê `proposto` recebe só os validados. */
 export async function lerRequisito(db: D1Database, id: string, veProposto: boolean, ve: boolean) {
-  const r = await db.prepare('SELECT id, fonte_id, referencia, titulo, pai_id, papel FROM requisitos WHERE id = ?').bind(id).first<Requisito>();
+  const r = await db.prepare(`SELECT id, fonte_id, referencia, titulo, pai_id, papel, ${COLS_TEXTO('')} FROM requisitos WHERE id = ?`).bind(id).first<Requisito>();
   if (!r || (!ve && (FONTES_DO_OT as readonly string[]).includes(r.fonte_id))) return null;
   const { results } = await db.prepare(
     `SELECT de_id, para_id, tipo, estado, validado_por, validado_em, nota FROM requisito_mapeamentos
