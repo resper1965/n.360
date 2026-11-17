@@ -121,7 +121,8 @@ export type Requisito = { id: string; fonte_id: string; referencia: string; titu
 export type MapeamentoLido = { de_id: string; para_id: string; tipo: string; estado: string; validado_por: string | null; validado_em: string | null; nota: string | null };
 
 /** Fontes do n.ot (P0-2) só para quem as vê (`veFontesDoOt`); `col` é uma coluna nossa, `?N` o booleano. */
-const VISIVEL = (col: string, n: number) => `(?${n} = 1 OR ${col} NOT IN (${SQL_FONTES_DO_OT}))`;
+const VISIVEL = (col: string, n: number, porRequisito = false) =>
+  `(?${n} = 1 OR ${porRequisito ? `${col} NOT IN (SELECT id FROM requisitos WHERE fonte_id IN (${SQL_FONTES_DO_OT}))` : `${col} NOT IN (${SQL_FONTES_DO_OT})`})`;
 
 /** Dos `ids`, os que são de fonte do n.ot que quem pede não vê: tratados como inexistentes (nunca confirma que existem). */
 export async function requisitosOcultos(db: D1Database, ids: readonly string[], ve: boolean): Promise<string[]> {
@@ -179,7 +180,7 @@ export async function requisitosDoDocumento(db: D1Database, projectId: string, d
 }
 
 /** Troca o conjunto de requisitos do documento. null = documento não é do projeto; `desconhecidos` = ids que não existem. */
-export async function definirRequisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, ids: string[], origem: OrigemDocumentoReq = 'documento') {
+export async function definirRequisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, ids: string[], origem: OrigemDocumentoReq = 'documento', ve = false) {
   const t = DOC_REQ[origem];
   const doc = await db.prepare(`SELECT id FROM ${t.pai} WHERE id = ? AND project_id = ?`).bind(documentoId, projectId).first();
   if (!doc) return null;
@@ -189,7 +190,8 @@ export async function definirRequisitosDoDocumento(db: D1Database, projectId: st
   const desconhecidos = unicos.filter((x) => !existentes.has(x));
   if (desconhecidos.length) return { ok: false as const, desconhecidos };
   await db.batch([
-    db.prepare(`DELETE FROM ${t.ligacao} WHERE ${t.coluna} = ? AND project_id = ?`).bind(documentoId, projectId),
+    // quem não vê a fonte do n.ot não apaga as ligações dela (feitas por quem vê)
+    db.prepare(`DELETE FROM ${t.ligacao} WHERE ${t.coluna} = ?1 AND project_id = ?2 AND ${VISIVEL('requisito_id', 3, true)}`).bind(documentoId, projectId, ve ? 1 : 0),
     db.prepare(`INSERT INTO ${t.ligacao} (${t.coluna}, requisito_id, project_id) SELECT ?1, value, ?2 FROM json_each(?3)`)
       .bind(documentoId, projectId, JSON.stringify(unicos)),
   ]);
@@ -206,7 +208,7 @@ export async function requisitosDaEvidencia(db: D1Database, projectId: string, e
 }
 
 /** Troca o conjunto de requisitos da evidência. null = evidência não é do projeto; `desconhecidos` = ids que não existem no catálogo. */
-export async function definirRequisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ids: string[]) {
+export async function definirRequisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ids: string[], ve = false) {
   if (!(await db.prepare('SELECT 1 FROM evidence WHERE id = ? AND project_id = ?').bind(evidenciaId, projectId).first())) return null;
   const unicos = [...new Set(ids)];
   const { results } = await db.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(unicos)).all<{ id: string }>();
@@ -214,7 +216,7 @@ export async function definirRequisitosDaEvidencia(db: D1Database, projectId: st
   const desconhecidos = unicos.filter((x) => !existentes.has(x));
   if (desconhecidos.length) return { ok: false as const, desconhecidos };
   await db.batch([
-    db.prepare('DELETE FROM evidencia_requisitos WHERE evidencia_id = ? AND project_id = ?').bind(evidenciaId, projectId),
+    db.prepare(`DELETE FROM evidencia_requisitos WHERE evidencia_id = ?1 AND project_id = ?2 AND ${VISIVEL('requisito_id', 3, true)}`).bind(evidenciaId, projectId, ve ? 1 : 0),
     db.prepare(`INSERT INTO evidencia_requisitos (evidencia_id, requisito_id, project_id) SELECT ?1, value, ?2 FROM json_each(?3)`).bind(evidenciaId, projectId, JSON.stringify(unicos)),
   ]);
   return { ok: true as const, total: unicos.length };

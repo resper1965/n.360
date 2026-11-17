@@ -112,11 +112,16 @@ describe('rotas globais', () => {
 });
 
 describe('rotas de projeto', () => {
-  it('GET lacunas?fonte=ONS: pessoa com ot 200 (25 itens); os demais 404', async () => {
+  it('GET lacunas?fonte=ONS: pessoa com ot 200 (25 itens); os demais 200 vazio, igual a fonte inexistente', async () => {
     const r = await chamar(ot, 'GET', `${base}/requisitos/lacunas?fonte=${ONS}`);
     expect(r.status).toBe(200);
     expect((await json(r)).itens).toHaveLength(25);
-    for (const [rot, , extra] of SEM_ACESSO) expect((await chamar(quem(rot), 'GET', `${base}/requisitos/lacunas?fonte=${ONS}`, undefined, extra)).status, rot).toBe(404);
+    const inexistente = await json(await chamar(semOt, 'GET', `${base}/requisitos/lacunas?fonte=nao-existe`));
+    for (const [rot, , extra] of SEM_ACESSO) {
+      const x = await chamar(quem(rot), 'GET', `${base}/requisitos/lacunas?fonte=${ONS}`, undefined, extra);
+      expect(x.status, rot).toBe(200);
+      expect(await json(x), rot).toEqual({ ...inexistente, fonte: ONS });
+    }
     expect((await chamar(semOt, 'GET', `${base}/requisitos/lacunas?fonte=lgpd`)).status).toBe(200);
   });
 
@@ -164,6 +169,20 @@ describe('rotas de projeto', () => {
     expect(r.status).toBe(400);
     expect((await json(r)).desconhecidos).toEqual([R1]);
   });
+});
+
+describe('substituição do conjunto preserva ligações ONS de quem não as vê', () => {
+  const alvos: [string, () => string][] = [['documento', () => `${base}/documentos/${doc}/requisitos`], ['documento em arquivo', () => `${base}/documentos-arquivo/da-ons/requisitos`], ['evidência', () => `${base}/evidence/ev-ons/requisitos`]];
+  for (const [nome, url] of alvos) {
+    it(`${nome}: pessoa sem ot grava [lgpd] e a ligação ONS fica`, async () => {
+      expect((await chamar(ot, 'PUT', url(), { requisitos: [R1] })).status).toBe(200);
+      expect((await chamar(semOt, 'PUT', url(), { requisitos: ['lgpd:art8'] })).status).toBe(200);
+      const b = await json(await chamar(ot, 'GET', url()));
+      expect((Array.isArray(b) ? b : b.requisitos).map((x: any) => x.id).sort()).toEqual(['lgpd:art8', R1].sort());
+      const s = await json(await chamar(semOt, 'GET', url()));
+      expect((Array.isArray(s) ? s : s.requisitos).map((x: any) => x.id)).toEqual(['lgpd:art8']);
+    });
+  }
 });
 
 describe('ROPA', () => {

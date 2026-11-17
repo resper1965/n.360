@@ -178,7 +178,7 @@ projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
     const projectId = c.req.param('projectId')!;
     const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
     if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
-    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos);
+    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'documento', await ve(c));
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
     await logAudit(c.env.DB, 'documento.requisitos', c.get('user').email, `Documento ${c.req.param('id')}: ${r.total} requisitos ligados`, '', '', projectId);
@@ -200,7 +200,7 @@ projetoRequisitosApp.put('/documentos-arquivo/:id/requisitos', async (c) => {
     const projectId = c.req.param('projectId')!;
     const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
     if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
-    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'arquivo');
+    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'arquivo', await ve(c));
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
     await logAudit(c.env.DB, 'documento_arquivo.requisitos', c.get('user').email, `Documento em arquivo ${c.req.param('id')}: ${r.total} requisitos ligados`, '', '', projectId);
@@ -222,7 +222,7 @@ projetoRequisitosApp.put('/evidence/:evidenceId/requisitos', async (c) => {
     const projectId = c.req.param('projectId')!;
     const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
     if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
-    const r = await definirRequisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), v.data.requisitos);
+    const r = await definirRequisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), v.data.requisitos, await ve(c));
     if (!r) return c.json({ error: 'Evidência não encontrada' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
     await logAudit(c.env.DB, 'evidencia.requisitos', c.get('user').email, `Evidência ${c.req.param('evidenceId')}: ${r.total} requisitos ligados`, '', '', projectId);
@@ -242,8 +242,9 @@ projetoRequisitosApp.put('/evidence/:evidenceId/validade', async (c) => {
 projetoRequisitosApp.get('/requisitos/lacunas', async (c) => {
   try {
     const fonte = c.req.query('fonte') || 'lgpd';
-    if (!fonteVisivel(fonte, await modulosDaPessoa(c.env.DB, c.get('user')), c.get('user'))) return c.json({ error: 'Fonte não encontrada' }, 404);
-    const itens = await lacunasDaFonte(c.env.DB, c.req.param('projectId')!, fonte);
+    // fonte invisível = fonte inexistente: 200 com lista vazia (igual a uma fonte que não existe)
+    const visivel = fonteVisivel(fonte, await modulosDaPessoa(c.env.DB, c.get('user')), c.get('user'));
+    const itens = visivel ? await lacunasDaFonte(c.env.DB, c.req.param('projectId')!, fonte) : [];
     return c.json({ fonte, resumo: resumoDeLacunas(itens), itens });
   } catch (e) { return erro500(c, 'Falha ao calcular as lacunas', e); }
 });

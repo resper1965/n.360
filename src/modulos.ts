@@ -141,6 +141,7 @@ export const FONTES_DO_OT = ['ons-ro-cb-br-01'] as const;
 /** SQL estático (constante nossa, nunca entrada): `fonte_id NOT IN (${...})`. */
 export const SQL_FONTES_DO_OT = FONTES_DO_OT.map((f) => `'${f}'`).join(', ');
 
+/** platform_admin vê a fonte do n.ot: `modulosDaPessoa` lhe dá todos os módulos (decisão aceita; ele também edita o catálogo). */
 export function fonteVisivel(fonteId: string, modulos: readonly Modulo[], principal: { agente?: boolean; id?: string }): boolean {
   if (!(FONTES_DO_OT as readonly string[]).includes(fonteId)) return true;
   return principal.agente !== true && !principal.id?.startsWith('apikey:') && modulos.includes('ot');
