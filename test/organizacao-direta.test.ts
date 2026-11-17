@@ -288,9 +288,11 @@ describe('equipe da organização direta', () => {
     expect(await c.text()).toMatch(/não registra achado/);
   });
   it('comercial: o admin direto não acessa leads, funil nem preço; o de consultoria sim', async () => {
-    for (const rota of ['/api/v1/leads', '/api/v1/funil', '/api/v1/assessments/x/pricing', '/api/v1/org/config']) {
+    for (const rota of ['/api/v1/leads', '/api/v1/funil', '/api/v1/assessments/x/pricing']) {
       expect((await chamar('GET', rota, S.beto)).status, rota).toBe(403);
     }
+    // /org/config: a direta lê só a identidade (ver remediacao-gaps.test.ts), nunca o comercial.
+    expect(Object.keys(await (await chamar('GET', '/api/v1/org/config', S.beto)).json() as object)).not.toContain('preco');
     expect((await chamar('GET', '/api/v1/leads', S.cris)).status).toBe(200);
     expect((await chamar('GET', '/api/v1/org/config', S.cris)).status).toBe(200);
   });

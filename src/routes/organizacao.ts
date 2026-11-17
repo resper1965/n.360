@@ -13,8 +13,14 @@ organizacaoApp.use('*', exigirOrg);
 organizacaoApp.get('/config', async (c) => {
   try {
     const user = c.get('user');
+    const orgId = c.get('orgId');
+    // A direta não tem área comercial, mas administra a própria identidade: devolve só isso, nunca preço/margem/prefixo/textos.
+    if (user.org_direta === true && podeAdministrarOrg(user, orgId)) {
+      const { nome, cnpj, corDestaque, seloNiso } = await lerConfigOrg(c.env.DB, orgId);
+      return c.json({ nome, cnpj, corDestaque, seloNiso });
+    }
     if (!ehComercial(user)) return c.json({ error: 'Forbidden: Área comercial restrita ao comercial da ness.' }, 403);
-    const cfg = await lerConfigOrg(c.env.DB, c.get('orgId'));
+    const cfg = await lerConfigOrg(c.env.DB, orgId);
     return c.json({ ...cfg, sugestaoNumero: formatarNumeroProposta(cfg.prefixoProposta, new Date().getFullYear(), cfg.proximoNumero) });
   } catch (e) { return erro500(c, 'Erro ao ler a configuração da consultoria', e); }
 });
