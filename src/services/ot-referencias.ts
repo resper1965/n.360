@@ -65,6 +65,12 @@ export async function lerReferencias(
 }
 
 export async function apagarReferencia(db: D1Database, projectId: string, id: string): Promise<boolean> {
-  const r = await db.prepare(`DELETE FROM ot_referencias WHERE id = ? AND project_id = ?`).bind(id, projectId).run();
+  // O vínculo desvio→ação é permanente (segregação: quem criou a ação não a conclui); só o CASCADE da ação o desfaz.
+  const r = await db.prepare(`DELETE FROM ot_referencias WHERE id = ? AND project_id = ? AND NOT (ot_desvio_id IS NOT NULL AND acao_id IS NOT NULL)`).bind(id, projectId).run();
   return (r.meta.changes ?? 0) > 0;
+}
+
+export const MSG_VINCULO_DO_DESVIO = 'Este vínculo nasceu de um desvio e não pode ser removido.';
+export async function ehVinculoDoDesvio(db: D1Database, projectId: string, id: string): Promise<boolean> {
+  return !!(await db.prepare(`SELECT 1 FROM ot_referencias WHERE id = ? AND project_id = ? AND ot_desvio_id IS NOT NULL AND acao_id IS NOT NULL`).bind(id, projectId).first());
 }

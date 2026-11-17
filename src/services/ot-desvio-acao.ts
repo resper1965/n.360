@@ -46,6 +46,5 @@ export const MSG_CRIADOR_NAO_CONCLUI = 'Quem criou a ação a partir do desvio n
  * dele cai aqui também. Erro de banco propaga: quem chama não conclui (fail-closed).
  */
 export async function criadorDaAcaoDoDesvio(db: D1Database, acaoId: string, userId: string): Promise<boolean> {
-  const ref = await db.prepare('SELECT criado_por FROM ot_referencias WHERE acao_id = ?').bind(acaoId).first<{ criado_por: string }>();
-  return !!ref && ref.criado_por === userId;
+  return !!(await db.prepare('SELECT 1 FROM ot_referencias WHERE acao_id = ? AND ot_desvio_id IS NOT NULL AND criado_por = ?').bind(acaoId, userId).first());
 }

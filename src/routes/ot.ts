@@ -17,7 +17,7 @@ import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
-import { apagarReferencia, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
+import { apagarReferencia, ehVinculoDoDesvio, MSG_VINCULO_DO_DESVIO, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
 import { criarAcaoDoDesvio, citaNomeOt, MSG_NOME_OT } from '../services/ot-desvio-acao';
 import { MSG_RESPONSAVEL, temResponsavel } from './capa';
 import { modulosDoProjeto } from '../modulos';
@@ -1206,7 +1206,7 @@ otApp.delete('/referencias/:id', async (c) => {
   try {
     const { db, user, projectId } = await contexto(c);
     const id = c.req.param('id');
-    if (!await apagarReferencia(db, projectId, id)) return NAO_ENCONTRADO(c, 'Referência');
+    if (!await apagarReferencia(db, projectId, id)) return await ehVinculoDoDesvio(db, projectId, id) ? c.json({ error: MSG_VINCULO_DO_DESVIO }, 409) : NAO_ENCONTRADO(c, 'Referência');
     await trilha(c, 'ot.referencia.removida', projectId, 'Referência removida', { tipo: 'ot_referencia', id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao remover a referência', e); }

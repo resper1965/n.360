@@ -224,4 +224,22 @@ describe('concluir a ação do desvio', () => {
     expect((await chamar(await outro(), 'PUT', url, { status: 'Closed' })).status).toBe(200);
     expect(await status(id)).toBe('Closed');
   });
+
+  it('apagar a referência do desvio: 409 e fechar segue 403; referência de site avulsa apaga normalmente e não trava ninguém', async () => {
+    const id = await nova('dc6');
+    const ref = (await env.DB.prepare(`SELECT id FROM ot_referencias WHERE acao_id = ? AND ot_desvio_id = 'dc6'`).bind(id).first<{ id: string }>())!.id;
+    const d = await chamar(cons, 'DELETE', `${P}/referencias/${ref}`);
+    expect(d.status).toBe(409);
+    expect(await d.json()).toEqual({ error: 'Este vínculo nasceu de um desvio e não pode ser removido.' });
+    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE id = ?`, ref)).toBe(1);
+    expect((await capa(cons, id, { status: 'Closed' })).status).toBe(403);
+    // Quem liga um site à ação de outra pessoa não fica barrado por isso; a referência avulsa se remove.
+    const o = await outro();
+    await concederModulos(['cons:o@ness.lat'], ['ot']);
+    const c2 = await chamar(o, 'POST', `${P}/referencias`, { acao_id: id, ot_site_id: 's1' });
+    expect(c2.status, await c2.clone().text()).toBe(201);
+    const r2 = await capa(o, id, { status: 'Closed' });
+    expect(r2.status, await r2.clone().text()).toBe(200);
+    expect((await chamar(cons, 'DELETE', `${P}/referencias/${(await c2.json<{ id: string }>()).id}`)).status).toBe(200);
+  });
 });
