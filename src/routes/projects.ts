@@ -10,7 +10,7 @@ import { passoPorId } from '../data/passos/catalogo';
 import { carregarContexto } from '../services/passos/contexto';
 import { avaliarPasso } from '../services/passos/avaliar';
 import { gravarSituacoes } from '../services/passos/fase';
-import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS } from '../services/organizacao';
+import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS, tipoDoProjeto, MSG_DIRETA_SEM_CLIENTE } from '../services/organizacao';
 import { INTERVIEW_TRACKS } from '../constants';
 import { MigrationService } from '../services/migration-service';
 import { ligarControles } from '../services/requisitos';
@@ -48,6 +48,7 @@ projectsApp.post('/:projectId/scim-token', somenteNess, async (c) => {
     const projectId = c.req.param('projectId');
     const projeto = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(projectId).first();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
+    if (await tipoDoProjeto(c.env.DB, projectId) === 'direta') return c.json(MSG_DIRETA_SEM_CLIENTE, 403);
 
     const token = `scim_${genToken()}${genToken()}`;
     const ator = c.get('user')?.email ?? 'system';
@@ -109,6 +110,7 @@ projectsApp.put('/:projectId/sso', somenteNess, async (c) => {
 
     const projeto = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(projectId).first();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
+    if (body.ativo && await tipoDoProjeto(c.env.DB, projectId) === 'direta') return c.json(MSG_DIRETA_SEM_CLIENTE, 403);
 
     // Papel de staff atribuído por provisionamento automático transformaria
     // "quem tem e-mail do domínio" em "quem administra a plataforma".

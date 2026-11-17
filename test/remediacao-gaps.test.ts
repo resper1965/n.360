@@ -3,6 +3,9 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { hashPassword } from '../src/helpers';
 import { applySchema, workerEnv, sessionFor } from './helpers/d1';
+import { provisionar } from '../src/sso';
+import { sha256Hex } from '../src/helpers';
+import { MSG_DIRETA_SEM_CLIENTE } from '../src/services/organizacao';
 
 const json = { 'Content-Type': 'application/json' };
 const chamar = (metodo: string, caminho: string, headers: Record<string, string>, corpo?: unknown) =>
@@ -55,5 +58,71 @@ describe('GET /api/v1/org/config', () => {
     expect(agente.status).toBe(401);
     const chave = await chamar('GET', '/api/v1/org/config', { 'X-API-Key': 'nao-existe' });
     expect(chave.status).toBe(401);
+  });
+});
+
+describe('direta não tem conta de cliente: SSO, SCIM e transferência', () => {
+  const sso = (dominio: string, ativo = true) => ({ issuer: 'https://idp.exemplo.com', client_id: 'cid', client_secret: 'seg', dominios: dominio, papel_padrao: 'org_user', ativo });
+  const scimHeaders = (t: string) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/scim+json' });
+  const contas = async (email: string) => (await env.DB.prepare('SELECT id FROM users WHERE lower(email) = ?').bind(email).all()).results;
+
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES
+        ('p-d','Cliente D','ISO 27001','controller','Active','org_d'),
+        ('p-c','Cliente C','ISO 27001','controller','Active','org_c'),
+        ('p-c2','Cliente C2','ISO 27001','controller','Active','org_c'),
+        ('p-d2','Cliente D2','ISO 27001','controller','Active','org_d'),
+        ('p-c3','Cliente C3','ISO 27001','controller','Active','org_c')`),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, ativo) VALUES ('u-cli-c','cli@c.com','x','Cli','org_admin','p-c','org_c',1)`),
+      env.DB.prepare(`INSERT INTO project_scim (project_id, token_hash) VALUES ('p-d', ?), ('p-c', ?)`).bind(await sha256Hex('tok-d'), await sha256Hex('tok-c')),
+    ]);
+  });
+
+  it('token SCIM: 403 na direta, 201 na consultoria', async () => {
+    const d = await chamar('POST', '/api/v1/projects/p-d/scim-token', S.pa);
+    expect(d.status).toBe(403);
+    expect(await d.json()).toEqual(MSG_DIRETA_SEM_CLIENTE);
+    expect((await chamar('POST', '/api/v1/projects/p-c3/scim-token', S.pa)).status).toBe(201);
+    expect((await env.DB.prepare(`SELECT 1 FROM project_scim WHERE project_id = 'p-d' AND criado_por = 'pa@ness.lat'`).first())).toBeNull();
+  });
+
+  it('ligar o SSO: 403 na direta (nada gravado), 200 na consultoria', async () => {
+    const d = await chamar('PUT', '/api/v1/projects/p-d/sso', S.pa, sso('d.com'));
+    expect(d.status).toBe(403);
+    expect(await d.json()).toEqual(MSG_DIRETA_SEM_CLIENTE);
+    expect(await env.DB.prepare(`SELECT 1 FROM project_sso WHERE project_id = 'p-d'`).first()).toBeNull();
+    expect((await chamar('PUT', '/api/v1/projects/p-c/sso', S.pa, sso('c.com'))).status).toBe(200);
+  });
+
+  it('provisionar: config antiga numa direta lança antes de inserir; na consultoria cria', async () => {
+    const claims = (email: string) => ({ iss: 'i', aud: 'a', exp: 0, iat: 0, sub: 's', email, email_verified: true, name: 'P' } as any);
+    const cfg = (project_id: string) => ({ project_id, issuer: 'https://idp.exemplo.com', client_id: 'cid', client_secret: 'x', dominios: 'x.com', papel_padrao: 'org_user', ativo: 1 });
+    await expect(provisionar(workerEnv(), cfg('p-d'), claims('novo@x.com'))).rejects.toThrow(MSG_DIRETA_SEM_CLIENTE.error);
+    expect(await contas('novo@x.com')).toHaveLength(0);
+    expect((await provisionar(workerEnv(), cfg('p-c'), claims('novo-c@x.com'))).criado).toBe(true);
+  });
+
+  it('SCIM POST /Users: 403 na direta (nada criado), 201 na consultoria', async () => {
+    const d = await chamar('POST', '/scim/v2/Users', scimHeaders('tok-d'), { userName: 'scim-d@x.com' });
+    expect(d.status).toBe(403);
+    expect(await contas('scim-d@x.com')).toHaveLength(0);
+    expect((await chamar('POST', '/scim/v2/Users', scimHeaders('tok-c'), { userName: 'scim-c@x.com' })).status).toBe(201);
+  });
+
+  it('transferência: com contas de cliente para a direta = 409 em português; sem contas, e da direta para consultoria, seguem', async () => {
+    const r = await chamar('POST', '/api/v1/platform/projects/p-c/transferir', S.pa, { orgDestinoId: 'org_d', motivo: 'teste' });
+    expect(r.status).toBe(409);
+    expect((await r.json() as any).error).toMatch(/direta.*contas de cliente/);
+    expect((await env.DB.prepare(`SELECT org_id FROM projects WHERE id = 'p-c'`).first<any>()).org_id).toBe('org_c');
+    expect((await chamar('POST', '/api/v1/platform/projects/p-c2/transferir', S.pa, { orgDestinoId: 'org_d', motivo: 'teste' })).status).toBe(200);
+    expect((await chamar('POST', '/api/v1/platform/projects/p-d2/transferir', S.pa, { orgDestinoId: 'org_c', motivo: 'teste' })).status).toBe(200);
+  });
+
+  it('convite de stakeholder segue permitido na direta (aprovador externo, não papel de cliente)', async () => {
+    await env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-st','p-d','Ana','ana@parte.com','executivo','CEO')`).run();
+    const r = await chamar('POST', '/api/v1/projects/p-d/governance/g-st/convidar', S.pa);
+    expect(r.status).toBe(201);
+    expect((await env.DB.prepare(`SELECT role FROM users WHERE lower(email) = 'ana@parte.com'`).first<any>()).role).toBe('stakeholder');
   });
 });

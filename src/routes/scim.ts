@@ -3,6 +3,7 @@ import type { Bindings, Variables } from '../index';
 import { sha256Hex, logAudit, invalidateUserSessions, erro500, genId } from '../helpers';
 import { log } from '../observability';
 import { appUrl } from '../config/url';
+import { tipoDoProjeto, MSG_DIRETA_SEM_CLIENTE } from '../services/organizacao';
 
 /**
  * SCIM 2.0 — provisionamento e DESPROVISIONAMENTO (item 4.2 do
@@ -207,6 +208,7 @@ scimApp.get('/Users/:id', async (c) => {
 scimApp.post('/Users', async (c) => {
   try {
     const projectId = projetoDe(c);
+    if (await tipoDoProjeto(c.env.DB, projectId) === 'direta') return erroScim(c, 403, MSG_DIRETA_SEM_CLIENTE.error);
     const corpo = await c.req.json<any>().catch(() => null);
     if (!corpo) return erroScim(c, 400, 'Corpo JSON inválido.');
 
