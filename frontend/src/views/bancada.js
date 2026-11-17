@@ -115,7 +115,7 @@ export async function renderBancada(c, h, a) {
             api('GET', `/api/v1/projects/${p.id}/prontidao`).catch(() => null),   // o indicador único de progresso (controles), como o Painel e o Monitor
         ]);
         S.currentGovernance = gov || [];
-        S.indicadorDeControles = pront && pront.indicador ? pront.indicador : null;
+        S.indicadorDeControles = pront && pront.indicador ? { ...pront.indicador, por_norma: pront.indicador_por_norma } : null;
         if (!banc.tem_fases) { c.innerHTML = vazioSemFases(p.id); return; }
         if (!S.passosCatalogo || S.passosCatalogo.versao !== banc.catalogo_versao) S.passosCatalogo = await api('GET', '/api/v1/passos/catalogo');
         ind = indexarCatalogo(S.passosCatalogo);
@@ -138,7 +138,10 @@ function desenharTopo() {
     const ic = S.indicadorDeControles;
     const fase = S.bancadaPasso && ind.passo(S.bancadaPasso) ? ind.passo(S.bancadaPasso).fase : null;
     const pid = idDoProjeto();
+    const pn = ic && ic.por_norma && ic.por_norma.length > 1 ? ic.por_norma : null;   // o número somado fica; o detalhe só aparece com mais de uma norma
+    const porNorma = pn ? `<p class="bancada-nota">${pn.map((x) => `${escapeHTML(x.rotulo)}: ${x.implementados} de ${x.aplicaveis}`).join('<br>')}<br>O número acima soma as normas do projeto.</p>` : '';
     document.getElementById('bancada-topo').innerHTML = `<p class="bancada-nota">${ic ? `${ic.implementados} de ${ic.aplicaveis} controles aplicáveis implementados · ` : ''}${b.totais.concluidos} de ${b.totais.passos} passos concluídos (andamento do plano de trabalho, não da conformidade)${b.totais.bloqueados ? ` · ${b.totais.bloqueados} ${b.totais.bloqueados === 1 ? 'bloqueado' : 'bloqueados'}` : ''}</p>
+        ${porNorma}
         ${cont ? `<button type="button" class="btn" data-action="bancadaContinuar">Continuar de onde parou → Fase ${cont.fase}, Passo ${ind.passosDaFase(cont.fase).findIndex((x) => x.id === cont.id) + 1}</button>` : '<span class="bancada-nota">Jornada concluída</span>'}
         ${window.renderMaisAcoes ? window.renderMaisAcoes([
             fase !== null && { rotulo: 'Interpretar a fase', action: 'interpretPhaseAnswers', args: [fase, pid] },

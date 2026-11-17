@@ -19,12 +19,13 @@ const tela = () => {
   document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
   return ['c', 'h', 'a'].map((id) => document.getElementById(id));
 };
+let por_norma;
 const servir = ({ detalhe = passoJson, concluir = { ok: true, estado: 'concluido' } } = {}) => apiMock.mockImplementation(async (metodo, url) => {
   if (url === '/api/v1/projects') return [{ id: 'p1', client_name: 'Cliente Fictício', modulos: ['iso'] }];
   if (url === '/api/v1/passos/catalogo') return catalogo;
   if (url === '/api/v1/projects/p1/bancada') return bancada;
   if (url === '/api/v1/projects/p1/governance') return [];
-  if (url === '/api/v1/projects/p1/prontidao') return { indicador: { implementados: 31, aplicaveis: 90 } };
+  if (url === '/api/v1/projects/p1/prontidao') return { indicador: { implementados: 31, aplicaveis: 90 }, indicador_por_norma: por_norma };
   if (/\/passos\/p3_\d\/campos$/.test(url) && metodo === 'PUT') return campos;
   if (/\/passos\/p3_\d\/concluir$/.test(url)) return concluir;
   if (/\/passos\/p3_3$/.test(url)) return detalhe;
@@ -47,6 +48,21 @@ describe('Bancada', () => {
     // um indicador de progresso só, com a definição escrita: controles, e o plano de trabalho rotulado como tal
     expect(document.getElementById('bancada-topo').textContent).toContain('31 de 90 controles aplicáveis implementados');
     expect(document.getElementById('bancada-topo').textContent).toContain('andamento do plano de trabalho');
+  });
+  it('com mais de uma norma mostra uma linha por norma e a nota; com uma só, nada', async () => {
+    por_norma = [{ rotulo: 'ISO 27001:2022', implementados: 20, aplicaveis: 70 }, { rotulo: 'ISO 27701:2025', implementados: 11, aplicaveis: 20 }];
+    servir();
+    let [c, h, a] = tela();
+    await renderBancada(c, h, a);
+    const topo = document.getElementById('bancada-topo').textContent;
+    expect(topo).toContain('31 de 90 controles aplicáveis implementados');
+    expect(topo).toContain('ISO 27001:2022: 20 de 70');
+    expect(topo).toContain('ISO 27701:2025: 11 de 20');
+    expect(topo).toContain('O número acima soma as normas do projeto.');
+    por_norma = [{ rotulo: 'ISO 27001:2022', implementados: 31, aplicaveis: 90 }];
+    [c, h, a] = tela();
+    await renderBancada(c, h, a);
+    expect(document.getElementById('bancada-topo').textContent).not.toContain('soma as normas');
   });
   it('os pontos da revisão levam o foco à prova e ao critério', async () => {
     servir();

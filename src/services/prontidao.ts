@@ -2,6 +2,8 @@ import { SQL_CLASSE_CONTROLE, SQL_ESCOPO_DEFINIDO, SQL_EVIDENCIA_RUIM } from './
 import { diaMes } from './encarregado';
 import { hojeEmSaoPaulo } from './hoje';
 import { escopoRopa } from './escopo-itens';
+import { ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
+import { ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 
 /**
  * Prontidão para a certificação ISO/IEC 27001:2022 (Onda 2 do diagnóstico de design de 15/10/2026): uma resposta, no
@@ -162,12 +164,30 @@ export function avaliarProntidao(c: Contagens) {
 }
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
+
+export type PorNorma = { standard: string; rotulo: string; implementados: number; aplicaveis: number; texto: string };
+// Rótulo humano por norma conhecida; norma legada mostra o `standard` cru.
+const ROTULO_NORMA: Record<string, string> = { [ISO_27001_2022_STANDARD]: 'ISO 27001:2022', [ISO_27701_2025_STANDARD]: 'ISO 27701:2025' };
+/** Detalhe por norma, pela MESMA classe do número somado ('na' fora). A soma das normas é o `indicador` somado. */
+export function porNorma(linhas: { standard: string; classe: string; n: number }[]): PorNorma[] {
+  const m = new Map<string, { feito: number; ap: number }>();
+  for (const l of linhas) {
+    if (l.classe === 'na') continue;
+    const x = m.get(l.standard) ?? { feito: 0, ap: 0 };
+    x.ap += n(l.n); if (l.classe === 'feito') x.feito += n(l.n);
+    m.set(l.standard, x);
+  }
+  return [...m].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([standard, x]) => ({
+    standard, rotulo: ROTULO_NORMA[standard] ?? standard, implementados: x.feito, aplicaveis: x.ap,
+    texto: `${x.feito} de ${x.ap} controles aplicáveis implementados`,
+  }));
+}
 const hoje = () => hojeEmSaoPaulo();
 
 /** As contagens do projeto, num batch. Controles e evidências pelas MESMAS expressões do Painel (`painel.ts`). */
-export async function contagensDoProjeto(db: D1Database, projectId: string): Promise<{ contagens: Contagens; certificacao: Record<string, string | null> | null }> {
+export async function contagensDoProjeto(db: D1Database, projectId: string): Promise<{ contagens: Contagens; certificacao: Record<string, string | null> | null; por_norma: PorNorma[] }> {
   const dia = hoje();
-  const [proj, ctrl, a51, riscos, docs, evid, outros, cert] = await db.batch([
+  const [proj, ctrl, a51, riscos, docs, evid, outros, cert, normas] = await db.batch([
     db.prepare(`SELECT ${SQL_ESCOPO_DEFINIDO} AS escopo,
         (trim(COALESCE(x.internal_strengths, '') || COALESCE(x.internal_weaknesses, '') || COALESCE(x.external_opportunities, '') || COALESCE(x.external_threats, '')) <> '') AS contexto
       FROM projects p LEFT JOIN context_analysis x ON x.project_id = p.id WHERE p.id = ?1`).bind(projectId),
@@ -198,6 +218,8 @@ export async function contagensDoProjeto(db: D1Database, projectId: string): Pro
         (SELECT count(*) FROM project_phases WHERE project_id = ?1) AS fases,
         (SELECT count(*) FROM project_phases WHERE project_id = ?1 AND status = 'completed') AS fases_ok`).bind(projectId, dia),
     db.prepare(`SELECT id, stage1_date, stage1_status, stage2_date, stage2_status, registrar, target_date FROM certification_tracking WHERE project_id = ?1`).bind(projectId),
+    db.prepare(`SELECT standard, classe, count(*) AS n
+      FROM (SELECT standard, ${SQL_CLASSE_CONTROLE} AS classe FROM compliance_controls WHERE project_id = ?1) GROUP BY standard, classe`).bind(projectId),
   ]);
   const p = (proj.results[0] ?? {}) as Record<string, unknown>;
   const classes = ctrl.results as { classe: string; n: number; sem_just: number; sem_evid: number }[];
@@ -218,18 +240,20 @@ export async function contagensDoProjeto(db: D1Database, projectId: string): Pro
       nc_total: n(o.nc), nc_sem_acao_concluida: n(o.nc_abertas), acoes_vencidas: n(o.acoes), fases: { concluidas: n(o.fases_ok), total: n(o.fases) },
     },
     certificacao: (cert.results[0] as Record<string, string | null> | undefined) ?? null,
+    por_norma: porNorma(normas.results as { standard: string; classe: string; n: number }[]),
   };
 }
 
 /** A resposta da rota: avaliação, os números comuns às telas (Monitor, Jornada, Prontidão) e as datas da certificação. */
 export async function prontidaoDoProjeto(db: D1Database, projectId: string, quem: { cliente: boolean }) {
-  const { contagens: c, certificacao } = await contagensDoProjeto(db, projectId);
+  const { contagens: c, certificacao, por_norma } = await contagensDoProjeto(db, projectId);
   const a = avaliarProntidao(c);
   const data = (v: string | null | undefined) => (v && /^\d{4}-\d{2}-\d{2}/.test(v) ? `${diaMes(v)}/${v.slice(0, 4)}` : null);
   return {
     gerado_em: new Date().toISOString(),
     visao: quem.cliente ? 'cliente' : 'equipe',
     ...a,
+    indicador_por_norma: por_norma,   // irmão de `indicador`, que fica {implementados, aplicaveis, texto}
     numeros: {
       controles: { implementados: a.indicador.implementados, aplicaveis: a.indicador.aplicaveis },
       riscos: c.riscos, evidencias: c.evidencias, fases: c.fases,
