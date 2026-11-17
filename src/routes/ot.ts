@@ -1,12 +1,12 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, genId, logAudit } from '../helpers';
+import { erro500, genId, logAudit, refForaDoProjeto } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema, otReferenciaCriarSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema, otReferenciaCriarSchema, otDesvioAcaoSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
@@ -18,6 +18,9 @@ import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
 import { apagarReferencia, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
+import { criarAcaoDoDesvio, citaNomeOt, MSG_NOME_OT } from '../services/ot-desvio-acao';
+import { MSG_RESPONSAVEL, temResponsavel } from './capa';
+import { modulosDoProjeto } from '../modulos';
 import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
@@ -1104,6 +1107,11 @@ otApp.get('/desvios', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao listar os desvios', e); }
 });
 
+/** Aviso antes da trilha: o UPDATE já gravou, e uma falha da trilha não pode levar o webhook junto.
+ * O getter `c.executionCtx` lança sem contexto (app.request, testes): aí o aviso é solto, sem waitUntil. */
+const avisarFechado = (c: C, projectId: string, linha: LinhaDesvio) =>
+  avisar(c.env, { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } }, projectId, [linha], 'fechado');
+
 /** aberto → tratado/aceito, com trilha e webhook `fechado` (como o lote aprovado). Guarda na situação: outro clique não sobrescreve. */
 async function fecharDesvio(c: C, situacao: 'tratado' | 'aceito', nota: string, aceitoAte: string | null) {
   const { db, user, projectId, sites } = await contexto(c);
@@ -1114,9 +1122,7 @@ async function fecharDesvio(c: C, situacao: 'tratado' | 'aceito', nota: string, 
     const existe = await db.prepare(`SELECT 1 FROM ot_desvios WHERE id = ? AND project_id = ? AND ${NO_SITE}`).bind(id, projectId, sites).first();
     return existe ? c.json({ error: 'Só desvio aberto pode ser tratado ou aceito' }, 409) : NAO_ENCONTRADO(c, 'Desvio');
   }
-  // aviso antes da trilha: o UPDATE já gravou, e uma falha da trilha não pode levar o webhook junto
-  // o getter `c.executionCtx` lança sem contexto (app.request, testes): aí o aviso é solto, sem waitUntil
-  avisar(c.env, { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } }, projectId, [linha], 'fechado');
+  avisarFechado(c, projectId, linha);
   await trilha(c, `ot.desvio.${situacao}`, projectId, `Desvio ${id} ${situacao}`, { tipo: 'ot_desvio', id });
   return c.json({ ok: true });
 }
@@ -1127,6 +1133,35 @@ otApp.post('/desvios/:id/tratar', async (c) => {
     if (!v.success) return v.response;
     return await fecharDesvio(c, 'tratado', v.data.nota, null);
   } catch (e) { return erro500(c, 'Falha ao tratar o desvio', e); }
+});
+
+// Ação corretiva do núcleo a partir do desvio. O título é lido por quem não tem o ot: o servidor nunca o preenche com dado do desvio.
+otApp.post('/desvios/:id/acao', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const id = c.req.param('id')!;
+    const v = await validateBody(c, otDesvioAcaoSchema);
+    if (!v.success) return v.response;
+    const d = v.data;
+    if (!temResponsavel(d.assigned_to_parte_id, d.assigned_to)) return c.json({ error: MSG_RESPONSAVEL }, 400);
+    if (!(await modulosDoProjeto(db, projectId)).includes('iso')) return c.json({ error: 'Habilite o n.iso no projeto para criar ações corretivas.' }, 409);
+    if (!await db.prepare(`SELECT 1 FROM ot_desvios WHERE id = ? AND project_id = ? AND ${NO_SITE}`).bind(id, projectId, sites).first()) return NAO_ENCONTRADO(c, 'Desvio');
+    const ref = await db.prepare(`SELECT acao_id FROM ot_referencias WHERE ot_desvio_id = ?`).bind(id).first<{ acao_id: string | null }>();
+    if (ref) return ref.acao_id ? c.json({ ok: true, acao_id: ref.acao_id, ja_existia: true }) : c.json({ error: 'Este desvio já está ligado a outro item.' }, 409);
+    const situacao = await db.prepare(`SELECT situacao FROM ot_desvios WHERE id = ?`).bind(id).first<{ situacao: string }>();
+    if (situacao?.situacao !== 'aberto') return c.json({ error: 'Só desvio aberto vira ação corretiva' }, 409);
+    const fora = await refForaDoProjeto(db, projectId, d, ['assigned_to_parte_id']);
+    if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
+    if (await citaNomeOt(db, projectId, d.titulo, d.descricao)) return c.json({ error: MSG_NOME_OT }, 400);
+    const r = await criarAcaoDoDesvio(db, projectId, id, sites, user.id, d);
+    if (!r) { // perdeu a corrida: quem ganhou já criou a ação (ou o desvio saiu de aberto)
+      const g = await db.prepare(`SELECT acao_id FROM ot_referencias WHERE ot_desvio_id = ?`).bind(id).first<{ acao_id: string | null }>();
+      return g?.acao_id ? c.json({ ok: true, acao_id: g.acao_id, ja_existia: true }) : c.json({ error: 'Só desvio aberto vira ação corretiva' }, 409);
+    }
+    avisarFechado(c, projectId, r.desvio);
+    await trilha(c, 'ot.desvio.acao', projectId, 'Ação corretiva aberta a partir do desvio', { tipo: 'ot_desvio', id });
+    return c.json({ ok: true, acao_id: r.acaoId, ja_existia: false }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a ação corretiva', e); }
 });
 
 otApp.post('/desvios/:id/aceitar', async (c) => {

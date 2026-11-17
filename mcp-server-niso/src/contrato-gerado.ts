@@ -89,6 +89,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/ot/assessment/{codigo}/evidencias': { obrigatorios: ['evidencia_id'] },
   'POST /api/v1/projects/{projectId}/ot/ativos': { obrigatorios: ['nome', 'site_id'] },
   'POST /api/v1/projects/{projectId}/ot/ativos/{id}/revelar': { obrigatorios: ['justificativa'] },
+  'POST /api/v1/projects/{projectId}/ot/desvios/{id}/acao': { obrigatorios: ['titulo'] },
   'POST /api/v1/projects/{projectId}/ot/desvios/{id}/aceitar': { obrigatorios: ['ate', 'justificativa'] },
   'POST /api/v1/projects/{projectId}/ot/desvios/{id}/tratar': { obrigatorios: ['nota'] },
   'POST /api/v1/projects/{projectId}/ot/exportacao': { obrigatorios: ['formato', 'justificativa', 'site_id'] },

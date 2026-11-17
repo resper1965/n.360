@@ -156,6 +156,11 @@ export const sensorCriarSchema = z.object({ nome: livreSemPii(80, 1), faixa_orig
 
 /** Desvio (spec n-ot-desvio): tratar exige nota; aceitar exige justificativa e prazo de hoje até 90 dias. Só ids vão à trilha, nota e justificativa ficam na linha. */
 export const otDesvioTratarSchema = z.object({ nota: livreSemPii(500, 1) }).strict();
+/** Ação corretiva a partir do desvio: o texto é da pessoa (nunca copiado do desvio); o responsável é conferido na rota (como POST /capa). */
+export const otDesvioAcaoSchema = z.object({
+  titulo: livreSemPii(200, 5), descricao: livreSemPii(2000).optional(), assigned_to: livre(200).optional(),
+  assigned_to_parte_id: id.optional(), prazo: data.optional(),
+}).strict();
 export const PRAZO_MAX_ACEITE_DIAS = 90;
 const diaUtc = (d: Date) => d.toISOString().slice(0, 10);
 export const otDesvioAceitarSchema = z.object({

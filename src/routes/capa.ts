@@ -6,8 +6,8 @@ import { validateBody, createCapaSchema, capaUpdateSchema } from '../schemas';
 import { escopoRopa } from '../services/escopo-itens';
 
 /** Responsável da ação: a parte do cadastro ou o texto livre, como o gap. Vazio nos dois não vale. */
-const MSG_RESPONSAVEL = 'Indique o responsável pela ação (cadastro de partes ou texto livre).';
-const temResponsavel = (parteId: unknown, texto: unknown) => !!parteId || !!String(texto ?? '').trim();
+export const MSG_RESPONSAVEL = 'Indique o responsável pela ação (cadastro de partes ou texto livre).';
+export const temResponsavel = (parteId: unknown, texto: unknown) => !!parteId || !!String(texto ?? '').trim();
 
 export const capaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectCapaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
