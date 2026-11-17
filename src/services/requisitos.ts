@@ -7,6 +7,7 @@ import { hojeEmSaoPaulo } from './hoje';
 import { SQL_ARQUIVO_VALE } from './terceiros';
 import { sqlClasseControle, classeDoControle } from './classe-controle';
 import { logAudit } from '../helpers';
+import { FONTES_DO_OT, SQL_FONTES_DO_OT } from '../modulos';
 
 /**
  * Catálogo de requisitos (fatia 2 do núcleo do n.privacy, spec 4.5). Global: sem project_id.
@@ -119,33 +120,45 @@ export const veMapeamentoProposto = (role: string | undefined) => VE_PROPOSTO.ha
 export type Requisito = { id: string; fonte_id: string; referencia: string; titulo: string; pai_id: string | null; papel: string | null };
 export type MapeamentoLido = { de_id: string; para_id: string; tipo: string; estado: string; validado_por: string | null; validado_em: string | null; nota: string | null };
 
-export async function listarFontes(db: D1Database) {
+/** Fontes do n.ot (P0-2) só para quem as vê (`veFontesDoOt`); `col` é uma coluna nossa, `?N` o booleano. */
+const VISIVEL = (col: string, n: number) => `(?${n} = 1 OR ${col} NOT IN (${SQL_FONTES_DO_OT}))`;
+
+/** Dos `ids`, os que são de fonte do n.ot que quem pede não vê: tratados como inexistentes (nunca confirma que existem). */
+export async function requisitosOcultos(db: D1Database, ids: readonly string[], ve: boolean): Promise<string[]> {
+  if (ve || !ids.length) return [];
+  const { results } = await db.prepare(`SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?)) AND fonte_id IN (${SQL_FONTES_DO_OT})`)
+    .bind(JSON.stringify(ids)).all<{ id: string }>();
+  return results.map((r) => r.id);
+}
+
+export async function listarFontes(db: D1Database, ve: boolean) {
   const { results } = await db.prepare(
     `SELECT f.id, f.nome, f.versao, f.vigente_desde, (SELECT count(*) FROM requisitos r WHERE r.fonte_id = f.id) AS requisitos
-       FROM requisito_fontes f ORDER BY f.rowid`
-  ).all<{ id: string; nome: string; versao: string | null; vigente_desde: string | null; requisitos: number }>();
+       FROM requisito_fontes f WHERE ${VISIVEL('f.id', 1)} ORDER BY f.rowid`
+  ).bind(ve ? 1 : 0).all<{ id: string; nome: string; versao: string | null; vigente_desde: string | null; requisitos: number }>();
   return results;
 }
 
-export async function listarRequisitos(db: D1Database, fonte?: string) {
+export async function listarRequisitos(db: D1Database, fonte: string | undefined, ve: boolean) {
   const { results } = await db.prepare(
     // `validado_*`: o mapeamento validado mais recente do requisito (só o validado, que todo papel pode ver).
     `SELECT r.id, r.fonte_id, r.referencia, r.titulo, r.pai_id, r.papel,
             (SELECT m.validado_por FROM requisito_mapeamentos m WHERE r.id IN (m.de_id, m.para_id) AND m.estado = 'validado_juridico' ORDER BY m.validado_em DESC LIMIT 1) AS validado_por,
             (SELECT max(m.validado_em) FROM requisito_mapeamentos m WHERE r.id IN (m.de_id, m.para_id) AND m.estado = 'validado_juridico') AS validado_em
-       FROM requisitos r WHERE (?1 IS NULL OR r.fonte_id = ?1) ORDER BY r.fonte_id, r.rowid`
-  ).bind(fonte ?? null).all<Requisito & { validado_por: string | null; validado_em: string | null }>();
+       FROM requisitos r WHERE (?1 IS NULL OR r.fonte_id = ?1) AND ${VISIVEL('r.fonte_id', 2)} ORDER BY r.fonte_id, r.rowid`
+  ).bind(fonte ?? null, ve ? 1 : 0).all<Requisito & { validado_por: string | null; validado_em: string | null }>();
   return results;
 }
 
 /** O requisito com os mapeamentos nos dois sentidos; quem não vê `proposto` recebe só os validados. */
-export async function lerRequisito(db: D1Database, id: string, veProposto: boolean) {
+export async function lerRequisito(db: D1Database, id: string, veProposto: boolean, ve: boolean) {
   const r = await db.prepare('SELECT id, fonte_id, referencia, titulo, pai_id, papel FROM requisitos WHERE id = ?').bind(id).first<Requisito>();
-  if (!r) return null;
+  if (!r || (!ve && (FONTES_DO_OT as readonly string[]).includes(r.fonte_id))) return null;
   const { results } = await db.prepare(
     `SELECT de_id, para_id, tipo, estado, validado_por, validado_em, nota FROM requisito_mapeamentos
-      WHERE (de_id = ?1 OR para_id = ?1) AND (?2 = 1 OR estado = 'validado_juridico') ORDER BY created_at, rowid`
-  ).bind(id, veProposto ? 1 : 0).all<MapeamentoLido>();
+      WHERE (de_id = ?1 OR para_id = ?1) AND (?2 = 1 OR estado = 'validado_juridico')
+        AND (?3 = 1 OR (SELECT count(*) FROM requisitos o WHERE o.id IN (de_id, para_id) AND o.fonte_id IN (${SQL_FONTES_DO_OT})) = 0) ORDER BY created_at, rowid`
+  ).bind(id, veProposto ? 1 : 0, ve ? 1 : 0).all<MapeamentoLido>();
   return { ...r, mapeamentos: results };
 }
 
@@ -156,12 +169,12 @@ const DOC_REQ: Record<OrigemDocumentoReq, { pai: string; ligacao: string; coluna
   arquivo: { pai: 'documentos_arquivo', ligacao: 'documentos_arquivo_requisitos', coluna: 'documento_arquivo_id' },
 };
 
-export async function requisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, origem: OrigemDocumentoReq = 'documento') {
+export async function requisitosDoDocumento(db: D1Database, projectId: string, documentoId: string, origem: OrigemDocumentoReq = 'documento', ve = false) {
   const t = DOC_REQ[origem];
   const { results } = await db.prepare(
     `SELECT r.id, r.fonte_id, r.referencia, r.titulo FROM ${t.ligacao} dr JOIN requisitos r ON r.id = dr.requisito_id
-      WHERE dr.project_id = ?1 AND dr.${t.coluna} = ?2 ORDER BY r.fonte_id, r.rowid`
-  ).bind(projectId, documentoId).all<{ id: string; fonte_id: string; referencia: string; titulo: string }>();
+      WHERE dr.project_id = ?1 AND dr.${t.coluna} = ?2 AND ${VISIVEL('r.fonte_id', 3)} ORDER BY r.fonte_id, r.rowid`
+  ).bind(projectId, documentoId, ve ? 1 : 0).all<{ id: string; fonte_id: string; referencia: string; titulo: string }>();
   return results;
 }
 
@@ -184,11 +197,11 @@ export async function definirRequisitosDoDocumento(db: D1Database, projectId: st
 }
 
 /** Requisitos a que a evidência do projeto serve. */
-export async function requisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string) {
+export async function requisitosDaEvidencia(db: D1Database, projectId: string, evidenciaId: string, ve = false) {
   const { results } = await db.prepare(
     `SELECT r.id, r.fonte_id, r.referencia, r.titulo FROM evidencia_requisitos er JOIN requisitos r ON r.id = er.requisito_id
-      WHERE er.project_id = ?1 AND er.evidencia_id = ?2 ORDER BY r.fonte_id, r.rowid`
-  ).bind(projectId, evidenciaId).all<{ id: string; fonte_id: string; referencia: string; titulo: string }>();
+      WHERE er.project_id = ?1 AND er.evidencia_id = ?2 AND ${VISIVEL('r.fonte_id', 3)} ORDER BY r.fonte_id, r.rowid`
+  ).bind(projectId, evidenciaId, ve ? 1 : 0).all<{ id: string; fonte_id: string; referencia: string; titulo: string }>();
   return results;
 }
 

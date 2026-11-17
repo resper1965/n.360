@@ -65,8 +65,8 @@ describe('leitura do catálogo', () => {
   it('fontes e lista valem para todos os papéis; fonte filtra', async () => {
     for (const h of [admin, consultor, cliente]) {
       const f = await json<{ id: string; requisitos: number }[]>(await chamar(h, 'GET', '/api/v1/requisitos/fontes'));
-      // 'ons-ro-cb-br-01' vem da migration 0114 (schema.sql); a Task 6 a tira desta lista global (filtro por módulo).
-      expect(f.map((x) => x.id)).toEqual(['ons-ro-cb-br-01', 'iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd']);
+      // A ONS (migration 0114) só aparece para a pessoa com o módulo ot (P0-2): o cliente e o consultor deste arquivo não a veem; o admin vê.
+      expect(f.map((x) => x.id)).toEqual(h === admin ? ['ons-ro-cb-br-01', 'iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd'] : ['iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd']);
       expect(f.find((x) => x.id === 'lgpd')!.requisitos).toBe(LGPD.length);
     }
     const lista = await json<{ fonte_id: string }[]>(await chamar(cliente, 'GET', '/api/v1/requisitos?fonte=lgpd'));

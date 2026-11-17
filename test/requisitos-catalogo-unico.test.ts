@@ -31,8 +31,7 @@ describe('migration 0114: ONS no catálogo único', () => {
     expect(await conta()).toBe(25);
   });
 
-  // PROVISÓRIO: a Task 6 (filtro por módulo/agente) restringe estas listas; até lá a ONS aparece nas rotas globais.
-  it('rotas globais listam a ONS por enquanto (a Task 6 aperta isto)', async () => {
+  it('rotas globais: platform_admin (todos os módulos) vê a ONS; a trava por pessoa está em requisitos-ons-trava.test.ts', async () => {
     const h = await sessionFor({ id: 'u-adm-ons', email: 'adm-ons@ness.lat', role: 'platform_admin' });
     const get = async (c: string) => (await app.fetch(new Request('http://localhost' + c, { headers: h }), workerEnv() as any)).json() as Promise<any[]>;
     expect((await get('/api/v1/requisitos/fontes')).find((f) => f.id === 'ons-ro-cb-br-01')?.requisitos).toBe(25);

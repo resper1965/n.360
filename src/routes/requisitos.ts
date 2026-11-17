@@ -9,6 +9,8 @@ import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, r
 import { BASES_GDPR } from '../data/ropa-abas/gdpr';
 import { definirValidade } from '../services/evidencia-validade';
 import { hojeEmSaoPaulo } from '../services/hoje';
+import { fonteVisivel, modulosDaPessoa, veFontesDoOt } from '../modulos';
+import { requisitosOcultos } from '../services/requisitos';
 
 type Ctx = { Bindings: Bindings; Variables: Variables };
 
@@ -21,12 +23,15 @@ export const requisitosApp = new Hono<Ctx>();
 const soAdmin = (c: { get: (k: 'user') => Variables['user'] }) => c.get('user')?.role === 'platform_admin';
 const NEGADO = { error: 'Forbidden: só o administrador da plataforma edita o catálogo de requisitos' };
 
-requisitosApp.get('/fontes', async (c) => c.json(await listarFontes(c.env.DB)));
+// P0-2: a fonte do n.ot só aparece para a pessoa com o módulo `ot` (`veFontesDoOt`, ASYNC: sempre com `await`). Invisível = inexistente (404/vazio).
+const ve = (c: { env: Bindings; get: (k: 'user') => Variables['user'] }) => veFontesDoOt(c.env.DB, c.get('user'));
+
+requisitosApp.get('/fontes', async (c) => c.json(await listarFontes(c.env.DB, await ve(c))));
 
 // As seis bases legais do GDPR (art. 6), só leitura, para a Referência jurídica.
 requisitosApp.get('/gdpr-bases', (c) => c.json(Object.entries(BASES_GDPR).map(([id, b]) => ({ id, ...b }))));
 
-requisitosApp.get('/', async (c) => c.json(await listarRequisitos(c.env.DB, c.req.query('fonte') || undefined)));
+requisitosApp.get('/', async (c) => c.json(await listarRequisitos(c.env.DB, c.req.query('fonte') || undefined, await ve(c))));
 
 requisitosApp.post('/semear', async (c) => {
   try {
@@ -119,7 +124,7 @@ requisitosApp.delete('/mapeamentos', async (c) => {
 // ─── Requisito ───────────────────────────────────────────────────────────────────────────────────────
 
 requisitosApp.get('/:id', async (c) => {
-  const r = await lerRequisito(c.env.DB, c.req.param('id'), veMapeamentoProposto(c.get('user')?.role));
+  const r = await lerRequisito(c.env.DB, c.req.param('id'), veMapeamentoProposto(c.get('user')?.role), await ve(c));
   return r ? c.json(r) : c.json({ error: 'Requisito não encontrado' }, 404);
 });
 
@@ -163,7 +168,7 @@ export const projetoRequisitosApp = new Hono<Ctx>();
 projetoRequisitosApp.get('/documentos/:id/requisitos', async (c) => {
   const projectId = c.req.param('projectId')!;
   const doc = await c.env.DB.prepare('SELECT id FROM documentos WHERE id = ? AND project_id = ?').bind(c.req.param('id'), projectId).first();
-  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'))) : c.json({ error: 'Documento não encontrado' }, 404);
+  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), 'documento', await ve(c))) : c.json({ error: 'Documento não encontrado' }, 404);
 });
 
 projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
@@ -171,6 +176,8 @@ projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
+    const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
+    if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
     const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos);
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
@@ -183,7 +190,7 @@ projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
 projetoRequisitosApp.get('/documentos-arquivo/:id/requisitos', async (c) => {
   const projectId = c.req.param('projectId')!;
   const doc = await c.env.DB.prepare('SELECT id FROM documentos_arquivo WHERE id = ? AND project_id = ?').bind(c.req.param('id'), projectId).first();
-  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), 'arquivo')) : c.json({ error: 'Documento não encontrado' }, 404);
+  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), 'arquivo', await ve(c))) : c.json({ error: 'Documento não encontrado' }, 404);
 });
 
 projetoRequisitosApp.put('/documentos-arquivo/:id/requisitos', async (c) => {
@@ -191,6 +198,8 @@ projetoRequisitosApp.put('/documentos-arquivo/:id/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
+    const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
+    if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
     const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'arquivo');
     if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
@@ -203,7 +212,7 @@ projetoRequisitosApp.get('/evidence/:evidenceId/requisitos', async (c) => {
   const projectId = c.req.param('projectId')!;
   const ev = await c.env.DB.prepare('SELECT valido_ate FROM evidence WHERE id = ? AND project_id = ?').bind(c.req.param('evidenceId'), projectId).first<{ valido_ate: string | null }>();
   if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
-  return c.json({ valido_ate: ev.valido_ate, requisitos: await requisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId')) });
+  return c.json({ valido_ate: ev.valido_ate, requisitos: await requisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), await ve(c)) });
 });
 
 projetoRequisitosApp.put('/evidence/:evidenceId/requisitos', async (c) => {
@@ -211,6 +220,8 @@ projetoRequisitosApp.put('/evidence/:evidenceId/requisitos', async (c) => {
     const v = await validateBody(c, documentoRequisitosSchema);
     if (!v.success) return v.response;
     const projectId = c.req.param('projectId')!;
+    const ocultos = await requisitosOcultos(c.env.DB, v.data.requisitos, await ve(c));
+    if (ocultos.length) return c.json({ error: 'Requisito não encontrado', desconhecidos: ocultos }, 400);
     const r = await definirRequisitosDaEvidencia(c.env.DB, projectId, c.req.param('evidenceId'), v.data.requisitos);
     if (!r) return c.json({ error: 'Evidência não encontrada' }, 404);
     if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
@@ -231,6 +242,7 @@ projetoRequisitosApp.put('/evidence/:evidenceId/validade', async (c) => {
 projetoRequisitosApp.get('/requisitos/lacunas', async (c) => {
   try {
     const fonte = c.req.query('fonte') || 'lgpd';
+    if (!fonteVisivel(fonte, await modulosDaPessoa(c.env.DB, c.get('user')), c.get('user'))) return c.json({ error: 'Fonte não encontrada' }, 404);
     const itens = await lacunasDaFonte(c.env.DB, c.req.param('projectId')!, fonte);
     return c.json({ fonte, resumo: resumoDeLacunas(itens), itens });
   } catch (e) { return erro500(c, 'Falha ao calcular as lacunas', e); }
@@ -246,6 +258,7 @@ projetoRequisitosApp.put('/requisitos/:requisitoId/exclusao', async (c) => {
     if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
     const v = await validateBody(c, requisitoExclusaoSchema);
     if (!v.success) return v.response;
+    if ((await requisitosOcultos(c.env.DB, [c.req.param('requisitoId')], await ve(c))).length) return c.json({ error: 'Requisito não encontrado' }, 404);
     const r = await excluirRequisito(c.env.DB, c.req.param('projectId')!, c.req.param('requisitoId'), v.data.justificativa, c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao marcar o requisito como não aplicável', e); }
@@ -254,6 +267,7 @@ projetoRequisitosApp.put('/requisitos/:requisitoId/exclusao', async (c) => {
 projetoRequisitosApp.delete('/requisitos/:requisitoId/exclusao', async (c) => {
   try {
     if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
+    if ((await requisitosOcultos(c.env.DB, [c.req.param('requisitoId')], await ve(c))).length) return c.json({ error: 'Requisito não encontrado' }, 404);
     const r = await reincluirRequisito(c.env.DB, c.req.param('projectId')!, c.req.param('requisitoId'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao voltar a aplicar o requisito', e); }

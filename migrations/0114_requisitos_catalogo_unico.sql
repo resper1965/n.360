@@ -1,4 +1,4 @@
--- 0114 — onda 2: catálogo único de requisitos (spec 2026-11-17). Aditiva e repetível.
+-- 0114 — onda 2: catálogo único de requisitos (spec 2026-11-17). Aditiva; roda uma vez (ADD COLUMN; o d1_migrations rastreia).
 -- Verificar depois de aplicar:
 --   SELECT count(*) FROM requisitos WHERE fonte_id = 'ons-ro-cb-br-01'                 → 25
 --   SELECT count(*) FROM ot_requisitos WHERE requisito_id IS NULL                       → 0

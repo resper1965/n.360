@@ -136,6 +136,21 @@ export async function modulosDaPessoa(db: D1Database, user: PrincipalDeModulo): 
   return results.map((r) => r.modulo);
 }
 
+/** Fontes do catálogo de requisitos que são do n.ot (P0-2): só a PESSOA com o módulo `ot` as vê; agente e chave de API nunca. */
+export const FONTES_DO_OT = ['ons-ro-cb-br-01'] as const;
+/** SQL estático (constante nossa, nunca entrada): `fonte_id NOT IN (${...})`. */
+export const SQL_FONTES_DO_OT = FONTES_DO_OT.map((f) => `'${f}'`).join(', ');
+
+export function fonteVisivel(fonteId: string, modulos: readonly Modulo[], principal: { agente?: boolean; id?: string }): boolean {
+  if (!(FONTES_DO_OT as readonly string[]).includes(fonteId)) return true;
+  return principal.agente !== true && !principal.id?.startsWith('apikey:') && modulos.includes('ot');
+}
+
+/** A pessoa pode ver as fontes do n.ot? ASYNC: todo ponto de uso precisa de `await` (uma Promise é truthy e falharia aberto). */
+export async function veFontesDoOt(db: D1Database, user: PrincipalDeModulo & { agente?: boolean }): Promise<boolean> {
+  return fonteVisivel(FONTES_DO_OT[0], await modulosDaPessoa(db, user), user);
+}
+
 /** A recusa se o projeto ou a pessoa não têm o módulo da faixa (as duas travas de `projectAccessMiddleware`); null se pode. */
 export async function recusaDoModulo(db: D1Database, user: PrincipalDeModulo, projectId: string, faixa: Faixa): Promise<string | null> {
   return recusaDeModulo(faixa, await modulosDoProjeto(db, projectId)) ?? recusaDaPessoa(faixa, await modulosDaPessoa(db, user));

@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { SQL_FONTES_DO_OT } from '../modulos';
 import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, podeRevogarAprovacao, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
@@ -49,7 +50,7 @@ projectRopaApp.use('/:recordId/*', async (c, next) => {
 
 /** A base legal é um requisito do catálogo global (fatia 4.1): existe ou não, sem tenant. */
 const baseLegalInexistente = async (db: D1Database, id: unknown) =>
-  typeof id === 'string' && id !== '' && !(await db.prepare('SELECT 1 FROM requisitos WHERE id = ?').bind(id).first());
+  typeof id === 'string' && id !== '' && !(await db.prepare(`SELECT 1 FROM requisitos WHERE id = ? AND fonte_id NOT IN (${SQL_FONTES_DO_OT})`).bind(id).first());
 
 /**
  * Riscos que a importação de programa não trouxe: o INSERT grava 0 nas três colunas (NOT NULL) quando o item não tinha o campo, e
