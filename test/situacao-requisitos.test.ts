@@ -5,6 +5,8 @@ import { resetComCatalogo, sessionFor, workerEnv, habilitarOt, concederModulos }
 import { sha256Hex } from '../src/helpers';
 import { semearCatalogo } from '../src/services/requisitos';
 import { exportarProjeto, tabelasExportaveis } from '../src/portabilidade';
+import { montarAssessment } from '../src/services/ot-avaliacao';
+import { sitesPermitidos } from '../src/services/ot-inventario';
 import { situacaoDoItemTecnico } from '../src/services/situacao-unica';
 import type { LinhaSituacao } from '../src/services/situacao-requisitos';
 
@@ -19,6 +21,7 @@ const ler = async (h: Record<string, string>, extra: object = {}) => {
   return (await r.json()) as LinhaSituacao[];
 };
 
+let tec: Record<string, string>, soPriv: Record<string, string>, outraOrg: Record<string, string>;
 let ot: Record<string, string>, semOt: Record<string, string>, chave: Record<string, string>, vizinho: Record<string, string>;
 
 beforeAll(async () => {
@@ -30,8 +33,10 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness'), ('sr-o', 'Outro', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES
       ('u-ot', 'ot@ness.lat', 'x', 'Ot', 'consultor', NULL, 'org_ness'), ('u-iso', 'iso@ness.lat', 'x', 'Iso', 'consultor', NULL, 'org_ness'),
-      ('u-viz', 'viz@o.com', 'x', 'Viz', 'client', 'sr-o', 'org_ness')`),
-    env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g1', ?1, 'Ot', 'ot@ness.lat', 'consultor', 'C'), ('g2', ?1, 'Iso', 'iso@ness.lat', 'consultor', 'C')`).bind(P),
+      ('u-viz', 'viz@o.com', 'x', 'Viz', 'client', 'sr-o', 'org_ness'), ('u-pv', 'pv@ness.lat', 'x', 'Pv', 'consultor', NULL, 'org_ness'),
+      ('u-tec', 'tec@c.com', 'x', 'Tec', 'org_user', 'sr-p', 'org_ness'), ('u-ext', 'ext@x.com', 'x', 'Ext', 'consultor', NULL, 'org_x')`),
+    env.DB.prepare(`INSERT INTO organizations (id, name, slug, status) VALUES ('org_x', 'Consultoria X', 'cx', 'Active')`),
+    env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g1', ?1, 'Ot', 'ot@ness.lat', 'consultor', 'C'), ('g2', ?1, 'Iso', 'iso@ness.lat', 'consultor', 'C'), ('g3', ?1, 'Pv', 'pv@ness.lat', 'consultor', 'C')`).bind(P),
     env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-sr', 'u-ot', ?, datetime('now','+30 days'))`).bind(P),
     env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('k-sr', ?, ?, 'k', 'read', 'Active')`).bind(P, await sha256Hex('chave-sr')),
     env.DB.prepare(`INSERT INTO requisito_fontes (id, nome) VALUES ('tst', 'Teste')`),
@@ -41,11 +46,20 @@ beforeAll(async () => {
     // técnico 4.1.1 chega a evidencia_no_inventario (zonas 2, 3 e 4); uma política avaliada
     env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase) VALUES ('s1', ?, 'Sub', 'em_operacao')`).bind(P),
     ...[2, 3, 4].map((n) => env.DB.prepare(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES (?, ?, 's1', 'z', ?)`).bind(`z${n}`, P, n)),
+    env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase) VALUES ('s2', ?, 'Outra', 'em_levantamento')`).bind(P),
     env.DB.prepare(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, justificativa, atualizado_por) VALUES ('av1', ?, 'ons-ro-cb-br-01-rev00-4.1.4', 'parcial', 'em andamento', 'u')`).bind(P),
   ]);
   await habilitarOt(P);
   await concederModulos('u-ot', ['iso', 'privacy', 'ot']);
   await concederModulos('u-iso', ['iso']);
+  await concederModulos('u-pv', ['privacy']);
+  await env.DB.prepare(`DELETE FROM usuario_modulos WHERE user_id = 'u-pv' AND modulo <> 'privacy'`).run(); // o gatilho de criação dá o padrão
+  await concederModulos('u-tec', ['ot']);
+  await concederModulos('u-ext', ['iso', 'ot']);
+  await env.DB.prepare(`INSERT INTO ot_site_acessos (user_id, site_id, project_id, concedido_por) VALUES ('u-tec', 's2', ?, 'teste')`).bind(P).run();
+  tec = await sessionFor({ id: 'u-tec', email: 'tec@c.com', role: 'org_user', client_project_id: P });
+  soPriv = await sessionFor({ id: 'u-pv', email: 'pv@ness.lat', role: 'consultor' });
+  outraOrg = await sessionFor({ id: 'u-ext', email: 'ext@x.com', role: 'consultor' });
   ot = await sessionFor({ id: 'u-ot', email: 'ot@ness.lat', role: 'consultor' });
   semOt = await sessionFor({ id: 'u-iso', email: 'iso@ness.lat', role: 'consultor' });
   vizinho = await sessionFor({ id: 'u-viz', email: 'viz@o.com', role: 'client', client_project_id: 'sr-o' });
@@ -88,7 +102,57 @@ describe('leitura única: n.ot só para a pessoa com o módulo ot', () => {
   });
 });
 
+const TECNICOS = ['4.1.1', '4.1.2', '4.1.3', '4.2.1', '4.3.1'];
+const comModuloDesligado = async (modulo: string, fn: () => Promise<void>) => {
+  await env.DB.prepare(`DELETE FROM projeto_modulos WHERE project_id = ? AND modulo = ?`).bind(P, modulo).run();
+  try { await fn(); } finally { await env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, ?, 'teste')`).bind(P, modulo).run(); }
+};
+
+describe('módulos do projeto e da pessoa', () => {
+  it('projeto com n.ot desligado: pessoa com ot não lê nenhuma linha n.ot (n.iso segue)', async () => {
+    await comModuloDesligado('ot', async () => {
+      const l = await ler(ot);
+      expect(l.filter((x) => x.origem === 'n.ot')).toHaveLength(0);
+      expect(l.filter((x) => x.origem === 'n.iso')).toHaveLength(5);
+    });
+  });
+  it('pessoa só com privacy: zero linhas n.iso (e n.ot negado); agente dela idem', async () => {
+    expect(await ler(soPriv)).toEqual([]);
+    await env.DB.prepare(`UPDATE agente_concessoes SET user_id = 'u-pv' WHERE id = 'c-sr'`).run();
+    try { expect(await ler({}, { AGENTE: { ...AGENTE, userId: 'u-pv', email: 'pv@ness.lat' } })).toEqual([]); }
+    finally { await env.DB.prepare(`UPDATE agente_concessoes SET user_id = 'u-ot' WHERE id = 'c-sr'`).run(); }
+  });
+  it('projeto com iso desligado: zero linhas n.iso, e o n.ot segue governado à parte', async () => {
+    await comModuloDesligado('iso', async () => {
+      const l = await ler(ot);
+      expect(l.filter((x) => x.origem === 'n.iso')).toHaveLength(0);
+      expect(l.filter((x) => x.origem === 'n.ot')).toHaveLength(25);
+      expect(await ler(semOt)).toEqual([]);
+    });
+  });
+});
+
+describe('técnico por site (sitesPermitidos)', () => {
+  it('as 5 linhas técnicas da rota batem com o payload de montarAssessment do mesmo principal', async () => {
+    for (const [h, ator] of [[tec, { id: 'u-tec', email: 'tec@c.com', role: 'org_user' }], [ot, { id: 'u-ot', email: 'ot@ness.lat', role: 'consultor' }]] as const) {
+      const a = await montarAssessment(env.DB, P, JSON.parse(await sitesPermitidos(env.DB, ator, P)));
+      const esperado = a.itens.filter((i) => i.tipo === 'tecnico').map((i: any) => [i.codigo, situacaoDoItemTecnico(i.situacao_org === 'nao_avaliado' ? null : i.situacao_org).derivado]).sort();
+      const got = (await ler(h)).filter((x) => TECNICOS.includes(x.referencia)).map((x) => [x.referencia, x.derivado ?? null]).sort();
+      expect(got).toHaveLength(5);
+      expect(got).toEqual(esperado);
+    }
+    // o corte vale: o técnico só vê s2 (em levantamento, não conta) e fica sem derivado; o consultor vê a evidência de s1
+    const t = (await ler(tec)).find((x) => x.referencia === '4.1.1')!;
+    expect(t.situacao).toBe('nao_avaliado');
+    expect(t.derivado).toBeUndefined();
+    expect((await ler(ot)).find((x) => x.referencia === '4.1.1')!.derivado).toBe('evidencia_no_inventario');
+  });
+});
+
 describe('acesso à rota', () => {
+  it('consultor de OUTRA organização é negado', async () => {
+    expect([403, 404]).toContain((await chamar(outraOrg)).status);
+  });
   it('pessoa de outro projeto e sem sessão são negadas', async () => {
     expect([403, 404]).toContain((await chamar(vizinho)).status);
     expect((await chamar({})).status).toBe(401);

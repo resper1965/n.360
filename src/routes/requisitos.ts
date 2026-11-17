@@ -286,6 +286,6 @@ projetoRequisitosApp.delete('/requisitos/:requisitoId/exclusao', async (c) => {
  */
 export const situacaoRequisitosApp = new Hono<Ctx>();
 situacaoRequisitosApp.get('/', async (c) => {
-  try { return c.json(await leituraUnica(c.env.DB, c.req.param('projectId')!, { ...c.get('user'), agente: c.get('user').agente })); }
+  try { return c.json(await leituraUnica(c.env.DB, c.req.param('projectId')!, c.get('user'))); }
   catch (e) { return erro500(c, 'Falha ao ler a situação dos requisitos', e); }
 });
