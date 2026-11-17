@@ -136,7 +136,7 @@ import {
 } from './schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema, otReferenciaCriarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
   otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema,
 } from './schemas/ot';
@@ -334,6 +334,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/:id/itens/:itemId/recusar', schema: otItemRecusarSchema, nome: 'otItemRecusarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/:id/rejeitar', schema: otLoteRejeitarSchema, nome: 'otLoteRejeitarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/manual', schema: otLoteManualSchema, nome: 'otLoteManualSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/referencias', schema: otReferenciaCriarSchema, nome: 'otReferenciaCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:id/base/aprovar', schema: otBaseAprovarSchema, nome: 'otBaseAprovarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:id/base/devolver', schema: otBaseDevolverSchema, nome: 'otBaseDevolverSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:id/obra/abrir', schema: otObraSchema, nome: 'otObraSchema' },

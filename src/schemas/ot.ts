@@ -177,3 +177,10 @@ export const otAvaliacaoSchema = z.object({
 /** Confirmar vale só para a versão que o Gestor viu: o `updated_at` lido na tela. */
 export const otAvaliacaoConfirmarSchema = z.object({ updated_at: z.string().trim().min(1).max(40) }).strict();
 export const otAvaliacaoEvidenciaSchema = z.object({ evidencia_id: id }).strict();
+
+/** Referência núcleo → OT: exatamente um alvo do núcleo e site e/ou ativo de OT (o desvio entra no PR3). */
+export const otReferenciaCriarSchema = z.object({
+  risk_id: id.optional(), acao_id: id.optional(), incidente_id: id.optional(),
+  ot_site_id: id.optional(), ot_ativo_id: id.optional(),
+}).strict().refine((v) => [v.risk_id, v.acao_id, v.incidente_id].filter(Boolean).length === 1, 'Informe exatamente um entre risk_id, acao_id e incidente_id')
+  .refine((v) => !!(v.ot_site_id || v.ot_ativo_id), 'Informe ot_site_id e/ou ot_ativo_id');

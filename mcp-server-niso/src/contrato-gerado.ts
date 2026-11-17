@@ -101,6 +101,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/ot/lotes/{id}/itens/{itemId}/recusar': { obrigatorios: ['motivo'] },
   'POST /api/v1/projects/{projectId}/ot/lotes/{id}/rejeitar': { obrigatorios: ['motivo'] },
   'POST /api/v1/projects/{projectId}/ot/lotes/manual': { obrigatorios: ['itens', 'site_id'] },
+  'POST /api/v1/projects/{projectId}/ot/referencias': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/ot/sites': { obrigatorios: ['nome'] },
   'POST /api/v1/projects/{projectId}/ot/sites/{id}/base/aprovar': { obrigatorios: ['declaracao'] },
   'POST /api/v1/projects/{projectId}/ot/sites/{id}/base/devolver': { obrigatorios: ['motivo'] },

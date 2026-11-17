@@ -6,7 +6,7 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema, otReferenciaCriarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
@@ -17,6 +17,7 @@ import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
+import { apagarReferencia, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
 import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
@@ -1135,4 +1136,43 @@ otApp.post('/desvios/:id/aceitar', async (c) => {
     if (!v.success) return v.response;
     return await fecharDesvio(c, 'aceito', v.data.justificativa, `${v.data.ate}T23:59:59.999Z`);
   } catch (e) { return erro500(c, 'Falha ao aceitar o desvio', e); }
+});
+
+// ─── referências núcleo → OT (0115) ─────────────────────────────────────────
+// Escrita: o guarda `otApp.on([POST,PUT,PATCH,DELETE])` do topo já exige podeEditarOt (técnico: 403).
+// Satélite: o núcleo não lê esta tabela. Leitura e escrita sempre com `sites` (P0-4); a trilha leva só o id.
+const ALVOS_NUCLEO = [['risk_id', 'risk'], ['acao_id', 'acao'], ['incidente_id', 'incidente']] as const;
+
+otApp.get('/referencias', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const q = c.req.query();
+    const nucleo = ALVOS_NUCLEO.flatMap(([k, tipo]) => (q[k] ? [{ tipo, id: q[k] } as AlvoNucleo] : []));
+    if (nucleo.length > 1) return c.json({ error: 'Filtre por um só item do núcleo' }, 400);
+    const referencias = await lerReferencias(db, projectId, { nucleo: nucleo[0], ot_site_id: q.ot_site_id, ot_ativo_id: q.ot_ativo_id }, sites);
+    return c.json({ referencias });
+  } catch (e) { return erro500(c, 'Falha ao listar as referências', e); }
+});
+
+otApp.post('/referencias', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otReferenciaCriarSchema);
+    if (!v.success) return v.response;
+    const [k, tipo] = ALVOS_NUCLEO.find(([k]) => v.data[k])!;
+    const r = await criarReferencia(db, projectId, { tipo, id: v.data[k]! }, { ot_site_id: v.data.ot_site_id, ot_ativo_id: v.data.ot_ativo_id }, user.id, sites);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await trilha(c, 'ot.referencia.criada', projectId, 'Referência criada', { tipo: 'ot_referencia', id: r.id });
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a referência', e); }
+});
+
+otApp.delete('/referencias/:id', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    const id = c.req.param('id');
+    if (!await apagarReferencia(db, projectId, id)) return NAO_ENCONTRADO(c, 'Referência');
+    await trilha(c, 'ot.referencia.removida', projectId, 'Referência removida', { tipo: 'ot_referencia', id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao remover a referência', e); }
 });
