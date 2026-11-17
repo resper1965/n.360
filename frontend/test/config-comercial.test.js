@@ -285,4 +285,21 @@ describe('identidade da organização (identidade-org)', () => {
       expect(JSON.parse(put()[1].body)).toEqual({ nome: 'Consultoria X', cnpj: '12345678000199', corDestaque: '#00ade8' });
     } finally { S.view = null; }
   });
+  it('direta: título da organização, resposta só com identidade, PUT só com nome, CNPJ e cor', async () => {
+    S.view = 'identidade-org';
+    try {
+      document.body.innerHTML = '<div id="content"></div><h1 id="hdr"></h1><div id="act"></div>';
+      initDelegation();
+      S.user = { role: 'consultoria_admin', org_tipo: 'direta' };
+      const { id, nome, cnpj, corDestaque, seloNiso } = CONFIG;
+      fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => json({ id, nome, cnpj, corDestaque, seloNiso }));
+      await window.renderConfigComercial($('content'), $('hdr'), $('act'));
+      expect($('hdr').textContent).toBe('Identidade da organização');
+      expect($('cfg-nome').value).toBe('ness.');
+      for (const k of ['cfg-prefixoProposta', 'cfg-preco-diaria-1', 'cfg-textos-sobre']) expect($(k), k).toBeNull();
+      envia();
+      await espera();
+      expect(Object.keys(JSON.parse(put()[1].body)).sort()).toEqual(['cnpj', 'corDestaque', 'nome']);
+    } finally { S.view = null; }
+  });
 });

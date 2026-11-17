@@ -21,7 +21,7 @@ let logoAtualUrl = null;     // Blob URL do logo gravado
 let logoNovoUrl = null;      // Blob URL da pré-visualização do arquivo escolhido
 let logoArquivo = null;
 const soIdentidade = () => S.view === 'identidade-org';
-const tituloDaTela = () => (soIdentidade() ? 'Identidade da consultoria' : 'Configuração comercial');
+const tituloDaTela = () => (soIdentidade() ? (S.user?.org_tipo === 'direta' ? 'Identidade da organização' : 'Identidade da consultoria') : 'Configuração comercial');
 
 const LOGO_TIPOS = ['image/png', 'image/jpeg'];
 const LOGO_MAX = 200 * 1024;   // o mesmo LOGO_MAX_BYTES do servidor
