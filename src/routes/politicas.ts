@@ -48,7 +48,7 @@ politicasApp.post('/politicas', async (c) => {
     }
     const r = await criarDocumento(c.env.DB, projectId, ator, { tipo: 'politica', titulo, texto: montarEsqueleto(titulo, esqueleto) });
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    const lig = await definirRequisitosDoDocumento(c.env.DB, projectId, r.id, requisitos);
+    const lig = await definirRequisitosDoDocumento(c.env.DB, projectId, r.id, requisitos, 'documento', await veFontesDoOt(c.env.DB, c.get('user')));
     if (lig && !lig.ok) return c.json({ error: 'Requisito inexistente', desconhecidos: lig.desconhecidos, id: r.id }, 400);
     await logAudit(c.env.DB, 'politica.criada', ator, `Documento ${r.id} criado: ${titulo}`, '', '', projectId);
     return c.json({ id: r.id }, 201);

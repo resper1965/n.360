@@ -164,6 +164,23 @@ describe('rotas de projeto', () => {
     });
   }
 
+  it('política: criar com requisito ONS: com ot 201 e ligação gravada; sem ot 400 igual ao de inexistente, sem documento órfão', async () => {
+    const conta = async () => (await env.DB.prepare(`SELECT count(*) AS n FROM documentos WHERE project_id = ?`).bind(P).first<{ n: number }>())!.n;
+    const antes = await conta();
+    const sem = await chamar(semOt, 'POST', `${base}/politicas`, { titulo: 'Sem ot', requisitos: [R1] });
+    const inex = await chamar(semOt, 'POST', `${base}/politicas`, { titulo: 'Sem ot 2', requisitos: ['nao-existe'] });
+    expect(sem.status).toBe(400);
+    expect(inex.status).toBe(400);
+    expect(await json(sem)).toEqual({ error: 'Requisito inexistente', desconhecidos: [R1] });
+    expect(await json(inex)).toEqual({ error: 'Requisito inexistente', desconhecidos: ['nao-existe'] });
+    expect(await conta()).toBe(antes);
+    const com = await chamar(ot, 'POST', `${base}/politicas`, { titulo: 'Com ot', requisitos: [R1] });
+    expect(com.status).toBe(201);
+    const { id } = await json(com);
+    expect(await env.DB.prepare(`SELECT 1 FROM documento_requisitos WHERE documento_id = ? AND requisito_id = ?`).bind(id, R1).first()).not.toBeNull();
+    expect(await conta()).toBe(antes + 1);
+  });
+
   it('política: criar e promover com requisito ONS é recusado (400) sem ot', async () => {
     const r = await chamar(semOt, 'POST', `${base}/politicas`, { titulo: 'Nova política', requisitos: [R1] });
     expect(r.status).toBe(400);
