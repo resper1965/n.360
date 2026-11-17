@@ -8,6 +8,7 @@ describe('situacaoUnica (V1 → vocabulário único)', () => {
     ['Planned', 'nao_atende'],
     ['Missing', 'nao_avaliado'], ['NOT STARTED', 'nao_avaliado'], ['NOT_STARTED', 'nao_avaliado'], ['', 'nao_avaliado'], ['   ', 'nao_avaliado'], [null, 'nao_avaliado'], [undefined, 'nao_avaliado'],
     ['Not Applicable', 'nao_se_aplica'],
+    ['Excluded', 'nao_se_aplica'], ['excluded', 'nao_se_aplica'], [' EXCLUDED ', 'nao_se_aplica'],
     ['implemented', 'atende'], ['missing', 'nao_avaliado'], ['not started', 'nao_avaliado'], ['PLANNED', 'nao_atende'], ['planned', 'nao_atende'], ['partial', 'parcial'],
     ['  Implemented  ', 'atende'], [' Planned ', 'nao_atende'],
     // classeDoControle só reconhece 'Not Applicable' em caixa exata: as demais grafias caem em andamento (fiel à classe, não ao rótulo)

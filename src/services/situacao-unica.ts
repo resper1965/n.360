@@ -5,6 +5,9 @@ export type SituacaoUnica = 'atende' | 'parcial' | 'nao_atende' | 'nao_se_aplica
 
 /** V1 (`compliance_controls.status`, texto livre) → vocabulário único. `Planned` vale `nao_atende` (não cobre na LGPD hoje). */
 export function situacaoUnica(status: string | null | undefined): SituacaoUnica {
+  // Decisão do dono (17/11/2026): 'Excluded' = não se aplica, SÓ nesta leitura. classeDoControle/indicador seguem contando-o como 'andamento'
+  // (divergência aceita, 1 controle em produção em 17/11/2026); não mover isto para classe-controle.ts.
+  if ((status ?? '').trim().toUpperCase() === 'EXCLUDED') return 'nao_se_aplica';
   const classe = classeDoControle(status);
   if (classe === 'na') return 'nao_se_aplica';
   if (classe === 'feito') return 'atende';

@@ -109,6 +109,7 @@ Dois PRs: (1) base e números travados, sem migration; (2) catálogo único, com
 - (f) A sonda de produção `scripts/sonda-onda2.sql` (só leitura) deve ser rodada pelo dono ANTES de aplicar a 0114.
 - (g) Armadilha do parâmetro `ve` (padrão `false`) em `definirRequisitosDoDocumento` e `definirRequisitosDaEvidencia`: esquecê-lo trata a ONS como inexistente (o id vira `desconhecidos`). Todos os chamadores o passam hoje; considerar torná-lo obrigatório.
 - (h) Texto normativo: `fonteAceitaTexto` (falso para fonte `iso*`); `PUT /requisitos/:id` recusa texto de ISO com 400 e exige `fonte_texto` junto de `texto`.
+- (i) `Excluded` → `nao_se_aplica` por decisão do dono em 17/11/2026, só na leitura única (`situacaoUnica`); o indicador segue contando como em andamento (1 controle em produção).
 
 ## Não conferido
 

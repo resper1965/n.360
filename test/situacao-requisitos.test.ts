@@ -76,6 +76,22 @@ describe('leitura única: n.iso', () => {
   });
 });
 
+describe('leitura única: Excluded (decisão do dono, 17/11/2026)', () => {
+  it('aparece como nao_se_aplica na rota, mas o indicador de /prontidao segue contando o controle (aplicáveis +1)', async () => {
+    const indicador = async () => ((await (await chamar(ot, {}, `/api/v1/projects/${P}/prontidao`)).json()) as any).indicador;
+    const antes = await indicador();
+    await env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, requisito_id) VALUES ('cx', ?, 'ISO 27001:2022', 'c', 'Excluded', 'tst:F')`).bind(P).run();
+    try {
+      expect(isoDe(await ler(semOt)).F).toBe('nao_se_aplica');
+      const depois = await indicador();
+      expect(depois.aplicaveis).toBe(antes.aplicaveis + 1); // o indicador não o trata como n/a
+      expect(depois.implementados).toBe(antes.implementados);
+    } finally {
+      await env.DB.prepare(`DELETE FROM compliance_controls WHERE id = 'cx'`).run();
+    }
+  });
+});
+
 describe('leitura única: n.ot só para a pessoa com o módulo ot', () => {
   it('pessoa sem ot, agente (conta com ot) e chave de API: zero linhas n.ot, mas as do n.iso continuam', async () => {
     for (const l of [await ler(semOt), await ler({}, { AGENTE }), await ler(chave)]) {
