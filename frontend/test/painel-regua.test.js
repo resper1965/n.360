@@ -109,10 +109,39 @@ describe('régua para o cliente (leitura apenas)', () => {
         await renderPainel(el('c'), el('h'), el('a'), 'iso');
         expect(el('c').querySelector('.pn-regua-prox button')).toBeNull();
     });
-    it('a régua do ot só aparece se o servidor mandou etapas.ot', async () => {
-        servirSemOt({ 'GET /api/v1/projects/p9/painel': PAINEL(true, { iso: ISO, ot: { ...ISO, etapas: ETAPAS() } }) });
+    it('com etapas.ot a régua do n.ot é desenhada; sem a chave, nada do n.ot (elemento, aria-label ou texto)', async () => {
+        const OT = { ...ISO, etapas: ETAPAS() };
+        servirSemOt({ 'GET /api/v1/projects/p9/painel': { ...PAINEL(true, { iso: ISO, ot: OT }), modulos_pedidos: ['iso', 'ot'] } });
         montar();
         await renderPainel(el('c'), el('h'), el('a'), 'ot');
-        expect(el('c').textContent).not.toContain('Jornada do n.iso');
+        const comOt = [...document.querySelectorAll('.pn-regua')].map((r) => r.getAttribute('aria-label'));
+        expect(comOt).toContain('Jornada do n.ot');
+        servirSemOt({ 'GET /api/v1/projects/p9/painel': PAINEL(true, { iso: ISO }) });
+        S.painel = {};
+        montar();
+        await renderPainel(el('c'), el('h'), el('a'), 'iso');
+        const html = el('c').outerHTML;
+        expect([...el('c').querySelectorAll('.pn-regua')].map((r) => r.getAttribute('aria-label'))).toEqual(['Jornada do n.iso']);
+        expect(html).not.toMatch(/n\.ot|site|desvio/i);
+    });
+    it('sem programa (ou sem etapas) não há régua e nada quebra', async () => {
+        for (const programa of [undefined, { estado: 'comecando', desde: null, rotulo: 'Começando' }]) {
+            const base = PAINEL();
+            servirSemOt({ 'GET /api/v1/projects/p9/painel': { ...base, programa } });
+            S.painel = {};
+            montar();
+            await renderPainel(el('c'), el('h'), el('a'), 'iso');
+            expect(el('c').querySelector('.pn-regua')).toBeNull();
+            expect(el('c').textContent).toContain('Primeiros passos');
+        }
+    });
+    it('texto, fase e passo do servidor ficam escapados no data-args (aspas simples não fecham o atributo)', async () => {
+        const et = { iso: { ...ISO, proximo: { texto: "a'b", tela: 'project-detail', fase: 2, passo: "p'\"x" } } };
+        servirSemOt({ 'GET /api/v1/projects/p9/painel': PAINEL(true, et) });
+        montar();
+        await renderPainel(el('c'), el('h'), el('a'), 'iso');
+        const b = el('c').querySelector('.pn-regua-prox button');
+        expect(JSON.parse(b.dataset.args)[4]).toBe("p'\"x");
+        expect(b.attributes.length).toBe(5);   // type, class, data-action, data-args, aria-label: nada extra
     });
 });
