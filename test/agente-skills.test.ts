@@ -5,6 +5,7 @@ import { hashPassword } from '../src/helpers';
 import { tokenDoAgente, chamarFerramenta } from './helpers/mcp-agente';
 import { SKILLS } from '../src/mcp/skills-gerado';
 import { ROTEIROS, INSTRUCOES } from '../src/mcp/contexto';
+import { PASSOS_PRIVACY } from '../src/data/programa';
 
 /**
  * Skills do agente consultor (agent-skills/), servidas pelo MCP remoto em
@@ -131,7 +132,6 @@ describe('skills do n.privacy para o consultor', () => {
   });
 });
 
-import { PASSOS_PRIVACY } from '../src/data/programa';
 describe('implantacao-privacy e a trilha da tela (onda 4)', () => {
   const skill = SKILLS['implantacao-privacy'].arquivos['SKILL.md'];
   it('cada passo da trilha tem a linha da skill com o mesmo número e rótulo', () => {
