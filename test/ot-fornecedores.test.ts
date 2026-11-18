@@ -214,3 +214,61 @@ describe('perguntas de OT na avaliação do fornecedor (decisão 7)', () => {
     expect((await env.DB.prepare(`SELECT DISTINCT origem, tipo FROM homologacao_perguntas`).all()).results).toEqual([{ origem: 'projeto', tipo: null }]);
   });
 });
+
+describe('fornecedor de OT: fluxo visível, parte ativa, mescla e corrida (fix round 1)', () => {
+  const SO2 = JSON.stringify(['site2']);
+  const mesclarPartes = (manter: string, remover: string) => import('../src/services/mesclar').then((m) => m.mesclar(env.DB, 'partes', A, 'x@x', manter, remover));
+  beforeAll(async () => {
+    await applySchema(); await resetData(); await seedTwoProjects(); await habilitarOt(A);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('site1', 'proj-a', 'S1'), ('site2', 'proj-a', 'S2')`),
+      env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome) VALUES ('at1', 'proj-a', 'site1', 'RTU'), ('at2', 'proj-a', 'site2', 'PLC')`),
+      // fluxo do site2 com a ponta de destino no site1
+      env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_ativo_id) VALUES ('fxX', 'proj-a', 'site2', 'at2', 'at1'), ('fxOk', 'proj-a', 'site2', 'at2', 'at2')`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('k', 'proj-a', 'organizacao', 'Mantida'), ('d', 'proj-a', 'organizacao', 'Duplicada')`),
+    ]);
+  });
+
+  it('fluxo com uma ponta fora do escopo: não é listado, não apaga e não se cria (técnico restrito ao site2)', async () => {
+    await run(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_fluxo_id, criado_por) VALUES ('fx-x', 'proj-a', 'k', 'integrador', 'fxX', 'u'), ('fx-ok', 'proj-a', 'k', 'integrador', 'fxOk', 'u')`);
+    expect((await lerFornecedores(env.DB, A, SO2)).map((x) => x.id)).toEqual(['fx-ok']);
+    expect((await lerFornecedores(env.DB, A, TODOS)).map((x) => x.id).sort()).toEqual(['fx-ok', 'fx-x']);
+    expect(await apagarFornecedor(env.DB, A, 'fx-x', SO2)).toBe(false);
+    const c = await criarFornecedor(env.DB, A, { parte_id: 'k', papel: 'fabricante', ot_fluxo_id: 'fxX' }, 'u', SO2);
+    expect(c.ok ? 'ok' : c.status).toBe(404);
+    expect(await apagarFornecedor(env.DB, A, 'fx-x', TODOS)).toBe(true);
+  });
+
+  it('parte inativa: o vínculo some da leitura; reativada, volta', async () => {
+    await run(`UPDATE partes SET status = 'inativa' WHERE id = 'k'`);
+    expect(await lerFornecedores(env.DB, A, TODOS)).toEqual([]);
+    await run(`UPDATE partes SET status = 'ativa' WHERE id = 'k'`);
+    expect(await lerFornecedores(env.DB, A, TODOS)).toHaveLength(1);
+  });
+
+  it('parte inativa não é aceita na criação (422, não 404)', async () => {
+    await run(`UPDATE partes SET status = 'inativa' WHERE id = 'd'`);
+    const r = await criarFornecedor(env.DB, A, { parte_id: 'd', papel: 'integrador', ot_site_id: 'site1' }, 'u', TODOS);
+    expect(r.ok ? 'ok' : r.status).toBe(422);
+    await run(`UPDATE partes SET status = 'ativa' WHERE id = 'd'`);
+  });
+
+  it('mesclar partes leva os vínculos de OT do duplicado para o que fica e descarta o que já existia', async () => {
+    await run(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, criado_por) VALUES ('m-novo', 'proj-a', 'd', 'fabricante', 'site1', 'u'), ('m-dup', 'proj-a', 'd', 'integrador', 'site2', 'u'), ('m-ja', 'proj-a', 'k', 'integrador', 'site2', 'u')`);
+    const r = await mesclarPartes('k', 'd');
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    const linhas = await env.DB.prepare(`SELECT id, parte_id FROM ot_fornecedores WHERE id LIKE 'm-%' ORDER BY id`).all<{ id: string; parte_id: string }>();
+    expect(linhas.results).toEqual([{ id: 'm-ja', parte_id: 'k' }, { id: 'm-novo', parte_id: 'k' }]);
+    expect(JSON.stringify(r)).not.toMatch(/fornecedor de OT|n\.ot|ot_fornecedores/i);
+  });
+
+  it('corrida: a segunda criação barrada pelo índice único devolve o existente, sem 500', async () => {
+    await run(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, criado_por) VALUES ('corrida', 'proj-a', 'k', 'acesso_remoto', 'site1', 'u')`);
+    // o NOT EXISTS "já tinha passado" quando a outra chamada gravou: simula com um INSERT direto, que o índice único barra
+    const direto = { prepare: (sql: string) => sql.includes('INSERT INTO ot_fornecedores')
+      ? { bind: (...b: unknown[]) => ({ run: () => env.DB.prepare(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, ot_fluxo_id, criado_por) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(...b.slice(0, 7)).run() }) }
+      : env.DB.prepare(sql) } as unknown as D1Database;
+    const r = await criarFornecedor(direto, A, { parte_id: 'k', papel: 'acesso_remoto', ot_site_id: 'site1' }, 'u', TODOS);
+    expect(r).toEqual({ ok: true, id: 'corrida', criado: false });
+  });
+});

@@ -44,6 +44,8 @@ const LIGAR: Record<TabelaMescla, { rotulo: string; tabela: string; coluna: stri
     { rotulo: 'Documento ligado (DPA, contrato)', tabela: 'documento_partes', coluna: 'parte_id' },
     { rotulo: 'Documento em arquivo ligado (DPA, contrato)', tabela: 'documentos_arquivo_partes', coluna: 'parte_id' },
     { rotulo: 'Parceiro do compartilhamento externo', tabela: 'tratamento_externo_parceiros', coluna: 'parte_id' },
+    // rótulo neutro: a prévia da junção é de quem não tem `ot`, e o n.ot não aparece para ela
+    { rotulo: 'Outros vínculos do cadastro', tabela: 'ot_fornecedores', coluna: 'parte_id' },
   ],
   itens: [
     { rotulo: 'Item da atividade (RoPA)', tabela: 'tratamento_itens', coluna: 'item_id' },
