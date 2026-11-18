@@ -79,7 +79,7 @@ política; só a equipe), Chaves de API e Conectar agente. Nos módulos, o rodap
 (n.360)" leva de volta para lá. Quem tem um módulo só entra direto nele.
 
 **n.iso (`/iso`).** Dashboard; Comercial (Leads, Levantamentos, Propostas, Catálogo,
-Configuração comercial); Implementação (Jornada, Prontidão, SoA, Governança); Operação (Partes
+Configuração comercial); Implementação (Jornada, com a aba Prontidão; SoA; Governança); Operação (Partes
 Interessadas, Contexto, Ativos, Riscos, Fornecedores, Ciência e Gestão de Políticas, Auditorias,
 CAPA, Incidentes, Análise Crítica).
 

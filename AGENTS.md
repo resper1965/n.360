@@ -179,7 +179,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `frontend/test/hoje-sp.test.js`); o marco "Em operacao desde" e `SQL_MARCO_DO_PROGRAMA` (`painel.ts`: colunas gravadas, RIPD e pedido
   aprovado); fornecedor e `SQL_EH_FORNECEDOR` (`src/services/terceiros.ts`: organizacao ativa que nao e so parte interessada), o mesmo
   na lista do n.iso, no n.privacy, no Painel, na Bancada e no ponto de partida.
-  Tela: `frontend/src/views/prontidao.js` (a view `certification`, item "Prontidao" no grupo Implementacao). Sem fases, a Jornada
+  Tela: aba "Prontidao para certificar" da Jornada (`frontend/src/views/jornada.js` desenha as abas; `frontend/src/views/prontidao.js` desenha a aba). `certification` e alias (`ALIAS_DE_TELA`, com `jornadaAba: 'prontidao'`): avisos (`TELA_DO_AVISO`), e-mails, `TELAS` do catalogo de passos e `navigate('certification')` seguem validos; `test/passos-telas-alias.test.ts` cobra que todo destino do catalogo tem ramo ou alias. Sem fases, a Jornada
   oferece "Carregar as fases" (`POST /api/v1/projects/:id/phases`, so a equipe, 409 se ja tem) e a prontidao, nunca um ao outro;
   ligar o n.iso num projeto tambem carrega as fases. O Monitor saiu (onda 4): a grade etapa x fase fica no topo da Jornada (`frontend/src/bancada/grade.js`, recolhida em "Fases por etapa"); `?tela=monitor` e alias da Jornada (`ALIAS_DE_TELA` em `frontend/src/produto.js`, lido por `navigate` e `pedidoDoHub`). Tela que sair do menu entra nessa lista, nunca vira 404.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
@@ -722,7 +722,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   atras do login. Skill nova = pasta nova + gerar + roteiro em `src/mcp/contexto.ts`.
 - **Trilha de implementacao do n.iso (faixa `iso`; spec `docs/superpowers/specs/2026-10-15-bancada-trilha-design.md`, codinome interno "Bancada").**
   Tela de tres colunas (trilha, cartao do passo, assistente) em `frontend/src/views/bancada.js` e `frontend/src/bancada/*`; e a unica
-  tela de jornada: o select manual de situacao da fase e o campo livre de anotacao sairam. **O passo e o modelo:** 132 passos, um por item de
+  tela de jornada (aba "Plano de trabalho" da Jornada; a outra aba e a Prontidao): o select manual de situacao da fase e o campo livre de anotacao sairam. **O passo e o modelo:** 132 passos, um por item de
   `PHASE_CHECKLISTS`, em `src/data/passos/etapa-1.ts` a `etapa-6.ts` (6 etapas, 41 fases; contagem:
   `grep -c "^    id: 'p" src/data/passos/etapa-*.ts`, soma 132), com tipos e validacao em `tipos.ts`/`catalogo.ts` e o contrato em
   `contracts/bancada/*.json`. Cada passo tem `campos` (texto, escolha, data...), `prova` (descricao e se e obrigatoria),
