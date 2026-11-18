@@ -1206,9 +1206,9 @@ otApp.post('/referencias', async (c) => {
 
 otApp.delete('/referencias/:id', async (c) => {
   try {
-    const { db, user, projectId } = await contexto(c);
+    const { db, projectId, sites } = await contexto(c);
     const id = c.req.param('id');
-    if (!await apagarReferencia(db, projectId, id)) return await ehVinculoDoDesvio(db, projectId, id) ? c.json({ error: MSG_VINCULO_DO_DESVIO }, 409) : NAO_ENCONTRADO(c, 'Referência');
+    if (!await apagarReferencia(db, projectId, id, sites)) return await ehVinculoDoDesvio(db, projectId, id, sites) ? c.json({ error: MSG_VINCULO_DO_DESVIO }, 409) : NAO_ENCONTRADO(c, 'Referência');
     await trilha(c, 'ot.referencia.removida', projectId, 'Referência removida', { tipo: 'ot_referencia', id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao remover a referência', e); }

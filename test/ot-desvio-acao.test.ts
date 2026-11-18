@@ -243,3 +243,27 @@ describe('concluir a ação do desvio', () => {
     expect((await chamar(cons, 'DELETE', `${P}/referencias/${(await c2.json<{ id: string }>()).id}`)).status).toBe(200);
   });
 });
+
+describe('excluir a ação que nasceu de um desvio (CAPA)', () => {
+  it('reabre o desvio, resposta igual à de uma exclusão comum, e uma nova ação pode ser criada', async () => {
+    await desvio('dcapa');
+    const j = await (await acao(cons, 'dcapa', ok)).json<{ acao_id: string }>();
+    expect(await env.DB.prepare(`SELECT situacao, nota FROM ot_desvios WHERE id = 'dcapa'`).first()).toEqual({ situacao: 'tratado', nota: 'Ação corretiva aberta' });
+    await run(`INSERT INTO corrective_actions (id, project_id, title) VALUES ('comum', 'proj-a', 'comum')`);
+    const normal = await chamar(cons, 'DELETE', `/api/v1/capa/comum`);
+    const r = await chamar(cons, 'DELETE', `/api/v1/capa/${j.acao_id}`);
+    expect(r.status).toBe(normal.status);
+    expect(await r.text()).toBe(await normal.text());
+    expect(await env.DB.prepare(`SELECT situacao, nota FROM ot_desvios WHERE id = 'dcapa'`).first()).toEqual({ situacao: 'aberto', nota: null });
+    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'dcapa'`)).toBe(0);
+    expect((await acao(cons, 'dcapa', ok)).status).toBe(201);
+  });
+
+  it('desvio já regularizado/aceito não é reaberto pela exclusão da ação', async () => {
+    await desvio('dreg');
+    const j = await (await acao(cons, 'dreg', ok)).json<{ acao_id: string }>();
+    await run(`UPDATE ot_desvios SET situacao = 'aceito' WHERE id = 'dreg'`);
+    await chamar(cons, 'DELETE', `/api/v1/capa/${j.acao_id}`);
+    expect((await env.DB.prepare(`SELECT situacao FROM ot_desvios WHERE id = 'dreg'`).first<{ situacao: string }>())!.situacao).toBe('aceito');
+  });
+});

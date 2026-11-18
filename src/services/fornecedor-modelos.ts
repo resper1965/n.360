@@ -184,7 +184,7 @@ export async function semearPerguntasOt(db: D1Database, projectId: string): Prom
   const stmts: D1PreparedStatement[] = [];
   for (const [i, p] of PERGUNTAS_OT_FORNECEDOR.entries()) {
     stmts.push(db.prepare(`INSERT OR IGNORE INTO homologacao_perguntas (id, project_id, tema, texto, ordem, tipo) VALUES (?, ?, ?, ?, ?, NULL)`)
-      .bind(`hp-ot-${await hash24(`${projectId}:ot-fornecedor:${i + 1}`)}`, projectId, p.tema, p.texto, base + (i + 1) * 10));
+      .bind(`hp-pd-${await hash24(`${projectId}:ot-fornecedor:${i + 1}`)}`, projectId, p.tema, p.texto, base + (i + 1) * 10));
   }
   return (await db.batch(stmts)).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
 }

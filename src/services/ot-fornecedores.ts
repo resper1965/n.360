@@ -48,7 +48,7 @@ export async function criarFornecedor(
   return { ok: true, id: ja!.id, criado: false };
 }
 
-/** Só o de parte ativa e do que o escopo de sites alcança: o fluxo segue a mesma regra de `/ot/fluxos` (`FLUXO_VISIVEL`: site e as duas pontas); site removido esconde a linha. */
+/** Só o de parte ativa que ainda é fornecedora (a junção com outra parte pode deixar de ser) e do que o escopo de sites alcança: o fluxo segue a mesma regra de `/ot/fluxos` (`FLUXO_VISIVEL`: site e as duas pontas); site removido esconde a linha. */
 export async function lerFornecedores(
   db: D1Database, projectId: string, sitesPermitidosJson: string, filtro: { ot_site_id?: string; parte_id?: string } = {},
 ): Promise<LinhaFornecedor[]> {
@@ -57,7 +57,7 @@ export async function lerFornecedores(
   if (filtro.parte_id) { w.push('AND o.parte_id = ?'); b.push(filtro.parte_id); }
   const { results } = await db.prepare(`SELECT o.id, o.parte_id, p.nome AS parte_nome, o.papel, o.ot_site_id, o.ot_fluxo_id, COALESCE(s.id, f.site_id) AS site_efetivo_id, o.created_at
       FROM ot_fornecedores o
-      JOIN partes p ON p.id = o.parte_id AND p.project_id = o.project_id AND p.status = 'ativa'
+      JOIN partes p ON p.id = o.parte_id AND p.project_id = o.project_id AND p.status = 'ativa' AND ${SQL_EH_FORNECEDOR}
       LEFT JOIN ot_sites s ON s.id = o.ot_site_id AND s.status = 'ativo'
       LEFT JOIN ot_fluxos f ON f.id = o.ot_fluxo_id
     WHERE o.project_id = ? ${w.join(' ')}

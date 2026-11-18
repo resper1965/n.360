@@ -120,11 +120,24 @@ describe('ot_referencias (0115)', () => {
     expect(await lerReferencias(env.DB, A, { ot_site_id: 'site1' }, TODOS)).toHaveLength(1);
   });
 
+  it('apagar com site restrito: fora do escopo é "não achou" (nem o 409 do vínculo do desvio vaza)', async () => {
+    const SO2 = JSON.stringify(['site2']);
+    const { ehVinculoDoDesvio } = await import('../src/services/ot-referencias');
+    const r = await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u', TODOS);
+    if (!r.ok) throw new Error();
+    expect(await apagarReferencia(env.DB, A, r.id, SO2)).toBe(false);
+    expect(await nref()).toBe(1);
+    await run(`INSERT INTO ot_referencias (id, project_id, acao_id, ot_site_id, ot_desvio_id, criado_por) VALUES ('rd', ?, 'acao1', 'site1', 'd1', 'u')`, A);
+    expect(await ehVinculoDoDesvio(env.DB, A, 'rd', SO2)).toBe(false);
+    expect(await ehVinculoDoDesvio(env.DB, A, 'rd', TODOS)).toBe(true);
+    expect(await apagarReferencia(env.DB, A, r.id, TODOS)).toBe(true);
+  });
+
   it('apagar: só no próprio projeto', async () => {
     const r = await criarReferencia(env.DB, A, { tipo: 'risk', id: 'risk1' }, { ot_site_id: 'site1' }, 'u', TODOS);
     if (!r.ok) throw new Error();
-    expect(await apagarReferencia(env.DB, B, r.id)).toBe(false);
-    expect(await apagarReferencia(env.DB, A, r.id)).toBe(true);
+    expect(await apagarReferencia(env.DB, B, r.id, TODOS)).toBe(false);
+    expect(await apagarReferencia(env.DB, A, r.id, TODOS)).toBe(true);
     expect(await nref()).toBe(0);
   });
 });

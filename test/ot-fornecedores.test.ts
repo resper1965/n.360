@@ -285,3 +285,44 @@ describe('fornecedor de OT: fluxo visível, parte ativa, mescla e corrida (fix r
     expect(r).toEqual({ ok: true, id: 'corrida', criado: false });
   });
 });
+
+describe('fornecedor de OT: junção para parte que não é fornecedora, painel e prefixo neutro (fix final)', () => {
+  beforeAll(async () => {
+    await applySchema(); await resetData(); await seedTwoProjects(); await habilitarOt(A);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('site1', 'proj-a', 'S1')`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('org1', 'proj-a', 'organizacao', 'Org'), ('int1', 'proj-a', 'organizacao', 'ANPD')`),
+      env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('vi', 'proj-a', 'int1', 'parte_interessada', 'projeto', 'proj-a')`),
+    ]);
+  });
+
+  it('depois de mesclar na parte que não é fornecedora, o vínculo some da leitura', async () => {
+    await run(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, criado_por) VALUES ('mf', 'proj-a', 'org1', 'integrador', 'site1', 'u')`);
+    expect(await lerFornecedores(env.DB, A, TODOS)).toHaveLength(1);
+    const m = await import('../src/services/mesclar');
+    const r = await m.mesclar(env.DB, 'partes', A, 'x@x', 'int1', 'org1');
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    expect(await env.DB.prepare(`SELECT parte_id FROM ot_fornecedores WHERE id = 'mf'`).first()).toEqual({ parte_id: 'int1' });
+    expect(await lerFornecedores(env.DB, A, TODOS)).toEqual([]);
+  });
+
+  it('painel: o último movimento de quem não tem ot ignora linhas ot.*; quem tem ot as vê', async () => {
+    const { carteira } = await import('../src/services/painel');
+    await run(`INSERT INTO audit_logs (id, action, actor, details, project_id, created_at) VALUES ('l1', 'cadastro.criado', 'x', 'd', 'proj-a', '2030-01-01 10:00:00')`);
+    const em = async (mods: ('iso' | 'ot')[]) => (await carteira(env.DB, null, mods)).find((x) => x.id === 'proj-a')!.ultimo_movimento;
+    const antes = await em(['iso']);
+    await run(`INSERT INTO audit_logs (id, action, actor, details, project_id, created_at) VALUES ('l2', 'ot.fornecedor.criado', 'x', 'd', 'proj-a', '2031-01-01 10:00:00')`);
+    expect(antes).toBe('2030-01-01 10:00:00');
+    expect(await em(['iso'])).toBe(antes);
+    expect(await em(['iso', 'ot'])).toBe('2031-01-01 10:00:00');
+  });
+
+  it('as perguntas semeadas usam id neutro (hp-pd-), sem sinal do n.ot', async () => {
+    const { semearPerguntasOt } = await import('../src/services/fornecedor-modelos');
+    expect(await semearPerguntasOt(env.DB, A)).toBeGreaterThan(0);
+    const ids = (await env.DB.prepare(`SELECT id FROM homologacao_perguntas WHERE project_id = 'proj-a'`).all<{ id: string }>()).results.map((x) => x.id);
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) expect(id).toMatch(/^hp-pd-/);
+    expect(await semearPerguntasOt(env.DB, A)).toBe(0);
+  });
+});

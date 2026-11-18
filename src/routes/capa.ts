@@ -4,6 +4,7 @@ import { Bindings, Variables } from '../index';
 import { logAudit, requireResourceAccess, erro500, refForaDoProjeto, setParcial } from '../helpers';
 import { validateBody, createCapaSchema, capaUpdateSchema } from '../schemas';
 import { escopoRopa } from '../services/escopo-itens';
+import { reabrirDesvioDaAcao } from '../services/ot-referencias';
 import { criadorDaAcaoDoDesvio, MSG_CRIADOR_NAO_CONCLUI } from '../services/ot-desvio-acao';
 
 /** Responsável da ação: a parte do cadastro ou o texto livre, como o gap. Vazio nos dois não vale. */
@@ -54,7 +55,7 @@ capaApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'corrective_actions', id, c.get('user'));
-    await c.env.DB.prepare('DELETE FROM corrective_actions WHERE id = ?').bind(id).run();
+    await c.env.DB.batch([reabrirDesvioDaAcao(c.env.DB, id), c.env.DB.prepare('DELETE FROM corrective_actions WHERE id = ?').bind(id)]);
     const user = c.get('user');
     await logAudit(c.env.DB, 'capa_deleted', user?.email || 'system', `CAPA ${id} deleted`);
     return c.json({ ok: true });

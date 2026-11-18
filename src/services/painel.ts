@@ -9,6 +9,7 @@ import { hojeEmSaoPaulo } from './hoje';
 import { SQL_EH_FORNECEDOR, listarTerceiros } from './terceiros';
 import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
 import { blocoOt } from './painel-ot';
+import { SEM_ACAO_OT } from './ot-visibilidade';
 import { TETO_LEITURA_OT } from './ot-inventario';
 import { situacaoSensor, type Cred } from './ot-sensor';
 
@@ -583,7 +584,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          UNION ALL SELECT project_id, 'auditoria', title, substr(scheduled_date, 1, 10) FROM audit_schedule WHERE project_id ${escopo} AND COALESCE(status, 'Planned') NOT IN ('Completed', 'Cancelled')
          UNION ALL SELECT project_id, 'evidencia', 'Evidência ' || file_name, substr(valido_ate, 1, 10) FROM evidence WHERE project_id ${escopo} AND valido_ate IS NOT NULL
        ) WHERE data >= ?1 AND data <= ?3 ORDER BY data`),
-    b(`SELECT project_id, max(created_at) AS em FROM audit_logs WHERE project_id ${escopo} GROUP BY project_id`),
+    b(`SELECT project_id, max(created_at) AS em FROM audit_logs WHERE project_id ${escopo}${modulosDaPessoa.includes('ot') ? '' : SEM_ACAO_OT} GROUP BY project_id`),
     // n.ot: só quando a pessoa tem o módulo; senão as três consultas ficam vazias.
     ...(modulosDaPessoa.includes('ot') ? [
       b(`SELECT s.project_id,

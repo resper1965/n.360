@@ -64,13 +64,26 @@ export async function lerReferencias(
   return results;
 }
 
-export async function apagarReferencia(db: D1Database, projectId: string, id: string): Promise<boolean> {
+/** O site de uma referência vem do site, do ativo ou do desvio; a mesma regra da leitura decide o que quem tem site restrito alcança. */
+const REF_NO_ESCOPO = `COALESCE(r.ot_site_id, (SELECT site_id FROM ot_ativos WHERE id = r.ot_ativo_id), (SELECT site_id FROM ot_desvios WHERE id = r.ot_desvio_id)) IN (SELECT value FROM json_each(?))`;
+
+/** `sitesPermitidosJson` obrigatório: fora do escopo é "não achou", igual a inexistente. */
+export async function apagarReferencia(db: D1Database, projectId: string, id: string, sitesPermitidosJson: string): Promise<boolean> {
   // O vínculo desvio→ação é permanente (segregação: quem criou a ação não a conclui); só o CASCADE da ação o desfaz.
-  const r = await db.prepare(`DELETE FROM ot_referencias WHERE id = ? AND project_id = ? AND NOT (ot_desvio_id IS NOT NULL AND acao_id IS NOT NULL)`).bind(id, projectId).run();
+  const r = await db.prepare(`DELETE FROM ot_referencias AS r WHERE r.id = ? AND r.project_id = ? AND NOT (r.ot_desvio_id IS NOT NULL AND r.acao_id IS NOT NULL) AND ${REF_NO_ESCOPO}`).bind(id, projectId, sitesPermitidosJson).run();
   return (r.meta.changes ?? 0) > 0;
 }
 
 export const MSG_VINCULO_DO_DESVIO = 'Este vínculo nasceu de um desvio e não pode ser removido.';
-export async function ehVinculoDoDesvio(db: D1Database, projectId: string, id: string): Promise<boolean> {
-  return !!(await db.prepare(`SELECT 1 FROM ot_referencias WHERE id = ? AND project_id = ? AND ot_desvio_id IS NOT NULL AND acao_id IS NOT NULL`).bind(id, projectId).first());
+/** Só para uma referência que quem chama enxerga: fora do escopo o 409 revelaria que ela existe. */
+export async function ehVinculoDoDesvio(db: D1Database, projectId: string, id: string, sitesPermitidosJson: string): Promise<boolean> {
+  return !!(await db.prepare(`SELECT 1 FROM ot_referencias r WHERE r.id = ? AND r.project_id = ? AND r.ot_desvio_id IS NOT NULL AND r.acao_id IS NOT NULL AND ${REF_NO_ESCOPO}`).bind(id, projectId, sitesPermitidosJson).first());
 }
+
+/**
+ * Excluir a ação some o vínculo (CASCADE) e deixaria o desvio 'tratado' sem ação: este UPDATE (vai ANTES do DELETE, no mesmo batch) o reabre.
+ * Só o desvio que o nosso 'Ação corretiva aberta' deixou tratado; nada volta para quem apaga.
+ */
+export const reabrirDesvioDaAcao = (db: D1Database, acaoId: string) => db.prepare(
+  `UPDATE ot_desvios SET situacao = 'aberto', nota = NULL, updated_at = CURRENT_TIMESTAMP
+   WHERE situacao = 'tratado' AND nota = 'Ação corretiva aberta' AND id IN (SELECT ot_desvio_id FROM ot_referencias WHERE acao_id = ? AND ot_desvio_id IS NOT NULL)`).bind(acaoId);
