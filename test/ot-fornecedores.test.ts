@@ -262,6 +262,19 @@ describe('fornecedor de OT: fluxo visível, parte ativa, mescla e corrida (fix r
     expect(JSON.stringify(r)).not.toMatch(/fornecedor de OT|n\.ot|ot_fornecedores/i);
   });
 
+  it('a prévia da junção é idêntica com e sem vínculo de OT no duplicado (nem a contagem aparece); a junção ainda move', async () => {
+    const m = await import('../src/services/mesclar');
+    await run(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('k2', 'proj-a', 'organizacao', 'Mantida 2'), ('d2', 'proj-a', 'organizacao', 'Duplicada 2')`);
+    const sem = await m.previaDaMescla(env.DB, 'partes', A, 'k2', 'd2');
+    await run(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, criado_por) VALUES ('p-ot', 'proj-a', 'd2', 'integrador', 'site1', 'u')`);
+    expect(await m.previaDaMescla(env.DB, 'partes', A, 'k2', 'd2')).toEqual(sem);
+    const r = await m.mesclar(env.DB, 'partes', A, 'x@x', 'k2', 'd2');
+    expect(r).toEqual(sem);
+    expect(await env.DB.prepare(`SELECT parte_id FROM ot_fornecedores WHERE id = 'p-ot'`).first()).toEqual({ parte_id: 'k2' });
+    const log = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'cadastro.mesclado' ORDER BY rowid DESC LIMIT 1`).first<{ details: string }>();
+    expect(log!.details).not.toMatch(/OT|fornecedor/i);
+  });
+
   it('corrida: a segunda criação barrada pelo índice único devolve o existente, sem 500', async () => {
     await run(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, criado_por) VALUES ('corrida', 'proj-a', 'k', 'acesso_remoto', 'site1', 'u')`);
     // o NOT EXISTS "já tinha passado" quando a outra chamada gravou: simula com um INSERT direto, que o índice único barra
