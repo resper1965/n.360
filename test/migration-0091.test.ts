@@ -15,7 +15,7 @@ const inserirAtivo = (id: string, campos: Record<string, unknown>, projeto = 'pr
 describe('migration 0091: inventário do n.ot', () => {
   beforeAll(async () => {
     await applySchema();
-    for (const t of ['ot_site_acessos', 'ot_fluxos', 'ot_ativos', 'ot_zonas', 'ot_sites']) await execSql(`DROP TABLE IF EXISTS ${t};`);
+    for (const t of ['ot_referencias', 'ot_fornecedores', 'ot_site_acessos', 'ot_fluxos', 'ot_ativos', 'ot_zonas', 'ot_sites']) await execSql(`DROP TABLE IF EXISTS ${t};`);
     await execSql(migration0091);
     await execSql(migration0091); // repetível
     await seedTwoProjects();

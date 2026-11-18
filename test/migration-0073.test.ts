@@ -19,7 +19,7 @@ describe('migration 0073 — risco e ação da atividade de tratamento', () => {
     await applySchema();
     const risks = antiga('risks', 'ropa_id', 'residual_impact', 'residual_probability', 'residual_level');
     const capa = antiga('corrective_actions', 'ropa_id');
-    await execSql(`DROP TABLE risk_history; DROP TABLE corrective_actions; DROP TABLE risks; ${risks} ${capa}`);
+    await execSql(`DROP TABLE IF EXISTS ot_referencias; DROP TABLE IF EXISTS acao_anexos; DROP TABLE risk_history; DROP TABLE corrective_actions; DROP TABLE risks; ${risks} ${capa}`);
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('m73', 'C', 'ISO 27001', 'Controller', 'Active')`),
       env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level) VALUES ('k-velho', 'm73', 'ERP', 'Vazamento', 4, 4, 'High')`),
