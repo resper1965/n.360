@@ -25,7 +25,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const edita = podeEditarOt(ator);
   const NO_SITE = 'site_id IN (SELECT value FROM json_each(?2))';
   const [sts, cont, sondas, creds] = await db.batch([
-    db.prepare(`SELECT id, nome, fase, substr(obra_ate, 1, 10) AS obra_ate FROM ot_sites
+    db.prepare(`SELECT id, nome, fase, substr(obra_ate, 1, 10) AS obra_ate, base_aprovada_em FROM ot_sites
       WHERE project_id = ?1 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?2)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
     db.prepare(`SELECT
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aberto') AS desvios,
@@ -41,7 +41,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
     db.prepare(`SELECT sensor_id, expira_em, situacao FROM ot_sensor_credenciais WHERE project_id = ?1 AND situacao = 'ativa' AND expira_em > ?2 LIMIT ${TETO_LEITURA_OT}`)
       .bind(projectId, agora.toISOString()),
   ]);
-  const lista = sts.results as { id: string; nome: string; fase: string; obra_ate: string | null }[];
+  const lista = sts.results as { id: string; nome: string; fase: string; obra_ate: string | null; base_aprovada_em: string | null }[];
   const c = cont.results[0] as { desvios: number; desvios_fora_de_obra: number; lotes: number; aceites: number; revisoes: number };
   const cs = creds.results as (Cred & { sensor_id: string })[];
   const paradas = (sondas.results as { id: string; site_id: string; created_at: string; ultimo_envio: string | null }[])
@@ -65,6 +65,8 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const comecando = lista.length === 0;
   return {
     comecando, itens, proximo: null as Proximo,
+    // Marco do programa (onda 4, decisão 8): a primeira base aprovada entre os sites DESTA pessoa (P0-4). O painel não o devolve.
+    marco: lista.map((s) => s.base_aprovada_em).filter((d): d is string => !!d).sort()[0] ?? null,
     numeros: [[`${lista.filter((s) => s.fase === 'em_operacao').length} de ${lista.length}`, 'sites em operação'], [String(c.desvios), 'desvios abertos']] as [string, string][],
     cobertura: [] as never[], vencimentos: [] as never[], riscos: [] as never[],
     passos: [{ texto: 'Cadastrar o primeiro site', contexto: 'O inventário do n.ot começa pelo site', feito: !comecando, acao: 'Abrir o n.ot', tela: 'ot' }] as Passo[],
