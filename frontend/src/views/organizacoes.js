@@ -315,9 +315,10 @@ window.__orgCriar = async () => {
         <p class="org-nota">${escapeHTML(corpo.nome)} (${escapeHTML(r.id)}) está ativa.</p>
         ${aviso}
         <div class="org-form-rodape"><button type="button" class="btn btn-secondary" data-action="forceCloseModal">Fechar</button>
-            <button type="button" class="btn btn-primary" data-action="__orgPrimeiroProjeto" data-args='${escapeHTML(JSON.stringify([r.id]))}'>Criar o primeiro projeto</button></div>
+            <button type="button" id="org-n-primeiro" disabled class="btn btn-primary" data-action="__orgPrimeiroProjeto" data-args='${escapeHTML(JSON.stringify([r.id]))}'>Criar o primeiro projeto</button></div>
     </div>`;
     await carregarOrgs(true).catch(() => {});
+    const primeiro = $('org-n-primeiro'); if (primeiro) primeiro.disabled = false; // o tipo da organização já está carregado
     if (ultimo && S.view === 'organizacoes') desenhar();
     atualizarSeletorOrg();
 };

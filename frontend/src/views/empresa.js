@@ -230,13 +230,17 @@ function pessoasHtml() {
 
 /** O primeiro passo de cada módulo vem do servidor (`programa.etapas`, GET /painel): o n.ot só vem a quem tem o módulo (P0-1/P0-2). */
 async function carregarPrimeirosPassos() {
-    const pid = W.projeto.id;
+    const meu = W; const pid = W.projeto.id;
+    let primeiros;
     try {
         const d = await api('GET', `/api/v1/projects/${pid}/painel`);
         const et = (d && d.programa && d.programa.etapas) || {};
-        W.primeiros = ['iso', 'privacy', 'ot'].filter((m) => et[m] && et[m].proximo).map((m) => ({ m, ...et[m].proximo }));
-    } catch (err) { W.primeiros = 'erro'; }
-    if (W && W.passo === 6) mostrarPasso();
+        primeiros = ['iso', 'privacy', 'ot'].filter((m) => et[m] && et[m].proximo).map((m) => ({ m, ...et[m].proximo }));
+    } catch (err) { primeiros = 'erro'; }
+    // Resposta tardia: o assistente pode ter fechado ou ser de outro projeto; nada é escrito fora do dele.
+    if (W !== meu || !W || !W.projeto || W.projeto.id !== pid) return;
+    W.primeiros = primeiros;
+    if (W.passo === 6) mostrarPasso();
 }
 
 /** Convidado e não designado: a conta existe mas não vê o projeto. Nome e e-mail são do que a pessoa digitou, escapados; nada cru do servidor. */
@@ -258,6 +262,7 @@ function primeirosHtml() {
 
 window.novoProjetoComecar = function (projectId, m) {
     const x = (W && Array.isArray(W.primeiros) ? W.primeiros : []).find((p) => p.m === m);
+    if (!(S.projects || []).some((p) => p.id === projectId)) { erroDoPasso('Não foi possível abrir o projeto agora. Feche e abra-o pela lista de projetos.'); return; }
     W = null;
     window.forceCloseModal();
     if (x && typeof window.painelAbrirProximo === 'function') return window.painelAbrirProximo(projectId, x.tela, x.aba || null, x.fase ?? null, x.passo || null);

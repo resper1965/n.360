@@ -13,6 +13,7 @@ import '../src/views/empresa.js';
 import { initDelegation } from '../src/delegation.js';
 initDelegation();
 
+const semOt = (fn) => async (m, u, b) => { if (/\/ot(\/|$|\?)/.test(String(u))) throw new Error(`chamou ${u}`); return fn(m, u, b); };
 const abrirOriginal = window.abrirNovoProjeto;
 const $ = (id) => document.getElementById(id);
 const digitar = (id, v) => { $(id).value = v; };
@@ -107,7 +108,7 @@ describe('Pessoas e acessos: proteções extras', () => {
         digitar('np-p0-nome', 'A'); digitar('np-p0-email', 'a@exemplo.lat');
         apiMock.mockClear();
         let solta; const trava = new Promise((r) => { solta = r; });
-        apiMock.mockImplementation(async (m) => { if (m === 'POST') await trava; return { id: 'x' }; });
+        apiMock.mockImplementation(semOt(async (m) => { if (m === 'POST') await trava; return { id: 'x' }; }));
         const a = window.novoProjetoConvidar(); const b = window.novoProjetoConvidar();
         solta(); await Promise.all([a, b]);
         const posts = apiMock.mock.calls.filter(([m, u]) => m === 'POST' && u === '/api/v1/users');
@@ -170,14 +171,13 @@ describe('Primeiros passos', () => {
     const ETAPAS = (m, texto, extra = {}) => ({ [m]: { etapa: 'comecar', feitos: 0, total: 1, etapas: [], proximo: { texto, ...extra } } });
     it('um "Começar" por módulo que o servidor mandou, com o próximo passo; sem o ot no programa, nada do n.ot', async () => {
         await criarAte5(['iso', 'privacy', 'ot']);
-        apiMock.mockImplementation(async (m, url) => (url === '/api/v1/projects/novo/painel'
-            ? { programa: { etapas: { ...ETAPAS('iso', 'Carregar as fases da jornada', { tela: 'project-detail' }), ...ETAPAS('privacy', 'Partida', { tela: 'importacao' }) } } } : {}));
+        apiMock.mockImplementation(semOt(async (m, url) => (url === '/api/v1/projects/novo/painel'
+            ? { programa: { etapas: { ...ETAPAS('iso', 'Carregar as fases da jornada', { tela: 'project-detail' }), ...ETAPAS('privacy', 'Partida', { tela: 'importacao' }) } } } : {})));
         window.novoProjetoIr(6);
         await new Promise((r) => setTimeout(r, 0));
         const linhas = [...document.querySelectorAll('.np-primeiros li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim());
         expect(linhas).toEqual(['n.iso Carregar as fases da jornada Começar', 'n.privacy Partida Começar']);
         expect(document.getElementById('np-passo').textContent).not.toContain('n.ot');
-        expect(apiMock.mock.calls.map(([, u]) => u).every((u) => !String(u).includes('/ot'))).toBe(true);
     });
     it('com o ot (pessoa com o módulo), o n.ot também tem o primeiro passo; Começar entra no projeto e vai ao passo', async () => {
         await criarAte5(['iso', 'ot']);
@@ -186,6 +186,7 @@ describe('Primeiros passos', () => {
         window.novoProjetoIr(6);
         await new Promise((r) => setTimeout(r, 0));
         window.painelAbrirProximo = vi.fn();
+        S.projects = [{ id: 'novo' }];
         expect(document.querySelector('[data-action="novoProjetoComecar"]').dataset.args).toBe('["novo","ot"]');
         window.novoProjetoComecar('novo', 'ot');
         expect(window.painelAbrirProximo).toHaveBeenCalledWith('novo', 'ot', 'sites', null, null);
@@ -254,3 +255,49 @@ describe('Primeiros passos: designação pendente e telas fechadas', () => {
     });
 });
 
+
+describe('Primeiros passos: resposta tardia e projeto fora da lista', () => {
+    const painel = (u) => /\/painel$/.test(u);
+    const etapas = (texto) => ({ programa: { etapas: { iso: { etapa: 'comecar', proximo: { texto, tela: 'project-detail' } } } } });
+    const adiado = () => { let ok; const p = new Promise((r) => { ok = r; }); return [p, ok]; };
+    it('(a) assistente fechado antes da resposta: não lança nem escreve', async () => {
+        await criarAte5(['iso']);
+        const [p, ok] = adiado();
+        apiMock.mockImplementation(async (m, u) => (painel(u) ? p : {}));
+        window.novoProjetoIr(6);
+        window.novoProjetoFechar();
+        const antes = document.body.innerHTML;
+        ok(etapas('Tarde')); await new Promise((r) => setTimeout(r, 0));
+        expect(document.body.innerHTML).toBe(antes);
+        expect(document.body.textContent).not.toContain('Tarde');
+    });
+    it('(b) outro assistente/projeto aberto no meio: a resposta de A não toca B, e B busca e mostra os seus', async () => {
+        await criarAte5(['iso']);
+        const [pA, okA] = adiado();
+        apiMock.mockImplementation(async (m, u) => (painel(u) ? pA : {}));
+        window.novoProjetoIr(6);
+        window.novoProjetoFechar();
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        window.abrirNovoProjeto();
+        digitar('emp-razao_social', 'B Ltda');
+        window.novoProjetoIr(2); window.novoProjetoIr(3); window.novoProjetoIr(4);
+        apiMock.mockImplementation(async (m, u) => (m === 'POST' && u === '/api/v1/projects' ? { id: 'outro', modulos: ['iso'] } : painel(u) ? etapas('Passo de B') : {}));
+        await window.criarNovoProjeto();
+        window.novoProjetoIr(6);
+        okA(etapas('Passo de A')); await new Promise((r) => setTimeout(r, 0));
+        expect($('np-passo').textContent).toContain('Passo de B');
+        expect($('np-passo').textContent).not.toContain('Passo de A');
+        expect(document.querySelector('[data-action="novoProjetoComecar"]').dataset.args).toBe('["outro","iso"]');
+    });
+    it('Começar com o projeto fora de S.projects: mostra mensagem e não fecha o assistente', async () => {
+        await criarAte5(['iso']);
+        apiMock.mockImplementation(async (m, u) => (painel(u) ? etapas('X') : {}));
+        window.novoProjetoIr(6);
+        await new Promise((r) => setTimeout(r, 0));
+        S.projects = [];
+        window.painelAbrirProximo = vi.fn();
+        window.novoProjetoComecar('novo', 'iso');
+        expect($('np-erro').textContent).toMatch(/Não foi possível abrir o projeto/);
+        expect(window.painelAbrirProximo).not.toHaveBeenCalled();
+    });
+});
