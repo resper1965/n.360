@@ -26,7 +26,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Quem criou a ação a partir do desvio não a conclui**, nem pela ação do incidente.
 - **Fornecedor de OT:** uma organização fornecedora ativa do cadastro de terceiros pode ser ligada a site e/ou fluxo do n.ot como integrador, fabricante ou acesso remoto (tabela satélite `ot_fornecedores`, migração 0116; rotas `/ot/fornecedores`; tela "Fornecedores" do n.ot). Juntar duas partes move esses vínculos, e a prévia da junção não os mostra.
 - **Perguntas de OT:** 4 perguntas genéricas podem ser criadas no questionário do projeto (exige o n.privacy). Como não têm tipo, aparecem em todo questionário de fornecedor do projeto; decisão do dono em aberto.
-- Pendente: as migrações 0115 e 0116 ainda não foram aplicadas em produção.
+- As migrações 0115 e 0116 foram aplicadas em produção em 18/11/2026 (workflow `db-migrate.yml`, com backup antes).
 
 ### Remediação dos gaps das ondas 1 e 2 (2026-11-17)
 - **Organização direta edita a própria identidade:** o `consultoria_admin` da direta vê a tela "Identidade da organização" e edita nome, CNPJ, cor e logo; `GET /org/config` devolve para ele só nome, CNPJ, cor e selo (nunca preço, margem ou prefixo).
