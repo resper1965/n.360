@@ -15,6 +15,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ### n.360, onda 4: jornada comum (spec 2026-11-18)
 - **Monitor saiu do menu do n.iso.** A grade etapa × fase passou para o topo da Jornada ("Fases por etapa"); links antigos para o Monitor abrem a Jornada. "Exportar riscos" continua na tela Riscos. As exportações de fornecedores e treinamentos em CSV, que só o Monitor oferecia, ficam fora da tela por enquanto (a API segue).
 - **Prontidão virou aba da Jornada** ("Prontidão para certificar"). O item Prontidão saiu do menu; avisos, e-mails e links antigos abrem a aba.
+- **Régua comum:** o Painel do n.iso e a linha "Ver situação" do Início mostram as cinco etapas (Começar, Levantar, Avaliar, Tratar, Operar) e o próximo passo de cada módulo (o cliente só lê). Quem tem o n.ot passa a ver o programa "Em operação" desde a primeira base de site aprovada; quem não tem o módulo não vê nada do n.ot. O bloco n.ot do `GET /painel` soma 6 consultas agrupadas ao lote existente (sem consulta por site).
 
 ### n.360, onda 3: o n.ot aponta para o núcleo (migração 0115, spec 2026-11-17)
 - **Muda para quem já usa:** quem não tem o módulo `ot` (na pessoa e no projeto) deixa de ver as ações `ot.%` no histórico (`audit-trail`), no `audit-pack`, no CSV do log de auditoria e na exportação do projeto. Agente e chave de API também não as recebem.

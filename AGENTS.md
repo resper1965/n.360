@@ -177,7 +177,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Regras unicas (Frente 2A, 20/10/2026):** "hoje" e o dia de Sao Paulo em todo prazo e vencimento (`hojeEmSaoPaulo`/`diaMaisSP` em
   `src/services/hoje.ts`; `hojeSP`/`emDiasSP` em `frontend/src/hoje.js`; teste que varre o fonte em `test/hoje-sp.test.ts` e
   `frontend/test/hoje-sp.test.js`); o marco "Em operacao desde" e `SQL_MARCO_DO_PROGRAMA` (`painel.ts`: colunas gravadas, RIPD e pedido
-  aprovado); fornecedor e `SQL_EH_FORNECEDOR` (`src/services/terceiros.ts`: organizacao ativa que nao e so parte interessada), o mesmo
+  aprovado; mais, so para quem tem o `ot` (o bloco `ot` do painel existe so para essa pessoa), a primeira `ot_sites.base_aprovada_em` dos sites dela: `blocoOt`, `marco`; `primeiroMarco` em `src/services/programa.ts`); fornecedor e `SQL_EH_FORNECEDOR` (`src/services/terceiros.ts`: organizacao ativa que nao e so parte interessada), o mesmo
   na lista do n.iso, no n.privacy, no Painel, na Bancada e no ponto de partida.
   Tela: aba "Prontidao para certificar" da Jornada (`frontend/src/views/jornada.js` desenha as abas; `frontend/src/views/prontidao.js` desenha a aba). `certification` e alias (`ALIAS_DE_TELA`, com `jornadaAba: 'prontidao'`): avisos (`TELA_DO_AVISO`), e-mails, `TELAS` do catalogo de passos e `navigate('certification')` seguem validos; `test/passos-telas-alias.test.ts` cobra que todo destino do catalogo tem ramo ou alias. Sem fases, a Jornada
   oferece "Carregar as fases" (`POST /api/v1/projects/:id/phases`, so a equipe, 409 se ja tem) e a prontidao, nunca um ao outro;
@@ -623,6 +623,17 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   nucleo e gera CAPA (`corrective_actions.incidente_id`, 0063). O catalogo LGPD/ANPD (`src/data/lgpd.ts`, `src/data/anpd.ts`) traz um
   mapeamento proposto para a ISO (`src/data/mapeamento-privacidade-iso.ts`) que so conta como cobertura depois de validado por
   humano. O painel `GET /projects/:id/ponto-de-partida` (`src/routes/ponto-de-partida.ts`) existe (os dois produtos o leem), mas nenhuma tela da interface o chama hoje (`views/ponto-de-partida.js` e carregado em `main.js`, mas nenhuma tela o chama).
+- **Jornada comum (onda 4, spec `docs/superpowers/specs/2026-11-18-onda4-jornada-comum-design.md`):** cinco etapas fixas em todo modulo
+  (Comecar, Levantar, Avaliar, Tratar, Operar; `ETAPAS_COMUNS` em `src/data/programa.ts`). `GET /projects/:id/painel` devolve
+  `programa.etapas` (um `ProgramaDoModulo` por modulo do pedido: `etapa`, `feitos`, `total`, `proximo`, `etapas`), calculado por
+  `etapasDoPrograma` (`src/services/programa.ts`), que SO LE: n.iso por fase (`FASES_DO_ISO`: 0-6, 7-8, 9-10, 11-28, 29-40;
+  `carregarContexto` + `montarBancada`, nunca a rota da Bancada, que grava); n.ot por site (`situacaoDoSite` dos `sitesPermitidos`;
+  em operacao com desvio aberto = Tratar), so quando o painel montou o bloco `ot` (P0-1/P0-2; `test/programa-rota.test.ts`). Sem o
+  `ot`, nenhuma chave, contagem ou texto do n.ot: a regua do n.ot so volta para quem tem o `ot`. O bloco `ot` do painel soma 6
+  consultas agrupadas ao lote que ja tinha (sem consulta por site; mesmo teto de sites). A regua aparece no topo do Painel do n.iso e
+  do n.privacy e na linha "Ver situacao" do Inicio (`regua` em `views/painel.js`; o n.ot nao tem Painel); o "Abrir" do proximo passo
+  so existe para a equipe (o cliente le a regua). O estado do programa e por espectador (quem tem o `ot` pode ver "Em operacao" onde
+  quem nao tem ve "Comecando"): nao vaza nada.
 - **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
   Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
   equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`
