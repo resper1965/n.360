@@ -17,7 +17,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Referência núcleo → OT:** risco, ação corretiva e incidente podem apontar para um site ou ativo do n.ot (tabela satélite `ot_referencias`, migração 0115; rotas `/ot/referencias`). Bloco "Vínculo com o n.ot" nos detalhes, só para quem tem o `ot`.
 - **Botão "Criar ação corretiva" no desvio:** o desvio vira ação do n.iso (exige o n.iso no projeto; título escrito pela pessoa, sem IP/MAC nem nome de ativo, zona ou site) e passa a `tratado` com a nota "Ação corretiva aberta". Idempotente; o vínculo não se remove.
 - **Quem criou a ação a partir do desvio não a conclui**, nem pela ação do incidente.
-- Pendente: a migração 0115 ainda não foi aplicada em produção. Fornecedor de OT (`ot_fornecedores`) está planejado, ainda não entregue.
+- **Fornecedor de OT:** uma organização fornecedora ativa do cadastro de terceiros pode ser ligada a site e/ou fluxo do n.ot como integrador, fabricante ou acesso remoto (tabela satélite `ot_fornecedores`, migração 0116; rotas `/ot/fornecedores`; tela "Fornecedores" do n.ot). Juntar duas partes move esses vínculos, e a prévia da junção não os mostra.
+- **Perguntas de OT:** 4 perguntas genéricas podem ser criadas no questionário do projeto (exige o n.privacy). Como não têm tipo, aparecem em todo questionário de fornecedor do projeto; decisão do dono em aberto.
+- Pendente: as migrações 0115 e 0116 ainda não foram aplicadas em produção.
 
 ### Remediação dos gaps das ondas 1 e 2 (2026-11-17)
 - **Organização direta edita a própria identidade:** o `consultoria_admin` da direta vê a tela "Identidade da organização" e edita nome, CNPJ, cor e logo; `GET /org/config` devolve para ele só nome, CNPJ, cor e selo (nunca preço, margem ou prefixo).

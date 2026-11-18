@@ -94,13 +94,12 @@ A `0115` segue o procedimento de `migrations/README.md` (backup, apply remoto, c
 
 ## Não conferido
 
-Módulos dos projetos em produção (quantos com `ot` têm `iso`/`privacy`); se o D1 de produção aplica `PRAGMA foreign_keys` (o CASCADE
-depende); o volume de `ot.%` em `audit_logs` em produção; se a carteira (`painel.ts:571-582`) filtra por módulo antes de listar títulos
-de ações; importação/mesclar/padronizar-nomes (se recriam ações).
+Módulos dos projetos em produção (quantos com `ot` têm `iso`/`privacy`); se a carteira (`painel.ts:571-582`) filtra por módulo antes de listar títulos
+de ações; importação/padronizar-nomes (se recriam ações). Conferido em 17/11/2026 (leitura em produção): `PRAGMA foreign_keys = 1` no D1 (o CASCADE vale); `audit_logs` com 2971 linhas, 7 com `ot.%`. Mesclar já trata `ot_fornecedores`.
 
 ## Rulings da execução
 
-Tasks 1 a 6 (PR1 a PR3). Tasks 7 e 8 (fornecedor de OT, `ot_fornecedores`) estão **planejadas, não feitas**. A migração 0115 está **pendente de aplicar em produção**.
+Tasks 1 a 8 implementadas (a 7 e a 8: fornecedor de OT, commits b6137c6, 2a252c0, 1bdda95, fbb9521). As migrações 0115 e 0116 estão **pendentes de aplicar em produção**.
 
 - **Satélite escolhido** (decisão 2): `ot_referencias`, sem colunas novas em `risks`, `corrective_actions` ou `incidentes`; só as rotas `/ot/referencias` a leem.
 - **Regra do texto seguro** (`citaNomeOt`): o título/descrição da ação não pode conter IP/MAC nem o nome de ativo, zona ou site ativo do projeto (sem caixa e sem acento; nomes com menos de 3 letras não contam). Limites conhecidos: a comparação é por substring (falso positivo possível) e hífen/espaço não são normalizados (o nome "PLC-01" não pega "PLC 01").
@@ -108,7 +107,16 @@ Tasks 1 a 6 (PR1 a PR3). Tasks 7 e 8 (fornecedor de OT, `ot_fornecedores`) estã
 - **Quem criou não conclui** (decisão 4): recusa 403 ao passar a ação a `Closed`. Também foi fechado o desvio encontrado na execução: o `PUT` da ação do incidente (`titular.ts`) não passava pela trava. O vínculo nascido do desvio não se remove (`DELETE` da referência responde 409).
 - **Trilha, exportação e CSV** (decisão 6): `audit-trail`, `audit-pack`, CSV do log de auditoria e `exportarProjeto` omitem `ot.%` de quem não tem o `ot` (`podeVerOt`).
 
+- **Fornecedor satélite** (task 7): `ot_fornecedores` (0116) liga `parte` ativa a site e/ou fluxo; índice único com `COALESCE` mais `INSERT ... WHERE NOT EXISTS` fecha a duplicata com NULL (repetir devolve o existente).
+- **Leitura**: esconde parte inativa e fluxo invisível (`FLUXO_VISIVEL`: site e as duas pontas).
+- **Mesclar**: `mesclar.ts` move os vínculos do duplicado para a parte que fica; a prévia os esconde (flag `oculto`), pois é de quem não tem o `ot`.
+- **Perguntas de OT** (task 8): 4 perguntas genéricas (`src/data/ot-perguntas-fornecedor.ts`) semeadas como perguntas do projeto (origem `projeto`, `tipo` NULL), idempotentes, atrás do módulo `privacy`.
+- **ABERTO para o dono:** como `tipo` é NULL, as 4 perguntas de OT entram em TODO questionário de fornecedor do projeto. Decidir se se restringem a fornecedores de OT.
+- **Teto de leitura** `TETO_LEITURA_OT` (20000) também limita a leitura de nomes na verificação `citaNomeOt`; acima disso a checagem não vê o excedente.
+
 ### O que ficou em aberto (menores adiados)
+
+- Tasks 7 e 8: teste de papel de guarda ambíguo (tec2 403); sem teste de editor restrito dando 404; o botão envia `forn[0].id`; corrida em `MAX(ordem)` ao semear as perguntas; o seletor de fornecedor usa `/partes?tipo=organizacao&status=ativa` e o "só fornecedor" é imposto pelo servidor (422).
 
 - Verificação do nome sem fronteira de palavra (substring) e sem normalizar hífen/espaço.
 - `assigned_to` livre (até 200 caracteres).
