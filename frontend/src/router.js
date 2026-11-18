@@ -48,6 +48,8 @@ export     function navigate(view, data) {
         
         // A ficha do fornecedor vive no endereço; qualquer outra tela a tira de lá.
         if (!['terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha'].includes(targetView)) limparFichaDoEndereco();
+        // A Jornada tem duas abas (views/jornada.js): o endereço antigo da Prontidão abre a dela; qualquer outra ida, o plano de trabalho.
+        if (targetView === 'project-detail') S.jornadaAba = (data && data.jornadaAba) || (alias && alias.jornadaAba) || 'trabalho';
         S.view = targetView;
         if (data) Object.assign(S, data);
         atualizarSeletorDeModulo(); // só aparece no Painel do módulo
@@ -138,7 +140,6 @@ export     function navigate(view, data) {
         else if (S.view === 'evidence') renderEvidence(c, h, a);
         else if (S.view === 'controls') renderControls(c, h, a);
         else if (S.view === 'governance') renderGovernance(c, h, a);
-        else if (S.view === 'certification') renderProntidao(c, h, a);
         else if (S.view === 'ai-chat') renderAIChat(c, h, a);
         else if (S.view === 'settings') renderSettings(c, h, a);
         else if (S.view === 'meus-pedidos') renderMeusPedidos(c, h, a);

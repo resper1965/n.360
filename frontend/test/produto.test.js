@@ -305,6 +305,10 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
 });
 
 describe('pedidoDoHub (?tela= e aviso no boot do módulo)', () => {
+    it('?tela=certification (aviso, e-mail) é aceito no n.iso e mantém o nome: o navigate abre a aba', () => {
+        ir('/iso?tela=certification');
+        expect(pedidoDoHub()).toEqual({ tela: 'certification', aba: null });
+    });
     it('tela que saiu (?tela=monitor) é aceita no módulo dela e mantém o nome antigo: o navigate resolve o alias', () => {
         ir('/iso?tela=monitor');
         expect(pedidoDoHub()).toEqual({ tela: 'monitor', aba: null });

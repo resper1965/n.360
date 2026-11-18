@@ -21,7 +21,7 @@ export const PRODUTOS = {
 const MODULOS = ['iso', 'privacy', 'ot'];
 
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
-export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification',
+export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
@@ -132,14 +132,14 @@ export function destinoDoAviso(tela, loc = window.location) {
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'assets', 'metrics', 'acknowledgments',
     'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha', 'avaliacoes-terceiros', 'questionarios-fornecedor', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
-    'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
+    'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review', 'ot'];
 /**
  * Telas que saíram do menu e seguem valendo como endereço (link salvo, e-mail, aviso, `?tela=`): a tela que as substitui e, se
  * houver, a aba dela. Nunca 404 nem tela em branco (o `render` não desenha nada para tela sem ramo). Lista fechada;
  * `Object.hasOwn` barra `__proto__`/`constructor`.
  */
-export const ALIAS_DE_TELA = { monitor: { tela: 'project-detail' } };
+export const ALIAS_DE_TELA = { monitor: { tela: 'project-detail' }, certification: { tela: 'project-detail', jornadaAba: 'prontidao' } };
 export const aliasDaTela = (tela) => (typeof tela === 'string' && Object.hasOwn(ALIAS_DE_TELA, tela) ? ALIAS_DE_TELA[tela] : null);
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
 const CHAVE_AVISO = 'n360_aviso';

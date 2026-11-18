@@ -11,7 +11,7 @@ import { S } from '../src/state.js';
 // exatamente por isso que a lista fica explicita.
 const IDS_SIDEBAR = [
     'nav-dashboard', 'nav-projects', 'nav-leads', 'nav-assessments', 'nav-proposals',
-    'nav-project', 'nav-certification', 'nav-soa', 'nav-governance', 'nav-stakeholders',
+    'nav-project', 'nav-soa', 'nav-governance', 'nav-stakeholders',
     'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-documentos', 'nav-training',
     'nav-acknowledgments', 'nav-audits', 'nav-capa', 'nav-mgmt',
     'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-ai',
@@ -202,9 +202,11 @@ describe('navigate()', () => {
         //   'audit-execution'   -> procura 'nav-audit'       (existe 'nav-audits')
         // Estes testes fixam o comportamento ATUAL. Ao corrigir, eles falham —
         // e e esse o sinal de que a correcao pegou.
-        it('"certification" (Prontidão) destaca nav-certification: a tela tem item no menu do n.iso', () => {
+        it('"certification" (endereço antigo da Prontidão) abre a Jornada na aba Prontidão e destaca nav-project', () => {
             navigate('certification');
-            expect(itemAtivo().id).toBe('nav-certification');
+            expect(S.view).toBe('project-detail');
+            expect(S.jornadaAba).toBe('prontidao');
+            expect(itemAtivo().id).toBe('nav-project');
         });
 
         it('"management-review" (Análise crítica) destaca nav-mgmt', () => {

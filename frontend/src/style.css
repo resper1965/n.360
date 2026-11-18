@@ -2214,3 +2214,6 @@ ul.at-ajuda { padding-left: 1.25em; }
 .bancada-grade .roadmap-amostra.in_progress { background: rgba(245, 158, 11, 0.15); border-color: var(--warning); }
 .bancada-grade .roadmap-amostra.completed { background: rgba(34, 197, 94, 0.15); border-color: var(--success); }
 .bancada-grade .roadmap-amostra.blocked { background: rgba(239, 68, 68, 0.15); border-color: var(--danger); }
+
+/* Jornada (onda 4): abas Plano de trabalho / Prontidão para certificar */
+.jornada-abas { display: flex; gap: 8px; margin: 0 0 12px; }
