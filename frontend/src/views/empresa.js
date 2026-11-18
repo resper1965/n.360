@@ -153,10 +153,13 @@ async function consultar(d) {
     ultimaConsulta = d;
     if (caixa) caixa.innerHTML = '<p style="color:var(--text-dim);font-size:0.85rem">Consultando a Receita Federal...</p>';
     let r;
+    const meu = W; // resposta tardia: o assistente (ou a tela) pode ter mudado; os campos por id seriam de outro
     try { r = await api('GET', `/api/v1/projects/consulta-cnpj/${d}`); } catch { // falha nunca bloqueia salvar: a pessoa preenche à mão
+        if (W !== meu) return;
         if (caixa) caixa.innerHTML = `<p style="color:var(--text-dim);font-size:0.85rem">A consulta de CNPJ está indisponível. Preencha os dados à mão.</p>`;
         return;
     }
+    if (W !== meu) return;
     const partes = [];
     const projetoAtual = S.empresaProjetoId;
     if (r.existente && r.existente.id !== projetoAtual) {
@@ -414,7 +417,9 @@ window.criarNovoProjeto = async function () {
         ...(Object.keys(pessoas).length ? { pessoas } : {}),
     };
     let r;
+    const meu = W;
     try { r = await api('POST', '/api/v1/projects', corpo); } catch (err) {
+        if (W !== meu) return;
         if (btn) btn.disabled = false;
         const outro = err && err.body && err.body.projeto_existente;
         if (outro) {
@@ -427,6 +432,7 @@ window.criarNovoProjeto = async function () {
     }
     showToast('Projeto criado.', 'success');
     if (typeof window.loadProjects === 'function') await window.loadProjects();
+    if (W !== meu || !W) return; // fechado (ou outro assistente) durante a recarga
     W.projeto = { id: r.id, modulos: Array.isArray(r.modulos) ? r.modulos : [] };
     W.acessos = [novaPessoa()];
     W.primeiros = null;
@@ -447,11 +453,11 @@ window.novoProjetoMaisPessoa = function () {
 window.novoProjetoConvidar = () => semRepetir('novoProjetoConvidar', async () => {
     if (!W || W.passo !== 5) return;
     lerAcessos();
-    const pid = W.projeto.id;
+    const meu = W; const pid = W.projeto.id;
     let falhou = false;
     for (const [i, p] of W.acessos.entries()) {
         if (p.designado || (!p.nome && !p.email)) continue;
-        const erro = (t) => { p.msg = t; const el = $(`np-p${i}-erro`); if (el) el.textContent = t; falhou = true; };
+        const erro = (t) => { p.msg = t; const el = W === meu ? $(`np-p${i}-erro`) : null; if (el) el.textContent = t; falhou = true; };
         const cliente = p.papel !== 'consultor';
         if (!p.convidado) {
             if (!p.nome || !p.email) { erro('Informe nome e e-mail.'); continue; }
@@ -468,7 +474,9 @@ window.novoProjetoConvidar = () => semRepetir('novoProjetoConvidar', async () =>
             await api('POST', `/api/v1/projects/${pid}/governance`, { name: p.nome, email: p.email, role_category: 'consultor', job_title: 'Consultor' });
             p.designado = true;
         } catch (err) { erro(`Convite enviado, mas a designação falhou: ${(err && err.message) || 'erro'}. Tente de novo ou designe em Governança.`); }
+        if (W !== meu) return;
     }
+    if (W !== meu) return;
     if (falhou) mostrarPasso();
     if (!falhou) window.novoProjetoIr(6);
 });

@@ -301,3 +301,49 @@ describe('Primeiros passos: resposta tardia e projeto fora da lista', () => {
         expect(window.painelAbrirProximo).not.toHaveBeenCalled();
     });
 });
+
+describe('Respostas tardias do assistente (criar e convidar)', () => {
+    const adiado = () => { let ok; const p = new Promise((r) => { ok = r; }); return [p, ok]; };
+    const ate4 = () => { window.abrirNovoProjeto(); digitar('emp-razao_social', 'Fictícia Ltda'); window.novoProjetoIr(2); window.novoProjetoIr(3); window.novoProjetoIr(4); };
+    it('(a) assistente fechado durante loadProjects: criarNovoProjeto não lança', async () => {
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        ate4();
+        const [p, ok] = adiado();
+        window.loadProjects = () => p;
+        apiMock.mockImplementation(async (m, u) => (m === 'POST' && u === '/api/v1/projects' ? { id: 'novo', modulos: ['iso'] } : {}));
+        const criando = window.criarNovoProjeto();
+        await new Promise((r) => setTimeout(r, 0));
+        window.novoProjetoFechar();
+        ok();
+        await expect(criando).resolves.toBeUndefined();
+    });
+    it('(a2) outro assistente aberto durante loadProjects: o projeto de A não entra no B', async () => {
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        ate4();
+        const [p, ok] = adiado();
+        window.loadProjects = () => p;
+        apiMock.mockImplementation(async (m, u) => (m === 'POST' && u === '/api/v1/projects' ? { id: 'A', modulos: ['iso'] } : {}));
+        const criando = window.criarNovoProjeto();
+        await new Promise((r) => setTimeout(r, 0));
+        window.novoProjetoFechar();
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        window.abrirNovoProjeto();
+        ok(); await criando;
+        expect($('np-titulo').textContent).toBe('Novo projeto — Empresa');
+    });
+    it('(b) assistente B aberto durante o POST do convite: a resposta de A não escreve em B nem o avança', async () => {
+        await criarAte5(['iso']);
+        digitar('np-p0-nome', 'A'); digitar('np-p0-email', 'a@exemplo.lat');
+        const [p, ok] = adiado();
+        apiMock.mockImplementation(async (m, u) => (m === 'POST' && u === '/api/v1/users' ? p : {}));
+        const convidando = window.novoProjetoConvidar();
+        await new Promise((r) => setTimeout(r, 0));
+        window.novoProjetoFechar();
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        window.abrirNovoProjeto();
+        const antes = document.body.innerHTML;
+        ok({ id: 'x' }); await convidando;
+        expect(document.body.innerHTML).toBe(antes);
+        expect($('np-titulo').textContent).toBe('Novo projeto — Empresa');
+    });
+});
