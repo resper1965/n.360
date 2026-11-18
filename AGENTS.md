@@ -638,6 +638,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   do n.privacy e na linha "Ver situacao" do Inicio (`regua` em `views/painel.js`; o n.ot nao tem Painel); o "Abrir" do proximo passo
   so existe para a equipe (o cliente le a regua). O estado do programa e por espectador (quem tem o `ot` pode ver "Em operacao" onde
   quem nao tem ve "Comecando"): nao vaza nada.
+  **Onboarding encadeado (PR5):** organizacao criada (`platform_admin`) -> "Criar o primeiro projeto" (`__orgPrimeiroProjeto`, atua na organizacao) -> assistente (`views/empresa.js`): Empresa, Programa, Pessoas-chave, Resumo, cria o projeto, **Pessoas e acessos** (convites por `POST /users` com `modulos`; consultor designado por `POST /projects/:id/governance`; a caixa do `ot` nunca nasce marcada, P0-1; organizacao direta so oferece equipe, onda 1; convidado sem designacao fica avisado no passo seguinte) e **Primeiros passos** (o `proximo` de cada modulo em `programa.etapas`, o `ot` so para quem o tem). Nenhuma rota nova: `test/onboarding-rotas.test.ts` trava o contrato. Sem autoatendimento.
 - **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
   Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
   equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`

@@ -17,6 +17,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Prontidão virou aba da Jornada** ("Prontidão para certificar"). O item Prontidão saiu do menu; avisos, e-mails e links antigos abrem a aba.
 - **Régua comum:** o Painel do n.iso e a linha "Ver situação" do Início mostram as cinco etapas (Começar, Levantar, Avaliar, Tratar, Operar) e o próximo passo de cada módulo (o cliente só lê). Quem tem o n.ot passa a ver o programa "Em operação" desde a primeira base de site aprovada; quem não tem o módulo não vê nada do n.ot. O bloco n.ot do `GET /painel` soma 6 consultas agrupadas ao lote existente (sem consulta por site).
 - **Trilha de implantação do n.privacy na tela:** as 7 etapas (Partida, Encarregado, Inventário, Bases e riscos, Terceiros, Titular e incidentes, Documentos e cobertura), derivadas do cadastro, no Painel do n.privacy e na régua; o agente lê a mesma trilha.
+- **Onboarding encadeado:** ao criar uma organização, "Criar o primeiro projeto" abre o assistente nela; depois de criar o projeto, o assistente convida as pessoas e escolhe os módulos de cada uma (o n.ot nunca vem marcado; organização direta convida só a equipe) e termina no primeiro passo de cada módulo.
 
 ### n.360, onda 3: o n.ot aponta para o núcleo (migração 0115, spec 2026-11-17)
 - **Muda para quem já usa:** quem não tem o módulo `ot` (na pessoa e no projeto) deixa de ver as ações `ot.%` no histórico (`audit-trail`), no `audit-pack`, no CSV do log de auditoria e na exportação do projeto. Agente e chave de API também não as recebem.

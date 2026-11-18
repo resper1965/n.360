@@ -82,6 +82,31 @@ Operar), cada módulo com os seus passos, e um caminho único da organização c
   estado, não a rota.
 - O PR 5 toca convite e módulos por pessoa (onda 1 e P0-1): revisão em modelo forte.
 
+## Rulings da execução
+
+Decidido durante a execução e conferido no código (ledger `.superpowers/sdd/2026-11-18-onda4-jornada-comum/progress.md`).
+
+- `certification` e `monitor` viram alias na lista fechada `ALIAS_DE_TELA` (`frontend/src/produto.js:142`); `certification` segue também em `TELA_DO_AVISO` (`globals.js:1155`). O catálogo de telas não mudou. "Exportar riscos" já estava em Riscos (`grc.js:208`).
+- **ABERTO para o dono:** os CSV de fornecedores e de treinamentos perderam a única entrada na tela (o "Exportar" do Monitor). As rotas da API continuam. Decidir se Fornecedores e Treinamentos ganham botões "Exportar".
+- A grade da Jornada usa as 6 etapas do catálogo de passos; a régua usa as 5 comuns. Duas formas de agrupar convivem na mesma tela.
+- O n.ot não tem Painel: a régua dele aparece em "Ver situação" do Início e no assistente.
+- As chaves de `parametros_legais` da etapa 5 do n.privacy são as 3 de `CHAVES` (`src/services/parametros-legais.ts:9`). "Canal do titular" não tem campo (a etapa 1 é só o encarregado). O passo "cobertura" da trilha do n.privacy fica falso (não feito) quando o catálogo da LGPD não está carregado: o desconhecido aparece como não feito.
+- O bloco `ot` do `/painel` soma 6 consultas agrupadas ao lote que já tinha (sem consulta por site). O teste de desempenho do painel (`test/painel.test.ts`, mediana < 300 ms) segue verde depois do PR3 e do PR4; o valor exato da mediana não foi registrado nos relatórios.
+- O cliente lê a régua, não navega por ela (sem "Abrir"). O estado do programa é por espectador.
+- O OpenAPI só descreve corpo de requisição: `docs/openapi.json` e `mcp-server-niso/src/contrato-gerado.ts` não mudaram desde `c4c7039`.
+- A escolha de módulos do **projeto** no assistente seguiu como era (P0-1 é sobre a pessoa). Na pessoa, o assistente oferece só os módulos do projeto que quem convida também tem (espelho do teto; o servidor decide), com o `ot` desmarcado e explicado.
+- "Continuar sem designar" (passo 5) deixa o consultor convidado sem designação: ele não vê o projeto. O passo 6 lista cada um nessa situação ("Designe em Governança"); "Pular" mostra o mesmo aviso. Falha da designação não repete o convite no retry (só a designação). `emailEnviado:false` mantém o passo até a pessoa seguir.
+- Respostas tardias do assistente (criar projeto, convidar, primeiros passos, consulta de CNPJ) conferem que o assistente é o mesmo antes de escrever.
+- Pendências menores adiadas (uma linha cada):
+  - textos "no Monitor" velhos em `bancada.js:212` e `prontidao.js:80`; CSS `.monitor-*` e `.roadmap-amostra` mortos;
+  - `jornadaAba` não é zerada em `navigate(S.view)`; o foco da aba depende de render síncrono;
+  - `destinoDoAviso` não resolve alias (`produto.js:142`, inofensivo hoje);
+  - `AGENTS.md:620`: "Adicionar ao comitê no Monitor" precisa ser conferido (Governança segue em `monitor.js`);
+  - `etapasDoOt` recebe `sitesPermitidos` já filtrados (o chamador filtra, P0-4); fase `skipped` do legado conta como feita antes da materialização e não depois;
+  - `proximo` do n.iso: a lista de sites `ORDER BY nome` mexe no desempate; passo da trilha com tela fora da lista não mostra estado; caixa vazia sem passos; sem teste da ordem exibida;
+  - resposta 201 de equipe omite `client_project_id`; o teste do teto do cliente usa uma organização sem `ot` (não distingue teto do projeto e da organização);
+  - depois de fechar o assistente no meio de convites, as linhas de cliente restantes ainda enviam `POST /users` (intenção da pessoa; nada escrito na tela); o botão "Criar o primeiro projeto" desabilitado até as organizações carregarem não tem teste.
+
 ## Fora de escopo
 
 Reescrever a trilha de 132 passos para outras normas; marca manual de exceção por etapa (F-B); plano diretor de iniciativas; autoatendimento
