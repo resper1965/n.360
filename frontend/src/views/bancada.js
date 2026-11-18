@@ -6,6 +6,7 @@ import { vazioSemFases } from './monitor.js';
 import { indexarCatalogo, resolverAlvo, vizinhos } from '../bancada/estado.js';
 import { criarAutosave } from '../bancada/autosave.js';
 import { htmlDaTrilha } from '../bancada/trilha.js';
+import { htmlDaGrade } from '../bancada/grade.js';
 import { htmlDoCartao, htmlDosCriterios } from '../bancada/cartao.js';
 import { montarCopiloto } from '../bancada/copiloto.js';
 
@@ -150,7 +151,8 @@ function desenharTopo() {
             { rotulo: 'Notas do auditor', action: 'openAuditorNotesModal', args: [pid] },
             { rotulo: 'Dossiê da jornada', action: 'generateJourneyDossier', args: [pid] },
             { rotulo: 'Ver a prontidão para a certificação', action: 'navigate', args: ['certification'] },
-        ]) : ''}`;
+        ]) : ''}
+        ${S.passosCatalogo ? htmlDaGrade(S.passosCatalogo, b.fases) : ''}`;
 }
 
 // ── ações (data-action) ─────────────────────────────────────────────────────────────────────────────────

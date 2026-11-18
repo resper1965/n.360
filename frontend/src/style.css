@@ -2214,3 +2214,13 @@ ul.at-ajuda { padding-left: 1.25em; }
 .ot-detalhes[open] > summary { margin-bottom: 12px; }
 /* "Enviar ao lote" fica desabilitado até marcar um achado; a dica em texto ao lado da tabela diz o que fazer. */
 [data-action="otEnviarAchados"]:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Jornada (onda 4): a grade etapa × fase que era do Monitor, recolhida no topo da Bancada */
+.bancada-grade { margin: 8px 0 12px; }
+.bancada-grade > summary { cursor: pointer; font-weight: 600; }
+/* amostra da legenda: não é .roadmap-node (não é botão); repete só as cores por situação */
+.bancada-grade .roadmap-amostra { display: inline-block; width: 14px; height: 14px; border-radius: var(--radius); border: 1px solid var(--border); }
+.bancada-grade .roadmap-amostra.pending, .bancada-grade .roadmap-amostra.skipped { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); }
+.bancada-grade .roadmap-amostra.in_progress { background: rgba(245, 158, 11, 0.15); border-color: var(--warning); }
+.bancada-grade .roadmap-amostra.completed { background: rgba(34, 197, 94, 0.15); border-color: var(--success); }
+.bancada-grade .roadmap-amostra.blocked { background: rgba(239, 68, 68, 0.15); border-color: var(--danger); }
