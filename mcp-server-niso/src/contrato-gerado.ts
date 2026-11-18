@@ -10,6 +10,7 @@
 
 export const ROTAS = {
   'PATCH /api/v1/projects/{id}/controls': { obrigatorios: [] },
+  'PATCH /api/v1/projects/{projectId}/evidence/{evidenceId}': { obrigatorios: [] },
   'PATCH /api/v1/projects/{projectId}/passos/{itemId}': { obrigatorios: [] },
   'POST /api/v1/admin/users': { obrigatorios: ['email', 'name', 'role'] },
   'POST /api/v1/assessments': { obrigatorios: [] },
