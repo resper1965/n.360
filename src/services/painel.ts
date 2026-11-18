@@ -590,7 +590,9 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          UNION ALL SELECT project_id, 'auditoria', title, substr(scheduled_date, 1, 10) FROM audit_schedule WHERE project_id ${escopo} AND COALESCE(status, 'Planned') NOT IN ('Completed', 'Cancelled')
          UNION ALL SELECT project_id, 'evidencia', 'Evidência ' || file_name, substr(valido_ate, 1, 10) FROM evidence WHERE project_id ${escopo} AND valido_ate IS NOT NULL
        ) WHERE data >= ?1 AND data <= ?3 ORDER BY data`),
-    b(`SELECT project_id, max(created_at) AS em FROM audit_logs WHERE project_id ${escopo}${modulosDaPessoa.includes('ot') ? '' : SEM_ACAO_OT} GROUP BY project_id`),
+    // ot.* só conta onde a pessoa E o projeto (hoje) têm o ot, como em podeVerOt; o projeto que perdeu o módulo não vaza a atividade antiga.
+    b(`SELECT project_id, max(created_at) AS em FROM audit_logs WHERE project_id ${escopo}${modulosDaPessoa.includes('ot')
+      ? ` AND (action NOT LIKE 'ot.%' OR project_id IN (SELECT project_id FROM projeto_modulos WHERE modulo = 'ot'))` : SEM_ACAO_OT} GROUP BY project_id`),
     // n.ot: só quando a pessoa tem o módulo; senão as três consultas ficam vazias.
     ...(modulosDaPessoa.includes('ot') ? [
       b(`SELECT s.project_id,
