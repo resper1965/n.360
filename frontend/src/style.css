@@ -2232,3 +2232,5 @@ ul.at-ajuda { padding-left: 1.25em; }
 .np-erro-pessoa { min-height: 1.2em; margin: 0; font-size: 0.85rem; color: var(--danger-ink); }
 .np-dica { color: var(--text-dim); font-size: 0.85rem; margin-top: 0; }
 .np-rodape { display: flex; justify-content: space-between; gap: 8px; margin-top: 0.5rem; }
+.np-primeiros { margin: 0; padding: 0; list-style: none; }
+.np-primeiros li { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }

@@ -28,7 +28,7 @@ const podeGerirModulos = () => !!S.user && ['platform_admin', 'consultoria_admin
 let rodada = 0;
 
 /** Telas a que um botão do painel pode levar: a lista fechada (o destino vem do servidor como dado). */
-const TELAS_DO_PAINEL = new Set(['encarregado', 'ropa', 'titular', 'terceiros', 'mapa-de-risco', 'evidence', 'documentos', 'requisitos', 'capa', 'audits',
+export const TELAS_DO_PAINEL = new Set(['encarregado', 'ropa', 'titular', 'terceiros', 'mapa-de-risco', 'evidence', 'documentos', 'requisitos', 'capa', 'audits',
     'risks', 'soa', 'context', 'project-detail', 'assets', 'meus-pedidos', 'importacao', 'ot']);
 
 /** O projeto da entrada de um módulo: o ativo; sem ele, o primeiro da lista (e passa a ser o ativo: o módulo precisa de um). O Início do n.360 não usa. */

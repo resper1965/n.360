@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, formatarData } from '../ui.js';
 import { modulosDaPessoa, orgDireta } from '../produto.js';
 import { semRepetir } from '../ot-comum.js';
+import { TELAS_DO_PAINEL } from './painel.js';
 
 // Cadastro da empresa do projeto (migration 0071) e o assistente "Novo projeto". O servidor decide tudo de novo:
 // CNPJ com dígito verificador, duplicidade na organização, quem cria e quem edita. Aqui é só a tela.
@@ -227,7 +228,41 @@ function pessoasHtml() {
         <button type="button" class="btn btn-ghost btn-sm" data-action="novoProjetoMaisPessoa">Adicionar pessoa</button>`;
 }
 
-function primeirosHtml() { return '<p>O projeto foi criado.</p>'; }
+/** O primeiro passo de cada módulo vem do servidor (`programa.etapas`, GET /painel): o n.ot só vem a quem tem o módulo (P0-1/P0-2). */
+async function carregarPrimeirosPassos() {
+    const pid = W.projeto.id;
+    try {
+        const d = await api('GET', `/api/v1/projects/${pid}/painel`);
+        const et = (d && d.programa && d.programa.etapas) || {};
+        W.primeiros = ['iso', 'privacy', 'ot'].filter((m) => et[m] && et[m].proximo).map((m) => ({ m, ...et[m].proximo }));
+    } catch (err) { W.primeiros = 'erro'; }
+    if (W && W.passo === 6) mostrarPasso();
+}
+
+/** Convidado e não designado: a conta existe mas não vê o projeto. Nome e e-mail são do que a pessoa digitou, escapados; nada cru do servidor. */
+const avisosDeDesignacao = () => W.acessos.filter((p) => p.convidado && !p.designado).map((p) =>
+    `<p class="np-erro-pessoa" role="alert">Atenção: ${escapeHTML(p.nome || p.email)} (${escapeHTML(p.email)}) foi convidado(a) mas não foi designado(a) ao projeto e não consegue vê-lo. Designe em Governança.</p>`).join('');
+
+function primeirosHtml() {
+    const pid = W.projeto.id;
+    const avisos = avisosDeDesignacao();
+    if (W.primeiros === null) return `${avisos}<div class="loading"></div>`;
+    if (W.primeiros === 'erro' || !W.primeiros.length) {
+        return `${avisos}<p>O projeto foi criado. Abra-o no módulo para começar.</p>${W.projeto.modulos.map((m) =>
+            `<button type="button" class="btn btn-sm" data-action="painelAbrirProjeto" data-args='${escapeHTML(JSON.stringify([pid, m]))}'>Abrir no ${NOME_MODULO[m] || escapeHTML(m)}</button>`).join(' ')}`;
+    }
+    // Só há "Começar" para tela da lista fechada do painel (a mesma da régua); sem ela, o item sai sem botão.
+    return `${avisos}<ol class="np-primeiros">${W.primeiros.map((x) => `<li><strong>${NOME_MODULO[x.m]}</strong> <span>${escapeHTML(x.texto)}</span>
+        ${TELAS_DO_PAINEL.has(x.tela) ? `<button type="button" class="btn btn-sm btn-primary" data-action="novoProjetoComecar" data-args='${escapeHTML(JSON.stringify([pid, x.m]))}'>Começar</button>` : ''}</li>`).join('')}</ol>`;
+}
+
+window.novoProjetoComecar = function (projectId, m) {
+    const x = (W && Array.isArray(W.primeiros) ? W.primeiros : []).find((p) => p.m === m);
+    W = null;
+    window.forceCloseModal();
+    if (x && typeof window.painelAbrirProximo === 'function') return window.painelAbrirProximo(projectId, x.tela, x.aba || null, x.fase ?? null, x.passo || null);
+    if (typeof window.painelAbrirProjeto === 'function') window.painelAbrirProjeto(projectId, m);
+};
 
 /** Lê as linhas do passo 5 para `W.acessos` (sem validar: validar é do convidar). */
 function lerAcessos() {
@@ -353,6 +388,7 @@ window.novoProjetoIr = function (passo) {
     } else guardarPasso();
     W.passo = passo;
     mostrarPasso();
+    if (passo === 6 && W.primeiros === null) carregarPrimeirosPassos();
 };
 
 window.criarNovoProjeto = async function () {
@@ -388,6 +424,7 @@ window.criarNovoProjeto = async function () {
     if (typeof window.loadProjects === 'function') await window.loadProjects();
     W.projeto = { id: r.id, modulos: Array.isArray(r.modulos) ? r.modulos : [] };
     W.acessos = [novaPessoa()];
+    W.primeiros = null;
     W.passo = 5;
     mostrarPasso();
 };

@@ -92,6 +92,13 @@ window.__orgEscolher = (id) => {
     atualizarSeletorOrg();
     window.render?.();   // as telas de equipe recarregam com o X-Org-Id novo
 };
+/** Encadeia a organização criada ao assistente: atua nela (o projeto nasce lá, X-Org-Id) e abre "Novo projeto". Só o platform_admin. */
+window.__orgPrimeiroProjeto = (id) => {
+    if (!ehPlatformAdmin()) return;
+    forceCloseModal();
+    window.__orgEscolher(id);
+    if (typeof window.abrirNovoProjeto === 'function') window.abrirNovoProjeto();
+};
 window.__orgVoltar = () => window.__orgEscolher(ORG_NESS);
 
 // ——— lista ———
@@ -307,7 +314,8 @@ window.__orgCriar = async () => {
         <h2 class="org-form-titulo">Organização criada</h2>
         <p class="org-nota">${escapeHTML(corpo.nome)} (${escapeHTML(r.id)}) está ativa.</p>
         ${aviso}
-        <div class="org-form-rodape"><button type="button" class="btn btn-primary" data-action="forceCloseModal">Fechar</button></div>
+        <div class="org-form-rodape"><button type="button" class="btn btn-secondary" data-action="forceCloseModal">Fechar</button>
+            <button type="button" class="btn btn-primary" data-action="__orgPrimeiroProjeto" data-args='${escapeHTML(JSON.stringify([r.id]))}'>Criar o primeiro projeto</button></div>
     </div>`;
     await carregarOrgs(true).catch(() => {});
     if (ultimo && S.view === 'organizacoes') desenhar();

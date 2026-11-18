@@ -10,7 +10,10 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/project.js';
 import '../src/views/empresa.js';
+import { initDelegation } from '../src/delegation.js';
+initDelegation();
 
+const abrirOriginal = window.abrirNovoProjeto;
 const $ = (id) => document.getElementById(id);
 const digitar = (id, v) => { $(id).value = v; };
 async function criarAte5(modulosDoProjeto = ['iso', 'ot']) {
@@ -27,6 +30,7 @@ beforeEach(() => {
     S.user = { role: 'consultoria_admin', org_tipo: 'consultoria', modulos: ['iso', 'privacy', 'ot'] };
     window.render = vi.fn(); window.loadProjects = vi.fn(); window.openProjectDetail = vi.fn();
     delete window.tipoOrgAtuacao;
+    window.abrirNovoProjeto = abrirOriginal;
 });
 afterEach(() => { document.body.innerHTML = ''; });
 
@@ -159,6 +163,94 @@ describe('Pessoas e acessos: falha da designação e e-mail', () => {
         window.tipoOrgAtuacao = () => null;
         await criarAte5(['iso']);
         expect([...$('np-p0-papel').options].map((o) => o.value)).toEqual(['consultor']);
+    });
+});
+
+describe('Primeiros passos', () => {
+    const ETAPAS = (m, texto, extra = {}) => ({ [m]: { etapa: 'comecar', feitos: 0, total: 1, etapas: [], proximo: { texto, ...extra } } });
+    it('um "Começar" por módulo que o servidor mandou, com o próximo passo; sem o ot no programa, nada do n.ot', async () => {
+        await criarAte5(['iso', 'privacy', 'ot']);
+        apiMock.mockImplementation(async (m, url) => (url === '/api/v1/projects/novo/painel'
+            ? { programa: { etapas: { ...ETAPAS('iso', 'Carregar as fases da jornada', { tela: 'project-detail' }), ...ETAPAS('privacy', 'Partida', { tela: 'importacao' }) } } } : {}));
+        window.novoProjetoIr(6);
+        await new Promise((r) => setTimeout(r, 0));
+        const linhas = [...document.querySelectorAll('.np-primeiros li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim());
+        expect(linhas).toEqual(['n.iso Carregar as fases da jornada Começar', 'n.privacy Partida Começar']);
+        expect(document.getElementById('np-passo').textContent).not.toContain('n.ot');
+        expect(apiMock.mock.calls.map(([, u]) => u).every((u) => !String(u).includes('/ot'))).toBe(true);
+    });
+    it('com o ot (pessoa com o módulo), o n.ot também tem o primeiro passo; Começar entra no projeto e vai ao passo', async () => {
+        await criarAte5(['iso', 'ot']);
+        apiMock.mockImplementation(async (m, url) => (url === '/api/v1/projects/novo/painel'
+            ? { programa: { etapas: { ...ETAPAS('ot', 'Cadastrar o primeiro site', { tela: 'ot', aba: 'sites' }) } } } : {}));
+        window.novoProjetoIr(6);
+        await new Promise((r) => setTimeout(r, 0));
+        window.painelAbrirProximo = vi.fn();
+        expect(document.querySelector('[data-action="novoProjetoComecar"]').dataset.args).toBe('["novo","ot"]');
+        window.novoProjetoComecar('novo', 'ot');
+        expect(window.painelAbrirProximo).toHaveBeenCalledWith('novo', 'ot', 'sites', null, null);
+    });
+    it('painel indisponível: oferece abrir o projeto em cada módulo do projeto', async () => {
+        await criarAte5(['iso']);
+        apiMock.mockImplementation(async () => { throw new Error('falhou'); });
+        window.novoProjetoIr(6);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(document.querySelector('[data-action="painelAbrirProjeto"]').dataset.args).toBe('["novo","iso"]');
+    });
+});
+
+describe('organização criada leva ao assistente', () => {
+    it('"Criar o primeiro projeto" escolhe a organização (X-Org-Id) e abre o assistente', async () => {
+        await import('../src/views/organizacoes.js');
+        S.user = { role: 'platform_admin' };
+        window.__orgEscolher = vi.fn();
+        window.abrirNovoProjeto = vi.fn();
+        window.__orgPrimeiroProjeto('org_nova');
+        expect(window.__orgEscolher).toHaveBeenCalledWith('org_nova');
+        expect(window.abrirNovoProjeto).toHaveBeenCalled();
+    });
+    it('quem não é platform_admin não usa o atalho', async () => {
+        await import('../src/views/organizacoes.js');
+        S.user = { role: 'consultoria_admin' };
+        window.abrirNovoProjeto = vi.fn();
+        window.__orgPrimeiroProjeto('org_nova');
+        expect(window.abrirNovoProjeto).not.toHaveBeenCalled();
+    });
+});
+
+describe('Primeiros passos: designação pendente e telas fechadas', () => {
+    const semDesignar = async () => {
+        await criarAte5(['iso']);
+        digitar('np-p0-nome', 'Pessoa <b>X</b>'); digitar('np-p0-email', 'x@exemplo.lat');
+        apiMock.mockImplementation(async (m, u) => { if (/governance$/.test(u)) throw new Error('Falha interna'); return { id: 'x' }; });
+        await window.novoProjetoConvidar();
+    };
+    it('"Continuar sem designar" avança e o passo 6 avisa quem não foi designado (escapado)', async () => {
+        await semDesignar();
+        apiMock.mockImplementation(async () => ({ programa: { etapas: {} } }));
+        document.querySelector("button[data-action=novoProjetoIr][data-args=\"[6]\"]:not(.btn-primary)").click();
+        await new Promise((r) => setTimeout(r, 0));
+        expect($('np-titulo').textContent).toBe('Novo projeto — Primeiros passos');
+        const t = $('np-passo').textContent;
+        expect(t).toContain('foi convidado(a) mas não foi designado(a) ao projeto e não consegue vê-lo. Designe em Governança.');
+        expect($('np-passo').innerHTML).not.toContain('<b>X</b>');
+    });
+    it('"Pular" com convidado não designado mostra o mesmo aviso; sem pendência, nenhum', async () => {
+        await semDesignar();
+        apiMock.mockImplementation(async () => ({ programa: { etapas: {} } }));
+        window.novoProjetoIr(6);
+        expect($('np-passo').textContent).toContain('Designe em Governança.');
+        await criarAte5(['iso']);
+        window.novoProjetoIr(6);
+        expect($('np-passo').textContent).not.toContain('Designe em Governança.');
+    });
+    it('tela fora da lista fechada: o item sai sem botão Começar', async () => {
+        await criarAte5(['iso']);
+        apiMock.mockImplementation(async () => ({ programa: { etapas: { iso: { etapa: 'comecar', proximo: { texto: 'Algo', tela: 'admin-secreta' } } } } }));
+        window.novoProjetoIr(6);
+        await new Promise((r) => setTimeout(r, 0));
+        expect($('np-passo').textContent).toContain('Algo');
+        expect(document.querySelector('[data-action="novoProjetoComecar"]')).toBeNull();
     });
 });
 
