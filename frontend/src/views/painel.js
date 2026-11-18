@@ -137,6 +137,14 @@ function regua(m, p, projectId, podeAbrir) {
     return `<div class="pn-regua-bloco"><ol class="pn-regua" aria-label="${e(`Jornada do ${NOME[m]}`)}">${itens}</ol>${prox}</div>`;
 }
 
+const ROTULO_ETAPA_COMUM = { comecar: 'Começar', levantar: 'Levantar', avaliar: 'Avaliar', tratar: 'Tratar', operar: 'Operar' };
+/** A trilha de implantação do n.privacy (onda 4): os passos derivados pelo servidor; "Feito" ou o botão (só tela da lista fechada). */
+function trilha(lista, projectId) {
+    const ps = Array.isArray(lista) ? lista : [];
+    return `<ol class="pn-passos">${ps.map((p) => `<li><div><div class="pn-tx">${e(p.rotulo)}</div><div class="pn-meta">${e(ROTULO_ETAPA_COMUM[p.etapa] || '')}</div></div>
+        ${p.feito ? estado('ok', 'Feito') : TELAS_DO_PAINEL.has(p.tela) ? `<button type="button" class="btn btn-sm" data-action="painelAbrirProximo" data-args='${args(projectId, p.tela, null, null, null)}' aria-label="${e(`${p.acao}: ${p.rotulo}`)}">${e(p.acao)}</button>` : ''}</li>`).join('')}</ol>`;
+}
+
 const reguaDe = (m, d, projectId) => regua(m, d.programa && d.programa.etapas && d.programa.etapas[m], projectId, d.visao !== 'cliente');
 
 function passos(lista) {
@@ -211,7 +219,10 @@ function telaDoModulo(d, m, proj) {
     const faixas = m === 'privacy' && Array.isArray(b.acoes_por_prazo) ? b.acoes_por_prazo : null;
     if (faixas && typeof window.guardarFaixasPrazo === 'function') window.guardarFaixasPrazo(faixas);
     const porPrazo = faixas ? `<button type="button" class="btn btn-ghost btn-sm" data-action="abrirPrazosDasAcoes" data-args='${args(proj.id)}'>Ações por prazo</button>` : '';
-    const esquerda = [...decidir, quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false)), quadro('pn-venc', 'Próximos vencimentos, 90 dias', graficoVencimentos(b.vencimentos), porPrazo)];
+    const pv = m === 'privacy' && d.programa && d.programa.etapas && d.programa.etapas.privacy;
+    const esquerda = [...decidir, quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false)),
+        ...(pv && Array.isArray(pv.passos) ? [quadro('pn-trilha-t', 'Trilha de implantação', trilha(pv.passos, proj.id))] : []),
+        quadro('pn-venc', 'Próximos vencimentos, 90 dias', graficoVencimentos(b.vencimentos), porPrazo)];
     const riscos = Array.isArray(b.riscos) ? b.riscos : [];
     const totalRiscos = riscos.reduce((t, c) => t + (Number(c.n) || 0), 0);
     const direita = [quadro('pn-cob', 'Cobertura do programa', graficoCobertura(b.cobertura), '<span class="pn-meta">mesma escala em todos os temas</span>'),

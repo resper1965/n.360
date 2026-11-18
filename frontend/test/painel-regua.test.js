@@ -145,3 +145,57 @@ describe('régua para o cliente (leitura apenas)', () => {
         expect(b.attributes.length).toBe(5);   // type, class, data-action, data-args, aria-label: nada extra
     });
 });
+
+describe('trilha do n.privacy', () => {
+    const PASSOS = [['partida', 'Partida', true, 'importacao'], ['encarregado', 'Encarregado', true, 'encarregado'], ['inventario', 'Inventário', false, 'ropa']]
+        .map(([id, rotulo, feito, tela], i) => ({ id, ordem: i, rotulo, etapa: i < 2 ? 'comecar' : 'levantar', feito, tela, acao: `Abrir ${rotulo} <i>x</i>` }));
+    const PRIV = { etapa: 'levantar', feitos: 2, total: 7, proximo: { texto: 'Inventário', tela: 'ropa' }, etapas: ETAPAS([2, 0, 0, 0, 0]), passos: PASSOS };
+    const comPrivacy = (comecando) => ({ ...PAINEL(comecando, { privacy: PRIV }), modulos_pedidos: ['privacy'], modulos: { privacy: { ...BLOCO(comecando), passos: [] } } });
+    it('fora do começo: a trilha com Feito e o botão do passo por fazer, escapado', async () => {
+        history.replaceState(null, '', '/privacy'); S.view = 'encarregado';
+        servirSemOt({ 'GET /api/v1/projects/p9/painel': comPrivacy(false) });
+        montar();
+        await renderPainel(el('c'), el('h'), el('a'), 'privacy');
+        const t = el('c').querySelector('#pn-trilha-t').closest('section');
+        expect([...t.querySelectorAll('li')].map((li) => li.querySelector('.pn-tx').textContent)).toEqual(['Partida', 'Encarregado', 'Inventário']);
+        expect(t.querySelectorAll('.pn-estado').length).toBe(2);
+        const b = t.querySelector('button[data-action="painelAbrirProximo"]');
+        expect(JSON.parse(b.dataset.args)).toEqual(['p9', 'ropa', null, null, null]);
+        expect(t.querySelector('i')).toBeNull();
+    });
+    it('no começo, os "Primeiros passos" ficam e a trilha não aparece', async () => {
+        history.replaceState(null, '', '/privacy'); S.view = 'encarregado';
+        servirSemOt({ 'GET /api/v1/projects/p9/painel': comPrivacy(true) });
+        montar();
+        await renderPainel(el('c'), el('h'), el('a'), 'privacy');
+        expect(el('c').querySelector('#pn-trilha-t')).toBeNull();
+        expect(el('c').textContent).toContain('Primeiros passos');
+    });
+});
+
+describe('trilha do n.privacy: só o que o servidor mandou', () => {
+    const P = [{ id: 'partida', ordem: 0, rotulo: 'Partida', etapa: 'comecar', feito: false, tela: 'importacao', acao: 'Trazer' },
+        { id: 'x', ordem: 1, rotulo: 'Fora', etapa: 'levantar', feito: false, tela: 'users', acao: 'Ir' }];
+    const base = (etapas, visao = 'equipe') => ({ ...PAINEL(false, etapas), visao, modulos_pedidos: ['privacy'], modulos: { privacy: { ...BLOCO(false), passos: [] } } });
+    const rodar = async (payload) => {
+        history.replaceState(null, '', '/privacy'); S.view = 'encarregado'; S.painel = {};
+        servirSemOt({ 'GET /api/v1/projects/p9/painel': payload });
+        montar();
+        await renderPainel(el('c'), el('h'), el('a'), 'privacy');
+    };
+    it('sem etapas.privacy não há trilha', async () => {
+        await rodar(base({ iso: ISO }));
+        expect(el('c').querySelector('#pn-trilha-t')).toBeNull();
+    });
+    it('tela fora da lista fechada não vira botão', async () => {
+        await rodar(base({ privacy: { ...ISO, passos: P } }));
+        const bs = [...el('c').querySelectorAll('#pn-trilha-t')[0].closest('section').querySelectorAll('button')];
+        expect(bs.length).toBe(1);
+        expect(JSON.parse(bs[0].dataset.args)[1]).toBe('importacao');
+    });
+    it('o cliente não recebe a trilha nem botão de abrir', async () => {
+        await rodar({ ...base({ privacy: { ...ISO, passos: P } }, 'cliente'), decisoes: [] });
+        expect(el('c').querySelector('#pn-trilha-t')).toBeNull();
+        expect(el('c').querySelector('button[data-action="painelAbrirProximo"]')).toBeNull();
+    });
+});
