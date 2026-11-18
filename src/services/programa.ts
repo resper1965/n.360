@@ -3,9 +3,7 @@ import type { Catalogo } from '../data/passos/tipos';
 import { montarBancada } from './passos/estado';
 import { obterCatalogo } from '../data/passos/catalogo';
 import { carregarContexto, type ContextoProjeto } from './passos/contexto';
-import { situacaoDoSite, type ProximoPasso } from './ot-fase';
-import { sitesPermitidos } from './ot-inventario';
-import type { AtorPainelOt } from './painel-ot';
+import type { ProximoPasso } from './ot-fase';
 import type { Modulo } from '../modulos';
 
 // Onda 4: a régua comum de cada módulo, derivada do que já existe. SÓ LÊ (as funções daqui são puras; a que lê o banco é
@@ -68,27 +66,17 @@ export function etapasDoOt(sitesPermitidos: SiteNoPrograma[]): ProgramaDoModulo 
   return { etapa: doSite[i], feitos: doSite.filter((e) => e === 'operar').length, total: sites.length, proximo: { texto, tela: 'ot', aba: 'sites' }, etapas };
 }
 
-export type LidosDoPainel = { otAtor?: AtorPainelOt | null };
+/** `otSites`: o que `blocoOt` já derivou dos sites permitidos (P0-4); só existe quando o bloco `ot` foi montado (P0-1/P0-2). */
+export type LidosDoPainel = { otSites?: SiteNoPrograma[] | null };
 
 /**
  * `programa.etapas` do GET /painel (onda 4, decisão 7). SÓ LÊ: `carregarContexto` + `montarBancada`, nunca a rota da Bancada, cujo
- * GET grava (`materializarLegado`, `gravarSituacoes`). O n.ot entra só com `otAtor`, que o painel passa apenas quando montou o bloco
- * `ot` (módulo no projeto E na pessoa; nunca agente nem chave: P0-1/P0-2); os sites vêm de `sitesPermitidos` (P0-4).
+ * GET grava (`materializarLegado`, `gravarSituacoes`). O n.ot entra só com `otSites`, que o painel passa apenas quando montou o bloco
+ * `ot`: nenhuma consulta ot_* sai daqui (zero a mais; mesmo conjunto e mesmo teto do bloco).
  */
 export async function etapasDoPrograma(db: D1Database, projectId: string, modulos: readonly Modulo[], lidos: LidosDoPainel = {}): Promise<Partial<Record<Modulo, ProgramaDoModulo>>> {
   const r: Partial<Record<Modulo, ProgramaDoModulo>> = {};
   if (modulos.includes('iso')) r.iso = etapasDoIso(obterCatalogo(), await carregarContexto(db, projectId));
-  const a = lidos.otAtor;
-  if (modulos.includes('ot') && a && a.agente !== true && !a.id.startsWith('apikey:')) {
-    const sites = JSON.parse(await sitesPermitidos(db, a, projectId)) as string[];
-    // shortcut: uma situacaoDoSite por site (6 consultas cada); trocar por consulta agregada se um projeto passar de ~50 sites
-    const [situacoes, desvios] = await Promise.all([
-      Promise.all(sites.map((id) => situacaoDoSite(db, projectId, id))),
-      db.prepare(`SELECT site_id, count(*) AS n FROM ot_desvios WHERE project_id = ? AND situacao = 'aberto' AND site_id IN (SELECT value FROM json_each(?)) GROUP BY site_id`)
-        .bind(projectId, JSON.stringify(sites)).all<{ site_id: string; n: number }>(),
-    ]);
-    const porSite = new Map(desvios.results.map((d) => [d.site_id, Number(d.n)]));
-    r.ot = etapasDoOt(situacoes.flatMap((s, i) => (s ? [{ proximo_passo: s.proximo_passo, desvios_abertos: porSite.get(sites[i]) ?? 0 }] : [])));
-  }
+  if (modulos.includes('ot') && lidos.otSites) r.ot = etapasDoOt(lidos.otSites);
   return r;
 }

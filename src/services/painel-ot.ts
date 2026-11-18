@@ -1,6 +1,8 @@
 import { ehConsultor } from '../helpers';
 import { adminDireto } from './organizacao';
 import { gestorArciberDireto, podeEditarOt, sitesPermitidos, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
+import { proximoPassoDe, sitesComZonas411, type Fase } from './ot-fase';
+import type { SiteNoPrograma } from './programa';
 import { situacaoSensor, type Cred } from './ot-sensor';
 import type { ItemFazer, Passo, Proximo } from './painel';
 
@@ -24,7 +26,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const aprova = pessoa && (ator.role === 'org_admin' || ehConsultor(ator) || await adminDireto(db, ator, projectId));
   const edita = podeEditarOt(ator);
   const NO_SITE = 'site_id IN (SELECT value FROM json_each(?2))';
-  const [sts, cont, sondas, creds] = await db.batch([
+  const [sts, cont, sondas, creds, rasc, lotesRev, zonas, conteudo, revalid, desv] = await db.batch([
     db.prepare(`SELECT id, nome, fase, substr(obra_ate, 1, 10) AS obra_ate, base_aprovada_em FROM ot_sites
       WHERE project_id = ?1 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?2)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
     db.prepare(`SELECT
@@ -40,6 +42,16 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
       FROM ot_sensores s WHERE s.project_id = ?1 AND s.situacao = 'ativa' AND s.${NO_SITE} LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
     db.prepare(`SELECT sensor_id, expira_em, situacao FROM ot_sensor_credenciais WHERE project_id = ?1 AND situacao = 'ativa' AND expira_em > ?2 LIMIT ${TETO_LEITURA_OT}`)
       .bind(projectId, agora.toISOString()),
+    // Para a régua do programa (onda 4): o que `situacaoDoSite` leria site a site, em lote e sobre OS MESMOS sites (mesmo teto), no mesmo batch.
+    db.prepare(`SELECT l.site_id, count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      WHERE a.project_id = ?1 AND l.status = 'ativo' AND a.situacao = 'rascunho' AND a.chave_sensor IS NULL AND l.site_id IN (SELECT value FROM json_each(?2)) GROUP BY l.site_id`).bind(projectId, sites),
+    db.prepare(`SELECT site_id, count(*) AS n FROM ot_lotes WHERE project_id = ?1 AND status = 'em_revisao' AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
+    db.prepare(sitesComZonas411('site_id IN (SELECT value FROM json_each(?))')).bind(projectId, sites),
+    db.prepare(`SELECT site_id FROM ot_levantamentos WHERE project_id = ?1 AND status = 'ativo' AND ${NO_SITE} UNION
+      SELECT site_id FROM ot_ativos WHERE project_id = ?1 AND status = 'ativo' AND ${NO_SITE}`).bind(projectId, sites),
+    db.prepare(`SELECT site_id, date(min(ultima_verificacao_em), '+24 months') AS em FROM ot_ativos
+      WHERE project_id = ?1 AND status = 'ativo' AND no_arciber = 1 AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
+    db.prepare(`SELECT site_id, count(*) AS n FROM ot_desvios WHERE project_id = ?1 AND situacao = 'aberto' AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
   ]);
   const lista = sts.results as { id: string; nome: string; fase: string; obra_ate: string | null; base_aprovada_em: string | null }[];
   const c = cont.results[0] as { desvios: number; desvios_fora_de_obra: number; lotes: number; aceites: number; revisoes: number };
@@ -62,9 +74,18 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
     ...(gestor ? item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', 'sites') : []),
     ...(gestor ? item('semana', c.aceites, 'aceite de desvio vence em até 7 dias', 'aceites de desvio vencem em até 7 dias', 'Depois do prazo, o desvio reabre', 'Ver os desvios', 'sites') : []),
   ];
+  const por = <T extends { site_id: string }>(r: unknown) => new Map((r as T[]).map((x) => [x.site_id, x]));
+  const [mRasc, mLotes, mRev, mDesv] = [rasc, lotesRev, revalid, desv].map((r) => por<{ site_id: string; n: number; em?: string | null }>(r.results));
+  const [mZonas, mConteudo] = [zonas, conteudo].map((r) => new Set((r.results as { site_id: string }[]).map((x) => x.site_id)));
+  // A régua do programa (P0-4): um item por site permitido, sem nome; a rota só o repassa a quem tem o bloco `ot`.
+  const sitesPrograma: SiteNoPrograma[] = lista.map((s) => ({
+    proximo_passo: proximoPassoDe({ fase: s.fase as Fase, revalidar_em: mRev.get(s.id)?.em ?? null, tem_conteudo: mConteudo.has(s.id), zonas_4_1_1: mZonas.has(s.id),
+      rascunhos_bloqueiam: Number(mRasc.get(s.id)?.n ?? 0), lotes_em_revisao: Number(mLotes.get(s.id)?.n ?? 0) }),
+    desvios_abertos: Number(mDesv.get(s.id)?.n ?? 0),
+  }));
   const comecando = lista.length === 0;
   return {
-    comecando, itens, proximo: null as Proximo,
+    comecando, itens, sitesPrograma, proximo: null as Proximo,
     // Marco do programa (onda 4, decisão 8): a primeira base aprovada entre os sites DESTA pessoa (P0-4). O painel não o devolve.
     marco: lista.map((s) => s.base_aprovada_em).filter((d): d is string => !!d).sort()[0] ?? null,
     numeros: [[`${lista.filter((s) => s.fase === 'em_operacao').length} de ${lista.length}`, 'sites em operação'], [String(c.desvios), 'desvios abertos']] as [string, string][],

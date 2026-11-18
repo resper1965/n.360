@@ -97,3 +97,30 @@ describe('marco do n.ot (decisão 8): só para quem tem o ot', () => {
     }
   });
 });
+
+// Custo: a régua do n.ot não consulta nada a mais (reusa o que o bloco já leu) e quem não tem o ot não dispara nenhuma consulta ot_*.
+const contando = () => {
+  const sqls: string[] = [];
+  const DB = new Proxy(env.DB, { get: (t, k) => (k === 'prepare' ? (q: string) => { sqls.push(q); return t.prepare(q); } : (t as any)[k]?.bind?.(t) ?? (t as any)[k]) });
+  return { sqls, extra: { DB } };
+};
+describe('custo do programa.etapas', () => {
+  it('150 sites: 200 e o número de consultas não cresce com os sites; a régua conta os 151', async () => {
+    const um = contando();
+    await painel(cons, '', um.extra);
+    await env.DB.batch(Array.from({ length: 150 }, (_, i) => env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase) VALUES (?, 'proj-a', ?, 'em_levantamento')`).bind(`mass-${i}`, `Massa ${i}`)));
+    try {
+      const muitos = contando();
+      const d = await painel(cons, '', muitos.extra);
+      expect(muitos.sqls.length).toBe(um.sqls.length);
+      expect(d.programa.etapas.ot.total).toBe(151);
+    } finally { await env.DB.prepare(`DELETE FROM ot_sites WHERE id LIKE 'mass-%'`).run(); }
+  });
+  it('quem não tem o ot: nenhuma consulta a ot_* ao montar o painel', async () => {
+    for (const [h, extra] of [[semOt, {}], [{}, { AGENTE }], [{ 'X-API-Key': 'chave-programa-ot' }, {}]] as [H, Record<string, unknown>][]) {
+      const c = contando();
+      await painel(h, '', { ...extra, ...c.extra });
+      expect(c.sqls.filter((q) => /\bot_/.test(q)), JSON.stringify(Object.keys(extra))).toEqual([]);
+    }
+  });
+});
