@@ -197,7 +197,9 @@ const NOME_MODULO = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
 /** A organização em que o projeto nasceu é direta? A do platform_admin é a do seletor (X-Org-Id); a dos outros, a da sessão. */
 const orgDoProjetoDireta = () => {
     const t = S.user && S.user.role === 'platform_admin' && typeof window.tipoOrgAtuacao === 'function' ? window.tipoOrgAtuacao() : null;
-    return t ? t === 'direta' : orgDireta();
+    // Falha fechada: o platform_admin sem o tipo da organização carregado recebe só a opção de equipe (o servidor decide de qualquer forma).
+    if (S.user && S.user.role === 'platform_admin') return t ? t === 'direta' : true;
+    return orgDireta();
 };
 /** Papéis do passo: a direta só tem equipe (onda 1, decisão 8; o servidor recusa o resto); a consultoria convida também o cliente. */
 const papeisDoPasso = () => (orgDoProjetoDireta() ? [['consultor', 'Pessoa da equipe']]
@@ -208,12 +210,15 @@ const modulosOferecidos = () => { const meus = modulosDaPessoa(); return W.proje
 const novaPessoa = () => ({ nome: '', email: '', papel: 'consultor', modulos: modulosOferecidos().filter((m) => m !== 'ot') });
 
 function linhaPessoa(p, i) {
+    const off = p.convidado ? ' disabled' : '';
+    const semDesignar = p.convidado && !p.designado && p.papel === 'consultor'
+        ? ` <button type="button" class="btn btn-ghost btn-sm" data-action="novoProjetoIr" data-args='[6]'>Continuar sem designar</button>` : '';
     return `<fieldset class="np-pessoa"><legend class="form-label">Pessoa ${i + 1}</legend>
-        <div class="form-group"><label class="form-label" for="np-p${i}-nome">Nome</label><input class="form-input" id="np-p${i}-nome" maxlength="200" value="${escapeHTML(p.nome)}"></div>
-        <div class="form-group"><label class="form-label" for="np-p${i}-email">E-mail</label><input class="form-input" id="np-p${i}-email" type="email" maxlength="320" value="${escapeHTML(p.email)}"></div>
-        <div class="form-group"><label class="form-label" for="np-p${i}-papel">Papel</label><select class="form-input" id="np-p${i}-papel">${papeisDoPasso().map(([v, r]) => `<option value="${v}" ${p.papel === v ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-        <fieldset class="np-modulos"><legend class="form-label">Módulos</legend>${modulosOferecidos().map((m) => `<label><input type="checkbox" name="np-p${i}-modulo" value="${escapeHTML(m)}" ${p.modulos.includes(m) ? 'checked' : ''}> ${NOME_MODULO[m] || escapeHTML(m)}${m === 'ot' ? ' (só se marcado)' : ''}</label>`).join('')}</fieldset>
-        <p class="np-erro-pessoa" id="np-p${i}-erro" role="alert">${p.feito ? 'Convite enviado.' : ''}</p></fieldset>`;
+        <div class="form-group"><label class="form-label" for="np-p${i}-nome">Nome</label><input class="form-input" id="np-p${i}-nome" maxlength="200" value="${escapeHTML(p.nome)}"${off}></div>
+        <div class="form-group"><label class="form-label" for="np-p${i}-email">E-mail</label><input class="form-input" id="np-p${i}-email" type="email" maxlength="320" value="${escapeHTML(p.email)}"${off}></div>
+        <div class="form-group"><label class="form-label" for="np-p${i}-papel">Papel</label><select class="form-input" id="np-p${i}-papel"${off}>${papeisDoPasso().map(([v, r]) => `<option value="${v}" ${p.papel === v ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+        <fieldset class="np-modulos"><legend class="form-label">Módulos</legend>${modulosOferecidos().map((m) => `<label><input type="checkbox" name="np-p${i}-modulo" value="${escapeHTML(m)}" ${p.modulos.includes(m) ? 'checked' : ''}${off}> ${NOME_MODULO[m] || escapeHTML(m)}${m === 'ot' ? ' (só se marcado)' : ''}</label>`).join('')}</fieldset>
+        <p class="np-erro-pessoa" id="np-p${i}-erro" role="alert">${escapeHTML(p.msg || '')}</p>${semDesignar}</fieldset>`;
 }
 
 function pessoasHtml() {
@@ -226,7 +231,7 @@ function primeirosHtml() { return '<p>O projeto foi criado.</p>'; }
 
 /** Lê as linhas do passo 5 para `W.acessos` (sem validar: validar é do convidar). */
 function lerAcessos() {
-    W.acessos = W.acessos.map((p, i) => (p.feito ? p : {
+    W.acessos = W.acessos.map((p, i) => (p.convidado ? p : {
         nome: ($(`np-p${i}-nome`) || {}).value?.trim() ?? p.nome,
         email: ($(`np-p${i}-email`) || {}).value?.trim() ?? p.email,
         papel: ($(`np-p${i}-papel`) || {}).value || p.papel,
@@ -403,18 +408,26 @@ window.novoProjetoConvidar = () => semRepetir('novoProjetoConvidar', async () =>
     const pid = W.projeto.id;
     let falhou = false;
     for (const [i, p] of W.acessos.entries()) {
-        if (p.feito || (!p.nome && !p.email)) continue;
-        const erro = (t) => { const el = $(`np-p${i}-erro`); if (el) el.textContent = t; falhou = true; };
-        if (!p.nome || !p.email) { erro('Informe nome e e-mail.'); continue; }
-        if (!p.modulos.length) { erro('Escolha ao menos um módulo.'); continue; }
+        if (p.designado || (!p.nome && !p.email)) continue;
+        const erro = (t) => { p.msg = t; const el = $(`np-p${i}-erro`); if (el) el.textContent = t; falhou = true; };
         const cliente = p.papel !== 'consultor';
+        if (!p.convidado) {
+            if (!p.nome || !p.email) { erro('Informe nome e e-mail.'); continue; }
+            if (!p.modulos.length) { erro('Escolha ao menos um módulo.'); continue; }
+            try {
+                const r = await api('POST', '/api/v1/users', { name: p.nome, email: p.email, role: p.papel, client_project_id: cliente ? pid : null, modulos: p.modulos });
+                p.convidado = true; // a conta existe: o retry nunca repete o convite
+                p.msg = 'Convite enviado.';
+                if (r && r.emailEnviado === false) { p.msg = 'Conta criada, mas o e-mail não foi enviado: reenvie o convite em Usuários.'; falhou = true; } // fica à vista até a pessoa seguir
+            } catch (err) { erro((err && err.message) || 'Não foi possível convidar.'); continue; }
+        }
+        if (cliente) { p.designado = true; continue; }
         try {
-            await api('POST', '/api/v1/users', { name: p.nome, email: p.email, role: p.papel, client_project_id: cliente ? pid : null, modulos: p.modulos });
-            p.feito = true; // o convite já saiu: um erro da designação não o repete
-            if (!cliente) await api('POST', `/api/v1/projects/${pid}/governance`, { name: p.nome, email: p.email, role_category: 'consultor', job_title: 'Consultor' });
-            const el = $(`np-p${i}-erro`); if (el) el.textContent = 'Convite enviado.';
-        } catch (err) { erro((err && err.message) || 'Não foi possível convidar.'); }
+            await api('POST', `/api/v1/projects/${pid}/governance`, { name: p.nome, email: p.email, role_category: 'consultor', job_title: 'Consultor' });
+            p.designado = true;
+        } catch (err) { erro(`Convite enviado, mas a designação falhou: ${(err && err.message) || 'erro'}. Tente de novo ou designe em Governança.`); }
     }
+    if (falhou) mostrarPasso();
     if (!falhou) window.novoProjetoIr(6);
 });
 

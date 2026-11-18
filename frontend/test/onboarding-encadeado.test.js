@@ -121,3 +121,44 @@ describe('Pessoas e acessos: proteções extras', () => {
         expect(document.querySelector('input[name="np-p0-modulo"][value="ot"]').checked).toBe(false);
     });
 });
+
+describe('Pessoas e acessos: falha da designação e e-mail', () => {
+    const governanca = (m, u) => m === 'POST' && /governance$/.test(u);
+    it('convite ok + designação 500: diz o que falhou, não avança; o retry repete só a designação e avança', async () => {
+        await criarAte5(['iso']);
+        digitar('np-p0-nome', 'A'); digitar('np-p0-email', 'a@exemplo.lat');
+        apiMock.mockClear();
+        apiMock.mockImplementation(async (m, u) => { if (governanca(m, u)) { const e = new Error('Falha interna'); e.status = 500; throw e; } return { id: 'x' }; });
+        await window.novoProjetoConvidar();
+        expect($('np-p0-erro').textContent).toBe('Convite enviado, mas a designação falhou: Falha interna. Tente de novo ou designe em Governança.');
+        expect($('np-titulo').textContent).toBe('Novo projeto — Pessoas e acessos');
+        expect($('np-p0-nome').disabled).toBe(true);
+        expect(document.querySelector('[data-action="novoProjetoIr"][data-args="[6]"]').textContent).toBeTruthy();
+        expect(document.body.textContent).toContain('Continuar sem designar');
+        apiMock.mockImplementation(async () => ({ id: 'x' }));
+        await window.novoProjetoConvidar();
+        const posts = apiMock.mock.calls.filter(([m]) => m === 'POST');
+        expect(posts.filter(([, u]) => u === '/api/v1/users')).toHaveLength(1);
+        expect(posts.filter(([m, u]) => governanca(m, u))).toHaveLength(2);
+        expect($('np-titulo').textContent).toBe('Novo projeto — Primeiros passos');
+    });
+    it('emailEnviado:false não diz "Convite enviado"', async () => {
+        await criarAte5(['iso']);
+        digitar('np-p0-nome', 'A'); digitar('np-p0-email', 'a@exemplo.lat'); $('np-p0-papel').value = 'org_user';
+        apiMock.mockImplementation(async () => ({ id: 'x', emailEnviado: false }));
+        await window.novoProjetoConvidar();
+        expect($('np-p0-erro').textContent).toMatch(/e-mail não foi enviado: reenvie o convite em Usuários/);
+        expect($('np-titulo').textContent).toBe('Novo projeto — Pessoas e acessos');
+        apiMock.mockClear();
+        await window.novoProjetoConvidar();
+        expect(apiMock.mock.calls.filter(([m]) => m === 'POST')).toEqual([]);
+        expect($('np-titulo').textContent).toBe('Novo projeto — Primeiros passos');
+    });
+    it('platform_admin sem o tipo da organização carregado: só equipe (falha fechada)', async () => {
+        S.user = { role: 'platform_admin' };
+        window.tipoOrgAtuacao = () => null;
+        await criarAte5(['iso']);
+        expect([...$('np-p0-papel').options].map((o) => o.value)).toEqual(['consultor']);
+    });
+});
+
