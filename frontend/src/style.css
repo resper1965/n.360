@@ -2217,3 +2217,11 @@ ul.at-ajuda { padding-left: 1.25em; }
 
 /* Jornada (onda 4): abas Plano de trabalho / Prontidão para certificar */
 .jornada-abas { display: flex; gap: 8px; margin: 0 0 12px; }
+
+/* Régua comum (onda 4): Começar, Levantar, Avaliar, Tratar, Operar */
+.pn-regua { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin: 8px 0 4px; padding: 0; list-style: none; }
+.pn-regua-etapa { display: flex; flex-direction: column; padding: 6px 8px; border-top: 3px solid var(--border); }
+.pn-regua-feita { border-top-color: var(--success); }
+.pn-regua-atual { border-top-color: var(--accent); }
+.pn-regua-nome { font-weight: 600; }
+.pn-regua-prox { margin: 4px 0 8px; }

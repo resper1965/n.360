@@ -120,6 +120,25 @@ function listaDecisoes(decisoes, semNada = '', primaria = true) {
         <button type="button" class="btn btn-sm${primaria && n === 0 ? ' btn-primary' : ''}" data-action="abrirPedido" data-args='${args(p.id)}' aria-label="${e(`${p.acao}: ${p.titulo}`)}">${e(p.acao)}</button></li>`).join('')}</ul>`;
 }
 
+/**
+ * A régua comum (onda 4): as cinco etapas do módulo, a em curso marcada, e o próximo passo. Só o que o servidor mandou em
+ * `programa.etapas` (o n.ot só vem a quem tem o módulo: P0-1/P0-2); sem a chave, nada. O "Abrir" só existe para a equipe e para
+ * tela da lista fechada: o cliente lê a régua, não navega por ela.
+ */
+function regua(m, p, projectId, podeAbrir) {
+    if (!p || !Array.isArray(p.etapas)) return '';
+    const itens = p.etapas.map((et) => {
+        const situacao = et.total > 0 && et.feitos >= et.total ? 'feita' : et.id === p.etapa ? 'atual' : 'futura';
+        return `<li class="pn-regua-etapa pn-regua-${situacao}"${et.id === p.etapa ? ' aria-current="step"' : ''} aria-label="${e(`${et.rotulo}: ${et.feitos} feitos de ${et.total}`)}"><span class="pn-regua-nome">${e(et.rotulo)}</span><span class="pn-meta">${e(`${et.feitos} de ${et.total}`)}</span></li>`;
+    }).join('');
+    const x = p.proximo;
+    const botao = x && podeAbrir && TELAS_DO_PAINEL.has(x.tela) ? ` <button type="button" class="btn btn-sm" data-action="painelAbrirProximo" data-args='${args(projectId, x.tela, x.aba || null, x.fase ?? null, x.passo || null)}' aria-label="${e(`Abrir próximo passo: ${x.texto} (${NOME[m]})`)}">Abrir</button>` : '';
+    const prox = x ? `<p class="pn-regua-prox"><span class="pn-meta">Próximo:</span> ${e(x.texto)}${botao}</p>` : '';
+    return `<div class="pn-regua-bloco"><ol class="pn-regua" aria-label="${e(`Jornada do ${NOME[m]}`)}">${itens}</ol>${prox}</div>`;
+}
+
+const reguaDe = (m, d, projectId) => regua(m, d.programa && d.programa.etapas && d.programa.etapas[m], projectId, d.visao !== 'cliente');
+
 function passos(lista) {
     const ps = Array.isArray(lista) ? lista : [];
     return `<ol class="pn-passos">${ps.map((p, n) => `<li><div><div class="pn-tx">${e(p.texto)}</div><div class="pn-meta">${e(p.contexto)}</div></div>
@@ -174,7 +193,7 @@ function jornadaDoCliente(j) {
 /** Entrada de um módulo (n.iso ou n.privacy). */
 function telaDoModulo(d, m, proj) {
     const b = (d.modulos && d.modulos[m]) || {};
-    const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}`;
+    const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}${reguaDe(m, d, proj.id)}`;
     if (d.visao === 'cliente') {
         // Dentro do módulo não há "Abrir o módulo"; no n.iso o lado direito é a jornada (o próximo marco), não números.
         if (m === 'iso') {
@@ -239,7 +258,7 @@ function linhaSituacao(m, d, projectId) {
     const i = ['atraso', 'semana', 'plano'].map((g) => lista.find((x) => x.grupo === g)).find(Boolean);
     const urgente = i ? `<div class="pn-cx">Mais urgente: ${e(i.texto)}</div>` : '';
     const botao = i ? `<button type="button" class="btn btn-sm" data-action="painelAbrirItem" data-args='${args(projectId, i.tela, i.aba || null, i.filtro || null)}' aria-label="${e(`${i.acao}: ${i.texto} (${NOME[m]})`)}">${e(i.acao)}</button>` : '<div></div>';
-    return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado(sd.tom, sd.rotulo)}<div class="pn-m-frase">${e(sd.frase)}</div>${urgente}</div>${figuras(b, d.visao === 'cliente')}${botao}</div>`;
+    return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado(sd.tom, sd.rotulo)}<div class="pn-m-frase">${e(sd.frase)}</div>${urgente}</div>${figuras(b, d.visao === 'cliente')}${botao}</div>${reguaDe(m, d, projectId)}`;
 }
 
 function situacao(d, projectId, nome) {
@@ -370,6 +389,14 @@ window.painelAbrirItem = function (projectId, tela, aba, filtro) {
     // "Indicar o encarregado" não abre o modal no hub: o n.privacy o oferece no Painel dele.
     if (tela === 'encarregado') { window.navigate('encarregado'); return; }
     window.painelAbrir(tela, aba, filtro);
+};
+
+/** "Abrir" do próximo passo da régua: entra no projeto (no Início não há ativo) e vai à Bancada na fase/passo ou à tela da lista fechada. */
+window.painelAbrirProximo = function (projectId, tela, aba, fase, passo) {
+    if (!TELAS_DO_PAINEL.has(tela)) return;
+    if (projectId && !entrarNoProjeto(projectId)) return;
+    if (tela === 'project-detail' && (fase !== null || passo)) { window.navigate('project-detail', { bancadaAlvo: { fase, passo } }); return; }
+    window.painelAbrir(tela, aba, null);
 };
 
 // ─── Desenho e dados ───────────────────────────────────────────────────────────────────────────────────
