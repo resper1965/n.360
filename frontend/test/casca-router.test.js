@@ -27,6 +27,12 @@ beforeEach(() => {
 afterEach(() => ir('/'));
 
 describe('n.360 é o hub', () => {
+    it('alias no n.360: "monitor" sai para o n.iso com o nome antigo no endereço', () => {
+        ir('/');
+        navigate('monitor');
+        expect(irPara).toHaveBeenCalledWith('/iso?tela=monitor');
+        expect(globalThis.renderProjectDetail).not.toHaveBeenCalled();
+    });
     it('tela do hub abre no portal', () => {
         ir('/');
         for (const t of ['inicio', 'users', 'audit-trail', 'seguranca-projeto', 'meus-pedidos', 'projects']) {

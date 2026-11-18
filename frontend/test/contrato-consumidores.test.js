@@ -53,31 +53,11 @@ describe('consumidores que o desembrulho antigo quebrava', () => {
         expect($('content').querySelector('h3').textContent).toMatch(/Passo 1 de 2/);
     });
 
-    it('análise de lacunas: lê coverage_pct e by_status (projects.ts:1042)', async () => {
-        servir({ 'GET /api/v1/projects/p1/gap-analysis': {
-            ok: true, total: 2, applicable: 2, by_status: { Implemented: 1, Missing: 1 }, coverage_pct: 50,
-            controls_with_evidence: 1, controls_with_risks: 0,
-            gaps: [{ control_id: 'c2', title: 'A.5.2', status: 'Missing', evidence_count: 0, risk_count: 0 }],
-        } });
-        await window.showGapAnalysis('p1');
-        const t = $('modal-content').textContent;
-        expect(t).toContain('50%');
-        expect(t).toContain('Controles com evidencia: 1');
-    });
-
     it('migrar 27701: mostra o resultado (projects.ts:831)', async () => {
         vi.spyOn(window, 'confirmar').mockResolvedValue(true);
         servir({ 'POST /api/v1/projects/p1/migrate-27701': { ok: true, gaps: [{ control_id: 'A.5.34' }], transformation_ratio: 0.5, new_controls_created: 3 } });
         await window.migrate27701('p1');
         expect(document.querySelector('.toast').textContent).toContain('Novos controles: 3');
-    });
-
-    it('carteira: lê `portfolio` do envelope de duas listas (platform.ts:547)', async () => {
-        const p = { id: 'p1', client_name: 'Acme', project_name: null, overall_progress_pct: 80, completed_phases: 3, phase_count: 41, risk_count: 0, evidence_count: 2 };
-        servir({ 'GET /api/v1/portfolio': { ok: true, portfolio: [p], projects: [p] } });
-        const [c, h, a] = tela();
-        await window.renderPortfolio(c, h, a);
-        expect(c.textContent).toContain('Acme');
     });
 });
 

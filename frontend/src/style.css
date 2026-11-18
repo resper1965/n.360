@@ -1845,10 +1845,8 @@ td .mais-acoes-botao { padding: 4px 10px; }
 /* O título da etapa ocupa o espaço e quebra linha; a contagem nunca encolhe nem encosta nele. */
 .roadmap-j-header > div:first-child { flex: 1 1 auto; min-width: 0; }
 .roadmap-j-pct.roadmap-j-pct { flex: 0 0 auto; }
-.roadmap-legenda { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: -0.75rem 0 1.25rem; font-size: 12.5px; color: var(--text-2); }
+.roadmap-legenda { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 1.25rem; font-size: 12.5px; color: var(--text-2); }
 .roadmap-legenda > span { display: inline-flex; align-items: center; gap: 8px; }
-.roadmap-node.roadmap-amostra { width: 14px; height: 14px; cursor: default; animation: none; box-shadow: none; }
-.roadmap-node.roadmap-amostra:hover { transform: none; }
 .roadmap-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .roadmap-node:focus-visible .tooltip { visibility: visible; opacity: 1; }
 .jornada-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 1.5rem; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); }

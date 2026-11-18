@@ -21,7 +21,7 @@ export const PRODUTOS = {
 const MODULOS = ['iso', 'privacy', 'ot'];
 
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
-export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
+export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
@@ -130,10 +130,17 @@ export function destinoDoAviso(tela, loc = window.location) {
  * Telas dos módulos (as que o render desenha fora do hub): a lista fechada do `?tela=` com que o n.360 abre um módulo na tela
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
-export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
+export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'assets', 'metrics', 'acknowledgments',
     'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha', 'avaliacoes-terceiros', 'questionarios-fornecedor', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review', 'ot'];
+/**
+ * Telas que saíram do menu e seguem valendo como endereço (link salvo, e-mail, aviso, `?tela=`): a tela que as substitui e, se
+ * houver, a aba dela. Nunca 404 nem tela em branco (o `render` não desenha nada para tela sem ramo). Lista fechada;
+ * `Object.hasOwn` barra `__proto__`/`constructor`.
+ */
+export const ALIAS_DE_TELA = { monitor: { tela: 'project-detail' } };
+export const aliasDaTela = (tela) => (typeof tela === 'string' && Object.hasOwn(ALIAS_DE_TELA, tela) ? ALIAS_DE_TELA[tela] : null);
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
 const CHAVE_AVISO = 'n360_aviso';
 // O filtro do painel (filtro-painel.js) que acompanha a tela: só a chave da lista fechada, no storage e não no endereço.
@@ -218,8 +225,10 @@ export function pedidoDoHub(loc = window.location) {
     const resto = q.toString();
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
     if (aviso) return { aviso };
-    const dono = moduloDaTela(tela);
-    return TELAS_DOS_MODULOS.includes(tela) && (dono === null || dono === produto || aba) ? { tela, aba, ...(filtro && filtro.tela === tela ? { filtro } : {}) } : null;
+    // Tela que saiu (alias) vale pelo destino; devolve o nome pedido: o navigate resolve o alias (e a aba, quando há).
+    const real = aliasDaTela(tela)?.tela ?? tela;
+    const dono = moduloDaTela(real);
+    return TELAS_DOS_MODULOS.includes(real) && (dono === null || dono === produto || aba) ? { tela, aba, ...(filtro && filtro.tela === tela ? { filtro } : {}) } : null;
 }
 
 const rotuloDoGrupo = (doc, grupo) => doc.querySelector(`.sidebar-label[data-args='["${grupo}"]']`);

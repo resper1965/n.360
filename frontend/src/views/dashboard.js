@@ -76,7 +76,7 @@ const comercialAtivo = () => !!(S.user && S.user.comercial_ativo === true);
                             <div>
                                 <div style="font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px">Fase 3</div>
                                 <h3 style="font-family:var(--font-head); font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Início do SGSI & Projetos</h3>
-                                <p style="color:var(--text-dim); font-size:0.85rem; margin:0">Criação automatizada de todas as 41 fases do projeto no n.iso, checklists de conformidade e ativação dos assistentes de IA.</p>
+                                <p style="color:var(--text-dim); font-size:0.85rem; margin:0">Criação do projeto no n.iso com a jornada de adequação, as listas de verificação e os assistentes de IA.</p>
                             </div>
                             <div style="text-align:right">
                                 <span class="status-badge" style="background:rgba(255,255,255,0.05); color:var(--text-dim)">Bloqueado até assinatura</span>

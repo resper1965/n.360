@@ -305,6 +305,18 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
 });
 
 describe('pedidoDoHub (?tela= e aviso no boot do módulo)', () => {
+    it('tela que saiu (?tela=monitor) é aceita no módulo dela e mantém o nome antigo: o navigate resolve o alias', () => {
+        ir('/iso?tela=monitor');
+        expect(pedidoDoHub()).toEqual({ tela: 'monitor', aba: null });
+        expect(location.search).toBe('');
+        ir('/privacy?tela=monitor');
+        expect(pedidoDoHub()).toBeNull();
+    });
+    it('alias é lista fechada: __proto__ e constructor não passam', async () => {
+        const { aliasDaTela } = await import('../src/produto.js');
+        expect(aliasDaTela('monitor')).toEqual({ tela: 'project-detail' });
+        for (const t of ['__proto__', 'constructor', 'toString', '', undefined]) expect(aliasDaTela(t), String(t)).toBeNull();
+    });
     it('toda tela da lista fechada tem ramo no render e nenhuma é do hub', () => {
         for (const t of TELAS_DOS_MODULOS) {
             expect(fonteRouter, t).toContain(`S.view === '${t}'`);
