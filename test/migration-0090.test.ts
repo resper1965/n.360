@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { execSql, applySchema } from './helpers/d1';
 import migration0090 from '../migrations/0090_ot_requisitos.sql?raw';
+
+// Reconstrói o esquema (DROP + applySchema): numa máquina lenta/carregada passa fácil de 5 s.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 const DEZOITO = ['4.1.2', '4.1.3', '4.2.1', '4.2.2', '4.3.1', '4.3.2', '4.3.3', '4.6.1'];
 

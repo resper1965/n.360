@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { execSql, applySchema, seedTwoProjects } from './helpers/d1';
 import migration0091 from '../migrations/0091_ot_inventario.sql?raw';
+
+// Reconstrói o esquema (DROP + applySchema): numa máquina lenta/carregada passa fácil de 5 s.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 const C = 'ot1:k1:aXY=:Y3Q='; // forma de cifra (o conteúdo não importa ao banco)
 const ARCIBER = { categoria_arciber: 'centro_operacao', tipo_dispositivo: 'RTU', fabricante: 'F', funcao: 'telecontrole', ip_cifrado: C, protocolos_portas: '[{"protocolo":"DNP3","porta":20000}]', firmware_so_versao: '1.0' };

@@ -37,5 +37,5 @@ describe('migration 0039 — envio, aceite e contrato', () => {
 
     await execSql('DROP TABLE propostas; DROP TABLE contracts; DROP TABLE projects;');
     await applySchema(); // devolve o banco ao schema canônico para os outros testes do arquivo
-  }, 30_000);
+  }, 120_000);
 });

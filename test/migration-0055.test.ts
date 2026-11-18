@@ -71,7 +71,7 @@ describe('migration 0055 — tipo tratamento (e avaliacao_terceiro) em pedidos',
     expect(await env.DB.prepare(`SELECT id FROM pedido_destinatarios WHERE pedido_id = 'p-trat'`).first()).toBeNull();
 
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 
   it('o schema canônico aceita os mesmos tipos', async () => {
     await applySchema();

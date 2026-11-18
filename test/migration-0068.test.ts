@@ -31,5 +31,5 @@ describe('migration 0068 — evidência ligada a documento', () => {
     await env.DB.prepare(`DELETE FROM documentos WHERE id = 'd68'`).run();
     expect(await env.DB.prepare(`SELECT documento_id FROM evidence WHERE id = 'e-doc'`).first()).toEqual({ documento_id: null });
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 });

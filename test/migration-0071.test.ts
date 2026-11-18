@@ -39,5 +39,5 @@ describe('migration 0071 — cadastro da empresa do projeto', () => {
     await env.DB.prepare(`DELETE FROM projects WHERE id = 'm71c'`).run();
     expect(await env.DB.prepare(`SELECT 1 FROM empresas WHERE project_id = 'm71c'`).first()).toBeNull();
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 });

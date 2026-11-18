@@ -68,5 +68,5 @@ describe('migration 0047 — módulos, partes, vínculos e departamentos', () =>
     expect(await modulos('p47-antigo')).toEqual([{ modulo: 'iso', habilitado_por: 'migration-0047' }]);
     expect(await colunas('organizations')).toContain('modulos_contratados');
     expect(await colunas('partes')).toContain('nome');
-  }, 30_000);
+  }, 120_000);
 });

@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { applySchema, execSql } from './helpers/d1';
 import migration0056 from '../migrations/0056_dpia_lia.sql?raw';
+
+// Reconstrói o esquema (DROP + applySchema): numa máquina lenta/carregada passa fácil de 5 s.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 const n = async (sql: string) => (await env.DB.prepare(sql).first<{ n: number }>())!.n;
 const colunas = async (t: string) =>

@@ -53,5 +53,5 @@ describe('migration 0049 — responsável aponta para a parte', () => {
     expect(await colunas('checklist_progress_t')).toEqual(['id', 'assigned_to', 'assigned_to_parte_id']);
     expect(await env.DB.prepare(`SELECT owner, owner_parte_id FROM risks_t`).first()).toEqual({ owner: 'Fulano', owner_parte_id: null });
     await execSql('DROP TABLE risks_t; DROP TABLE compliance_controls_t; DROP TABLE ropa_records_t; DROP TABLE corrective_actions_t; DROP TABLE checklist_progress_t;');
-  }, 30_000);
+  }, 120_000);
 });

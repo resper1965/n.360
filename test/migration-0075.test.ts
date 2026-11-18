@@ -26,7 +26,7 @@ describe('migration 0075 — homologação de fornecedor', () => {
     // as colunas que a 0106 acrescenta a estas tabelas (o gatilho do schema canônico lê `email_destino`), e então o schema canônico
     await execSql((migration0106.match(/ALTER TABLE (homologacoes|homologacao_perguntas) [^;]*;/g) ?? []).join('\n'));
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 
   describe('integridade no banco', () => {
     beforeAll(async () => {

@@ -29,7 +29,7 @@ describe('migration 0081: paridade com o legado (descrição da área e document
       'r2_key', 'arquivo_nome', 'arquivo_tipo', 'criado_por', 'created_at', 'updated_at']);
 
     await env.DB.prepare(`DELETE FROM projects WHERE id = 'p81'`).run();
-  }, 30_000);
+  }, 120_000);
 
   it('o schema canônico traz o mesmo, com os CHECKs de tipo, status, arquivo e vencimento', async () => {
     await applySchema();

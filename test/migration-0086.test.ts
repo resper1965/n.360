@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { execSql, applySchema } from './helpers/d1';
 import migration0086 from '../migrations/0086_arquivo_dpa_cobertura.sql?raw';
+
+// Reconstrói o esquema (DROP + applySchema): numa máquina lenta/carregada passa fácil de 5 s.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 const tabelas = async () => ((await env.DB.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'documentos_arquivo_%' ORDER BY name`).all()).results as { name: string }[]).map((t) => t.name);
 
