@@ -631,7 +631,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   em operacao com desvio aberto = Tratar); n.privacy pelas 7 etapas da skill `implantacao-privacy` (`PASSOS_PRIVACY` em
   `src/data/programa.ts`, criterio de chave fechada `CRITERIOS_PRIVACY` avaliado por `criterioPrivacy` sobre `visaoDoEncarregado`, falha
   fechada; a etapa 5 exige as tres chaves de `CHAVES` de `parametros_legais` cadastradas e nada atrasado; sem marca manual nem migration;
-  o Painel do n.privacy mostra a "Trilha de implantacao" quando o projeto sai do comeco; a skill le `programa.etapas.privacy` e o rotulo
+  a etapa "Documentos e cobertura" fica "por fazer" (falha fechada) enquanto o catalogo da LGPD nao esta carregado na plataforma; o Painel do n.privacy mostra a "Trilha de implantacao" quando o projeto sai do comeco; a skill le `programa.etapas.privacy` e o rotulo
   de cada etapa e o da tabela da skill, `test/agente-skills.test.ts`); o n.ot entra so quando o painel montou o bloco `ot` (P0-1/P0-2; `test/programa-rota.test.ts`). Sem o
   `ot`, nenhuma chave, contagem ou texto do n.ot: a regua do n.ot so volta para quem tem o `ot`. O bloco `ot` do painel soma 6
   consultas agrupadas ao lote que ja tinha (sem consulta por site; mesmo teto de sites). A regua aparece no topo do Painel do n.iso e

@@ -35,6 +35,8 @@ describe('enderecoNoModulo com alvo da Bancada', () => {
     expect(enderecoNoModulo('iso', 'project-detail', { id: 'p1' })).toMatch(/\?tela=project-detail&passo=p3_3$/);
     S.bancadaAlvo = { fase: 3 };
     expect(enderecoNoModulo('iso', 'project-detail', { id: 'p1' })).toMatch(/\?tela=project-detail&fase=3$/);
+    S.bancadaAlvo = { fase: 3 };
+    expect(enderecoNoModulo('iso', 'monitor', { id: 'p1' })).toMatch(/\?tela=monitor&fase=3$/); // o alias leva o alvo como a tela que o substitui
     S.bancadaAlvo = { passo: 'p3_3' };
     expect(enderecoNoModulo('iso', 'dashboard', { id: 'p1' })).toMatch(/\?tela=dashboard$/);
     S.bancadaAlvo = null;

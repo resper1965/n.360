@@ -28,7 +28,7 @@ description: Use ao implantar o n.privacy num cliente novo, do zero: ordem de tr
 ## Onde o projeto está
 
 A trilha destas 7 etapas aparece no Painel do n.privacy e sai, já calculada, em `programa.etapas.privacy` de
-`GET /api/v1/projects/{p}/painel?modulo=privacy` (`passos`: cada etapa com `feito` e a tela; `proximo`: `{texto, tela}` da primeira por fazer, na ordem da trilha, que segue as etapas comuns e não os números da tabela: Documentos e cobertura vem antes de Titular e incidentes). Leia
+`GET /api/v1/projects/{p}/painel?modulo=privacy` (`passos`: cada etapa com `feito` e a tela; `proximo`: `{texto, tela}` da primeira por fazer, na ordem da trilha, que segue as etapas comuns e não os números da tabela: Documentos e cobertura vem antes de Titular e incidentes). A etapa Documentos e cobertura (6 da tabela) fica "por fazer" enquanto o catálogo da LGPD não estiver carregado na plataforma: isso é limite da plataforma, não lacuna do cliente. Leia
 de lá antes de começar e depois de cada rodada; não recalcule por conta própria. "Feito" ali é derivado do cadastro (sem marca
 manual): uma etapa só fica feita quando o registro existe.
 

@@ -53,6 +53,14 @@ describe('handleNotificationClick', () => {
     expect(destinoDoAviso.mock.results[0].value).toEqual({ href: '/privacy' });
   });
 
+  it.each(['privacy', 'ot'])('aviso de certificado clicado no %s vai ao n.iso na aba Prontidão (alias), não desenha a Jornada na casca errada', async (produto) => {
+    history.replaceState(null, '', '/' + produto);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await clicar('/projects/p1/certification');
+    expect(navigate).not.toHaveBeenCalled();
+    expect(irPara).toHaveBeenCalledWith('/iso?tela=certification');
+  });
+
   it('no início do n.360, navega com o aviso em curso: o router leva ao módulo e guarda o aviso (aviso-hub.test)', async () => {
     let emCurso;
     navigate.mockImplementationOnce(() => { emCurso = S.avisoEmCurso; });

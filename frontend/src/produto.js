@@ -121,9 +121,11 @@ export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${p
 
 /** Para onde um aviso leva: a tela, ou o caminho do módulo quando a tela é só de outro. No n.360 navega: o router leva ao módulo. */
 export function destinoDoAviso(tela, loc = window.location) {
-    const dono = produtoDaTela(tela);
+    // Tela que saiu do menu (alias): o dono é o da tela que a substitui (o n.iso), e o endereço leva o nome antigo para a aba certa.
+    const alias = aliasDaTela(tela);
+    const dono = alias ? moduloDaTela(alias.tela) : produtoDaTela(tela);
     const aqui = produtoAtual(loc);
-    return dono && aqui !== 'n360' && dono !== aqui ? { href: enderecoDoProduto(dono) } : { navegar: tela };
+    return dono && aqui !== 'n360' && dono !== aqui ? { href: enderecoDoProduto(dono) + (alias ? `?tela=${encodeURIComponent(tela)}` : '') } : { navegar: tela };
 }
 
 /**
@@ -180,7 +182,7 @@ export function enderecoNoModulo(modulo, tela, proj) {
 
 /** O passo ou a fase da Bancada que o n.360 leva ao módulo (`&fase=3&passo=p3_3`); só na tela da jornada. */
 function alvoNoEndereco(tela) {
-    const alvo = tela === 'project-detail' ? S.bancadaAlvo : null;
+    const alvo = (tela === 'project-detail' || (aliasDaTela(tela) || {}).tela === 'project-detail') ? S.bancadaAlvo : null;
     if (!alvo) return '';
     const par = (k, v) => (v !== undefined && v !== null && v !== '' ? `&${k}=${encodeURIComponent(v)}` : '');
     return `${par('fase', alvo.fase)}${par('passo', alvo.passo)}`;
