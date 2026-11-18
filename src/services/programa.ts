@@ -1,7 +1,7 @@
 import { ETAPAS_COMUNS, PASSOS_PRIVACY, etapaDaFase, type EtapaComum } from '../data/programa';
 import type { visaoDoEncarregado } from './encarregado';
 import type { Catalogo } from '../data/passos/tipos';
-import { montarBancada } from './passos/estado';
+import { montarBancada, continuar } from './passos/estado';
 import { obterCatalogo } from '../data/passos/catalogo';
 import { carregarContexto, type ContextoProjeto } from './passos/contexto';
 import type { ProximoPasso } from './ot-fase';
@@ -33,8 +33,10 @@ export function etapasDoIso(cat: Catalogo, ctx: ContextoProjeto): ProgramaDoModu
     return { id, rotulo, feitos: fs.filter((f) => feita(f.numero)).length, total: fs.length };
   });
   const titulo = (n: number) => cat.fases.find((f) => f.numero === n)?.titulo ?? `Fase ${n}`;
+  // O próximo passo nunca cai numa fase que a régua já conta como feita (a legada ainda tem passos por marcar).
+  const prox = continuar({ ...cat, passos: cat.passos.filter((p) => !feita(p.fase)) }, ctx);
   const proximo: ProximoDoPrograma | null = !b.tem_fases ? { texto: 'Carregar as fases da jornada', tela: 'project-detail' }
-    : b.continuar ? { texto: `Fase ${b.continuar.fase}: ${titulo(b.continuar.fase)}`, tela: 'project-detail', fase: b.continuar.fase, passo: b.continuar.passo } : null;
+    : prox ? { texto: `Fase ${prox.fase}: ${titulo(prox.fase)}`, tela: 'project-detail', fase: prox.fase, passo: prox.passo } : null;
   return { etapa: etapas.find((e) => e.feitos < e.total)?.id ?? 'operar', feitos: soma(etapas.map((e) => e.feitos)), total: soma(etapas.map((e) => e.total)), proximo, etapas };
 }
 

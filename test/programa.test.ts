@@ -46,6 +46,11 @@ describe('etapasDoIso (puro)', () => {
     expect(p.etapa).toBe('comecar');
     expect(p.proximo).toMatchObject({ tela: 'project-detail' });
     expect(p.proximo?.texto).toMatch(/^Fase \d+: /);
+    expect(p.proximo?.fase).toBe(2); // nunca uma fase que a régua já conta como feita
+  });
+  it('jornada inteira concluída pelo select antigo: 41 de 41, Operar, sem próximo passo', () => {
+    const p = etapasDoIso(obterCatalogo(), ctx(todasAsFases('completed', 'completed')));
+    expect(p).toMatchObject({ etapa: 'operar', feitos: 41, total: 41, proximo: null });
   });
   it('Começar inteiro feito (passos marcados nas fases 0-6): a etapa em curso é Levantar', () => {
     const cat = obterCatalogo();
