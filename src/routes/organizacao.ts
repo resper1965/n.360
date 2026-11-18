@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { ehComercial, podeAdministrarOrg, logAudit, erro500 } from '../helpers';
 import { validateBody, configOrgSchema } from '../schemas';
-import { lerConfigOrg, exigirOrg, formatarNumeroProposta, mesclarPreco } from '../services/organizacao';
+import { lerConfigOrg, exigirOrg, formatarNumeroProposta, mesclarPreco, tipoDaOrg } from '../services/organizacao';
 import { LOGO_MAX_BYTES, MIME_LOGO, tipoPelosBytes, type TipoLogo } from '../services/logo-org';
 import { lerBytesComTeto } from '../middleware/body-guard';
 
@@ -17,7 +17,8 @@ organizacaoApp.get('/config', async (c) => {
     const user = c.get('user');
     const orgId = c.get('orgId');
     // A direta não tem área comercial, mas administra a própria identidade: devolve só isso, nunca preço/margem/prefixo/textos.
-    if (user.org_direta === true && podeAdministrarOrg(user, orgId)) {
+    // O tipo é o da organização ATIVA (o platform_admin escolhe por X-Org-Id), não o da sessão.
+    if (await tipoDaOrg(c.env.DB, orgId) === 'direta' && podeAdministrarOrg(user, orgId)) {
       return c.json(soIdentidade(await lerConfigOrg(c.env.DB, orgId)));
     }
     if (!ehComercial(user)) return c.json({ error: 'Forbidden: Área comercial restrita ao comercial da ness.' }, 403);
@@ -37,8 +38,9 @@ organizacaoApp.put('/config', async (c) => {
     const v = await validateBody(c, configOrgSchema);
     if (!v.success) return v.response;
     const b = v.data;
+    const direta = await tipoDaOrg(c.env.DB, orgId) === 'direta'; // da organização ativa, não da sessão
     // Direta não tem área comercial (decisão 11): nada de prefixo (reserva global), numeração, preço ou textos de proposta.
-    if (user.org_direta === true && CAMPOS_COMERCIAIS.some((k) => b[k] !== undefined)) {
+    if (direta && CAMPOS_COMERCIAIS.some((k) => b[k] !== undefined)) {
       return c.json({ error: 'Forbidden: a organização direta não tem área comercial' }, 403);
     }
     // O prefixo é o "nome" da organização no número da proposta: único entre organizações, como no
@@ -76,7 +78,7 @@ organizacaoApp.put('/config', async (c) => {
       `Configuração comercial da organização ${orgId} atualizada: ${Object.keys(b).join(', ') || 'nenhum campo'}`);
     const cfg = await lerConfigOrg(c.env.DB, orgId);
     // A direta nao ve o modelo de custo da ness: so a identidade, como no GET.
-    return c.json(user.org_direta === true ? soIdentidade(cfg) : cfg);
+    return c.json(direta ? soIdentidade(cfg) : cfg);
   } catch (e) { return erro500(c, 'Erro ao gravar a configuração da consultoria', e); }
 });
 

@@ -47,10 +47,10 @@ describe('GET /api/v1/org/config', () => {
     const r = await chamar('GET', '/api/v1/org/config', { ...S.beto, 'X-Org-Id': 'org_c' });
     expect(Object.keys(await r.json() as object).sort()).toEqual(['cnpj', 'corDestaque', 'nome', 'seloNiso']);
   });
-  it('platform_admin com X-Org-Id de direta mantém o comportamento anterior (config completa)', async () => {
+  it('platform_admin com X-Org-Id de direta lê só a identidade (o tipo é o da organização ativa)', async () => {
     const r = await chamar('GET', '/api/v1/org/config', { ...S.pa, 'X-Org-Id': 'org_d' });
     expect(r.status).toBe(200);
-    expect(Object.keys(await r.json() as object)).toContain('preco');
+    expect(Object.keys(await r.json() as object).sort()).toEqual(['cnpj', 'corDestaque', 'nome', 'seloNiso']);
   });
   it('agente e chave de API seguem recusados', async () => {
     const agente = await app.fetch(new Request('http://localhost/api/v1/org/config', { headers: json }),

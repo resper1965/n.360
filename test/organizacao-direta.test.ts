@@ -399,6 +399,20 @@ describe('direta: sem escrita comercial em /org/config', () => {
     const r = await put(S.cris, { prefixoProposta: 'CONSC', preco: { tetoDesconto: 10 } });
     expect(r.status, await r.clone().text()).toBe(200);
   });
+  it('platform_admin com X-Org-Id de uma direta: GET só identidade, PUT comercial 403; numa consultoria segue completo', async () => {
+    const naD = { ...S.pa, 'X-Org-Id': 'org_d' };
+    const g = await chamar('GET', '/api/v1/org/config', naD);
+    expect(g.status).toBe(200);
+    expect(Object.keys(await g.json() as object).sort()).toEqual(['cnpj', 'corDestaque', 'nome', 'seloNiso']);
+    for (const [k, v] of campos) expect((await put(naD, { [k]: v })).status, k).toBe(403);
+    expect((await um('SELECT prefixo_proposta p FROM organizations WHERE id = ?', 'org_d')).p).toBeNull();
+    const id = await put(naD, { corDestaque: '#223344' });
+    expect(id.status).toBe(200);
+    expect(Object.keys(await id.json() as object)).not.toContain('preco');
+    const naC = { ...S.pa, 'X-Org-Id': 'org_c' };
+    expect(await (await chamar('GET', '/api/v1/org/config', naC)).json()).toHaveProperty('preco');
+    expect((await put(naC, { proximoNumero: 7 })).status).toBe(200);
+  });
 });
 
 describe('criação: módulos', () => {
