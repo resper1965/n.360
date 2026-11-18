@@ -268,7 +268,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
   const encarregados = visao.encarregados;
   const comecando = visao.tratamentos.total === 0;
   return {
-    encarregados, comecando, tratamentos: visao.tratamentos.total,
+    visao, encarregados, comecando, tratamentos: visao.tratamentos.total,
     itens: emOrdem(visao.prioridades.map(daPrioridade('privacy'))),
     cobertura, vencimentos: v.linhas, proximo: v.proximo, pedidos_mes: pedidosMes, meses_pedidos: chaves,
     riscos: mapa.results as Celula[], acoes_por_prazo: visao.acoes_por_prazo,
@@ -474,7 +474,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   // Decisão 8: a primeira base aprovada do n.ot é marco só para quem tem o ot (o bloco só existe para essa pessoa).
   const estado = estadoDoPrograma(primeiroMarco(marcoBase, ot?.marco ?? null), c.tratamentos > 0 || c.controles > 0 || (!!ot && !ot.comecando));
   // A régua comum: só os módulos do pedido; o n.ot só quando o bloco foi montado (mesma porta, P0-1/P0-2/P0-4).
-  const programa = { ...estado, etapas: await etapasDoPrograma(db, projectId, modulos, { otSites: ot && !quem.agente && !quem.id?.startsWith('apikey:') ? ot.sitesPrograma : null }) };
+  const programa = { ...estado, etapas: await etapasDoPrograma(db, projectId, modulos, { otSites: ot && !quem.agente && !quem.id?.startsWith('apikey:') ? ot.sitesPrograma : null, visaoPrivacy: privacy?.visao }) };
   const decisoes = (pedidos.results as { id: string; tipo: string; titulo: string; papel_exigido: string; criado_em: string }[]).map((p) => ({
     id: p.id, titulo: p.titulo, tipo: p.tipo, papel: p.papel_exigido, desde: String(p.criado_em).slice(0, 10),
     acao: p.papel_exigido === 'ciente' ? 'Ler e dar ciência' : 'Ler e aprovar',

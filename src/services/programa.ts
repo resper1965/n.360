@@ -1,4 +1,5 @@
-import { ETAPAS_COMUNS, etapaDaFase, type EtapaComum } from '../data/programa';
+import { ETAPAS_COMUNS, PASSOS_PRIVACY, etapaDaFase, type EtapaComum } from '../data/programa';
+import type { visaoDoEncarregado } from './encarregado';
 import type { Catalogo } from '../data/passos/tipos';
 import { montarBancada } from './passos/estado';
 import { obterCatalogo } from '../data/passos/catalogo';
@@ -66,8 +67,39 @@ export function etapasDoOt(sitesPermitidos: SiteNoPrograma[]): ProgramaDoModulo 
   return { etapa: doSite[i], feitos: doSite.filter((e) => e === 'operar').length, total: sites.length, proximo: { texto, tela: 'ot', aba: 'sites' }, etapas };
 }
 
+export type VisaoDoEncarregado = Awaited<ReturnType<typeof visaoDoEncarregado>>;
+
+/** Regra de cada critério do n.privacy sobre a visão do encarregado. Chave fora da lista: falso (falha fechada). */
+export function criterioPrivacy(c: string, v: VisaoDoEncarregado): boolean {
+  const t = v.tratamentos, te = v.terceiros;
+  switch (c) {
+    case 'algum_cadastro': return v.encarregados.length + t.total + te.total > 0;
+    case 'encarregado': return v.encarregados.length > 0;
+    case 'inventario_completo': return t.total > 0 && t.sem_base_legal === 0 && t.sem_responsavel === 0;
+    case 'bases_e_riscos': return t.total > 0 && t.lia_pendente === 0 && t.dpia_pendente === 0;
+    case 'terceiros_em_dia': return te.total > 0 && te.sem_tipo + te.pendentes + te.vencidos + te.reprovados === 0;
+    // Etapa 5: os prazos de `parametros_legais` (global) que pedido e incidente usam (CHAVES) cadastrados, e nada atrasado.
+    case 'prazos_e_atrasos': return v.prazos_legais.nao_definidos.length === 0 && v.pedidos_titular.atrasados === 0 && v.incidentes.comunicacoes_atrasadas === 0;
+    case 'cobertura_lgpd': return v.lgpd.carregada === true && v.lgpd.lacunas === 0;
+    default: return false;
+  }
+}
+
+/** n.privacy: a trilha de 7 passos na ordem das etapas comuns; a etapa em curso é a do primeiro passo por fazer. */
+export function etapasDoPrivacy(v: VisaoDoEncarregado): ProgramaDoModulo {
+  const passos: PassoDaTrilha[] = [...PASSOS_PRIVACY].sort((a, b) => indice(a.etapa) - indice(b.etapa))
+    .map((p) => ({ id: p.id, ordem: p.ordem, rotulo: p.rotulo, etapa: p.etapa, feito: criterioPrivacy(p.criterio, v), tela: p.tela, acao: p.acao }));
+  const etapas = ETAPAS_COMUNS.map(({ id, rotulo }) => {
+    const da = passos.filter((p) => p.etapa === id);
+    return { id, rotulo, feitos: da.filter((p) => p.feito).length, total: da.length };
+  });
+  const prox = passos.find((p) => !p.feito);
+  return { etapa: prox?.etapa ?? 'operar', feitos: passos.filter((p) => p.feito).length, total: passos.length,
+    proximo: prox ? { texto: prox.rotulo, tela: prox.tela } : null, etapas, passos };
+}
+
 /** `otSites`: o que `blocoOt` já derivou dos sites permitidos (P0-4); só existe quando o bloco `ot` foi montado (P0-1/P0-2). */
-export type LidosDoPainel = { otSites?: SiteNoPrograma[] | null };
+export type LidosDoPainel = { otSites?: SiteNoPrograma[] | null; visaoPrivacy?: VisaoDoEncarregado };
 
 /**
  * `programa.etapas` do GET /painel (onda 4, decisão 7). SÓ LÊ: `carregarContexto` + `montarBancada`, nunca a rota da Bancada, cujo
@@ -78,5 +110,6 @@ export async function etapasDoPrograma(db: D1Database, projectId: string, modulo
   const r: Partial<Record<Modulo, ProgramaDoModulo>> = {};
   if (modulos.includes('iso')) r.iso = etapasDoIso(obterCatalogo(), await carregarContexto(db, projectId));
   if (modulos.includes('ot') && lidos.otSites) r.ot = etapasDoOt(lidos.otSites);
+  if (modulos.includes('privacy') && lidos.visaoPrivacy) r.privacy = etapasDoPrivacy(lidos.visaoPrivacy);
   return r;
 }

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import { sha256Hex } from '../src/helpers';
+import { etapasDoPrograma } from '../src/services/programa';
 import app from '../src/index';
-import { applySchema, seedTwoProjects, habilitarOt, concederModulos, designarConsultor, sessionFor, workerEnv } from './helpers/d1';
+import { applySchema, seedTwoProjects, habilitarOt, habilitarPrivacy, concederModulos, designarConsultor, sessionFor, workerEnv } from './helpers/d1';
 
 // Onda 4: programa.etapas no painel. P0-1/P0-2/P0-4: sem `ot` (pessoa ou projeto), agente e chave de API não veem nem CONTAM o n.ot.
 type H = Record<string, string>;
@@ -122,5 +123,26 @@ describe('custo do programa.etapas', () => {
       await painel(h, '', { ...extra, ...c.extra });
       expect(c.sqls.filter((q) => /\bot_/.test(q)), JSON.stringify(Object.keys(extra))).toEqual([]);
     }
+  });
+});
+
+describe('programa.etapas.privacy', () => {
+  it('quem tem o n.privacy recebe a trilha de 7 passos; quem não tem, nenhuma chave privacy', async () => {
+    await habilitarPrivacy('proj-a');
+    await concederModulos(['u-t'], ['iso', 'ot', 'privacy']);
+    const d = await painel(tecnico, '?modulo=privacy');
+    expect(Object.keys(d.programa.etapas)).toEqual(['privacy']);
+    expect(d.programa.etapas.privacy.passos.map((p: any) => p.rotulo)).toEqual(['Partida', 'Encarregado', 'Inventário', 'Bases e riscos', 'Terceiros', 'Documentos e cobertura', 'Titular e incidentes']);
+    expect((await painel(semOt)).programa.etapas.privacy).toBeUndefined();
+    expect(JSON.stringify(d.programa.etapas.privacy)).not.toMatch(/site|desvio|"ot"/i);
+  });
+  it('a pessoa tem o privacy, o projeto não (proj-b): sem chave privacy', async () => {
+    const r = await chamar(cons, '/api/v1/projects/proj-b/painel');
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as any).programa.etapas.privacy).toBeUndefined();
+  });
+  it('etapasDoPrograma: sem o módulo privacy no pedido, a visão recebida é ignorada', async () => {
+    const r = await etapasDoPrograma(env.DB, 'proj-a', ['iso'], { visaoPrivacy: { encarregados: [], tratamentos: {}, terceiros: {}, prazos_legais: { nao_definidos: [] }, pedidos_titular: {}, incidentes: {}, lgpd: {} } as any });
+    expect(Object.keys(r)).toEqual(['iso']);
   });
 });

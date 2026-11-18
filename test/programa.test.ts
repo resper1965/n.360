@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ETAPAS_COMUNS, FASES_DO_ISO, etapaDaFase } from '../src/data/programa';
-import { etapasDoIso, etapasDoOt, primeiroMarco, ETAPA_DO_PASSO_OT } from '../src/services/programa';
+import { ETAPAS_COMUNS, FASES_DO_ISO, etapaDaFase, PASSOS_PRIVACY, CRITERIOS_PRIVACY } from '../src/data/programa';
+import { etapasDoIso, etapasDoOt, primeiroMarco, ETAPA_DO_PASSO_OT, etapasDoPrivacy, criterioPrivacy, type VisaoDoEncarregado } from '../src/services/programa';
 import { obterCatalogo } from '../src/data/passos/catalogo';
 import { ENTIDADES } from '../src/data/passos/tipos';
 import type { ContextoProjeto, LinhaFase } from '../src/services/passos/contexto';
@@ -80,5 +80,67 @@ describe('primeiroMarco', () => {
   it('a menor data, ignorando vazios', () => {
     expect(primeiroMarco(null, '2026-05-04 10:00:00', '2026-03-10T10:00:00Z')).toBe('2026-03-10T10:00:00Z');
     expect(primeiroMarco(null, undefined)).toBeNull();
+  });
+});
+
+const visao = (x: Record<string, unknown> = {}): VisaoDoEncarregado => ({
+  encarregados: [], tratamentos: { total: 0, sem_base_legal: 0, sem_responsavel: 0, lia_pendente: 0, dpia_pendente: 0, com_terceiro_vencido: 0 },
+  terceiros: { total: 0, sem_tipo: 0, pendentes: 0, vencidos: 0, reprovados: 0, com_pendencia: 0 }, prazos_legais: { nao_definidos: ['titular.resposta'] },
+  pedidos_titular: { atrasados: 0 }, incidentes: { comunicacoes_atrasadas: 0 }, lgpd: { carregada: false }, ...x,
+}) as unknown as VisaoDoEncarregado;
+
+describe('trilha do n.privacy (7 etapas da skill, derivadas)', () => {
+  it('7 passos, ordens 0 a 6, critério da lista fechada, etapa comum e tela conhecida', () => {
+    expect(PASSOS_PRIVACY.map((p) => p.ordem).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    for (const p of PASSOS_PRIVACY) expect(CRITERIOS_PRIVACY, p.id).toContain(p.criterio);
+    expect(PASSOS_PRIVACY.map((p) => [p.rotulo, p.etapa])).toEqual([['Partida', 'comecar'], ['Encarregado', 'comecar'], ['Inventário', 'levantar'],
+      ['Bases e riscos', 'avaliar'], ['Terceiros', 'tratar'], ['Documentos e cobertura', 'tratar'], ['Titular e incidentes', 'operar']]);
+  });
+  it('projeto vazio: nada feito, Começar, próximo é a Partida', () => {
+    const p = etapasDoPrivacy(visao());
+    expect(p).toMatchObject({ etapa: 'comecar', feitos: 0, total: 7, proximo: { texto: 'Partida', tela: 'importacao' } });
+    expect(p.passos!.every((x) => !x.feito)).toBe(true);
+  });
+  it('encarregado e inventário completo: Começar e Levantar feitos; a etapa em curso é Avaliar', () => {
+    const p = etapasDoPrivacy(visao({ encarregados: [{ id: 'e', nome: 'E', email: null }],
+      tratamentos: { total: 3, sem_base_legal: 0, sem_responsavel: 0, lia_pendente: 1, dpia_pendente: 0, com_terceiro_vencido: 0 } }));
+    expect(p.etapas.slice(0, 3).map((e) => [e.id, e.feitos, e.total])).toEqual([['comecar', 2, 2], ['levantar', 1, 1], ['avaliar', 0, 1]]);
+    expect(p.etapa).toBe('avaliar');
+  });
+  it('etapa 5 exige os três prazos cadastrados e nada atrasado', () => {
+    expect(criterioPrivacy('prazos_e_atrasos', visao({ prazos_legais: { nao_definidos: [] } }))).toBe(true);
+    expect(criterioPrivacy('prazos_e_atrasos', visao({ prazos_legais: { nao_definidos: [] }, pedidos_titular: { atrasados: 1 } }))).toBe(false);
+    expect(criterioPrivacy('prazos_e_atrasos', visao())).toBe(false);
+  });
+  it('cobertura só com o catálogo LGPD carregado e sem lacuna', () => {
+    expect(criterioPrivacy('cobertura_lgpd', visao({ lgpd: { carregada: true, lacunas: 0, total: 10 } }))).toBe(true);
+    expect(criterioPrivacy('cobertura_lgpd', visao({ lgpd: { carregada: false } }))).toBe(false);
+    expect(criterioPrivacy('cobertura_lgpd', visao({ lgpd: { carregada: false, lacunas: 0 } }))).toBe(false);
+  });
+  it('critério desconhecido falha fechado', () => {
+    expect(criterioPrivacy('qualquer_coisa', visao({ encarregados: [{}], tratamentos: { total: 9 } }))).toBe(false);
+  });
+  // Cada critério vira falso/verdadeiro por exatamente o campo que o define (mutação de cada regra).
+  it('cada critério: verdadeiro no caso feito, falso quando o campo que o define falha', () => {
+    const trat = (x: object) => ({ total: 2, sem_base_legal: 0, sem_responsavel: 0, lia_pendente: 0, dpia_pendente: 0, com_terceiro_vencido: 0, ...x });
+    const ter = (x: object) => ({ total: 2, sem_tipo: 0, pendentes: 0, vencidos: 0, reprovados: 0, com_pendencia: 0, ...x });
+    const casos: [string, Record<string, unknown>, Record<string, unknown>][] = [
+      ['algum_cadastro', { terceiros: ter({}) }, {}],
+      ['encarregado', { encarregados: [{}] }, {}],
+      ['inventario_completo', { tratamentos: trat({}) }, { tratamentos: trat({ sem_base_legal: 1 }) }],
+      ['inventario_completo', { tratamentos: trat({}) }, { tratamentos: trat({ sem_responsavel: 1 }) }],
+      ['bases_e_riscos', { tratamentos: trat({}) }, { tratamentos: trat({ lia_pendente: 1 }) }],
+      ['bases_e_riscos', { tratamentos: trat({}) }, { tratamentos: trat({ dpia_pendente: 1 }) }],
+      ['terceiros_em_dia', { terceiros: ter({}) }, { terceiros: ter({ sem_tipo: 1 }) }],
+      ['terceiros_em_dia', { terceiros: ter({}) }, { terceiros: ter({ pendentes: 1 }) }],
+      ['terceiros_em_dia', { terceiros: ter({}) }, { terceiros: ter({ vencidos: 1 }) }],
+      ['terceiros_em_dia', { terceiros: ter({}) }, { terceiros: ter({ reprovados: 1 }) }],
+      ['prazos_e_atrasos', { prazos_legais: { nao_definidos: [] } }, { prazos_legais: { nao_definidos: [] }, incidentes: { comunicacoes_atrasadas: 1 } }],
+      ['cobertura_lgpd', { lgpd: { carregada: true, lacunas: 0 } }, { lgpd: { carregada: true, lacunas: 2 } }],
+    ];
+    for (const [c, ok, ruim] of casos) { expect(criterioPrivacy(c, visao(ok)), c).toBe(true); expect(criterioPrivacy(c, visao(ruim)), c).toBe(false); }
+    expect(criterioPrivacy('algum_cadastro', visao())).toBe(false);
+    expect(criterioPrivacy('inventario_completo', visao())).toBe(false); // vazio não é completo
+    expect(criterioPrivacy('terceiros_em_dia', visao())).toBe(false);
   });
 });
