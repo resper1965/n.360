@@ -27,5 +27,5 @@ describe('ot-navegacao', () => {
         escreverEndereco({ tela: 'inicio' }, loc('/ot', '?ot=site&site=s1&modo=projeto'));
         expect(spy).toHaveBeenLastCalledWith(history.state, '', '/ot');
     });
-    it('a lista de subtelas é fechada', () => { expect(TELAS_OT).toEqual(['inicio', 'sites', 'site', 'assessment', 'relatorios', 'acessos']); });
+    it('a lista de subtelas é fechada', () => { expect(TELAS_OT).toEqual(['inicio', 'sites', 'site', 'assessment', 'relatorios', 'fornecedores', 'acessos']); });
 });

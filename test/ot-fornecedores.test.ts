@@ -159,3 +159,58 @@ describe('ot_fornecedores (0116) e rotas', () => {
     expect(await nforn()).toBe(0);
   });
 });
+
+describe('perguntas de OT na avaliação do fornecedor (decisão 7)', () => {
+  let cons: H, tec: H, fid: string;
+  const URL = () => `${P}/ot/fornecedores/${fid}/perguntas-padrao`;
+  const nperg = async () => (await env.DB.prepare(`SELECT count(*) n FROM homologacao_perguntas WHERE project_id = 'proj-a'`).first<{ n: number }>())!.n;
+  beforeAll(async () => {
+    await applySchema(); await resetData(); await seedTwoProjects(); await habilitarOt(A);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-tec2', 'tec2@c.teste', 'x', 'T', 'org_user', 'proj-a')`),
+      env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-forn2', 'proj-a', ?, 'k', 'write', 'Active')`).bind(await sha256Hex(CHAVE)),
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('site1', 'proj-a', 'S1')`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('forn1', 'proj-a', 'organizacao', 'Integradora Segredo Ltda')`),
+    ]);
+    await designarConsultor(AGENTE.email, 'proj-a');
+    await concederModulos(['u-tec2', AGENTE.userId], ['iso', 'ot']);
+    cons = await sessionFor({ id: AGENTE.userId, email: AGENTE.email, role: 'consultor' });
+    tec = await sessionFor({ id: 'u-tec2', email: 'tec2@c.teste', role: 'org_user', client_project_id: 'proj-a' });
+    fid = (await (await chamar(cons, 'POST', `${P}/ot/fornecedores`, { parte_id: 'forn1', papel: 'integrador', ot_site_id: 'site1' })).json<{ id: string }>()).id;
+  });
+
+  it('sem o privacy no projeto: 403 como o da avaliação e nenhuma pergunta gravada', async () => {
+    const r = await chamar(cons, 'POST', URL());
+    expect(r.status).toBe(403);
+    const aval = await chamar(cons, 'POST', `${P}/terceiros/forn1/avaliacoes`, {});
+    expect(aval.status).toBe(403);
+    expect((await r.json<{ error: string }>()).error).toBe((await aval.json<{ error: string }>()).error);
+    expect(await nperg()).toBe(0);
+  });
+
+  it('projeto com privacy mas pessoa sem: 403 e nenhuma pergunta', async () => {
+    await run(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES ('proj-a', 'privacy', 'teste')`); // só o projeto: a pessoa não tem
+    expect((await chamar(cons, 'POST', URL())).status).toBe(403);
+    expect(await nperg()).toBe(0);
+  });
+
+  it('agente, chave de API e técnico são recusados', async () => {
+    await concederModulos([AGENTE.userId], ['privacy']);
+    expect((await chamar(tec, 'POST', URL())).status).toBe(403);
+    expect((await chamar({ 'X-API-Key': CHAVE }, 'POST', URL())).status).toBe(403);
+    expect(await nperg()).toBe(0);
+  });
+
+  it('com os dois módulos: cria 4 perguntas do projeto; repetir não duplica; id alheio é 404', async () => {
+    const r = await chamar(cons, 'POST', URL());
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await r.json()).toEqual({ ok: true, criadas: 4 });
+    expect(await nperg()).toBe(4);
+    expect(await (await chamar(cons, 'POST', URL())).json()).toEqual({ ok: true, criadas: 0 });
+    expect(await nperg()).toBe(4);
+    expect((await chamar(cons, 'POST', `${P}/ot/fornecedores/nao-existe/perguntas-padrao`)).status).toBe(404);
+    const tx = JSON.stringify((await env.DB.prepare(`SELECT tema, texto, origem, tipo FROM homologacao_perguntas WHERE project_id = 'proj-a'`).all()).results);
+    for (const x of ['n.ot', 'Segredo', 'integrador', 'site1', 'RO-CB', 'ISO', 'NIST', 'IEC']) expect(tx, x).not.toContain(x);
+    expect((await env.DB.prepare(`SELECT DISTINCT origem, tipo FROM homologacao_perguntas`).all()).results).toEqual([{ origem: 'projeto', tipo: null }]);
+  });
+});

@@ -1,4 +1,5 @@
 import { genId, logAudit, sha256Hex } from '../helpers';
+import { PERGUNTAS_OT_FORNECEDOR } from '../data/ot-perguntas-fornecedor';
 
 /**
  * Modelos de avaliação de fornecedor da consultoria (migration 0106, spec 2026-11-09-ciclo-avaliacao-fornecedor-design, abordagem A).
@@ -172,4 +173,18 @@ export function somarMeses(dia: string, n: number): string {
   const d = new Date(`${dia}T00:00:00Z`);
   d.setUTCMonth(d.getUTCMonth() + n);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Perguntas de fornecedor de OT como perguntas PRÓPRIAS do projeto (`origem = 'projeto'`, `tipo` nulo: valem para todo questionário). Idempotente:
+ * ids determinísticos por projeto + INSERT OR IGNORE. Devolve quantas linhas nasceram agora (0 na repetição).
+ */
+export async function semearPerguntasOt(db: D1Database, projectId: string): Promise<number> {
+  const base = (await db.prepare(`SELECT COALESCE(MAX(ordem), 0) AS o FROM homologacao_perguntas WHERE project_id = ? AND origem = 'projeto'`).bind(projectId).first<number>('o')) ?? 0;
+  const stmts: D1PreparedStatement[] = [];
+  for (const [i, p] of PERGUNTAS_OT_FORNECEDOR.entries()) {
+    stmts.push(db.prepare(`INSERT OR IGNORE INTO homologacao_perguntas (id, project_id, tema, texto, ordem, tipo) VALUES (?, ?, ?, ?, ?, NULL)`)
+      .bind(`hp-ot-${await hash24(`${projectId}:ot-fornecedor:${i + 1}`)}`, projectId, p.tema, p.texto, base + (i + 1) * 10));
+  }
+  return (await db.batch(stmts)).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
 }

@@ -21,7 +21,8 @@ import { apagarFornecedor, criarFornecedor, lerFornecedores } from '../services/
 import { apagarReferencia, ehVinculoDoDesvio, MSG_VINCULO_DO_DESVIO, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
 import { criarAcaoDoDesvio, citaNomeOt, MSG_NOME_OT } from '../services/ot-desvio-acao';
 import { MSG_RESPONSAVEL, temResponsavel } from './capa';
-import { modulosDoProjeto } from '../modulos';
+import { modulosDoProjeto, recusaDoModulo } from '../modulos';
+import { semearPerguntasOt } from '../services/fornecedor-modelos';
 import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
@@ -1233,6 +1234,20 @@ otApp.post('/fornecedores', async (c) => {
     if (r.criado) await trilha(c, 'ot.fornecedor.criado', projectId, 'Fornecedor de OT criado', { tipo: 'ot_fornecedor', id: r.id });
     return c.json({ ok: true, id: r.id }, r.criado ? 201 : 200);
   } catch (e) { return erro500(c, 'Falha ao criar o fornecedor de OT', e); }
+});
+
+// Perguntas de OT no questionário do projeto. A avaliação de terceiro é da faixa privacy: sem o módulo (projeto ou pessoa), o mesmo 403 dela e nenhuma linha.
+otApp.post('/fornecedores/:id/perguntas-padrao', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const recusa = await recusaDoModulo(db, user, projectId, 'privacy');
+    if (recusa) return c.json({ error: recusa }, 403);
+    const id = c.req.param('id');
+    if (!(await lerFornecedores(db, projectId, sites, {})).some((f) => f.id === id)) return NAO_ENCONTRADO(c, 'Fornecedor de OT');
+    const criadas = await semearPerguntasOt(db, projectId);
+    if (criadas) await trilha(c, 'ot.fornecedor.perguntas', projectId, 'Perguntas de OT no questionário do projeto', { tipo: 'ot_fornecedor', id });
+    return c.json({ ok: true, criadas });
+  } catch (e) { return erro500(c, 'Falha ao criar as perguntas de OT', e); }
 });
 
 otApp.delete('/fornecedores/:id', async (c) => {

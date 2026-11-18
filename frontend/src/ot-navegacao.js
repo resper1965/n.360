@@ -1,6 +1,6 @@
 // Onde a pessoa está no n.ot (spec 2026-11-11 fluidez §2): subtela, site e modo vivem no endereço (?ot=&site=&modo=), que o
 // pedidoDoHub não toca (só tira tela e aba). O link do webhook ot.desvio já é /ot/desvios/<id> (src/services/ot-desvio.ts).
-export const TELAS_OT = ['inicio', 'sites', 'site', 'assessment', 'relatorios', 'acessos'];
+export const TELAS_OT = ['inicio', 'sites', 'site', 'assessment', 'relatorios', 'fornecedores', 'acessos'];
 export const MODOS_SITE = ['projeto', 'operacao'];
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 
