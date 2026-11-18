@@ -2225,3 +2225,10 @@ ul.at-ajuda { padding-left: 1.25em; }
 .pn-regua-atual { border-top-color: var(--accent); }
 .pn-regua-nome { font-weight: 600; }
 .pn-regua-prox { margin: 4px 0 8px; }
+
+/* Assistente "Novo projeto": Pessoas e acessos (onda 4) */
+.np-pessoa { border: 1px solid var(--border); padding: 8px 12px; margin: 0 0 12px; }
+.np-modulos { display: flex; gap: 16px; border: 0; padding: 0; margin: 0 0 8px; }
+.np-erro-pessoa { min-height: 1.2em; margin: 0; font-size: 0.85rem; color: var(--danger-ink); }
+.np-dica { color: var(--text-dim); font-size: 0.85rem; margin-top: 0; }
+.np-rodape { display: flex; justify-content: space-between; gap: 8px; margin-top: 0.5rem; }

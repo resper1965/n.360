@@ -1,7 +1,8 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, formatarData } from '../ui.js';
-import { modulosDaPessoa } from '../produto.js';
+import { modulosDaPessoa, orgDireta } from '../produto.js';
+import { semRepetir } from '../ot-comum.js';
 
 // Cadastro da empresa do projeto (migration 0071) e o assistente "Novo projeto". O servidor decide tudo de novo:
 // CNPJ com dígito verificador, duplicidade na organização, quem cria e quem edita. Aqui é só a tela.
@@ -187,9 +188,51 @@ window.abrirProjetoExistente = async function (id) {
 
 const NORMAS = [['ISO 27001', 'ISO/IEC 27001:2022'], ['ISO 27701:2025', 'ISO/IEC 27701:2025'], ['LGPD', 'LGPD']];
 const PAPEIS = [['Controller', 'Controlador'], ['Processor', 'Operador'], ['Both', 'Controlador e operador']];
-const PASSOS = ['Empresa', 'Programa', 'Pessoas-chave', 'Resumo'];
+const PASSOS = ['Empresa', 'Programa', 'Pessoas-chave', 'Resumo', 'Pessoas e acessos', 'Primeiros passos'];
 
 let W = null;
+
+const $ = (id) => document.getElementById(id);
+const NOME_MODULO = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
+/** A organização em que o projeto nasceu é direta? A do platform_admin é a do seletor (X-Org-Id); a dos outros, a da sessão. */
+const orgDoProjetoDireta = () => {
+    const t = S.user && S.user.role === 'platform_admin' && typeof window.tipoOrgAtuacao === 'function' ? window.tipoOrgAtuacao() : null;
+    return t ? t === 'direta' : orgDireta();
+};
+/** Papéis do passo: a direta só tem equipe (onda 1, decisão 8; o servidor recusa o resto); a consultoria convida também o cliente. */
+const papeisDoPasso = () => (orgDoProjetoDireta() ? [['consultor', 'Pessoa da equipe']]
+    : [['consultor', 'Consultor'], ['org_admin', 'Gestor do cliente'], ['org_user', 'Colaborador do cliente']]);
+/** Módulos que se oferecem a uma pessoa: os do projeto que quem convida também tem (espelho do teto; o servidor decide). */
+const modulosOferecidos = () => { const meus = modulosDaPessoa(); return W.projeto.modulos.filter((m) => !meus || meus.includes(m)); };
+/** P0-1: o n.ot nunca nasce marcado para uma pessoa; só vale marcado à mão. */
+const novaPessoa = () => ({ nome: '', email: '', papel: 'consultor', modulos: modulosOferecidos().filter((m) => m !== 'ot') });
+
+function linhaPessoa(p, i) {
+    return `<fieldset class="np-pessoa"><legend class="form-label">Pessoa ${i + 1}</legend>
+        <div class="form-group"><label class="form-label" for="np-p${i}-nome">Nome</label><input class="form-input" id="np-p${i}-nome" maxlength="200" value="${escapeHTML(p.nome)}"></div>
+        <div class="form-group"><label class="form-label" for="np-p${i}-email">E-mail</label><input class="form-input" id="np-p${i}-email" type="email" maxlength="320" value="${escapeHTML(p.email)}"></div>
+        <div class="form-group"><label class="form-label" for="np-p${i}-papel">Papel</label><select class="form-input" id="np-p${i}-papel">${papeisDoPasso().map(([v, r]) => `<option value="${v}" ${p.papel === v ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+        <fieldset class="np-modulos"><legend class="form-label">Módulos</legend>${modulosOferecidos().map((m) => `<label><input type="checkbox" name="np-p${i}-modulo" value="${escapeHTML(m)}" ${p.modulos.includes(m) ? 'checked' : ''}> ${NOME_MODULO[m] || escapeHTML(m)}${m === 'ot' ? ' (só se marcado)' : ''}</label>`).join('')}</fieldset>
+        <p class="np-erro-pessoa" id="np-p${i}-erro" role="alert">${p.feito ? 'Convite enviado.' : ''}</p></fieldset>`;
+}
+
+function pessoasHtml() {
+    return `<p class="np-dica">Convide quem vai trabalhar no projeto. Cada pessoa recebe um e-mail para criar a senha. O n.ot nunca vem marcado: só dá acesso se for marcado aqui, pessoa a pessoa.</p>
+        ${W.acessos.map(linhaPessoa).join('')}
+        <button type="button" class="btn btn-ghost btn-sm" data-action="novoProjetoMaisPessoa">Adicionar pessoa</button>`;
+}
+
+function primeirosHtml() { return '<p>O projeto foi criado.</p>'; }
+
+/** Lê as linhas do passo 5 para `W.acessos` (sem validar: validar é do convidar). */
+function lerAcessos() {
+    W.acessos = W.acessos.map((p, i) => (p.feito ? p : {
+        nome: ($(`np-p${i}-nome`) || {}).value?.trim() ?? p.nome,
+        email: ($(`np-p${i}-email`) || {}).value?.trim() ?? p.email,
+        papel: ($(`np-p${i}-papel`) || {}).value || p.papel,
+        modulos: [...document.querySelectorAll(`input[name="np-p${i}-modulo"]:checked`)].map((x) => x.value),
+    }));
+}
 
 const erroDoPasso = (texto) => {
     const el = document.getElementById('np-erro');
@@ -202,6 +245,9 @@ function passoHtml() {
         <ol style="display:flex;gap:16px;list-style:none;padding:0;margin:0 0 1rem;font-size:0.8rem">${PASSOS.map((p, i) =>
             `<li ${i + 1 === W.passo ? 'aria-current="step" style="color:var(--accent);font-weight:600"' : 'style="color:var(--text-dim)"'}>${i + 1}. ${p}</li>`).join('')}</ol>`;
     const erro = '<div id="np-erro" role="alert" aria-live="assertive" style="color:var(--danger-ink);font-size:0.85rem;min-height:1.2em;margin:0.5rem 0"></div>';
+    // Depois de criado o projeto (passos 5 e 6) não há "Voltar": o projeto já existe.
+    if (W.passo === 5) return `${cab}<div id="np-passo">${pessoasHtml()}</div>${erro}<div class="np-rodape"><button class="btn btn-ghost" data-action="novoProjetoIr" data-args='[6]'>Pular</button><button class="btn btn-primary" data-action="novoProjetoConvidar">Convidar e seguir</button></div>`;
+    if (W.passo === 6) return `${cab}<div id="np-passo">${primeirosHtml()}</div>${erro}<div class="np-rodape"><span></span><button class="btn btn-primary" data-action="novoProjetoFechar">Fechar</button></div>`;
     const voltar = W.passo > 1 ? `<button class="btn btn-ghost" data-action="novoProjetoIr" data-args='[${W.passo - 1}]'>Voltar</button>` : '<span></span>';
     const seguir = W.passo < 4
         ? `<button class="btn btn-primary" data-action="novoProjetoIr" data-args='[${W.passo + 1}]'>Continuar</button>`
@@ -252,12 +298,13 @@ function passoHtml() {
 function mostrarPasso() {
     openModal(passoHtml(), 'modal-large');
     // Foco: no primeiro campo do passo; no resumo, no título (leitor de tela anuncia o passo).
-    const alvo = W.passo === 4 ? document.getElementById('np-titulo') : document.querySelector('#np-passo input:not([type=checkbox]):not([disabled]), #np-passo select');
+    const alvo = W.passo >= 4 ? document.getElementById('np-titulo') : document.querySelector('#np-passo input:not([type=checkbox]):not([disabled]), #np-passo select');
     alvo?.focus();
 }
 
 /** Guarda o que está na tela do passo atual e diz o erro que impede seguir (ou ''). */
 function guardarPasso() {
+    if (W.passo === 5) { lerAcessos(); return ''; }
     if (W.passo === 1) {
         W.empresa = lerFormEmpresa();
         if (!W.empresa.razao_social && !W.empresa.nome_fantasia) return 'Informe a razão social (ou o nome fantasia).';
@@ -293,6 +340,7 @@ window.abrirNovoProjeto = function () {
 
 window.novoProjetoIr = function (passo) {
     if (!W) return;
+    if (W.passo >= 5 && passo < 5) return; // o projeto já existe
     // Voltar não valida; seguir valida o passo atual.
     if (passo > W.passo) {
         const erro = guardarPasso();
@@ -331,15 +379,44 @@ window.criarNovoProjeto = async function () {
         erroDoPasso((err && err.message) || 'Não foi possível criar o projeto');
         return;
     }
-    W = null;
-    window.forceCloseModal();
     showToast('Projeto criado.', 'success');
     if (typeof window.loadProjects === 'function') await window.loadProjects();
-    const mods = r.modulos || [];
-    if (mods.includes('iso') && typeof window.openProjectDetail === 'function') return window.openProjectDetail(r.id);
-    if (typeof window.abrirProjetoNoModulo === 'function') window.abrirProjetoNoModulo(r.id, 'privacy');
-    if (typeof window.render === 'function') window.render();
+    W.projeto = { id: r.id, modulos: Array.isArray(r.modulos) ? r.modulos : [] };
+    W.acessos = [novaPessoa()];
+    W.passo = 5;
+    mostrarPasso();
 };
+
+window.novoProjetoFechar = () => { W = null; window.forceCloseModal(); if (typeof window.render === 'function') window.render(); };
+
+window.novoProjetoMaisPessoa = function () {
+    if (!W || W.passo !== 5) return;
+    lerAcessos();
+    W.acessos.push(novaPessoa());
+    mostrarPasso();
+};
+
+/** Convida cada linha preenchida (POST /users; consultor também designado no projeto). Erro fica na linha; só segue sem erro. */
+window.novoProjetoConvidar = () => semRepetir('novoProjetoConvidar', async () => {
+    if (!W || W.passo !== 5) return;
+    lerAcessos();
+    const pid = W.projeto.id;
+    let falhou = false;
+    for (const [i, p] of W.acessos.entries()) {
+        if (p.feito || (!p.nome && !p.email)) continue;
+        const erro = (t) => { const el = $(`np-p${i}-erro`); if (el) el.textContent = t; falhou = true; };
+        if (!p.nome || !p.email) { erro('Informe nome e e-mail.'); continue; }
+        if (!p.modulos.length) { erro('Escolha ao menos um módulo.'); continue; }
+        const cliente = p.papel !== 'consultor';
+        try {
+            await api('POST', '/api/v1/users', { name: p.nome, email: p.email, role: p.papel, client_project_id: cliente ? pid : null, modulos: p.modulos });
+            p.feito = true; // o convite já saiu: um erro da designação não o repete
+            if (!cliente) await api('POST', `/api/v1/projects/${pid}/governance`, { name: p.nome, email: p.email, role_category: 'consultor', job_title: 'Consultor' });
+            const el = $(`np-p${i}-erro`); if (el) el.textContent = 'Convite enviado.';
+        } catch (err) { erro((err && err.message) || 'Não foi possível convidar.'); }
+    }
+    if (!falhou) window.novoProjetoIr(6);
+});
 
 // ─── Dados da empresa (projeto existente) ──────────────────────────────────────────────────────────────
 

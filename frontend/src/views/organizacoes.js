@@ -497,6 +497,8 @@ window.__orgTConfirmar = async () => {
 export { renderOrganizacoes, atualizarSeletorOrg };
 window.renderOrganizacoes = renderOrganizacoes;
 window.atualizarSeletorOrg = atualizarSeletorOrg;
+/** O tipo da organização em que o platform_admin atua (seletor do cabeçalho), para o assistente; null fora dela. */
+window.tipoOrgAtuacao = () => (S.orgAtuacao ? (orgs.find((o) => o.id === S.orgAtuacao) || {}).tipo || null : null);
 window.nomeOrgAtuacao = () => (S.orgAtuacao ? nomeDe(S.orgAtuacao) : null);
 window.nomeOrgDe = (id) => (id ? nomeDe(id) : null);
 window.orgsConhecidas = () => orgs.map((o) => ({ id: o.id, nome: o.nome }));
