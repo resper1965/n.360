@@ -209,7 +209,7 @@ window.bancadaSalvarEIr = async () => {
 };
 
 window.bancadaBloquear = () => openModal(`<div class="modal-header"><span class="modal-title">Bloquear este passo</span></div>
-    <p class="bancada-nota">Diga o que impede o avanço e quem resolve. O motivo aparece no passo e no Monitor.</p>
+    <p class="bancada-nota">Diga o que impede o avanço e quem resolve. O motivo aparece no passo e na Jornada.</p>
     <label for="bloq-motivo" class="rotulo-campo">Motivo (obrigatório)</label><textarea id="bloq-motivo" class="form-input" rows="3"></textarea>
     <label for="bloq-resp" class="rotulo-campo">Responsável (obrigatório)</label><select id="bloq-resp" class="form-select">${opcoesDeResponsavel('')}</select>
     <p class="bancada-nota" id="bloq-erro" role="alert"></p>

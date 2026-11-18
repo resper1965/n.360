@@ -170,6 +170,11 @@ describe('contrato tela↔API', () => {
       "frontend/src/atividade/catalogo-inline.js: api('POST', caminho(pid",
       "frontend/src/atividade/estado.js: api('PUT', caminho || url(pid",
       'frontend/src/produto.js: fetch(\'/health\'',
+      // ot-fornecedores.js: base() começa com o literal /api/v1/projects/${id}/ot/fornecedores (o extrator pega na origem).
+      "frontend/src/views/ot-fornecedores.js: api('DELETE', `${base(",
+      "frontend/src/views/ot-fornecedores.js: api('GET', base(",
+      "frontend/src/views/ot-fornecedores.js: api('POST', `${base(",
+      "frontend/src/views/ot-fornecedores.js: api('POST', base(",
       'frontend/src/views/propostas.js: api(\'GET\', caminho',
       'frontend/src/views/propostas.js: fetch(API_BASE + caminho',
     ];

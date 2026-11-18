@@ -77,7 +77,7 @@ function desenhar(d, proj) {
     return `<div class="pn">
         <section class="pn-saude" aria-labelledby="pt-veredito"><h2 id="pt-veredito" class="sr-only">Veredito</h2>${estado(v.tom, v.rotulo)}
             <p class="pn-frase">${e(v.frase)}</p><p class="pn-apoio">${e(v.apoio)}</p>
-            <p class="pn-apoio"><strong class="pn-num">${e(d.indicador && d.indicador.texto)}</strong>. É o indicador de progresso do n.iso: o mesmo número no Painel, no Monitor e na Jornada.</p>
+            <p class="pn-apoio"><strong class="pn-num">${e(d.indicador && d.indicador.texto)}</strong>. É o indicador de progresso do n.iso: o mesmo número no Painel e na Jornada.</p>
             ${linhaDatas(d.certificacao)}
             <details class="pn-regra"><summary>Como esta resposta é montada</summary>
                 <p>Cada critério é verificável no cadastro do n.iso e cita a cláusula da ISO/IEC 27001:2022 de onde vem. <b>Estágio 1</b>: a
