@@ -169,7 +169,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (funcao pura) da a situacao (atendido, pendente, nao se aplica), o motivo, o numero, o veredito (nunca "conforme"; sempre com a
   ressalva de pre-avaliacao), o que falta (estagio, depois o que destrava mais) e `do_cliente`. Criterio novo so com clausula de origem e
   dado verificavel no cadastro. **O indicador de progresso do n.iso e um so**: "X de Y controles aplicaveis implementados", pela
-  `SQL_CLASSE_CONTROLE` de `src/services/classe-controle.ts` (Painel, Prontidao, Monitor, Jornada, gap-analysis, Bancada, readiness,
+  `SQL_CLASSE_CONTROLE` de `src/services/classe-controle.ts` (Painel, Prontidao, Jornada, gap-analysis, Bancada, readiness,
   coherence, medidas do RoPA e cobertura da LGPD; `Compliant` legado conta como feito; a SoA na tela usa o espelho
   `frontend/src/classe-controle.js`, conferido por teste); evidencia vencida e `SQL_EVIDENCIA_VENCIDA` e vencida ou nao conforme e
   `SQL_EVIDENCIA_RUIM`, de `src/services/evidencia-regras.ts`. Nao some contagem no cliente nem leia campo que a API nao devolve.
@@ -179,9 +179,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `frontend/test/hoje-sp.test.js`); o marco "Em operacao desde" e `SQL_MARCO_DO_PROGRAMA` (`painel.ts`: colunas gravadas, RIPD e pedido
   aprovado); fornecedor e `SQL_EH_FORNECEDOR` (`src/services/terceiros.ts`: organizacao ativa que nao e so parte interessada), o mesmo
   na lista do n.iso, no n.privacy, no Painel, na Bancada e no ponto de partida.
-  Tela: `frontend/src/views/prontidao.js` (a view `certification`, item "Prontidao" no grupo Implementacao). Sem fases, Jornada e
-  Monitor oferecem "Carregar as fases" (`POST /api/v1/projects/:id/phases`, so a equipe, 409 se ja tem) e a prontidao, nunca um ao outro;
-  ligar o n.iso num projeto tambem carrega as fases.
+  Tela: `frontend/src/views/prontidao.js` (a view `certification`, item "Prontidao" no grupo Implementacao). Sem fases, a Jornada
+  oferece "Carregar as fases" (`POST /api/v1/projects/:id/phases`, so a equipe, 409 se ja tem) e a prontidao, nunca um ao outro;
+  ligar o n.iso num projeto tambem carrega as fases. O Monitor saiu (onda 4): a grade etapa x fase fica no topo da Jornada (`frontend/src/bancada/grade.js`, recolhida em "Fases por etapa"); `?tela=monitor` e alias da Jornada (`ALIAS_DE_TELA` em `frontend/src/produto.js`, lido por `navigate` e `pedidoDoHub`). Tela que sair do menu entra nessa lista, nunca vira 404.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
   Regras em `src/services/pedidos.ts` (`podePedir`, `autoridadeNoPedido`,

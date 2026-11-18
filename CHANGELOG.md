@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.360, onda 4: jornada comum (spec 2026-11-18)
+- **Monitor saiu do menu do n.iso.** A grade etapa × fase passou para o topo da Jornada ("Fases por etapa"); links antigos para o Monitor abrem a Jornada. "Exportar riscos" continua na tela Riscos. As exportações de fornecedores e treinamentos em CSV, que só o Monitor oferecia, ficam fora da tela por enquanto (a API segue).
+
 ### n.360, onda 3: o n.ot aponta para o núcleo (migração 0115, spec 2026-11-17)
 - **Muda para quem já usa:** quem não tem o módulo `ot` (na pessoa e no projeto) deixa de ver as ações `ot.%` no histórico (`audit-trail`), no `audit-pack`, no CSV do log de auditoria e na exportação do projeto. Agente e chave de API também não as recebem.
 - **Referência núcleo → OT:** risco, ação corretiva e incidente podem apontar para um site ou ativo do n.ot (tabela satélite `ot_referencias`, migração 0115; rotas `/ot/referencias`). Bloco "Vínculo com o n.ot" nos detalhes, só para quem tem o `ot`.
