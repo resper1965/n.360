@@ -15,6 +15,15 @@ REPO=${GATE_REPO:-resper1965/n.360}
 LOG="${TMPDIR:-${TEMP:-/tmp}}/gate-${SHA:0:10}.log"
 : > "$LOG"
 
+# Node >= 22 (undici 7/8 e workerd exigem). Abaixo disso o vitest do frontend quebra ao carregar
+# o undici com um erro críptico ("Cannot read properties of undefined (reading 'bind')"); falhar
+# claro aqui poupa a caçada. Veja .nvmrc / engines.node.
+NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+if [ "${NODE_MAJOR:-0}" -lt 22 ]; then
+  echo "Node $(node -v 2>/dev/null || echo '?') — o projeto exige Node >= 22 (veja .nvmrc). Rode: nvm install 22 && nvm use 22"
+  exit 2
+fi
+
 [ -z "$(git status --porcelain)" ] || { echo "Árvore suja: o status vale para um commit, commite antes."; exit 2; }
 
 marcar() { # estado descrição
