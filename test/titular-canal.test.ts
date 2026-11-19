@@ -247,3 +247,48 @@ describe('rotas GET|PUT /api/v1/projects/:id/titular-canal', () => {
     expect((await chamar(S.cons, 'GET', '/api/v1/projects/tc-iso/titular-canal')).status).toBe(403);
   });
 });
+
+describe('papéis de equipe e de plataforma (status exatos medidos)', () => {
+  const PD = 'tc-pd';
+  const RD = `/api/v1/projects/${PD}/titular-canal`;
+  const T: Record<string, Record<string, string>> = {};
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO organizations (id, name, slug, max_projects, max_users, tipo) VALUES ('tc-od', 'Direta', 'tc-direta', 10, 10, 'direta'), ('tc-oc', 'Outra consultoria', 'tc-outra', 10, 10, 'consultoria')`),
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Direta', 'ISO 27001', 'Controller', 'Active', 'tc-od')`).bind(PD),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES
+        ('tc-cadm', 'cadm@ness.teste', 'x', 'CAdm', 'consultoria_admin', NULL, 'org_ness'),
+        ('tc-pa-u', 'pa@ness.teste', 'x', 'PA', 'platform_admin', NULL, 'org_ness'),
+        ('tc-dadm', 'dadm@direta.teste', 'x', 'DAdm', 'consultoria_admin', NULL, 'tc-od'),
+        ('tc-xadm', 'xadm@outra.teste', 'x', 'XAdm', 'consultoria_admin', NULL, 'tc-oc'),
+        ('tc-ndes', 'nd@ness.teste', 'x', 'ND', 'consultor', NULL, 'org_ness'),
+        ('tc-stk', 'stk@cliente.teste', 'x', 'Stk', 'stakeholder', ?1, 'org_ness')`).bind(P),
+    ]);
+    await habilitarPrivacy(P, PD);
+    await concederModulos(['tc-pa-u', 'tc-stk', 'tc-xadm'], ['privacy']);
+    T.cadm = await sessionFor({ id: 'tc-cadm', email: 'cadm@ness.teste', role: 'consultoria_admin' });
+    T.pa = await sessionFor({ id: 'tc-pa-u', email: 'pa@ness.teste', role: 'platform_admin' });
+    T.dadm = await sessionFor({ id: 'tc-dadm', email: 'dadm@direta.teste', role: 'consultoria_admin', org_id: 'tc-od' });
+    T.xadm = await sessionFor({ id: 'tc-xadm', email: 'xadm@outra.teste', role: 'consultoria_admin', org_id: 'tc-oc' });
+    T.ndes = await sessionFor({ id: 'tc-ndes', email: 'nd@ness.teste', role: 'consultor' });
+    T.stk = await sessionFor({ id: 'tc-stk', email: 'stk@cliente.teste', role: 'stakeholder', client_project_id: P });
+  });
+  const par = async (quem: string, caminho: string) =>
+    [(await chamar(T[quem], 'GET', caminho)).status, (await chamar(T[quem], 'PUT', caminho, { telefone: '11 4000-0002' })).status];
+
+  it('consultoria_admin da org_ness e platform_admin: lê e grava (200/200)', async () => {
+    expect(await par('cadm', ROTA), 'cadm').toEqual([200, 200]);
+    expect(await par('pa', ROTA)).toEqual([200, 200]);
+  });
+  it('admin da organização DIRETA, no projeto da própria org: 200/200', async () => {
+    expect(await par('dadm', RD)).toEqual([200, 200]);
+  });
+  it('consultoria_admin de OUTRA organização e consultor não designado: 403/403', async () => {
+    expect(await par('xadm', ROTA)).toEqual([403, 403]);
+    expect(await par('xadm', RD)).toEqual([403, 403]);
+    expect(await par('ndes', ROTA)).toEqual([403, 403]);
+  });
+  it('stakeholder: sem acesso, nem para ler (403/403)', async () => {
+    expect(await par('stk', ROTA)).toEqual([403, 403]);
+  });
+});
