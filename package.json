@@ -2,6 +2,9 @@
   "name": "niso",
   "version": "11.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build:frontend": "cd frontend && npm run build",
     "predeploy": "npm run build:frontend",
