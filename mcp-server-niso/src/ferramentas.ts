@@ -488,7 +488,7 @@ export const TOOLS: Ferramenta[] = [
   {
     name: "niso_privacy_encarregado",
     description:
-      "n.privacy: o painel do encarregado: pedidos do titular, incidentes, tratamentos sem base, DPIA ou LIA, terceiros, documentos, evidências, cobertura LGPD, prazos legais não cadastrados e o 'o que fazer' em prioridades (alta, media). Comece por aqui. Só leitura.",
+      "n.privacy: o painel do encarregado: pedidos do titular, incidentes, tratamentos sem base, DPIA ou LIA, terceiros, documentos, evidências, cobertura LGPD, prazos legais não cadastrados, o canal do titular (`canal`: meios, portal ativo, página de divulgação, última conferência; registrar o canal é pela interface) e o 'o que fazer' em prioridades (alta, media). Comece por aqui. Só leitura.",
     inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
   },
   {

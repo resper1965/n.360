@@ -10,6 +10,7 @@ import { exportarProjeto } from '../src/portabilidade';
 import { mesclar } from '../src/services/mesclar';
 import { gerarPortal } from '../src/services/titular-pedidos';
 import { hojeEmSaoPaulo } from '../src/services/hoje';
+import { TOOLS } from '../mcp-server-niso/src/ferramentas';
 import fonteDoServico from '../src/services/titular-canal.ts?raw';
 
 /**
@@ -290,5 +291,26 @@ describe('papéis de equipe e de plataforma (status exatos medidos)', () => {
   });
   it('stakeholder: sem acesso, nem para ler (403/403)', async () => {
     expect(await par('stk', ROTA)).toEqual([403, 403]);
+  });
+});
+
+describe('o canal na visão do encarregado, no painel e no agente (PR3)', () => {
+  it('o agente lê o resumo do canal pelo GET /encarregado (o que niso_privacy_encarregado chama), sem endereço', async () => {
+    const r = await comoAgente('GET', `/api/v1/projects/${P}/encarregado`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    const v = await r.json<{ canal: unknown }>();
+    expect(v.canal).toEqual(await resumoDoCanal(env.DB, P));
+    expect(JSON.stringify(v.canal)).not.toContain('@');
+  });
+  it('o Painel do n.privacy diz se o canal está registrado; o do n.iso não fala do canal', async () => {
+    await env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, 'iso', 'teste')`).bind(P).run();
+    await concederModulos(['tc-cons'], ['iso', 'privacy']);
+    const p = await (await chamar(S.cons, 'GET', `/api/v1/projects/${P}/painel?modulo=privacy`)).json<any>();
+    expect(p.canal_titular).toEqual({ registrado: true, divulgado: true });
+    const i = await (await chamar(S.cons, 'GET', `/api/v1/projects/${P}/painel?modulo=iso`)).json<any>();
+    expect(i).not.toHaveProperty('canal_titular');
+  });
+  it('a descrição de niso_privacy_encarregado cita o canal do titular', () => {
+    expect(TOOLS.find((t) => t.name === 'niso_privacy_encarregado')!.description).toContain('canal do titular');
   });
 });
