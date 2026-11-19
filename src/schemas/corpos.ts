@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { dataIso, dataOuInstante, dataOuVazio } from './ropa-abas';
-import { EVALUATION_STATUSES } from '../constants';
 
 /**
  * Corpos de escrita que eram lidos com `c.req.json()` sem schema (item T3 do
@@ -218,10 +217,13 @@ export const evidenciaVincularSchema = z.object({
 
 export const evidenciaTextoSchema = z.object({ text: z.string().optional() });
 
-// PATCH de avaliação: nota (texto; `null` limpa) e/ou status do domínio canônico.
+// PATCH de avaliação: nota (texto; `null` limpa) e/ou veredito do avaliador.
+// 'conforming' NÃO entra: conforme é a assinatura do Líder SGSI (assinarEvidencia),
+// com autoridade de governança, senha e hash do conteúdo — marcá-lo por PATCH de
+// nota driblava essas travas e inflava a cobertura (que conta `conforming` como válido).
 export const evidenciaAvaliacaoSchema = z.object({
   evaluation_notes: z.string().max(20000).nullable().optional(),
-  evaluation_status: z.enum(EVALUATION_STATUSES).optional(),
+  evaluation_status: z.enum(['pending', 'partial', 'non_conforming']).optional(),
 });
 
 export const evidenciaAssinarSchema = z.object({

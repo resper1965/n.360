@@ -173,15 +173,27 @@ evidenceApp.put('/:id', async (c) => {
     }
 
     const resp: Record<string, unknown> = { ok: true };
+    const novoDoc = temDocumento ? (body.documento_id ?? null) : null;
+    const novoControle = temControle ? (body.control_id ?? null) : null;
+
+    // Validar TODOS os alvos ANTES de qualquer escrita: com documento_id válido e
+    // control_id inválido, antes gravava o documento e só então recusava com 400 —
+    // uma gravação parcial sob resposta de erro. Agora nada é escrito num 400.
+    if (temDocumento && novoDoc !== null) {
+      const erro = await erroDocumentoVigente(c.env.DB, ev.project_id, novoDoc);
+      if (erro) return c.json({ error: erro }, 400);
+    }
+    if (temControle && novoControle !== null) {
+      // Aterramento de tenant: só vincula a um controle DO MESMO projeto. Mesma
+      // resposta para inexistente e de outro projeto (como no upload): um 403
+      // distinto confirmava que o id existe em outro tenant.
+      const ctrl = await c.env.DB.prepare('SELECT 1 FROM compliance_controls WHERE id = ? AND project_id = ?').bind(novoControle, ev.project_id).first();
+      if (!ctrl) return c.json({ error: 'Controle não encontrado neste projeto' }, 400);
+    }
 
     // documento_id: liga a evidência ao DOCUMENTO vigente do projeto (não a uma
     // versão fixa). Ortogonal ao controle: não mexe em avaliação nem assinatura.
     if (temDocumento) {
-      const novoDoc = body.documento_id ?? null;
-      if (novoDoc !== null) {
-        const erro = await erroDocumentoVigente(c.env.DB, ev.project_id, novoDoc);
-        if (erro) return c.json({ error: erro }, 400);
-      }
       const mudouDoc = novoDoc !== (ev.documento_id ?? null);
       if (mudouDoc) {
         await c.env.DB.prepare(`UPDATE evidence SET documento_id = ?, updated_at = datetime('now') WHERE id = ?`).bind(novoDoc, id).run();
@@ -192,15 +204,6 @@ evidenceApp.put('/:id', async (c) => {
     }
 
     if (temControle) {
-      const novoControle = body.control_id ?? null;
-      // Aterramento de tenant: só vincula a um controle DO MESMO projeto. Mesma
-      // resposta para inexistente e de outro projeto (como no upload): um 403
-      // distinto confirmava que o id existe em outro tenant.
-      if (novoControle !== null) {
-        const ctrl = await c.env.DB.prepare('SELECT 1 FROM compliance_controls WHERE id = ? AND project_id = ?').bind(novoControle, ev.project_id).first();
-        if (!ctrl) return c.json({ error: 'Controle não encontrado neste projeto' }, 400);
-      }
-
       // Mudar o controle-alvo invalida a avaliação anterior (foi feita contra outro
       // controle): volta a 'pending' e as assinaturas (revisão contra o outro controle)
       // caem. É INTENCIONAL — a resposta devolve `approvals_reset` e a trilha registra

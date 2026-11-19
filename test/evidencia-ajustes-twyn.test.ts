@@ -88,6 +88,17 @@ describe('1) grava documento_id na evidência', () => {
     expect((await evidencia('ev-twyn-a61'))!.documento_id).toBeNull();
   });
 
+  // P2 (Codex): documento_id válido + control_id inválido num mesmo PUT não pode
+  // gravar o documento e devolver 400 — valida tudo antes de escrever.
+  it('documento válido com controle inválido: 400 e NADA gravado (atômico)', async () => {
+    await inserirEvidencia('ev-twyn-a61', { control_id: 'ctrl-a61', documento_id: null });
+    const res = await chamar(`/api/v1/evidence/ev-twyn-a61`, { method: 'PUT', headers: json(consultor), body: JSON.stringify({ documento_id: 'doc-vig', control_id: 'ctrl-de-outro-projeto' }) });
+    expect(res.status).toBe(400);
+    const ev = await evidencia('ev-twyn-a61');
+    expect(ev!.documento_id).toBeNull();   // documento NÃO foi gravado
+    expect(ev!.control_id).toBe('ctrl-a61'); // controle inalterado
+  });
+
   it('trocar o documento não zera a aprovação do controle (ortogonal)', async () => {
     await inserirEvidencia('ev-twyn-a61', { ciso_approved_by: 'CISO', ciso_approved_at: '2026-07-21T15:49:12Z' });
     const res = await chamar(`/api/v1/evidence/ev-twyn-a61`, { method: 'PUT', headers: json(consultor), body: JSON.stringify({ documento_id: 'doc-vig' }) });
@@ -135,6 +146,14 @@ describe('3) PATCH grava notas de avaliação', () => {
     await inserirEvidencia('ev-twyn-a61');
     const res = await chamar(`/api/v1/projects/${P}/evidence/ev-twyn-a61`, { method: 'PATCH', headers: json(consultor), body: JSON.stringify({ evaluation_status: 'aprovado' }) });
     expect(res.status).toBe(400);
+  });
+
+  // P1 (Codex): 'conforming' é a assinatura do Líder SGSI, não um veredito de nota.
+  it("'conforming' é recusado pelo PATCH (vem da assinatura, não da nota)", async () => {
+    await inserirEvidencia('ev-twyn-a61');
+    const res = await chamar(`/api/v1/projects/${P}/evidence/ev-twyn-a61`, { method: 'PATCH', headers: json(consultor), body: JSON.stringify({ evaluation_status: 'conforming' }) });
+    expect(res.status).toBe(400);
+    expect((await evidencia('ev-twyn-a61'))!.evaluation_status).not.toBe('conforming');
   });
 
   it('papel só-leitura (org_user) não altera avaliação (403)', async () => {
