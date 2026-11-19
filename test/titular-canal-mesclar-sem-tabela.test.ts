@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { applySchema } from './helpers/d1';
 import { mesclar, previaDaMescla } from '../src/services/mesclar';
@@ -13,6 +13,9 @@ describe('mescla de partes sem a tabela titular_canal', () => {
     ]);
     await env.DB.prepare('DROP TABLE titular_canal').run();
   });
+
+  // Devolve o schema canônico (recria titular_canal): o teste não depende do isolamento de armazenamento por arquivo.
+  afterAll(async () => { await applySchema(); });
 
   it('prévia e mescla funcionam e registram o aviso', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});

@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.privacy: canal do titular (migração 0117, spec 2026-11-19)
+- **Registro do canal do titular (API):** por projeto, o e-mail, o telefone e a página do formulário pelos quais o titular fala com a empresa, a página onde canal e encarregado estão publicados, o responsável e a data da última conferência. Gravam a equipe da consultoria e o administrador do cliente; os demais, a chave de API e o agente só leem. O link do portal de solicitações é recusado nesses campos.
+- A migração 0117 é aplicada pelo dono (com backup antes); enquanto não for, o deploy recusa publicar.
+
 ### n.360, onda 4: jornada comum (spec 2026-11-18)
 - **Monitor saiu do menu do n.iso.** A grade etapa × fase passou para o topo da Jornada ("Fases por etapa"); links antigos para o Monitor abrem a Jornada. "Exportar riscos" continua na tela Riscos. As exportações de fornecedores e treinamentos em CSV, que só o Monitor oferecia, ficam fora da tela por enquanto (a API segue).
 - **Prontidão virou aba da Jornada** ("Prontidão para certificar"). O item Prontidão saiu do menu; avisos, e-mails e links antigos abrem a aba.

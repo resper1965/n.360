@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
-import { applySchema, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { applySchema, workerEnv, habilitarPrivacy, sessionFor, concederModulos } from './helpers/d1';
+import app from '../src/index';
+import { sha256Hex } from '../src/helpers';
+import { faixaDoCaminho } from '../src/modulos';
 import { salvarCanal, lerCanal, resumoDoCanal, hostsDoApp, MSG_LINK_DO_PORTAL } from '../src/services/titular-canal';
 import { titularCanalSchema } from '../src/schemas';
 import { exportarProjeto } from '../src/portabilidade';
@@ -28,6 +31,37 @@ beforeAll(async () => {
       ('tc-pa', ?1, 'pessoa', 'Ana Exemplo'), ('tc-pa2', ?1, 'pessoa', 'Ana Exemplo Dup'), ('tc-pb', ?2, 'pessoa', 'Bruno Outro')`).bind(P, OUTRO),
   ]);
   await habilitarPrivacy(P, OUTRO);
+});
+
+const ROTA = `/api/v1/projects/${P}/titular-canal`;
+const AGENTE = { userId: 'tc-cons', email: 'cons@ness.teste', projectId: P, concessaoId: 'tc-conc' };
+const requisicao = (metodo: string, caminho: string, h: Record<string, string>, corpo?: unknown) =>
+  new Request('http://localhost' + caminho, { method: metodo, headers: { 'Content-Type': 'application/json', ...h }, body: metodo === 'GET' ? undefined : JSON.stringify(corpo ?? {}) });
+const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown) => app.fetch(requisicao(metodo, caminho, h, corpo), workerEnv());
+const comoAgente = (metodo: string, caminho: string, corpo?: unknown) =>
+  app.fetch(requisicao(metodo, caminho, { 'X-Agente-Confirmado': '1' }, corpo), { ...workerEnv(), AGENTE } as any);
+const S: Record<string, Record<string, string>> = {};
+
+beforeAll(async () => {
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES
+      ('tc-cons', 'cons@ness.teste', 'x', 'Cons', 'consultor', NULL, 'org_ness'),
+      ('tc-adm', 'adm@cliente.teste', 'x', 'Adm', 'org_admin', ?1, 'org_ness'),
+      ('tc-usr', 'usr@cliente.teste', 'x', 'Usr', 'org_user', ?1, 'org_ness'),
+      ('tc-cli', 'cli@cliente.teste', 'x', 'Cli', 'client', ?1, 'org_ness')`).bind(P),
+    env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-tc', ?, 'Cons', 'cons@ness.teste', 'consultor', 'Consultor')`).bind(P),
+    env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('tc-conc', 'tc-cons', ?, datetime('now', '+30 days'))`).bind(P),
+    env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('tc-kw', ?1, ?2, 'escrita', 'write', 'Active'), ('tc-kr', ?1, ?3, 'leitura', 'read', 'Active')`)
+      .bind(P, await sha256Hex('tc-chave-escrita'), await sha256Hex('tc-chave-leitura')),
+  ]);
+  await habilitarPrivacy(P, OUTRO); // de novo: agora a conta do consultor existe e recebe o módulo
+  await concederModulos(['tc-adm', 'tc-usr', 'tc-cli'], ['privacy']);
+  S.cons = await sessionFor({ id: 'tc-cons', email: 'cons@ness.teste', role: 'consultor' });
+  S.adm = await sessionFor({ id: 'tc-adm', email: 'adm@cliente.teste', role: 'org_admin', client_project_id: P });
+  S.usr = await sessionFor({ id: 'tc-usr', email: 'usr@cliente.teste', role: 'org_user', client_project_id: P });
+  S.cli = await sessionFor({ id: 'tc-cli', email: 'cli@cliente.teste', role: 'client', client_project_id: P });
+  S.chaveW = { 'X-API-Key': 'tc-chave-escrita' };
+  S.chaveR = { 'X-API-Key': 'tc-chave-leitura' };
 });
 
 describe('corpo (titularCanalSchema)', () => {
@@ -156,5 +190,60 @@ describe('portabilidade e mescla', () => {
 describe('P0 do n.ot', () => {
   it('o serviço não lê nem grava nada ot_ e não importa módulo do n.ot', () => {
     expect(fonteDoServico).not.toMatch(/\bot_|from '\.\/ot/);
+  });
+});
+
+describe('rotas GET|PUT /api/v1/projects/:id/titular-canal', () => {
+  it('lê: equipe, org_admin, org_user, client, chave de leitura e o agente (200)', async () => {
+    for (const [quem, h] of Object.entries({ cons: S.cons, adm: S.adm, usr: S.usr, cli: S.cli, chaveR: S.chaveR })) {
+      const r = await chamar(h, 'GET', ROTA);
+      expect(r.status, quem).toBe(200);
+      expect(await r.json(), quem).toMatchObject({ canal: { project_id: P }, portal_ativo: false });
+    }
+    const ag = await comoAgente('GET', ROTA);
+    expect(ag.status, await ag.clone().text()).toBe(200);
+  });
+
+  it('grava: equipe e org_admin (200); quem gravou fica em atualizado_por', async () => {
+    expect((await chamar(S.cons, 'PUT', ROTA, { email: 'canal@exemplo.com.br' })).status).toBe(200);
+    const r = await chamar(S.adm, 'PUT', ROTA, { telefone: '11 4000-0001' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await (await chamar(S.cli, 'GET', ROTA)).json()).toMatchObject({ canal: { email: 'canal@exemplo.com.br', telefone: '11 4000-0001', atualizado_por: 'adm@cliente.teste' } });
+  });
+
+  it('recusa a gravação (403) a org_user, client, chave de escrita, chave de leitura e ao agente; nada muda', async () => {
+    for (const [quem, h] of Object.entries({ usr: S.usr, cli: S.cli, chaveW: S.chaveW, chaveR: S.chaveR })) {
+      expect((await chamar(h, 'PUT', ROTA, { email: 'invasor@exemplo.com.br' })).status, quem).toBe(403);
+    }
+    const ag = await comoAgente('PUT', ROTA, { email: 'invasor@exemplo.com.br' });
+    expect(ag.status).toBe(403);
+    expect((await ag.json<{ error: string }>()).error).toContain('fora do alcance do agente');
+    expect((await linha())!.email).toBe('canal@exemplo.com.br');
+  });
+
+  it('outro projeto: nem lê nem grava (403), e nenhuma linha nasce lá', async () => {
+    const C = `/api/v1/projects/${OUTRO}/titular-canal`;
+    for (const h of [S.cons, S.adm]) {
+      expect((await chamar(h, 'GET', C)).status).toBe(403);
+      expect((await chamar(h, 'PUT', C, { email: 'x@exemplo.com.br' })).status).toBe(403);
+    }
+    expect(await env.DB.prepare('SELECT 1 FROM titular_canal WHERE project_id = ?').bind(OUTRO).first()).toBeNull();
+  });
+
+  it('link do portal: 422 com a mensagem; http e campo do servidor: 400', async () => {
+    const r = await chamar(S.cons, 'PUT', ROTA, { formulario_url: 'https://n360.ness.com.br/solicitacao#tok-abc123' });
+    expect(r.status).toBe(422);
+    expect((await r.json<{ error: string }>()).error).toBe(MSG_LINK_DO_PORTAL);
+    expect((await chamar(S.cons, 'PUT', ROTA, { divulgacao_url: 'http://exemplo.com.br/privacidade' })).status).toBe(400);
+    expect((await chamar(S.cons, 'PUT', ROTA, { conferido_em: '2020-01-01' })).status).toBe(400);
+  });
+
+  it('faixa n.privacy: projeto só com o n.iso recusa (403)', async () => {
+    expect(faixaDoCaminho('/api/v1/projects/x/titular-canal')).toBe('privacy');
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('tc-iso', 'Só ISO', 'ISO 27001', 'Controller', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-tc-iso', 'tc-iso', 'Cons', 'cons@ness.teste', 'consultor', 'Consultor')`),
+    ]);
+    expect((await chamar(S.cons, 'GET', '/api/v1/projects/tc-iso/titular-canal')).status).toBe(403);
   });
 });

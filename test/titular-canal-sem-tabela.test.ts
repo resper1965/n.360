@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { applySchema } from './helpers/d1';
 import { resumoDoCanal } from '../src/services/titular-canal';
@@ -12,6 +12,9 @@ describe('resumoDoCanal sem a tabela titular_canal', () => {
     await gerarPortal(env.DB, 'st', 'cons@ness.teste');
     await env.DB.prepare('DROP TABLE titular_canal').run();
   });
+
+  // Devolve o schema canônico (recria titular_canal): o teste não depende do isolamento de armazenamento por arquivo.
+  afterAll(async () => { await applySchema(); });
 
   it('devolve o canal vazio (com o portal), registra o aviso e não lança', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
