@@ -278,10 +278,12 @@ evidenceApp.post('/:id/evaluate', async (c) => {
     ].filter(Boolean) as string[];
     const evalStatus = sinais.length === 1 ? sinais[0] : 'pending';
 
-    // Evidência já assinada pelo Líder SGSI mantém o status; a avaliação grava só nota e texto.
+    // A IA grava em `avaliacao_ia` (coluna própria) e no score; NUNCA em
+    // `evaluation_notes`, que é a nota humana — antes a reavaliação a apagava.
+    // Evidência já assinada pelo Líder SGSI mantém o status.
     await c.env.DB.prepare(
       `UPDATE evidence SET evaluation_status = CASE WHEN ciso_approved_by IS NOT NULL THEN evaluation_status ELSE ? END,
-         evaluation_score = ?, evaluation_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+         evaluation_score = ?, avaliacao_ia = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).bind(evalStatus, result.confidence || 0, result.content, evidenceId).run();
 
     await logAudit(c.env.DB, 'evidence.evaluated', c.get('user')?.email ?? 'system', evidence.ciso_approved_by
