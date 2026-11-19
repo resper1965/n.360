@@ -133,7 +133,7 @@ evidenceApp.delete('/:id', async (c) => {
 
     // `checklist_progress.evidence_id` referencia `evidence` SEM ON DELETE: a FK
     // (RESTRICT) derrubava o DELETE com 500 quando um item de checklist apontava
-    // para a evidência (era o caso de ev-twyn-sgsi-capa). Soltamos o vínculo
+    // para a evidência. Soltamos o vínculo
     // primeiro — o item permanece, como faria ON DELETE SET NULL — e apagamos na
     // MESMA transação (`db.batch`). As outras FKs para `evidence`
     // (evidencia_requisitos, ot_requisito_evidencias) são ON DELETE CASCADE.
