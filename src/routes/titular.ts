@@ -9,6 +9,7 @@ import { criadorDaAcaoDoDesvio, MSG_CRIADOR_NAO_CONCLUI } from '../services/ot-d
 import { listarAcoesDoIncidente, criarAcaoDoIncidente, atualizarAcaoDoIncidente } from '../services/incidente-acoes';
 import { listarAnalises, criarAnalise, atualizarAnalise, lerHistoricoIncidente } from '../services/incidente-analises';
 import { lerPostmortem, salvarPostmortem } from '../services/incidente-postmortem';
+import { lerCanal, salvarCanal, hostsDoApp } from '../services/titular-canal';
 import { salvarIdentidade } from '../services/titular-identidade';
 import { listarEncaminhamentos, criarEncaminhamento, atualizarEncaminhamento } from '../services/titular-encaminhamentos';
 import { emailEncaminhamentoTitular } from '../services/emails';
@@ -20,7 +21,7 @@ import { listarConsentimentos, registrarConsentimento, revogarConsentimento } fr
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
   validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, encaminhamentoCriarSchema, encaminhamentoAtualizarSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
-  titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
+  titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema, titularCanalSchema,
 } from '../schemas';
 
 type Ctx = { Bindings: Bindings; Variables: Variables };
@@ -186,6 +187,23 @@ titularPortalApp.post('/desativar', async (c) => {
     const ok = await desativarPortal(c.env.DB, c.req.param('projectId')!, c.get('user').email);
     return ok ? c.json({ ok: true }) : c.json({ error: 'O portal já estava desativado ou nunca foi gerado' }, 409);
   } catch (e) { return erro500(c, 'Falha ao desativar o portal', e); }
+});
+
+// ─── Canal do titular (migration 0117, spec 2026-11-19): por onde o titular fala com a empresa e onde isso está publicado ──────
+// Grava quem gere o portal (`podeGerirPortal`); org_user e client leem (allow-list de só leitura de auth.ts); chave de API e agente
+// só leem (o PUT está em FORA_DO_AGENTE e a chave entra como `client`). O link do portal é recusado no serviço (422).
+export const titularCanalApp = new Hono<Ctx>();
+
+titularCanalApp.get('/', async (c) => c.json(await lerCanal(c.env.DB, c.req.param('projectId')!)));
+
+titularCanalApp.put('/', async (c) => {
+  try {
+    if (!podeGerirPortal(c.get('user'))) return c.json({ error: 'Forbidden: o canal do titular é registrado pela equipe da consultoria ou pelo org_admin, não por chave de API nem pelo agente' }, 403);
+    const v = await validateBody(c, titularCanalSchema);
+    if (!v.success) return v.response;
+    const r = await salvarCanal(c.env.DB, c.req.param('projectId')!, c.get('user').email, v.data, hostsDoApp(c.env));
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao salvar o canal do titular', e); }
 });
 
 // ─── Incidente ───────────────────────────────────────────────────────────────────────────────────

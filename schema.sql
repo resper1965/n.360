@@ -2840,3 +2840,18 @@ WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.
 BEGIN
     SELECT RAISE(ABORT, 'post mortem só de incidente encerrado do mesmo projeto');
 END;
+
+-- Canal do titular (migration 0117): uma linha por projeto; nunca o link do portal.
+CREATE TABLE IF NOT EXISTS titular_canal (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+    email TEXT CHECK (email IS NULL OR length(email) <= 200),
+    telefone TEXT CHECK (telefone IS NULL OR length(telefone) <= 40),
+    formulario_url TEXT CHECK (formulario_url IS NULL OR length(formulario_url) <= 500),
+    divulgacao_url TEXT CHECK (divulgacao_url IS NULL OR length(divulgacao_url) <= 500),
+    responsavel_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    conferido_em TEXT,
+    conferido_por TEXT,
+    atualizado_por TEXT,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
