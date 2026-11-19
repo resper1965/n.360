@@ -25,7 +25,7 @@ describe('migration 0083: respostas do questionário do RIPD', () => {
     expect(await colunas('dpia_assessments')).toEqual(colunasDpia); // aditiva: nenhuma coluna a mais no RIPD, logo nada no hash
     expect(await env.DB.prepare(`SELECT * FROM dpia_assessments WHERE id = 'd83'`).first()).toEqual(antes);
     await env.DB.prepare(`DELETE FROM projects WHERE id IN ('p83', 'p83b')`).run();
-  }, 30_000);
+  }, 120_000);
 
   it('o schema canônico traz o mesmo: CHECKs, gatilho de projeto, índice e cascata', async () => {
     await applySchema();

@@ -150,7 +150,7 @@ describe('assistente', () => {
             empresa: { cnpj: CNPJ, razao_social: 'Teta Fictícia Ltda', pais: 'BR' },
             pessoas: { representante: { nome: 'Pessoa Fictícia', cargo: 'Diretora' }, dpo: { nome: 'Encarregado Fictício', email: 'dpo@teta.exemplo' } },
         });
-        expect(window.openProjectDetail).toHaveBeenCalledWith('novo');
+        expect($('np-titulo').textContent).toBe('Novo projeto — Pessoas e acessos');
     });
 
     it('limite do plano (409): a mensagem da API aparece no passo e o botão volta', async () => {

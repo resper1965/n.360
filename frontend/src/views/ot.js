@@ -10,6 +10,7 @@ import { cartaoAgente } from './ot-agente.js';
 import { areaSondas } from './ot-sensores.js';
 import { cartaoIntegracao } from './ot-integracao.js';
 import { montarAssessment } from './ot-assessment.js';
+import { montarFornecedoresOt } from './ot-fornecedores.js';
 import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
 import { itemVisivel, enderecoDoProduto, modulosVisiveis } from '../produto.js';
@@ -28,8 +29,8 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const TITULOS = { inicio: 'n.ot · Início', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', acessos: 'Acessos e sondas' };
-const MONTAR = { inicio: montarInicio, sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, acessos: (c, a, p) => montarAcessos(c, a, p) };
+const TITULOS = { inicio: 'n.ot · Início', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores do n.ot', acessos: 'Acessos e sondas' };
+const MONTAR = { inicio: montarInicio, sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, acessos: (c, a, p) => montarAcessos(c, a, p) };
 
 async function renderOt(c, h, a) {
     a.innerHTML = '';
@@ -67,7 +68,7 @@ async function renderOt(c, h, a) {
     if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'inicio';
     const tela = S.otTela;
     escreverEndereco({ tela, site: S.otSite, modo: S.otModo || 'projeto' });
-    for (const t of ['inicio', 'sites', 'assessment', 'relatorios', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
+    for (const t of ['inicio', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
     h.textContent = TITULOS[tela];
     c.innerHTML = '<div class="loading"></div>';
     if (tela === 'site') {

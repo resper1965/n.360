@@ -14,26 +14,38 @@ const antiga = (tabela: string, ...cols: string[]) => {
   return bloco.split('\n').filter((l) => !cols.some((c) => l.includes(c)) && !l.includes('migration 0073')).join('\n').replace(/,(\s*\n\s*\);)$/, '$1');
 };
 
+/** Volta ao esquema canônico mesmo se as tabelas ficaram no formato antigo (aí o applySchema sozinho falha: índice em ropa_id). */
+const restaurar = async () => {
+  await execSql('DROP TABLE IF EXISTS ot_referencias; DROP TABLE IF EXISTS acao_anexos; DROP TABLE IF EXISTS risk_history; DROP TABLE IF EXISTS corrective_actions; DROP TABLE IF EXISTS risks;');
+  await applySchema();
+};
+
 describe('migration 0073 — risco e ação da atividade de tratamento', () => {
   it('sobre as tabelas antigas: preserva as linhas e acrescenta as colunas vazias', async () => {
-    await applySchema();
-    const risks = antiga('risks', 'ropa_id', 'residual_impact', 'residual_probability', 'residual_level');
-    const capa = antiga('corrective_actions', 'ropa_id');
-    await execSql(`DROP TABLE risk_history; DROP TABLE corrective_actions; DROP TABLE risks; ${risks} ${capa}`);
-    await env.DB.batch([
-      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('m73', 'C', 'ISO 27001', 'Controller', 'Active')`),
-      env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level) VALUES ('k-velho', 'm73', 'ERP', 'Vazamento', 4, 4, 'High')`),
-      env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, risk_id, title) VALUES ('a-velha', 'm73', 'k-velho', 'Revisar acessos')`),
-    ]);
-    const antesRisco = await env.DB.prepare(`SELECT * FROM risks`).first();
-    const antesAcao = await env.DB.prepare(`SELECT * FROM corrective_actions`).first();
+    await restaurar();
+    try {
+      // fixture com id fixo: some mesmo se um try anterior (zumbi após timeout) o deixou
+      await env.DB.prepare(`DELETE FROM projects WHERE id = 'm73'`).run();
+      const risks = antiga('risks', 'ropa_id', 'residual_impact', 'residual_probability', 'residual_level');
+      const capa = antiga('corrective_actions', 'ropa_id');
+      await execSql(`DROP TABLE IF EXISTS ot_referencias; DROP TABLE IF EXISTS acao_anexos; DROP TABLE risk_history; DROP TABLE corrective_actions; DROP TABLE risks; ${risks} ${capa}`);
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('m73', 'C', 'ISO 27001', 'Controller', 'Active')`),
+        env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level) VALUES ('k-velho', 'm73', 'ERP', 'Vazamento', 4, 4, 'High')`),
+        env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, risk_id, title) VALUES ('a-velha', 'm73', 'k-velho', 'Revisar acessos')`),
+      ]);
+      const antesRisco = await env.DB.prepare(`SELECT * FROM risks`).first();
+      const antesAcao = await env.DB.prepare(`SELECT * FROM corrective_actions`).first();
 
-    await execSql(migration0073);
+      await execSql(migration0073);
 
-    expect(await env.DB.prepare(`SELECT * FROM risks`).first()).toEqual({ ...antesRisco, ropa_id: null, residual_impact: null, residual_probability: null, residual_level: null });
-    expect(await env.DB.prepare(`SELECT * FROM corrective_actions`).first()).toEqual({ ...antesAcao, ropa_id: null });
-    await applySchema(); // convive com o schema canônico
-  }, 30_000);
+      expect(await env.DB.prepare(`SELECT * FROM risks`).first()).toEqual({ ...antesRisco, ropa_id: null, residual_impact: null, residual_probability: null, residual_level: null });
+      expect(await env.DB.prepare(`SELECT * FROM corrective_actions`).first()).toEqual({ ...antesAcao, ropa_id: null });
+      await applySchema(); // convive com o schema canônico
+    } finally {
+      await restaurar(); // nunca deixa o formato antigo para o teste seguinte
+    }
+  }, 120_000);
 
   it('risks e corrective_actions ganham ropa_id; risks ganha o residual', async () => {
     await applySchema();

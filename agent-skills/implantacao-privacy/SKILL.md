@@ -25,6 +25,13 @@ description: Use ao implantar o n.privacy num cliente novo, do zero: ordem de tr
 | 5. Titular e incidentes | `niso_privacy_titular_pedidos`, `niso_privacy_incidentes` | Procedimentos (documento) e registros que já existam | Prazos são parâmetro; não invente número |
 | 6. Documentos e cobertura | `niso_privacy_requisitos_lacunas`, `/documentos` | `niso_privacy_ligar_documento_requisito` | Publicar documento é humano |
 
+## Onde o projeto está
+
+A trilha destas 7 etapas aparece no Painel do n.privacy e sai, já calculada, em `programa.etapas.privacy` de
+`GET /api/v1/projects/{p}/painel?modulo=privacy` (`passos`: cada etapa com `feito` e a tela; `proximo`: `{texto, tela}` da primeira por fazer, na ordem da trilha, que segue as etapas comuns e não os números da tabela: Documentos e cobertura vem antes de Titular e incidentes). A etapa Documentos e cobertura (6 da tabela) fica "por fazer" enquanto o catálogo da LGPD não estiver carregado na plataforma: isso é limite da plataforma, não lacuna do cliente. Leia
+de lá antes de começar e depois de cada rodada; não recalcule por conta própria. "Feito" ali é derivado do cadastro (sem marca
+manual): uma etapa só fica feita quando o registro existe.
+
 ## Ordem de trabalho
 
 1. **Partida.** Leia o encarregado e o ponto de partida. Anote o que o n.iso já entrega (partes, documentos, itens, fornecedores) para não pedir de novo ao cliente.
@@ -44,7 +51,7 @@ Use `references/pedido-ao-cliente.md` como lista. Peça por área e com prazo; r
 - **Inventário pronto**: cada área tem seus tratamentos; nenhum tratamento sem finalidade específica, titulares, categorias, base legal (texto e catálogo), retenção e responsável; `nao_informado` vazio; transferência internacional com mecanismo; o consultor revisou e pediu aprovação pela interface.
 - **Bases e riscos prontos**: toda LIA exigida existe (concluída por uma pessoa); todo `dpia_pendente` resolvido (RIPD criado ou decisão registrada).
 - **Terceiros prontos**: todo operador ligado a tratamento tem tipo, avaliação vigente e DPA ligado.
-- **Programa pronto para operar**: encarregado designado, prazos cadastrados em `parametros_legais`, `niso_privacy_encarregado` sem prioridade `alta`.
+- **Programa pronto para operar**: encarregado designado, prazos cadastrados em `parametros_legais`, `niso_privacy_encarregado` sem prioridade `alta`; na trilha da tela, as 7 etapas feitas.
 
 ## Regras de honestidade
 

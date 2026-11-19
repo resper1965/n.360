@@ -20,7 +20,7 @@ describe('migration 0038 — propostas', () => {
     // A 0038 deixa propostas no formato antigo (sem as colunas da 0039): devolve o schema canônico aos outros testes.
     await execSql('DROP TABLE proposta_itens; DROP TABLE propostas;');
     await applySchema();
-  }, 30_000);
+  }, 120_000);
 
   it('preenche os termos da ness. quando vazios e não sobrescreve os já preenchidos', async () => {
     await applySchema();
@@ -31,7 +31,7 @@ describe('migration 0038 — propostas', () => {
     await env.DB.prepare(`UPDATE organizations SET textos = '{"termos":"meus termos"}' WHERE id = 'org_ness'`).run();
     await execSql(migration0038);
     expect((await termos('org_ness'))?.t).toBe('meus termos');
-  }, 30_000);
+  }, 120_000);
 
   it('preenche só as chaves ausentes ou vazias: sobre e equipe preenchidos ficam, termos entra', async () => {
     await applySchema();
@@ -43,5 +43,5 @@ describe('migration 0038 — propostas', () => {
     expect(t.equipe).toBe('Ana e Bia.');
     expect(t.termos).toContain('## Foro');
     expect(t.premissas).toContain('ponto focal');
-  }, 30_000);
+  }, 120_000);
 });

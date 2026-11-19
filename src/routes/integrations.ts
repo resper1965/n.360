@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
+import { podeVerOt, SEM_ACAO_OT } from '../services/ot-visibilidade';
 import { requireResourceAccess, genToken, registraErro, logAudit } from '../helpers';
 import { validateBody, createWebhookSchema, createApiKeySchema } from '../schemas';
 import { listarAtivos } from '../services/itens';
@@ -351,8 +352,9 @@ integrations.get('/api/v1/projects/:projectId/export/audit-log', async (c) => {
   const projectId = c.req.param('projectId');
   // Escopado ao PROJETO (antes filtrava por actor, exportando as ações do próprio
   // requisitante). Fallback LIKE cobre linhas legadas sem project_id populado.
+  const veOt = await podeVerOt(c.env.DB, c.get('user'), projectId);
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM audit_logs WHERE project_id = ? OR (project_id IS NULL AND details LIKE ?) ORDER BY created_at DESC LIMIT 500'
+    `SELECT * FROM audit_logs WHERE (project_id = ? OR (project_id IS NULL AND details LIKE ?))${veOt ? '' : SEM_ACAO_OT} ORDER BY created_at DESC LIMIT 500`
   ).bind(projectId, `%${projectId}%`).all<Linha>();
   return csvComTrilha(c, 'trilha de auditoria', ['ID', 'Ação', 'Quem', 'Detalhes', 'Quando'],
     results.map((r) => [r.id, r.action, r.actor, r.details, r.created_at]), 'audit-log.csv');

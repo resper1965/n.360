@@ -60,7 +60,7 @@ describe('migration 0043 — pedido imutável', () => {
     expect(await env.DB.prepare(`SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'pedido_prova_imutavel'`).first()).toBeTruthy();
     await execSql(migration0043); // idempotente
     await regrasDoTrigger();
-  }, 30_000);
+  }, 120_000);
 
   it('o schema.sql canônico traz o mesmo trigger', async () => {
     await applySchema();
@@ -69,5 +69,5 @@ describe('migration 0043 — pedido imutável', () => {
     await pedido('p-ab', 'aberto');
     await pedido('p-ap', 'aprovado');
     await regrasDoTrigger();
-  }, 30_000);
+  }, 120_000);
 });

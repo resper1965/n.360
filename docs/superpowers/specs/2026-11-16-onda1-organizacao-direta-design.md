@@ -25,7 +25,7 @@ aprova. O n.360 hoje assume que quem presta o serviço (equipe) e quem o recebe 
 | 6 | Pessoa diferente ao encerrar incidente, abrir exceção de passo, marcar requisito não aplicável | Exigir só no incidente |
 | 7 | Achado de auditoria interna | Liberar o admin direto, registrado como decisão. Hoje a equipe nunca registra (auth.ts:380) |
 | 8 | Contas de cliente na direta | Só equipe |
-| 9 | SSO/SCIM | Fora da onda 1 (só criam cliente) |
+| 9 | SSO/SCIM | Fora da onda 1 (só criam cliente). **RESOLVIDO na remediação (`bdd65de`):** recusam a direta |
 | 10 | Módulos e limites | Módulos definidos na criação; `max_users` segue contando toda a equipe |
 | 11 | Área comercial e prefixo de proposta | Recusar na direta (`ehComercial` falso) |
 | 12 | Termo de uso | Texto próprio da direta |
@@ -89,15 +89,16 @@ Três PRs: (1) migration, tipo e criação; (2) as sete travas e a regra de pess
 ## Não conferido
 
 Texto do termo de uso, SCIM, assinatura da análise crítica, `confirmarAvaliacao` completa, telas `ot-*.js`, estado das migrations em
-produção (o README dizia 0109; a última no disco é 0113, ainda não aplicada).
+produção (o README dizia 0109; a última no disco é 0113). **Resolvido em 17/11/2026:** a 0113 foi aplicada em produção (`migrations/README.md`).
 
 ## Rulings da execução
 
 - O `platform_admin` pode criar conta de cliente em projeto de organização direta (break-glass); `POST /users` e a troca de papel equipe→cliente só recusam os demais criadores.
-- A direta fica sem tela de identidade na onda 1: `GET /org/config` é comercial-only e devolve custo e margem; liberar exige mudar a autorização no servidor.
+- ~~A direta fica sem tela de identidade na onda 1.~~ **RESOLVIDO na remediação (`09a1250`, `58f95f6`):** `GET /org/config` da direta (consultoria_admin) devolve só nome, CNPJ, cor e selo, e a tela `identidade-org` aparece para ele; custo, margem e prefixo seguem fora.
 - A regra criador ≠ decisor vale em toda organização, inclusive no encerramento de incidente. O agente é resolvido para quem o concedeu (`agente_conta`).
-- SSO/SCIM e convite de stakeholder ficam fora da onda 1 (não checam o tipo da organização).
+- SSO/SCIM: **RESOLVIDO** (`bdd65de`): recusam a direta (`tipoDoProjeto`). Convite de stakeholder: ABERTO por decisão, permitido na direta e travado por teste (`test/remediacao-gaps.test.ts`).
 - O pedido criado pela própria pessoa nunca aparece em "Minhas aprovações" nem em `decisoes`.
-- `transferirProjeto` (`src/services/transferencia-projeto.ts`) não checa `tipo`: mover um projeto de consultoria para uma organização direta leva as contas de cliente junto. Só o `platform_admin` faz isso, da mesma família do break-glass acima.
-- A organização direta é criada com `plan = 'consultoria'` (cosmético: o plano não é lido para decidir nada).
+- `transferirProjeto` (`src/services/transferencia-projeto.ts`) **RESOLVIDO** (`bdd65de`): recusa mover para uma direta um projeto que tenha contas de cliente (`destino_direta_com_clientes`, 409); sem clientes, move. Só o `platform_admin` faz isso.
+- **RESOLVIDO** (`64006e0`): a organização direta nasce com `plan = 'direta'` (a consultoria segue `'consultoria'`).
 - `PUT /org/config` e `POST /org/logo` seguem abertos ao admin da direta para a identidade (nome, CNPJ, cor, selo, logo); prefixo, numeração, preço, textos e seções da proposta são 403 (`user.org_direta`).
+- ABERTO (menores adiados no ledger da remediação): reativação por SCIM de conta de cliente já existente numa direta; corrida na transferência de projeto; break-glass do `platform_admin`.

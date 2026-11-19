@@ -1019,8 +1019,11 @@ window.updateHeaderUser = function updateHeaderUser() {
             // Área comercial desligada: a identidade da organização (nome, CNPJ, cor, logo, que vão também nos documentos Word do
             // projeto) sai da Configuração comercial e fica em Conta e acessos, para quem a administra.
             const navIdentidade = document.getElementById('nav-identidade');
-            // Na direta a tela daria 403 (GET /org/config é do comercial): não aparece.
-            if (navIdentidade) navIdentidade.style.display = !window.comercialAtivo() && S.user?.org_tipo !== 'direta' && ['platform_admin', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
+            // Na direta (sem comercial) a identidade é a única parte de configuração que sobra: o consultoria_admin a vê sempre
+            // (GET /org/config devolve só nome, CNPJ, cor e selo). Nas demais, só com o comercial desligado.
+            const ehAdminId = ['platform_admin', 'consultoria_admin'].includes(S.user?.role);
+            const mostraId = S.user?.org_tipo === 'direta' ? S.user.role === 'consultoria_admin' : ehAdminId && !window.comercialAtivo();
+            if (navIdentidade) navIdentidade.style.display = mostraId ? '' : 'none';
             // Modelos de avaliação de fornecedor: a equipe da consultoria lê; o administrador dela edita (o servidor decide).
             const navModelos = document.getElementById('nav-modelos-fornecedor');
             if (navModelos) navModelos.style.display = ['platform_admin', 'consultoria_admin', 'consultor', 'consultant'].includes(S.user?.role) ? '' : 'none';

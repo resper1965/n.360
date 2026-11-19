@@ -8,6 +8,7 @@ import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
 import { podeAceitar, linhaDeAceite, aceitarRisco } from '../aceite-risco.js';
 import { montarLista, colunasDe } from '../lista.js';
+import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 
 // Opções de filtro tiradas dos dados, com o rótulo de um domínio (`rotuloDe`).
 const opcoesDe = (linhas, valor, dominio) => [...new Set(linhas.map(valor).filter(Boolean))]
@@ -461,6 +462,7 @@ window.__grcCloseExecAudit = function (id) {
                         <div class="t-base fw-500 t-texto">${linhaDeAceite(r)}</div>
                     </div>` : ''}
                 </div>
+                ${vinculoOtHTML(S.activeProject && S.activeProject.id)}
             </div>
             <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
@@ -468,6 +470,7 @@ window.__grcCloseExecAudit = function (id) {
                 ${canCrud ? `<button class="btn btn-primary" data-action="openEditRiskModal" data-args='["${id}"]'>Editar Risco</button>` : ''}
             </div>
         `);
+        montarVinculoOt('risk', id, S.activeProject && S.activeProject.id);
     };
 
     window.aceitarRiscoIso = async function(id) {
@@ -1308,12 +1311,14 @@ window.__grcCloseExecAudit = function (id) {
                         <div class="d-flex flex-col gap-1 mt-1">${associationHtml}</div>
                     </div>
                 </div>
+                ${vinculoOtHTML(projectId)}
             </div>
             <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
                 ${canCrud ? `<button class="btn btn-primary" data-action="openEditCAPAModal" data-args='["${id}"]'>Editar Ação</button>` : ''}
             </div>
         `);
+        montarVinculoOt('acao', id, projectId);
     };
 
     window.openNewCAPAModal = async function(projectId) {

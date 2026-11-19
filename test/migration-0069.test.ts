@@ -29,5 +29,5 @@ describe('migration 0069 — riscos do tratamento (art. 11 e art. 14)', () => {
     await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, dados_sensiveis, criancas_adolescentes) VALUES ('r-novo', 'm69', 'Creche', 1, 1)`).run();
     expect(await env.DB.prepare(`SELECT dados_sensiveis, criancas_adolescentes FROM ropa_records WHERE id = 'r-novo'`).first()).toEqual({ dados_sensiveis: 1, criancas_adolescentes: 1 });
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 });

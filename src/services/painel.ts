@@ -9,6 +9,8 @@ import { hojeEmSaoPaulo } from './hoje';
 import { SQL_EH_FORNECEDOR, listarTerceiros } from './terceiros';
 import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
 import { blocoOt } from './painel-ot';
+import { etapasDoPrograma, primeiroMarco } from './programa';
+import { SEM_ACAO_OT } from './ot-visibilidade';
 import { TETO_LEITURA_OT } from './ot-inventario';
 import { situacaoSensor, type Cred } from './ot-sensor';
 
@@ -266,7 +268,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
   const encarregados = visao.encarregados;
   const comecando = visao.tratamentos.total === 0;
   return {
-    encarregados, comecando, tratamentos: visao.tratamentos.total,
+    visao, encarregados, comecando, tratamentos: visao.tratamentos.total,
     itens: emOrdem(visao.prioridades.map(daPrioridade('privacy'))),
     cobertura, vencimentos: v.linhas, proximo: v.proximo, pedidos_mes: pedidosMes, meses_pedidos: chaves,
     riscos: mapa.results as Celula[], acoes_por_prazo: visao.acoes_por_prazo,
@@ -464,10 +466,15 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   const [marco, cadastro, pedidos, encs, fases] = base;
   const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, quem) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
-  const ot = modulos.includes('ot') && quem.id
-    ? await blocoOt(db, projectId, { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', org_id: quem.org_id, client_project_id: quem.client_project_id }, dia, new Date()) : null;
+  // Um ator só para o bloco e para a régua do n.ot; a rota já tirou o `ot` de agente e chave (P0-2) e de quem não o tem (P0-1).
+  const atorOt = quem.id ? { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', org_id: quem.org_id, client_project_id: quem.client_project_id, agente: quem.agente } : null;
+  const ot = modulos.includes('ot') && atorOt ? await blocoOt(db, projectId, atorOt, dia, new Date()) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
-  const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0 || (!!ot && !ot.comecando));
+  const marcoBase = (marco.results[0] as { d: string | null } | undefined)?.d ?? null;
+  // Decisão 8: a primeira base aprovada do n.ot é marco só para quem tem o ot (o bloco só existe para essa pessoa).
+  const estado = estadoDoPrograma(primeiroMarco(marcoBase, ot?.marco ?? null), c.tratamentos > 0 || c.controles > 0 || (!!ot && !ot.comecando));
+  // A régua comum: só os módulos do pedido; o n.ot só quando o bloco foi montado (mesma porta, P0-1/P0-2/P0-4).
+  const programa = { ...estado, etapas: await etapasDoPrograma(db, projectId, modulos, { otSites: ot && !quem.agente && !quem.id?.startsWith('apikey:') ? ot.sitesPrograma : null, visaoPrivacy: privacy?.visao }) };
   const decisoes = (pedidos.results as { id: string; tipo: string; titulo: string; papel_exigido: string; criado_em: string }[]).map((p) => ({
     id: p.id, titulo: p.titulo, tipo: p.tipo, papel: p.papel_exigido, desde: String(p.criado_em).slice(0, 10),
     acao: p.papel_exigido === 'ciente' ? 'Ler e dar ciência' : 'Ler e aprovar',
@@ -583,7 +590,9 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          UNION ALL SELECT project_id, 'auditoria', title, substr(scheduled_date, 1, 10) FROM audit_schedule WHERE project_id ${escopo} AND COALESCE(status, 'Planned') NOT IN ('Completed', 'Cancelled')
          UNION ALL SELECT project_id, 'evidencia', 'Evidência ' || file_name, substr(valido_ate, 1, 10) FROM evidence WHERE project_id ${escopo} AND valido_ate IS NOT NULL
        ) WHERE data >= ?1 AND data <= ?3 ORDER BY data`),
-    b(`SELECT project_id, max(created_at) AS em FROM audit_logs WHERE project_id ${escopo} GROUP BY project_id`),
+    // ot.* só conta onde a pessoa E o projeto (hoje) têm o ot, como em podeVerOt; o projeto que perdeu o módulo não vaza a atividade antiga.
+    b(`SELECT project_id, max(created_at) AS em FROM audit_logs WHERE project_id ${escopo}${modulosDaPessoa.includes('ot')
+      ? ` AND (action NOT LIKE 'ot.%' OR project_id IN (SELECT project_id FROM projeto_modulos WHERE modulo = 'ot'))` : SEM_ACAO_OT} GROUP BY project_id`),
     // n.ot: só quando a pessoa tem o módulo; senão as três consultas ficam vazias.
     ...(modulosDaPessoa.includes('ot') ? [
       b(`SELECT s.project_id,

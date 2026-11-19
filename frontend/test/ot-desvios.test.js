@@ -105,6 +105,63 @@ describe('aba Desvios', () => {
         expect(JSON.parse(chamadas.find((c) => c.k.startsWith('POST')).opts.body)).toEqual({ justificativa: 'Janela de manutenção', ate: el('des-ate').max });
     });
 
+    describe('Criar ação corretiva', () => {
+        const ROTA = `POST ${B}/desvios/d1/acao`;
+        it('só no desvio aberto e para quem edita o n.ot', async () => {
+            await abrir('desvios');
+            expect(el('c').querySelectorAll('[data-action="otCriarAcaoDesvio"]')).toHaveLength(1); // d2 está tratado
+            S.user.role = 'org_user';
+            await abrir('desvios');
+            expect(el('c').querySelector('[data-action="otCriarAcaoDesvio"]')).toBeNull();
+        });
+        it('formulário com ajuda, envia título, responsável e prazo; sucesso mostra Ação criada com o link', async () => {
+            await abrir('desvios', { [ROTA]: [201, { ok: true, acao_id: 'a77', ja_existia: false }] });
+            window.otCriarAcaoDesvio('d1');
+            expect(el('modal-content').textContent).toContain('Não use IP, e-mail nem o nome de ativos');
+            await window.otSalvarAcaoDesvio('d1');
+            expect(chamadas.some((c) => c.k.startsWith('POST'))).toBe(false);
+            el('des-acao-titulo').value = ' Revisar regra '; el('des-acao-resp').value = 'Ana'; el('des-acao-prazo').value = emDiasSP(5);
+            await window.otSalvarAcaoDesvio('d1');
+            expect(JSON.parse(chamadas.find((c) => c.k === ROTA).opts.body)).toEqual({ titulo: 'Revisar regra', assigned_to: 'Ana', prazo: emDiasSP(5) });
+            expect(el('modal-content').textContent).toContain('Ação criada');
+            expect(JSON.parse(el('modal-content').querySelector('[data-action="otAbrirAcaoCriada"]').getAttribute('data-args'))).toEqual(['a77']);
+        });
+        it('Ver a ação só abre o detalhe depois de ler a lista (carga lenta) e nunca com registro vazio', async () => {
+            const { navigate } = await import('../src/router.js');
+            let solta; const lenta = new Promise((r) => { solta = r; });
+            await abrir('desvios', { [`GET ${B.replace('/ot', '')}/capa`]: [200, []] });
+            window.openCAPADetailsModal = vi.fn();
+            vi.stubGlobal('fetch', vi.fn(async () => { await lenta; return resposta([{ id: 'a77', title: 'X' }]); }));
+            const p = window.otAbrirAcaoCriada('a77');
+            await pausa(); await pausa();
+            expect(window.openCAPADetailsModal).not.toHaveBeenCalled();
+            solta(); await p;
+            expect(S.capa.map((x) => x.id)).toEqual(['a77']);
+            expect(window.openCAPADetailsModal).toHaveBeenCalledWith('a77');
+            expect(navigate).toHaveBeenCalledWith('capa');
+            // ação que a lista não traz: não abre
+            window.openCAPADetailsModal.mockClear();
+            vi.stubGlobal('fetch', vi.fn(async () => resposta([])));
+            await window.otAbrirAcaoCriada('zzz');
+            expect(window.openCAPADetailsModal).not.toHaveBeenCalled();
+        });
+        it('200 ja_existia também é sucesso', async () => {
+            await abrir('desvios', { [ROTA]: [200, { ok: true, acao_id: 'a1', ja_existia: true }] });
+            window.otCriarAcaoDesvio('d1');
+            el('des-acao-titulo').value = 'Revisar regra'; el('des-acao-resp').value = 'Ana';
+            await window.otSalvarAcaoDesvio('d1');
+            expect(el('modal-content').textContent).toContain('Ação criada');
+        });
+        it.each([[409, 'Habilite o n.iso no projeto para criar ações corretivas.'], [400, 'Título cita dado sensível'], [403, 'Forbidden: sem permissão']])('%i mostra a mensagem do servidor', async (st, msg) => {
+            await abrir('desvios', { [ROTA]: [st, { error: msg }] });
+            window.otCriarAcaoDesvio('d1');
+            el('des-acao-titulo').value = 'Revisar regra'; el('des-acao-resp').value = 'Ana';
+            await window.otSalvarAcaoDesvio('d1');
+            expect(el('des-acao-erro').textContent).toContain(msg.replace(/^Forbidden: /, ''));
+            expect(el('modal-content').textContent).not.toContain('Ação criada');
+        });
+    });
+
     it('Ver achado leva à aba Levantamento', async () => {
         await abrir('desvios');
         const botao = el('c').querySelector('[data-action="otVerAchadoDesvio"]');

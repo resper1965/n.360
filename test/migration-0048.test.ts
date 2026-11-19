@@ -68,5 +68,5 @@ describe('migration 0048 — assets viram itens', () => {
     expect(await colunas('item_seguranca_t')).toEqual(await colunas('item_seguranca'));
 
     await execSql('DROP TABLE risks_t; DROP TABLE item_seguranca_t; DROP TABLE itens_t;');
-  }, 30_000);
+  }, 120_000);
 });

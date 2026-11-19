@@ -1,11 +1,13 @@
 import { S } from './state.js';
-import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo, limparFichaDoEndereco, atualizarSeletorDeModulo } from './produto.js';
+import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, aliasDaTela, irPara, abrirGrupo, limparFichaDoEndereco, atualizarSeletorDeModulo } from './produto.js';
 
 /** Telas da área comercial: somem com o interruptor desligado (o servidor responde 404 às rotas delas). */
 export const TELAS_COMERCIAIS = ['comercial', 'leads', 'assessments', 'assessment-detail', 'proposals', 'catalogo', 'config-comercial', 'settings'];
 
 export     function navigate(view, data) {
-        let targetView = view;
+        // Tela que saiu do menu (Monitor): o endereço antigo vai à tela que a substitui (produto.js, ALIAS_DE_TELA).
+        const alias = aliasDaTela(view);
+        let targetView = alias ? alias.tela : view;
         // A entrevista em passos saiu (spec 2026-10-16, PR3): o endereço dela cai na ficha em abas, no modo guiado. Sem registro
         // gravado (Nova atividade ainda não criou a atividade), volta à lista do RoPA.
         if (view === 'ropa-entrevista') {
@@ -38,7 +40,7 @@ export     function navigate(view, data) {
             const proj = (data && (data.activeProject || data.currentProject)) || S.activeProject;
             if (data && data.bancadaAlvo) S.bancadaAlvo = data.bancadaAlvo; // o endereço no módulo leva o passo da Bancada
             const modulo = moduloPara(targetView, proj);
-            if (modulo) { irPara(enderecoNoModulo(modulo, targetView, proj)); return; }
+            if (modulo) { irPara(enderecoNoModulo(modulo, alias ? view : targetView, proj)); return; }
             targetView = 'inicio';
         }
         // Fornecedores é a tela ISO (KYV, Trust Score); no n.privacy o cadastro deles é Terceiros.
@@ -46,6 +48,8 @@ export     function navigate(view, data) {
         
         // A ficha do fornecedor vive no endereço; qualquer outra tela a tira de lá.
         if (!['terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha'].includes(targetView)) limparFichaDoEndereco();
+        // A Jornada tem duas abas (views/jornada.js): o endereço antigo da Prontidão abre a dela; qualquer outra ida, o plano de trabalho.
+        if (targetView === 'project-detail') S.jornadaAba = (data && data.jornadaAba) || (alias && alias.jornadaAba) || 'trabalho';
         S.view = targetView;
         if (data) Object.assign(S, data);
         atualizarSeletorDeModulo(); // só aparece no Painel do módulo
@@ -93,7 +97,6 @@ export     function navigate(view, data) {
         else if (S.view === 'assessments') renderAssessments(c, h, a);
         else if (S.view === 'proposals') renderPropostas(c, h, a);  // o fluxo antigo (renderProposals) saiu na fatia 4
         else if (S.view === 'projects') renderProjects(c, h, a);
-        else if (S.view === 'monitor') renderMonitor(c, h, a);
         else if (S.view === 'assets') renderAssets(c, h, a);
         else if (S.view === 'metrics') renderMetrics(c, h, a);
         else if (S.view === 'audit-trail') renderAuditTrail(c, h, a);
@@ -137,7 +140,6 @@ export     function navigate(view, data) {
         else if (S.view === 'evidence') renderEvidence(c, h, a);
         else if (S.view === 'controls') renderControls(c, h, a);
         else if (S.view === 'governance') renderGovernance(c, h, a);
-        else if (S.view === 'certification') renderProntidao(c, h, a);
         else if (S.view === 'ai-chat') renderAIChat(c, h, a);
         else if (S.view === 'settings') renderSettings(c, h, a);
         else if (S.view === 'meus-pedidos') renderMeusPedidos(c, h, a);

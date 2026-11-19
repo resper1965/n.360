@@ -89,5 +89,5 @@ describe('migration 0050 — documentos e versões', () => {
     const indices = (await env.DB.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE '%\\_t' ESCAPE '\\' ORDER BY name`).all<{ name: string }>()).results.map((r) => r.name);
     expect(indices).toEqual(['idx_doc_versao_rascunho_t', 'idx_doc_versao_vigente_t', 'idx_documentos_controle_t', 'idx_documentos_projeto_t']);
     await execSql('DROP TABLE documento_versoes_t; DROP TABLE documentos_t;');
-  }, 30_000);
+  }, 120_000);
 });

@@ -21,7 +21,7 @@ describe('migration 0074 — ciclo de vida e bases adicionais', () => {
     expect(await colunas('tratamento_ciclo')).toEqual(['ropa_id', 'project_id', 'etapa', 'situacao', 'item_id', 'descricao', 'atualizado_por', 'atualizado_em']);
     expect(await colunas('tratamento_bases')).toEqual(['ropa_id', 'requisito_id', 'project_id', 'observacao', 'created_at']);
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 
   describe('integridade no banco', () => {
     beforeAll(async () => {

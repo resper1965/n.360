@@ -259,6 +259,10 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   // n.ot (0112): situação da avaliação é enum do CHECK
   ot_avaliacoes: { situacao: 'atende' },
   ot_levantamentos: { tipo: 'entrevista' },
+  // n.ot (0115): CHECK exige um alvo do núcleo e um de OT (FKs opcionais); todas as linhas do tenant alheio compartilham o id
+  // n.ot (0116): papel é enum do CHECK; site obrigatório quando não há fluxo
+  ot_fornecedores: { papel: 'integrador', ot_site_id: (id: string) => id },
+  ot_referencias: { risk_id: (id: string) => id, ot_site_id: (id: string) => id },
   // n.ot (0095): assinatura tem 64 caracteres e mapeamento é objeto JSON (CHECKs)
   ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },
   // n.ot (0097): dados é objeto JSON (CHECK)

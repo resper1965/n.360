@@ -457,14 +457,8 @@
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* --- ROADMAP DE ADEQUAÃ‡ÃƒO (MONITOR) --- */
-        .monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-        .monitor-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; backdrop-filter: var(--glass-blur); display: flex; flex-direction: column; gap: 0.5rem; transition: transform 0.2s, border-color 0.2s; }
-        .monitor-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.15); }
-        .monitor-card-title { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
-        .monitor-card-value { font-family: 'Montserrat', sans-serif; font-size: 1.8rem; font-weight: 500; color: var(--text); }
 
         .roadmap-container { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; backdrop-filter: var(--glass-blur); margin-bottom: 2rem; }
-        .roadmap-title { font-family: 'Montserrat', sans-serif; font-size: 1rem; font-weight: 500; margin-bottom: 1.5rem; color: var(--text); }
         
         .roadmap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; }
         .roadmap-j-card { background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; transition: border-color 0.2s; }
@@ -1839,16 +1833,12 @@ td .mais-acoes-botao { padding: 4px 10px; }
 .pt-datas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
 .pt-datas label { display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); }
 .pt-datas label:last-child { grid-column: 1 / -1; }
-.monitor-projeto { margin: 0 0 20px; font: 600 20px/1.3 var(--font-head); color: var(--text); }
-.monitor-card-texto { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
 .roadmap-j-pct.roadmap-j-pct { white-space: nowrap; color: var(--text-2); font-weight: 500; }
 /* O título da etapa ocupa o espaço e quebra linha; a contagem nunca encolhe nem encosta nele. */
 .roadmap-j-header > div:first-child { flex: 1 1 auto; min-width: 0; }
 .roadmap-j-pct.roadmap-j-pct { flex: 0 0 auto; }
-.roadmap-legenda { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: -0.75rem 0 1.25rem; font-size: 12.5px; color: var(--text-2); }
+.roadmap-legenda { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 1.25rem; font-size: 12.5px; color: var(--text-2); }
 .roadmap-legenda > span { display: inline-flex; align-items: center; gap: 8px; }
-.roadmap-node.roadmap-amostra { width: 14px; height: 14px; cursor: default; animation: none; box-shadow: none; }
-.roadmap-node.roadmap-amostra:hover { transform: none; }
 .roadmap-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .roadmap-node:focus-visible .tooltip { visibility: visible; opacity: 1; }
 .jornada-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 1.5rem; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); }
@@ -2214,3 +2204,33 @@ ul.at-ajuda { padding-left: 1.25em; }
 .ot-detalhes[open] > summary { margin-bottom: 12px; }
 /* "Enviar ao lote" fica desabilitado até marcar um achado; a dica em texto ao lado da tabela diz o que fazer. */
 [data-action="otEnviarAchados"]:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Jornada (onda 4): a grade etapa × fase que era do Monitor, recolhida no topo da Bancada */
+.bancada-grade { margin: 8px 0 12px; }
+.bancada-grade > summary { cursor: pointer; font-weight: 600; }
+/* amostra da legenda: não é .roadmap-node (não é botão); repete só as cores por situação */
+.bancada-grade .roadmap-amostra { display: inline-block; width: 14px; height: 14px; border-radius: var(--radius); border: 1px solid var(--border); }
+.bancada-grade .roadmap-amostra.pending, .bancada-grade .roadmap-amostra.skipped { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); }
+.bancada-grade .roadmap-amostra.in_progress { background: rgba(245, 158, 11, 0.15); border-color: var(--warning); }
+.bancada-grade .roadmap-amostra.completed { background: rgba(34, 197, 94, 0.15); border-color: var(--success); }
+.bancada-grade .roadmap-amostra.blocked { background: rgba(239, 68, 68, 0.15); border-color: var(--danger); }
+
+/* Jornada (onda 4): abas Plano de trabalho / Prontidão para certificar */
+.jornada-abas { display: flex; gap: 8px; margin: 0 0 12px; }
+
+/* Régua comum (onda 4): Começar, Levantar, Avaliar, Tratar, Operar */
+.pn-regua { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin: 8px 0 4px; padding: 0; list-style: none; }
+.pn-regua-etapa { display: flex; flex-direction: column; padding: 6px 8px; border-top: 3px solid var(--border); }
+.pn-regua-feita { border-top-color: var(--success); }
+.pn-regua-atual { border-top-color: var(--accent); }
+.pn-regua-nome { font-weight: 600; }
+.pn-regua-prox { margin: 4px 0 8px; }
+
+/* Assistente "Novo projeto": Pessoas e acessos (onda 4) */
+.np-pessoa { border: 1px solid var(--border); padding: 8px 12px; margin: 0 0 12px; }
+.np-modulos { display: flex; gap: 16px; border: 0; padding: 0; margin: 0 0 8px; }
+.np-erro-pessoa { min-height: 1.2em; margin: 0; font-size: 0.85rem; color: var(--danger-ink); }
+.np-dica { color: var(--text-dim); font-size: 0.85rem; margin-top: 0; }
+.np-rodape { display: flex; justify-content: space-between; gap: 8px; margin-top: 0.5rem; }
+.np-primeiros { margin: 0; padding: 0; list-style: none; }
+.np-primeiros li { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }

@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { execSql, applySchema } from './helpers/d1';
 import migration0087 from '../migrations/0087_eliminacao_ativos_proprios.sql?raw';
+
+// Reconstrói o esquema (DROP + applySchema): numa máquina lenta/carregada passa fácil de 5 s.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 const itens = async (rid: string, etapa: string) => ((await env.DB.prepare(`SELECT item_id FROM tratamento_etapa_itens WHERE ropa_id = ? AND etapa = ? ORDER BY item_id`).bind(rid, etapa).all()).results as { item_id: string }[]).map((r) => r.item_id);
 

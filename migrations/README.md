@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0114** (`ls migrations/*.sql | tail -1`). São 115 arquivos
+- Última migration no repositório: **0116** (`ls migrations/*.sql | tail -1`). São 117 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -778,15 +778,21 @@ $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
 
+## 0116 — fornecedor de OT (2026-11-17)
+
+Cria `ot_fornecedores` (satélite `ot_*`, fora da exportação: liga uma `parte` fornecedora do cadastro comum a um site e/ou fluxo do n.ot com o papel `integrador`, `fabricante` ou `acesso_remoto`; CHECK de ao menos um site ou fluxo, CASCADE nos três lados; FK composta `(id, project_id)` para o site; `partes` e `ot_fluxos` não têm `UNIQUE (id, project_id)`, então o projeto da parte e do fluxo é conferido no serviço), um índice único com `COALESCE(..., '')` (o `UNIQUE` comum não barra duplicata com NULL) e 2 índices. Aditiva e repetível. Spec `2026-11-17-onda3-n-ot-no-nucleo-design`. **Status: APLICADA em produção em 18/11/2026 (13:00:13 UTC)** pelo workflow manual `db-migrate.yml` (run 44309236405, backup do D1 antes). Evidência medida (só leitura, 18/11/2026): `SELECT name, applied_at FROM d1_migrations` lista `0116_ot_fornecedores.sql` com `applied_at` 2026-11-18 13:00:13; `sqlite_master` tem `ot_fornecedores` e os índices da tabela.
+
+## 0115 — referência núcleo → OT (2026-11-17)
+
+Cria `ot_referencias` (satélite `ot_*`, fora da exportação: liga um risco, ação corretiva ou incidente a um site, ativo ou desvio do n.ot; CHECKs de um alvo do núcleo e ao menos um alvo de OT, `UNIQUE (ot_desvio_id)`, CASCADE nos dois lados; FK composta `(id, project_id)` para site e ativo; `ot_desvios` não tem `UNIQUE (id, project_id)`, então o projeto do desvio é conferido no serviço) e 4 índices. Aditiva e repetível. Spec `2026-11-17-onda3-n-ot-no-nucleo-design`. **Status: APLICADA em produção em 18/11/2026 (13:00:13 UTC)** pelo workflow manual `db-migrate.yml` (run 44309236405, backup do D1 antes). Evidência medida (só leitura, 18/11/2026): `SELECT name, applied_at FROM d1_migrations` lista `0115_ot_referencias.sql` com `applied_at` 2026-11-18 13:00:13; `sqlite_master` tem `ot_referencias` e os índices da tabela.
+
 ## 0114 — catálogo único de requisitos (2026-11-17)
 
-Quatro `ALTER TABLE ADD COLUMN` (`requisitos.texto`, `requisitos.fonte_texto`, `requisitos.categoria`, `ot_requisitos.requisito_id` com FK para `requisitos`) e `INSERT OR IGNORE` da fonte `ons-ro-cb-br-01` e dos 25 requisitos ONS com os mesmos ids de `ot_requisitos`, mais o `UPDATE` que preenche `ot_requisitos.requisito_id`. ALTER ADD COLUMN: roda uma vez (`d1_migrations` rastreia). Spec `2026-11-17-onda2-catalogo-de-requisitos-design`. **Status: PENDENTE de aplicar** (nada foi aplicado em produção; só com o "sim" do dono, a sonda `scripts/sonda-onda2.sql` rodada antes e `npm run db:backup`). Validada em SQLite puro e em D1 local, mas não reexecutada a partir do histórico completo. Aplicar: `npx wrangler d1 migrations apply niso-db --remote`. Conferência depois:
-`SELECT count(*) FROM requisitos WHERE fonte_id = 'ons-ro-cb-br-01'` (25) e `SELECT count(*) FROM ot_requisitos WHERE requisito_id IS NULL` (0). Registrar aqui a saída quando houver.
+Quatro `ALTER TABLE ADD COLUMN` (`requisitos.texto`, `requisitos.fonte_texto`, `requisitos.categoria`, `ot_requisitos.requisito_id` com FK para `requisitos`) e `INSERT OR IGNORE` da fonte `ons-ro-cb-br-01` e dos 25 requisitos ONS com os mesmos ids de `ot_requisitos`, mais o `UPDATE` que preenche `ot_requisitos.requisito_id`. ALTER ADD COLUMN: roda uma vez (`d1_migrations` rastreia). Spec `2026-11-17-onda2-catalogo-de-requisitos-design`. **Status: APLICADA em produção em 17/11/2026**, pelo workflow manual `db-migrate.yml` (run verde `44149022784`; as primeiras tentativas do mesmo dia falharam ao iniciar o job com "Branch … is not allowed to deploy to production due to environment protection rules" (o ambiente `production` só aceitava `main`; o dono liberou a branch temporariamente); as seguintes falharam ao iniciar o job com "The job was not started because recent account payments have failed or your spending limit needs to be increased" (billing do GitHub Actions); nenhuma aplicou nada). Conferência (consultas só de leitura, em produção, no mesmo dia): `d1_migrations` lista `0114_requisitos_catalogo_unico.sql` e `0113_organizacao_tipo.sql` depois de `0112_ot_assessment.sql`; `SELECT count(*) FROM requisitos WHERE fonte_id = 'ons-ro-cb-br-01'` deu 25; `SELECT count(*) FROM ot_requisitos WHERE requisito_id IS NULL` deu 0; nenhum requisito ISO tem `texto` (0 linhas).
 
 ## 0113 — tipo da organização (2026-11-16)
 
-`organizations.tipo TEXT NOT NULL DEFAULT 'consultoria' CHECK (tipo IN ('consultoria','direta'))`. Aditiva: o DEFAULT dispensa backfill; a organização `direta` só nasce pelo `platform_admin`, na criação. Spec `2026-11-16-onda1-organizacao-direta-design`. **Status: PENDENTE de aplicar** (nada foi aplicado em produção; só com o "sim" do dono e `npm run db:backup` antes). Aplicar: `npx wrangler d1 migrations apply niso-db --remote`. Conferência depois:
-`SELECT count(*) FROM organizations WHERE tipo = 'consultoria'` igual a `SELECT count(*) FROM organizations` (todas as existentes ficam `consultoria`) e `PRAGMA table_info(organizations)` com a coluna `tipo`. Registrar aqui a saída quando houver.
+`organizations.tipo TEXT NOT NULL DEFAULT 'consultoria' CHECK (tipo IN ('consultoria','direta'))`. Aditiva: o DEFAULT dispensa backfill; a organização `direta` só nasce pelo `platform_admin`, na criação. Spec `2026-11-16-onda1-organizacao-direta-design`. **Status: APLICADA em produção em 17/11/2026**, junto com a 0114, pelo mesmo run `44149022784` do `db-migrate.yml`. Conferência (só leitura, em produção, no mesmo dia): `d1_migrations` lista `0113_organizacao_tipo.sql` depois de `0112_ot_assessment.sql`; as 3 organizações existentes têm todas `tipo = 'consultoria'`.
 
 ## 0112 — assessment do n.ot (2026-11-12)
 

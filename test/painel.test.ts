@@ -149,6 +149,7 @@ describe('GET /projects/:id/painel', () => {
     expect(corpo.programa).toMatchObject({ estado: 'operacao', rotulo: 'Em operação desde março de 2026' });
     expect(Object.keys(corpo.modulos)).toEqual(['privacy']);
     const m = corpo.modulos.privacy;
+    expect((m as any).visao).toBeUndefined();
     expect(m.fazer![0]).toMatchObject({ grupo: 'atraso', texto: '1 pedido do titular atrasado', acao: 'Responder os pedidos', contexto: 'PT-1 (acesso)', tela: 'titular', aba: 'pedidos', filtro: 'atrasados' });
     // A lista de destino abre filtrada pela situação do item (chave fechada, nunca dado).
     expect(m.fazer!.find((i) => i.texto.includes('evidência vencida'))).toMatchObject({ tela: 'evidence', filtro: 'vencidas_ou_nao_conformes' });

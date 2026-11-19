@@ -1,4 +1,4 @@
-// Jornada, Monitor e Prontidão contam a mesma história com o mesmo número (Onda 2 do diagnóstico de 15/10/2026): o indicador
+// Jornada e Prontidão contam a mesma história com o mesmo número (Onda 2 do diagnóstico de 15/10/2026): o indicador
 // de progresso é "X de Y controles aplicáveis implementados", lido de GET /projects/:id/prontidao, e nenhuma tela soma no
 // cliente nem mostra percentual concorrente. A Jornada (a Bancada) é do cliente também: os controles de operador são só da equipe.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -48,9 +48,9 @@ beforeEach(() => {
 });
 
 describe('o mesmo número nas telas', () => {
-    it('Jornada, Monitor e Prontidão mostram "31 de 90" para os mesmos dados, sem percentual', async () => {
+    it('Jornada e Prontidão mostram "31 de 90" para os mesmos dados, sem percentual', async () => {
         servir();
-        for (const desenhar of [window.renderProjectDetail, window.renderMonitor, renderProntidao]) {
+        for (const desenhar of [window.renderProjectDetail, renderProntidao]) {
             const [c, h, a] = tela();
             await desenhar(c, h, a);
             expect(c.textContent, desenhar.name).toContain('31 de 90');

@@ -313,6 +313,7 @@ platformApp.post('/platform/projects/:id/transferir', async (c) => {
       case 'destino_invalido': return c.json({ error: 'A consultoria de destino não está ativa' }, 409);
       case 'mesma_org': return c.json({ error: 'O projeto já é dessa consultoria' }, 409);
       case 'corrida': return c.json(MSG_CORRIDA, 409);
+      case 'destino_direta_com_clientes': return c.json({ error: 'A organização de destino é direta e não tem conta de cliente: o projeto tem contas de cliente.' }, 409);
     }
   } catch (e: any) {
     return erro500(c, 'Falha ao transferir o projeto', e);

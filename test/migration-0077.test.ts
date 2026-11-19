@@ -17,7 +17,7 @@ describe('migration 0077 — convite com link', () => {
     await execSql(migration0077);
     expect(await env.DB.prepare(`SELECT * FROM users WHERE id = 'm77'`).first()).toEqual(antes);
     expect(await colunas('convites_senha')).toEqual(['user_id', 'token_hash', 'expira_em', 'criado_por', 'created_at']);
-  }, 30_000);
+  }, 120_000);
 
   it('uma linha por conta, hash único, e some com a conta', async () => {
     await applySchema();

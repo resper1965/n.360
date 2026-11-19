@@ -20,7 +20,7 @@ export interface EntradaTransferencia { projetoId: string; orgDestinoId: string;
 export type ResultadoTransferencia =
   | { ok: true; origem: string; destino: string; consultoresRemovidos: number; concessoesRevogadas: number;
       chavesRevogadas: number; webhooksDesativados: number; ssoDesativado: boolean; scimRevogado: boolean }
-  | { ok: false; motivo: 'nao_encontrado' | 'destino_invalido' | 'mesma_org' | 'corrida' };
+  | { ok: false; motivo: 'nao_encontrado' | 'destino_invalido' | 'mesma_org' | 'corrida' | 'destino_direta_com_clientes' };
 
 export const MSG_CORRIDA = { error: 'O projeto mudou de consultoria; tente de novo' } as const;
 
@@ -31,12 +31,17 @@ const CONSULTORES_DA_ORIGEM = `project_id = ? AND role_category = 'consultor'
 export async function transferirProjeto(db: D1Database, e: EntradaTransferencia): Promise<ResultadoTransferencia> {
   const [projeto, destino] = await Promise.all([
     db.prepare('SELECT org_id FROM projects WHERE id = ?').bind(e.projetoId).first<{ org_id: string }>(),
-    db.prepare('SELECT status FROM organizations WHERE id = ?').bind(e.orgDestinoId).first<{ status: string | null }>(),
+    db.prepare('SELECT status, tipo FROM organizations WHERE id = ?').bind(e.orgDestinoId).first<{ status: string | null; tipo: string }>(),
   ]);
   if (!projeto || !destino) return { ok: false, motivo: 'nao_encontrado' };
   if (destino.status !== 'Active') return { ok: false, motivo: 'destino_invalido' };
   const origem = projeto.org_id;
   if (origem === e.orgDestinoId) return { ok: false, motivo: 'mesma_org' };
+  // a direta não tem conta de cliente (spec onda 1, decisão 8)
+  if (destino.tipo === 'direta') {
+    const clientes = await db.prepare(`SELECT 1 FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client') LIMIT 1`).bind(e.projetoId).first();
+    if (clientes) return { ok: false, motivo: 'destino_direta_com_clientes' };
+  }
 
   const auditId = genId();
   const DESTA = 'EXISTS (SELECT 1 FROM audit_logs WHERE id = ?)';

@@ -5,6 +5,7 @@ import { hashPassword } from '../src/helpers';
 import { tokenDoAgente, chamarFerramenta } from './helpers/mcp-agente';
 import { SKILLS } from '../src/mcp/skills-gerado';
 import { ROTEIROS, INSTRUCOES } from '../src/mcp/contexto';
+import { PASSOS_PRIVACY } from '../src/data/programa';
 
 /**
  * Skills do agente consultor (agent-skills/), servidas pelo MCP remoto em
@@ -128,5 +129,19 @@ describe('skills do n.privacy para o consultor', () => {
       expect(SKILLS['avaliacao-terceiros'].arquivos['SKILL.md'], tipo).toContain(tipo);
     }
     expect(SKILLS['migracao-programa'].arquivos['SKILL.md']).toContain('Importar programa');
+  });
+});
+
+describe('implantacao-privacy e a trilha da tela (onda 4)', () => {
+  const skill = SKILLS['implantacao-privacy'].arquivos['SKILL.md'];
+  it('cada passo da trilha tem a linha da skill com o mesmo número e rótulo', () => {
+    for (const p of PASSOS_PRIVACY) expect(skill, p.id).toContain(`| ${p.ordem}. ${p.rotulo} |`);
+  });
+  it('a skill manda ler a trilha no painel, não recalcular por conta própria', () => {
+    expect(skill).toContain('programa.etapas.privacy');
+    expect(skill).toContain('/painel?modulo=privacy');
+  });
+  it('a skill não menciona o n.ot (P0-2)', () => {
+    expect(skill).not.toMatch(/n\.ot|\bsites?\b|desvio/i);
   });
 });

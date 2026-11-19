@@ -37,13 +37,15 @@ const TROCAR: Record<TabelaMescla, { rotulo: string; tabela: string; coluna: str
 };
 
 /** Ligações com chave composta: mover o que não colide e apagar o que sobrou (já existia no que fica). */
-const LIGAR: Record<TabelaMescla, { rotulo: string; tabela: string; coluna: string; extra?: string }[]> = {
+const LIGAR: Record<TabelaMescla, { rotulo: string; tabela: string; coluna: string; extra?: string; oculto?: boolean }[]> = {
   partes: [
     { rotulo: 'Papéis (vínculos)', tabela: 'parte_vinculos', coluna: 'parte_id' },
     { rotulo: 'Papéis sobre ela (vínculos)', tabela: 'parte_vinculos', coluna: 'alvo_id', extra: `alvo_tipo = 'parte'` },
     { rotulo: 'Documento ligado (DPA, contrato)', tabela: 'documento_partes', coluna: 'parte_id' },
     { rotulo: 'Documento em arquivo ligado (DPA, contrato)', tabela: 'documentos_arquivo_partes', coluna: 'parte_id' },
     { rotulo: 'Parceiro do compartilhamento externo', tabela: 'tratamento_externo_parceiros', coluna: 'parte_id' },
+    // oculto: a prévia (e a trilha, que a repete) é de quem não tem `ot`; o n.ot não aparece nela nem pela contagem. Os vínculos passam do mesmo jeito.
+    { rotulo: 'Fornecedor de OT', tabela: 'ot_fornecedores', coluna: 'parte_id', oculto: true },
   ],
   itens: [
     { rotulo: 'Item da atividade (RoPA)', tabela: 'tratamento_itens', coluna: 'item_id' },
@@ -117,7 +119,7 @@ export async function previaDaMescla(db: D1Database, tabela: TabelaMescla, proje
     const n = await quantos(db, `SELECT count(*) AS n FROM ${t.tabela} WHERE ${t.coluna} = ? AND project_id = ?`, removerId, projectId);
     if (n) efeitos.push({ rotulo: t.rotulo, n });
   }
-  for (const t of LIGAR[tabela]) {
+  for (const t of LIGAR[tabela].filter((x) => !x.oculto)) {
     const n = await quantos(db, `SELECT count(*) AS n FROM ${t.tabela} WHERE ${t.coluna} = ? AND project_id = ?${t.extra ? ` AND ${t.extra}` : ''}`, removerId, projectId);
     if (n) efeitos.push({ rotulo: t.rotulo, n });
   }

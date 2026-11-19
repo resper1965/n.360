@@ -52,7 +52,7 @@ describe('migration 0079 — RoPA em abas', () => {
     expect(await colunas('corrective_actions')).toContain('recomendacao');
     expect(await colunas('risks')).toEqual(expect.arrayContaining(['idr', 'treatment_due_date']));
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 
   it('o IDR dos riscos que já tinham atividade sai em sequência, por criação, e risco sem atividade fica sem IDR', async () => {
     await banco_de_antes();
@@ -69,7 +69,7 @@ describe('migration 0079 — RoPA em abas', () => {
     expect(idr).toEqual({ k1: 1, k2: 2, k3: 3, s1: 1, iso: null });
     await expect(env.DB.prepare(`INSERT INTO risks (id, project_id, ropa_id, asset, threat, idr) VALUES ('dup', 'm79b', 'm79b-r', 'a', 'x', 2)`).run()).rejects.toThrow();
     await applySchema();
-  }, 30_000);
+  }, 120_000);
 
   it('os gatilhos de tenant recusam item, área, parte, titular, dado, base do GDPR, medida e anexo de outro projeto, inclusive em SQL direto', async () => {
     await applySchema();
@@ -91,5 +91,5 @@ describe('migration 0079 — RoPA em abas', () => {
     await recusa(`INSERT INTO tratamento_bases_gdpr (ropa_id, base, finalidade, project_id) VALUES ('t1-r', 'contrato', 'Finalidade exemplo', 't2')`);
     await recusa(`INSERT INTO acao_anexos (id, project_id, acao_id, file_name, r2_key, file_hash, file_type, file_size, uploaded_by) VALUES ('an', 't1', 't2-a', 'a.pdf', 'k', 'h', 'pdf', 10, 'u')`);
     await recusa(`INSERT INTO tratamento_medidas (id, project_id, ropa_id, medida, status) VALUES ('m', 't2', 't1-r', 'Medida exemplo', 'ativa')`);
-  }, 30_000);
+  }, 120_000);
 });

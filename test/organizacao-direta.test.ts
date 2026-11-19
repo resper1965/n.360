@@ -32,14 +32,15 @@ describe('criação de organização com tipo', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"id":"x"}'));
     const r = await chamar('POST', '/api/v1/platform/orgs', S.pa, novaOrg({ nome: 'C', slug: 'cons-x', adminEmail: 'a@cons.lat' }));
     expect(r.status).toBe(201);
-    expect((await um('SELECT tipo FROM organizations WHERE id = ?', 'org_cons-x')).tipo).toBe('consultoria');
+    expect((await um('SELECT tipo, plan FROM organizations WHERE id = ?', 'org_cons-x'))).toMatchObject({ tipo: 'consultoria', plan: 'consultoria' });
   });
   it('direta com módulos escolhidos na criação', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"id":"x"}'));
     const r = await chamar('POST', '/api/v1/platform/orgs', S.pa, novaOrg({ tipo: 'direta', modulos: ['iso', 'privacy'] }));
     expect(r.status).toBe(201);
-    const o = await um('SELECT tipo, modulos_contratados m FROM organizations WHERE id = ?', 'org_empresa-direta');
+    const o = await um('SELECT tipo, plan, modulos_contratados m FROM organizations WHERE id = ?', 'org_empresa-direta');
     expect(o.tipo).toBe('direta');
+    expect(o.plan).toBe('direta');
     expect(JSON.parse(o.m)).toEqual(['iso', 'privacy']);
   });
   it('tipo inválido é recusado e o tipo não muda depois de criado', async () => {
@@ -288,9 +289,11 @@ describe('equipe da organização direta', () => {
     expect(await c.text()).toMatch(/não registra achado/);
   });
   it('comercial: o admin direto não acessa leads, funil nem preço; o de consultoria sim', async () => {
-    for (const rota of ['/api/v1/leads', '/api/v1/funil', '/api/v1/assessments/x/pricing', '/api/v1/org/config']) {
+    for (const rota of ['/api/v1/leads', '/api/v1/funil', '/api/v1/assessments/x/pricing']) {
       expect((await chamar('GET', rota, S.beto)).status, rota).toBe(403);
     }
+    // /org/config: a direta lê só a identidade (ver remediacao-gaps.test.ts), nunca o comercial.
+    expect(Object.keys(await (await chamar('GET', '/api/v1/org/config', S.beto)).json() as object)).not.toContain('preco');
     expect((await chamar('GET', '/api/v1/leads', S.cris)).status).toBe(200);
     expect((await chamar('GET', '/api/v1/org/config', S.cris)).status).toBe(200);
   });
@@ -375,6 +378,8 @@ describe('telas: org_tipo em /auth/me e tipo na lista de organizações', () => 
     const l = (await (await chamar('GET', '/api/v1/platform/orgs', S.pa)).json()) as any[];
     expect(l.find((o) => o.id === 'org_empresa-direta')?.tipo).toBe('direta');
     expect(l.find((o) => o.id === 'org_cons-x')?.tipo).toBe('consultoria');
+    expect(l.find((o) => o.id === 'org_empresa-direta')?.plano).toBe('direta');
+    expect(l.find((o) => o.id === 'org_cons-x')?.plano).toBe('consultoria');
   });
 });
 
@@ -393,6 +398,20 @@ describe('direta: sem escrita comercial em /org/config', () => {
   it('admin de consultoria: prefixo e preço seguem 200', async () => {
     const r = await put(S.cris, { prefixoProposta: 'CONSC', preco: { tetoDesconto: 10 } });
     expect(r.status, await r.clone().text()).toBe(200);
+  });
+  it('platform_admin com X-Org-Id de uma direta: GET só identidade, PUT comercial 403; numa consultoria segue completo', async () => {
+    const naD = { ...S.pa, 'X-Org-Id': 'org_d' };
+    const g = await chamar('GET', '/api/v1/org/config', naD);
+    expect(g.status).toBe(200);
+    expect(Object.keys(await g.json() as object).sort()).toEqual(['cnpj', 'corDestaque', 'nome', 'seloNiso']);
+    for (const [k, v] of campos) expect((await put(naD, { [k]: v })).status, k).toBe(403);
+    expect((await um('SELECT prefixo_proposta p FROM organizations WHERE id = ?', 'org_d')).p).toBeNull();
+    const id = await put(naD, { corDestaque: '#223344' });
+    expect(id.status).toBe(200);
+    expect(Object.keys(await id.json() as object)).not.toContain('preco');
+    const naC = { ...S.pa, 'X-Org-Id': 'org_c' };
+    expect(await (await chamar('GET', '/api/v1/org/config', naC)).json()).toHaveProperty('preco');
+    expect((await put(naC, { proximoNumero: 7 })).status).toBe(200);
   });
 });
 

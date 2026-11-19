@@ -106,6 +106,14 @@ describe('tela Assessment', () => {
         expect(document.querySelectorAll('.btn-primary').length).toBe(1);
     });
 
+    it('quem avaliou o item (eu_avaliei) não vê Confirmar: vê a nota', async () => {
+        const meus = structuredClone(ITENS); meus.itens[1].avaliacao.eu_avaliei = true;
+        await abrir('org_admin', { [`GET ${B}`]: meus });
+        window.otAssAbrir('4.2.1');
+        expect(el('modal-content').querySelector('[data-action="otAssConfirmar"]')).toBeNull();
+        expect(el('modal-content').textContent).toContain('Quem avaliou o item não o confirma: peça a outra pessoa.');
+    });
+
     it('anexar faz o upload multipart e depois liga a evidência; remover só desliga', async () => {
         await abrir('consultor', { 'POST /api/v1/projects/p9/evidence/upload': { ok: true, id: 'ev9' }, [`POST ${B}/4.2.2/evidencias`]: { ok: true }, [`DELETE ${B}/4.2.1/evidencias/e1`]: { ok: true } });
         window.otAssAbrir('4.2.2');

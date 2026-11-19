@@ -25,6 +25,14 @@ describe('cabeçalho do site', () => {
         expect(proximoPasso(sit, 's1', { gestor: false, editar: false, criar: false }).acao).toBe('');
     });
 
+    it('aguardar_base: quem pediu a base (eu_pedi_a_base) não vê Aprovar, vê a nota; Devolver fica', () => {
+        const c = render(sit('aguardar_base', { eu_pedi_a_base: true }), GE);
+        expect(c.querySelector('[data-action="otAprovarBase"]')).toBeNull();
+        expect(c.textContent).toContain('Quem pediu a base não a aprova: peça a outra pessoa.');
+        expect(c.querySelector('[data-action="otDevolverBase"]')).not.toBeNull();
+        expect(render(sit('aguardar_base', { eu_pedi_a_base: false }), GE).querySelector('[data-action="otAprovarBase"]')).not.toBeNull();
+    });
+
     it.each([
         ['comecar', {}, 'Comece o levantamento', 'otNovoLevantamentoDoSite'],
         ['revisar', { rascunhos: 3 }, 'Revise 3 achados', 'otSiteSub'],

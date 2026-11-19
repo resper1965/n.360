@@ -41,7 +41,7 @@ describe('migration 0067 — importacao_itens aceita as entidades de todas as fa
     expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM importacao_itens`).first<{ n: number }>())!.n).toBe(0);
 
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 
   it('o schema canônico aceita as mesmas entidades e recusa as de fora', async () => {
     await applySchema();

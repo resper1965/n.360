@@ -1,7 +1,7 @@
 import { S } from '../state.js';
-import { api, baixarArquivo } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
-import { produtoAtual, projetosDoProduto } from '../produto.js';
+import { api } from '../api.js';
+import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
+import { produtoAtual } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 import { hojeSP } from '../hoje.js';
 import { montarLista, colunasDe } from '../lista.js';
@@ -17,149 +17,6 @@ import { montarLista, colunasDe } from '../lista.js';
             acao: (equipe ? `<button class="btn btn-primary" data-action="carregarFases" data-args='${escapeHTML(JSON.stringify([projectId]))}'>Carregar as fases da jornada</button> ` : '')
                 + `<button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão para a certificação</button>`,
         });
-    }
-
-    async function renderMonitor(c, h, a) {
-        h.textContent = tituloDaTela('nav-monitor', 'Monitor');
-        a.innerHTML = '';
-
-        // Mesma fonte do Dashboard (/projects, só os projetos deste módulo). Lia /portfolio e, quando ele
-        // vinha vazio, o Monitor dizia "nenhum projeto" com o Dashboard mostrando um projeto em curso.
-        let portfolio = [];
-        try { portfolio = projetosDoProduto(await api('GET', '/api/v1/projects')); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os projetos.', e); return; }
-        if (portfolio.length === 0) {
-            c.innerHTML = renderEmptyState({
-                titulo: 'Nenhum projeto do n.iso para monitorar',
-                texto: 'O monitor acompanha as fases da jornada de adequação de cada projeto com o n.iso habilitado. Quando houver um, o progresso aparece aqui.',
-                acao: `<button class="btn" data-action="navigate" data-args='["projects"]'>Ver projetos</button>`,
-            });
-            return;
-        }
-
-        const p = S.currentProject || S.activeProject || portfolio[0];
-        const equipe = typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
-        c.innerHTML = '<div class="loading"></div>';
-
-        try {
-            // Os números vêm da prontidão (GET /prontidao): os mesmos do Painel, da Jornada e da tela de prontidão.
-            // O estado de cada fase vem da Bancada (já derivado dos passos) e os títulos, do catálogo de passos.
-            const [banc, pr] = await Promise.all([
-                api('GET', `/api/v1/projects/${p.id}/bancada`),
-                api('GET', `/api/v1/projects/${p.id}/prontidao`),
-            ]);
-            if (!banc.tem_fases) { c.innerHTML = vazioSemFases(p.id); return; }
-            if (!S.passosCatalogo || S.passosCatalogo.versao !== banc.catalogo_versao) S.passosCatalogo = await api('GET', '/api/v1/passos/catalogo');
-            const catalogo = S.passosCatalogo;
-            const porFase = new Map(banc.fases.map((f) => [f.numero, f]));
-            const phases = banc.fases;
-
-            const n = pr.numeros || {};
-            const ctrl = n.controles || { implementados: 0, aplicaveis: 0 };
-            const fases = n.fases || { concluidas: phases.filter(ph => ph.situacao === 'completed').length, total: phases.length };
-            const pn = pr.indicador_por_norma && pr.indicador_por_norma.length > 1 ? pr.indicador_por_norma : null;   // detalhe só com mais de uma norma
-            const detalhe = pn ? `<div class="monitor-card-texto">${pn.map((x) => `${escapeHTML(x.rotulo)}: ${x.implementados} de ${x.aplicaveis}`).join('<br>')}<br>O número acima soma as normas do projeto.</div>` : '';
-            const cartao = (titulo, valor, texto, extra = '') => `<div class="monitor-card"><div class="monitor-card-title">${escapeHTML(titulo)}</div>
-                <div class="monitor-card-value">${escapeHTML(String(valor))}</div><div class="monitor-card-texto">${escapeHTML(texto)}</div>${extra}</div>`;
-            const metricsHtml = `<div class="monitor-grid fade-in">
-                ${cartao('Controles aplicáveis implementados', `${ctrl.implementados} de ${ctrl.aplicaveis}`, 'O indicador de progresso do n.iso: controles da SoA implementados, sem os não aplicáveis.', detalhe)}
-                ${cartao('Fases da jornada concluídas', `${fases.concluidas} de ${fases.total}`, 'Andamento do plano de trabalho, não da conformidade.')}
-                ${cartao('Riscos avaliados', n.riscos ?? 0, 'Riscos do n.iso no registro, o mesmo número do Painel.')}
-                ${cartao('Evidências enviadas', n.evidencias ?? 0, 'Arquivos de evidência do projeto, de qualquer situação.')}
-            </div>`;
-
-            const etapasHtml = catalogo.etapas.map(etapa => {
-                const doGrupo = etapa.fases;
-                const feitas = doGrupo.filter(n => (porFase.get(n) || {}).situacao === 'completed').length;
-                const pct = doGrupo.length ? Math.round((feitas / doGrupo.length) * 100) : 0;
-                return `<div class="roadmap-j-card">
-                    <div class="roadmap-j-header">
-                        <div><div class="roadmap-j-name">${escapeHTML(etapa.nome)}</div><div class="roadmap-j-desc">${escapeHTML(etapa.resumo)}</div></div>
-                        <div class="roadmap-j-pct">${feitas} de ${doGrupo.length} fases</div>
-                    </div>
-                    <div class="progress-bar" style="height:4px"><div class="progress-fill" style="width: ${pct}%"></div></div>
-                    <div class="roadmap-nodes-row">${doGrupo.map(n => {
-                        const f = porFase.get(n) || { numero: n, situacao: 'pending', bloqueio: null };
-                        const titulo = (catalogo.fases.find(x => x.numero === n) || {}).titulo || `Fase ${n}`;
-                        const base = STATUS_DA_FASE[f.situacao] || f.situacao;
-                        // Fase bloqueada diz por que e quem resolve, no tooltip e no nome acessível.
-                        const situacao = f.situacao === 'blocked'
-                            ? `${base}${f.bloqueio ? `: ${f.bloqueio.motivo}, responsável ${f.bloqueio.responsavel}` : ''}`
-                            : base;
-                        return `<button type="button" class="roadmap-node ${escapeHTML(String(f.situacao))}" aria-label="${escapeHTML(`Fase ${n}: ${titulo} (${situacao})`)}" data-action="monitorAbrirFase" data-args='${escapeHTML(JSON.stringify([p.id, n]))}'>
-                            ${n}<span class="tooltip"><strong>Fase ${n}:</strong> ${escapeHTML(titulo)}<br>Situação: ${escapeHTML(situacao)}</span></button>`;
-                    }).join('')}</div>
-                </div>`;
-            }).join('');
-            const legenda = `<p class="roadmap-legenda">${Object.entries(STATUS_DA_FASE).map(([k, v]) => `<span><span class="roadmap-node roadmap-amostra ${k}" aria-hidden="true"></span>${escapeHTML(v)}</span>`).join('')}</p>`;
-
-            // Ações de operador só para a equipe; a prontidão vale para todos.
-            a.innerHTML = `<button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão</button>`
-                + (equipe ? ` <button class="btn" data-action="exportarCsvNiso" data-args='["risks"]'>Exportar riscos</button> <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir a jornada</button>` : '');
-            c.innerHTML = `<div class="fade-in">
-                    <h2 class="monitor-projeto">${escapeHTML(p.project_name || p.client_name)}</h2>
-                    ${metricsHtml}
-                    <div class="roadmap-container fade-in">
-                        <div class="roadmap-title">Jornada de adequação por etapa</div>
-                        ${legenda}
-                        <div class="roadmap-grid">${etapasHtml}</div>
-                    </div>
-                </div>`;
-        } catch (e) {
-            window.falhaDeCarga(c, a, 'Não foi possível carregar o monitoramento do projeto.', e);
-        }
-    }
-
-    async function renderPortfolio(c, h, a) {
-        h.textContent = 'Monitor';
-        a.innerHTML = window.renderMaisAcoes([['risks', 'Riscos (CSV)'], ['vendors', 'Fornecedores (CSV)'], ['training', 'Treinamento (CSV)']]
-            .map(([tipo, rotulo]) => ({ rotulo, action: 'exportarCsvNiso', args: [tipo] })), { rotulo: 'Exportar' });
-        let portfolio = [];
-        try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a carteira de projetos.', e); return; }
-        c.innerHTML = `<div class="fade-in">${portfolio.length ? portfolio.map(p => {
-            const pct = p.overall_progress_pct || 0;
-            const semaphore = pct > 70 ? {color:'var(--success)',label:'No prazo'} : pct > 30 ? {color:'var(--warning)',label:'Atenção'} : {color:'var(--danger)',label:'Crítico'};
-            return `
-            <div class="list-item clicavel" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]'>
-                <div class="d-flex items-center gap-3 flex-1">
-                    <div style="width:10px;height:10px;background:${semaphore.color};flex-shrink:0" title="${semaphore.label}"></div>
-                    <div>
-                        <div class="item-name">${escapeHTML(p.project_name || p.client_name)}</div>
-                        <div class="item-meta mt-1">${p.project_name ? escapeHTML(p.client_name) + ' · ' : ''}Fases: ${p.completed_phases}/${p.phase_count} | Riscos: ${p.risk_count} | Evidências: ${p.evidence_count}</div>
-                    </div>
-                </div>
-                <div class="d-flex items-center gap-2">
-                    <div style="width:80px;height:6px;background:rgba(255,255,255,0.1);overflow:hidden">
-                        <div style="width:${pct}%;height:100%;background:${semaphore.color};transition:width 0.3s"></div>
-                    </div>
-                    <span style="font-size:0.7rem;color:${semaphore.color};font-weight:600">${pct}%</span>
-                </div>
-            </div>`;
-        }).join('') : renderEmptyState({ titulo: 'Nenhum projeto no portfólio', texto: 'Os projetos em que você está designado aparecem aqui com o andamento das fases.' })}</div>`;
-    }
-
-    // Download pelo servidor (nome do arquivo e formato pt-BR dele); o erro vira aviso, nunca um arquivo com o JSON do erro.
-    function exportarCsvNiso(tipo) {
-        const proj = S.activeProject || (S.projects || [])[0];
-        if (!proj) { showToast('Selecione um projeto primeiro', 'error'); return; }
-        return baixarArquivo(`/api/v1/projects/${proj.id}/export/${tipo}`).catch((e) => showToast(e.message || 'Não foi possível exportar.', 'error'));
-    }
-
-    async function showGapAnalysis(projectId) {
-        try {
-            const data = await api('GET', `/api/v1/projects/${projectId}/gap-analysis`);
-            const pct = data.coverage_pct || 0;
-            const barColor = pct > 80 ? 'var(--accent)' : pct > 50 ? 'var(--warning)' : 'var(--danger)';
-            openModal(`
-                <div class="modal-header"><span class="modal-title">Análise de lacunas</span></div>
-                <div class="d-flex gap-8 mb-6">
-                    <div><div class="card-label">Cobertura</div><div style="font-size:2rem;font-weight:600;color:${barColor}">${pct.toFixed(0)}%</div></div>
-                    <div><div class="card-label">Implementados</div><div class="t-xl">${data.by_status?.Implemented || 0}</div></div>
-                    <div><div class="card-label">Parciais</div><div class="t-xl t-aviso">${data.by_status?.Partial || 0}</div></div>
-                    <div><div class="card-label">Missing</div><div class="t-xl t-perigo">${data.by_status?.Missing || 0}</div></div>
-                </div>
-                <div class="t-xs t-dim">Controles com evidencia: ${data.controls_with_evidence || 0} | Controles com risco vinculado: ${data.controls_with_risks || 0}</div>
-            `);
-        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
     // O que cada cláusula pede, na redação da ISO/IEC 27001:2022 em linguagem simples (vazio das telas 4.2, 9.1 e 9.3).
@@ -1792,10 +1649,6 @@ window.__monDeleteMetric = async (id) => {
     api('DELETE', `/api/v1/metrics/${id}`).then(() => { forceCloseModal(); render(); });
 };
 
-window.renderMonitor = renderMonitor;
-window.renderPortfolio = renderPortfolio;
-window.exportarCsvNiso = exportarCsvNiso;
-window.showGapAnalysis = showGapAnalysis;
 window.renderMetrics = renderMetrics;
 window.openNewMetricModal = openNewMetricModal;
 window.createMetric = createMetric;
@@ -1806,5 +1659,3 @@ window.renderContext = renderContext;
 window.renderStakeholders = renderStakeholders;
 window.renderManagementReview = renderManagementReview;
 window.renderAssets = renderAssets;
-/** O nó da fase no Monitor abre a Bancada na fase (no primeiro passo ainda aberto dela). */
-window.monitorAbrirFase = (projectId, fase) => window.navigate('project-detail', { currentProject: { id: projectId }, bancadaAlvo: { fase } });

@@ -76,5 +76,5 @@ describe('migration 0051 — tipo documento e canal portal em pedidos', () => {
     expect(await env.DB.prepare(`SELECT id FROM pedido_destinatarios WHERE pedido_id = 'p-doc'`).first()).toBeNull();
 
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 });

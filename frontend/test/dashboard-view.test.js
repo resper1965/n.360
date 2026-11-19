@@ -90,6 +90,16 @@ describe('renderDashboard — onboarding do cliente', () => {
   });
 });
 
+describe('renderDashboard — texto da fase 3', () => {
+  it('o texto da fase 3 não promete "41 fases" (o número é da trilha, não do cliente)', async () => {
+    const { c, h, a } = montaDom();
+    S.user = { role: 'client', comercial_ativo: true };
+    await window.renderDashboard(c, h, a);
+    expect(c.textContent).not.toContain('41 fases');
+    expect(c.textContent).toContain('jornada de adequação');
+  });
+});
+
 describe('renderDashboard — quem entra onde', () => {
   it('equipe com projeto: o painel do n.iso, nada do funil', async () => {
     const { c, h, a } = montaDom();

@@ -11,7 +11,7 @@ import { S } from '../src/state.js';
 // exatamente por isso que a lista fica explicita.
 const IDS_SIDEBAR = [
     'nav-dashboard', 'nav-projects', 'nav-leads', 'nav-assessments', 'nav-proposals',
-    'nav-project', 'nav-certification', 'nav-monitor', 'nav-soa', 'nav-governance', 'nav-stakeholders',
+    'nav-project', 'nav-soa', 'nav-governance', 'nav-stakeholders',
     'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-documentos', 'nav-training',
     'nav-acknowledgments', 'nav-audits', 'nav-capa', 'nav-mgmt',
     'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-ai',
@@ -23,7 +23,7 @@ const IDS_SIDEBAR = [
 // `window`. Aqui elas viram espioes: o alvo do teste e o roteador, nao a view.
 const VIEWS = [
     'renderDashboard', 'renderLeads', 'renderAssessments', 'renderProposals', 'renderProjects',
-    'renderMonitor', 'renderAssets', 'renderMetrics', 'renderAuditTrail', 'renderAcknowledgments',
+    'renderAssets', 'renderMetrics', 'renderAuditTrail', 'renderAcknowledgments',
     'renderRisks', 'renderVendors', 'renderTraining', 'renderROPA',
     'renderDPIA', 'renderAudits', 'renderCAPA', 'renderEvidence', 'renderControls',
     'renderGovernance', 'renderProntidao', 'renderAIChat', 'renderSettings',
@@ -51,6 +51,15 @@ describe('navigate()', () => {
         history.replaceState(null, '', '/iso');
     });
     afterEach(() => history.replaceState(null, '', '/'));
+
+    describe('telas que saíram viram alias (onda 4)', () => {
+        it('"monitor" (link antigo, e-mail, aviso) abre a Jornada e destaca nav-project', () => {
+            navigate('monitor');
+            expect(S.view).toBe('project-detail');
+            expect(globalThis.renderProjectDetail).toHaveBeenCalled();
+            expect(itemAtivo().id).toBe('nav-project');
+        });
+    });
 
     describe('desvio por papel — o que o usuario PODE ver', () => {
         // O cliente entra no Painel do n.iso (a visão dele: o que espera a sua decisão); a Jornada fica no menu.
@@ -193,9 +202,11 @@ describe('navigate()', () => {
         //   'audit-execution'   -> procura 'nav-audit'       (existe 'nav-audits')
         // Estes testes fixam o comportamento ATUAL. Ao corrigir, eles falham —
         // e e esse o sinal de que a correcao pegou.
-        it('"certification" (Prontidão) destaca nav-certification: a tela tem item no menu do n.iso', () => {
+        it('"certification" (endereço antigo da Prontidão) abre a Jornada na aba Prontidão e destaca nav-project', () => {
             navigate('certification');
-            expect(itemAtivo().id).toBe('nav-certification');
+            expect(S.view).toBe('project-detail');
+            expect(S.jornadaAba).toBe('prontidao');
+            expect(itemAtivo().id).toBe('nav-project');
         });
 
         it('"management-review" (Análise crítica) destaca nav-mgmt', () => {

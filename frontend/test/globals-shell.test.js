@@ -232,7 +232,7 @@ describe('notificação de prazo (avisos de prazo)', () => {
   it.each([
     ['/projects/p9/capa', 'capa', 'renderCAPA'],
     ['/projects/p9/audits', 'audits', 'renderAudits'],
-    ['/projects/p9/certification', 'certification', 'renderProntidao'],
+    ['/projects/p9/certification', 'project-detail', 'renderProjectDetail'],
     ['/projects/p9/policies', 'documentos', 'renderDocumentos'],
   ])('%s abre %s no projeto do aviso, não no projeto ativo', async (link, view, tela) => {
     const { api } = await import('../src/api.js');
@@ -248,6 +248,7 @@ describe('notificação de prazo (avisos de prazo)', () => {
     try {
       await window.handleNotificationClick('n9');
       expect(S.view).toBe(view);
+      if (link.endsWith('/certification')) expect(S.jornadaAba).toBe('prontidao');
       expect(S.activeProject.id).toBe('p9');
       expect(S.currentProject.id).toBe('p9');
       expect(desenhar).toHaveBeenCalled();

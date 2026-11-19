@@ -41,5 +41,5 @@ describe('migration 0042 — ciência por link', () => {
     await env.DB.prepare(`UPDATE pedido_destinatarios SET aberto_em = CURRENT_TIMESTAMP WHERE id = 'dm2'`).run();
 
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 });

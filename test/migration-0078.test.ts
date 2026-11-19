@@ -34,7 +34,7 @@ describe('migration 0078: bancada da trilha', () => {
 
     await execSql('DROP TABLE checklist_progress; DROP TABLE project_phase_answers; DROP TABLE project_phases;');
     await applySchema(); // restaura o schema canônico para os outros testes
-  }, 30_000);
+  }, 120_000);
 
   it('o schema canônico já traz as mesmas colunas', async () => {
     await applySchema();

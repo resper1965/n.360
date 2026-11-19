@@ -27,15 +27,15 @@ const PIOR = ['nao_atende', 'sem_evidencia', 'evidencia_no_inventario'] as const
 const CONTAM = ['em_operacao', 'em_obra', 'base_em_aprovacao'];
 
 type LinhaAvaliacao = { requisito_id: string; situacao: DadosAvaliacao['situacao']; justificativa: string | null; responsavel_id: string | null; responsavel_nome: string | null;
-  proxima_revisao: string | null; confirmado_por: string | null; confirmado_por_nome: string | null; confirmado_em: string | null; updated_at: string };
+  proxima_revisao: string | null; atualizado_por: string | null; confirmado_por: string | null; confirmado_por_nome: string | null; confirmado_em: string | null; updated_at: string };
 
-export async function montarAssessment(db: D1Database, projectId: string, sites: string[]) {
+export async function montarAssessment(db: D1Database, projectId: string, sites: string[], quemId?: string) {
   const hoje = hojeEmSaoPaulo();
   const lista = JSON.stringify(sites);
   const [reqs, sitesR, avs, evs, perg, levs, total] = await db.batch([
     db.prepare(`SELECT id, codigo, titulo, categoria, prazo_meses FROM ot_requisitos WHERE framework = ? LIMIT ${TETO_LEITURA_OT}`).bind(FRAMEWORK),
     db.prepare(`SELECT id, nome, fase FROM ot_sites WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lista),
-    db.prepare(`SELECT a.requisito_id, a.situacao, a.justificativa, a.responsavel_id, r.name AS responsavel_nome, a.proxima_revisao, a.confirmado_por,
+    db.prepare(`SELECT a.requisito_id, a.situacao, a.justificativa, a.responsavel_id, r.name AS responsavel_nome, a.proxima_revisao, a.atualizado_por, a.confirmado_por,
         c.name AS confirmado_por_nome, a.confirmado_em, a.updated_at FROM ot_avaliacoes a LEFT JOIN users r ON r.id = a.responsavel_id LEFT JOIN users c ON c.id = a.confirmado_por
       WHERE a.project_id = ? LIMIT ${TETO_LEITURA_OT}`).bind(projectId),
     db.prepare(`SELECT l.requisito_id, e.id, e.file_name, e.valido_ate FROM ot_requisito_evidencias l JOIN evidence e ON e.id = l.evidencia_id AND e.project_id = l.project_id
@@ -85,6 +85,7 @@ export async function montarAssessment(db: D1Database, projectId: string, sites:
         ...base, tipo: 'politica' as const,
         avaliacao: a ? { situacao: a.situacao as DadosAvaliacao['situacao'], justificativa: a.justificativa as string | null, responsavel_id: a.responsavel_id as string | null,
           responsavel_nome: a.responsavel_nome as string | null, proxima_revisao: a.proxima_revisao as string | null, confirmado: !!a.confirmado_em,
+          eu_avaliei: !!quemId && !a.confirmado_em && a.atualizado_por === quemId, // booleano para a tela; o id de quem gravou não sai
           confirmado_por_nome: a.confirmado_por_nome as string | null, confirmado_em: a.confirmado_em as string | null, updated_at: a.updated_at as string } : null,
         evidencias,
         subsidio: (subsidio.get(r.codigo) ?? []).slice(0, 10),
@@ -166,7 +167,7 @@ export async function desligarEvidencia(db: D1Database, projectId: string, codig
  */
 export async function relatorioConformidade(db: D1Database, ator: Ator, projectId: string, sites: string[]) {
   const [{ itens }, sitesR, proj, quem] = await Promise.all([
-    montarAssessment(db, projectId, sites),
+    montarAssessment(db, projectId, sites, ator.id),
     db.prepare(`SELECT nome, fase, base_aprovada_em FROM ot_sites WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`)
       .bind(projectId, JSON.stringify(sites)).all<{ nome: string; fase: string; base_aprovada_em: string | null }>(),
     db.prepare('SELECT coalesce(project_name, client_name) AS nome FROM projects WHERE id = ?').bind(projectId).first<{ nome: string }>(),
