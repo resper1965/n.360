@@ -54,6 +54,17 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); history.replaceState(null, '', '/'); delete window.ehEquipeNess; });
 
 describe('entrada do n.privacy', () => {
+    it('identidade: "Canal do titular" registrado ou não (canal_titular do servidor)', async () => {
+        const valor = () => [...el('c').querySelectorAll('.pn-ident dt')].find((x) => x.textContent === 'Canal do titular').nextElementSibling.textContent;
+        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ canal_titular: { registrado: true, divulgado: false } }) });
+        await abrir();
+        expect(valor()).toBe('Registrado');
+        S.painel = {};
+        servir({ 'GET /api/v1/projects/p9/painel': PAINEL() });
+        await abrir();
+        expect(valor()).toBe('Não registrado');
+    });
+
     it('uma chamada só, com ?modulo=privacy; identidade, frase e estado escritos; texto do servidor escapado', async () => {
         const f = servir({ 'GET /api/v1/projects/p9/painel': PAINEL() });
         await abrir();

@@ -305,6 +305,7 @@ describe('o canal na visão do encarregado, no painel e no agente (PR3)', () => 
   it('o Painel do n.privacy diz se o canal está registrado; o do n.iso não fala do canal', async () => {
     await env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, 'iso', 'teste')`).bind(P).run();
     await concederModulos(['tc-cons'], ['iso', 'privacy']);
+    await salvarCanal(env.DB, P, ATOR, { email: 'canal@exemplo.com.br', divulgacao_url: 'https://exemplo.com.br/privacidade', conferir: true }, HOSTS);
     const p = await (await chamar(S.cons, 'GET', `/api/v1/projects/${P}/painel?modulo=privacy`)).json<any>();
     expect(p.canal_titular).toEqual({ registrado: true, divulgado: true });
     const i = await (await chamar(S.cons, 'GET', `/api/v1/projects/${P}/painel?modulo=iso`)).json<any>();
