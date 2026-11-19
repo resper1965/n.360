@@ -2234,3 +2234,8 @@ ul.at-ajuda { padding-left: 1.25em; }
 .np-rodape { display: flex; justify-content: space-between; gap: 8px; margin-top: 0.5rem; }
 .np-primeiros { margin: 0; padding: 0; list-style: none; }
 .np-primeiros li { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+
+/* Canal do titular (spec 2026-11-19): dica do formulário e a leitura de quem não grava */
+.tc-dica { color: var(--text-dim); font-size: 0.85rem; }
+.tc-leitura dt { font-weight: 600; margin-top: 8px; }
+.tc-leitura dd { margin: 0; }

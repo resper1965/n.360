@@ -14,6 +14,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ### n.privacy: canal do titular (migração 0117, spec 2026-11-19)
 - **Registro do canal do titular (API):** por projeto, o e-mail, o telefone e a página do formulário pelos quais o titular fala com a empresa, a página onde canal e encarregado estão publicados, o responsável e a data da última conferência. Leem e gravam a equipe designada no projeto, o `consultoria_admin` da organização do projeto (inclusive o da organização direta no projeto dela), o `platform_admin` e o `org_admin` do cliente; `org_user` e `client` só leem; chave de API e agente só leem; o `stakeholder` não tem acesso (nem para ler). O link do portal de solicitações é recusado nesses campos.
+- **Botão "Canal do titular" em Solicitações**, ao lado de "Link do portal": quem registra os pedidos preenche e-mail, telefone, página do formulário, página de divulgação e responsável, e marca "Conferi a página de divulgação hoje"; os demais leem. A tela recomenda caixa institucional.
 - A migração 0117 é aplicada pelo dono (com backup antes); enquanto não for, o deploy recusa publicar.
 
 ### n.360, onda 4: jornada comum (spec 2026-11-18)
