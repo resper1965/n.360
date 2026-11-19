@@ -64,7 +64,13 @@ describe('salvarCanal', () => {
       // variantes: barras extras, %-codificado, ponto final no host, porta, ponto-e-barra, ./ e ..
       'https://exemplo.com.br//solicitacao#tok', 'https://exemplo.com.br///SOLICITACAO/', 'https://exemplo.com.br/%73olicitacao#tok',
       'https://exemplo.com.br/%2Fsolicitacao#tok', 'https://n360.ness.com.br./x', 'https://N360.NESS.COM.BR:8443/x', 'https://exemplo.com.br/a/../solicitacao#tok',
-      'https://exemplo.com.br/./solicitacao', 'https://u:p@n360.ness.com.br/x'];
+      'https://exemplo.com.br/./solicitacao', 'https://u:p@n360.ness.com.br/x',
+      // token em fragmento, query, redirecionamento aninhado, `;/`, `..%2F`, host que serve o app mas não está na lista, prévia workers.dev
+      `https://cliente.com.br/fale#${'a1'.repeat(32)}`, `https://cliente.com.br/fale?t=${'0f'.repeat(32).toUpperCase()}`,
+      `https://cliente.com.br/lgpd?redirect=https%3A%2F%2Fn360.ness.com.br%2Fsolicitacao%23${'ab'.repeat(32)}`,
+      `https://cliente.com.br/lgpd?r=${encodeURIComponent(encodeURIComponent('https://x.dev/solicitacao#t'))}`,
+      'https://cliente.com.br/;/solicitacao#t', 'https://cliente.com.br/x/..%2Fsolicitacao', 'https://www.n360.ness.com.br/x',
+      'https://pr-12-niso.ness.workers.dev/x', 'https://n360-pr7.equipe.workers.dev/x', 'https://cliente.com.br/?ref=n360.ness.com.br'];
     for (const url of urls) for (const campo of ['formulario_url', 'divulgacao_url'] as const) {
       expect(await salvarCanal(env.DB, P, ATOR, { [campo]: url }, HOSTS), `${campo} ${url}`).toEqual({ ok: false, status: 422, error: MSG_LINK_DO_PORTAL });
     }
@@ -72,6 +78,26 @@ describe('salvarCanal', () => {
       OR coalesce(formulario_url, '') || coalesce(divulgacao_url, '') LIKE '%ness.com.br%'`).first<{ n: number }>())!;
     expect(n).toBe(0);
     expect(hostsDoApp({ APP_URL: 'https://n360-homolog.exemplo.dev' })).toEqual(expect.arrayContaining(['n360-homolog.exemplo.dev', 'n360.ness.com.br']));
+  });
+
+  it('endereço legítimo passa, mesmo com sha de git (40 hex) ou md5 (32 hex) no caminho', async () => {
+    const ok = await salvarCanal(env.DB, P, ATOR, { formulario_url: `https://cliente.com.br/fale/${'ab12cd34'.repeat(5)}?v=${'0'.repeat(32)}`, divulgacao_url: 'https://cliente.com.br/privacidade#encarregado' }, HOSTS);
+    expect(ok).toMatchObject({ ok: true });
+    await salvarCanal(env.DB, P, ATOR, { formulario_url: null, divulgacao_url: null }, HOSTS);
+  });
+
+  it('responsável inativo é recusado; o já gravado não trava a edição de outro campo', async () => {
+    await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, status) VALUES ('tc-pi', ?, 'pessoa', 'Inativa', 'inativa')`).bind(P).run();
+    expect(await salvarCanal(env.DB, P, ATOR, { responsavel_parte_id: 'tc-pi' }, HOSTS)).toMatchObject({ ok: false, status: 400 });
+    await env.DB.prepare(`UPDATE partes SET status = 'inativa' WHERE id = 'tc-pa'`).run();
+    expect(await salvarCanal(env.DB, P, ATOR, { telefone: '11 4000-0000' }, HOSTS)).toMatchObject({ ok: true });
+    await env.DB.prepare(`UPDATE partes SET status = 'ativa' WHERE id = 'tc-pa'`).run();
+  });
+
+  it('a conferência do responsável também vale dentro do INSERT (sem janela entre checar e gravar)', async () => {
+    const cega = { prepare: (sql: string) => (sql.startsWith('SELECT 1 FROM partes') ? { bind: () => ({ first: async () => ({ 1: 1 }) }) } : env.DB.prepare(sql)) } as unknown as D1Database;
+    expect(await salvarCanal(cega, P, ATOR, { responsavel_parte_id: 'tc-pb' }, HOSTS)).toMatchObject({ ok: false, status: 400 });
+    expect((await linha())!.responsavel_parte_id).toBe('tc-pa');
   });
 
   it('responsável de outro projeto ou inexistente: 400, nada muda', async () => {

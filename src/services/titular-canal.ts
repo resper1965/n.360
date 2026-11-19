@@ -31,24 +31,31 @@ const nomeDoHost = (u: URL): string => {
 export const hostsDoApp = (env: { APP_URL?: string }): string[] =>
   [...new Set([appUrl(env), APP_URL_PADRAO, ...ORIGENS_EXTRAS, ...HOSTS_LEGADOS.map((h) => `https://${h}`)].map((u) => nomeDoHost(new URL(u))))];
 
-/** Caminho sem barras no começo e sem %-codificação (até 3 camadas), em minúsculas: `//%53olicitacao` vira `solicitacao`. */
-const caminhoLimpo = (pathname: string): string => {
-  let p = pathname;
+/** Decodifica (até 3 camadas de %): `%252F`, `%2Fsolicitacao` e links dentro de `?redirect=` viram texto puro para as buscas abaixo. */
+const decodificado = (t: string): string => {
+  let p = t;
   for (let i = 0; i < 3; i++) {
     let d: string;
     try { d = decodeURIComponent(p); } catch { break; }
     if (d === p) break;
     p = d;
   }
-  let ini = 0;
-  while (ini < p.length && p[ini] === '/') ini++;
-  return p.slice(ini).toLowerCase();
+  return p.toLowerCase();
 };
 
-/** O link do portal (`<app>/solicitacao#<token>`) é credencial de portador: nem o host do app nem o caminho `/solicitacao` entram. */
+/** Host que serve o app: os listados, subdomínio deles (`www.`) e a prévia `*niso*`/`*n360*` em workers.dev. */
+const hostDoApp = (h: string, hosts: readonly string[]): boolean =>
+  hosts.some((x) => h === x || h.endsWith(`.${x}`)) || (h.endsWith('.workers.dev') && /niso|n360/.test(h));
+
+/**
+ * O link do portal (`<app>/solicitacao#<token>`, token = 64 hex) é credencial de portador. Recusa o endereço inteiro, decodificado,
+ * se: o host é do app; aparece `solicitacao` em qualquer ponto (caminho, `;`, `..%2F`, query de redirecionamento, fragmento); aparece um
+ * host do app em qualquer ponto; ou há uma sequência de 64 hex (o token) onde quer que esteja. 40 ou 32 hex (sha de git, md5) passam.
+ */
 export const urlDoApp = (url: string, hosts: readonly string[]): boolean => {
   const u = new URL(url);
-  return hosts.includes(nomeDoHost(u)) || caminhoLimpo(u.pathname).startsWith('solicitacao');
+  const t = `${decodificado(url)} ${decodificado(u.href)}`;
+  return hostDoApp(nomeDoHost(u), hosts) || t.includes('solicitacao') || /[0-9a-f]{64}/.test(t) || hosts.some((h) => t.includes(h));
 };
 
 export async function lerCanal(db: D1Database, projectId: string): Promise<{ canal: LinhaCanal | null; portal_ativo: boolean }> {
@@ -66,10 +73,13 @@ export async function salvarCanal(db: D1Database, projectId: string, ator: strin
     const v = d[k];
     if (v && urlDoApp(v, hosts)) return { ok: false, status: 422, error: MSG_LINK_DO_PORTAL };
   }
-  if (d.responsavel_parte_id && !(await db.prepare('SELECT 1 FROM partes WHERE id = ? AND project_id = ?').bind(d.responsavel_parte_id, projectId).first())) {
-    return { ok: false, status: 400, error: 'responsavel_parte_id inexistente ou de outro projeto' };
-  }
   const { canal: atual } = await lerCanal(db, projectId);
+  // Só confere o responsável quando ele muda: o que já estava gravado não bloqueia a edição de outro campo (a parte pode ter sido inativada).
+  const trocaResp = d.responsavel_parte_id && d.responsavel_parte_id !== atual?.responsavel_parte_id ? d.responsavel_parte_id : null;
+  const MSG_RESP = 'responsavel_parte_id inexistente, inativo ou de outro projeto';
+  if (trocaResp && !(await db.prepare(`SELECT 1 FROM partes WHERE id = ? AND project_id = ? AND status = 'ativa'`).bind(trocaResp, projectId).first())) {
+    return { ok: false, status: 400, error: MSG_RESP };
+  }
   const novo = Object.fromEntries(CAMPOS_CANAL.map((k) => [k, d[k] !== undefined ? d[k] : (atual?.[k] ?? null)])) as Record<CampoCanal, string | null>;
   const mudaram: string[] = CAMPOS_CANAL.filter((k) => (atual?.[k] ?? null) !== novo[k]);
   if (d.conferir && !novo.divulgacao_url) return { ok: false, status: 422, error: 'Registre a página de divulgação antes de conferir' };
@@ -77,13 +87,16 @@ export async function salvarCanal(db: D1Database, projectId: string, ator: strin
   const trocouPagina = mudaram.includes('divulgacao_url');
   const conferidoEm = d.conferir ? hojeEmSaoPaulo() : trocouPagina ? null : (atual?.conferido_em ?? null);
   const conferidoPor = d.conferir ? ator : trocouPagina ? null : (atual?.conferido_por ?? null);
-  await db.prepare(
+  // O PUT troca a linha inteira (o último a gravar vence, como nas outras configurações do projeto). O responsável é conferido de novo
+  // dentro do próprio INSERT (WHERE EXISTS): sem janela entre a checagem e a gravação, e `partes` não tem UNIQUE(id, project_id).
+  const r = await db.prepare(
     `INSERT INTO titular_canal (id, project_id, email, telefone, formulario_url, divulgacao_url, responsavel_parte_id, conferido_em, conferido_por, atualizado_por)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ?11 IS NULL OR EXISTS (SELECT 1 FROM partes WHERE id = ?11 AND project_id = ?2 AND status = 'ativa')
      ON CONFLICT(project_id) DO UPDATE SET email = excluded.email, telefone = excluded.telefone, formulario_url = excluded.formulario_url,
        divulgacao_url = excluded.divulgacao_url, responsavel_parte_id = excluded.responsavel_parte_id, conferido_em = excluded.conferido_em,
        conferido_por = excluded.conferido_por, atualizado_por = excluded.atualizado_por, updated_at = CURRENT_TIMESTAMP`,
-  ).bind(crypto.randomUUID(), projectId, novo.email, novo.telefone, novo.formulario_url, novo.divulgacao_url, novo.responsavel_parte_id, conferidoEm, conferidoPor, ator).run();
+  ).bind(crypto.randomUUID(), projectId, novo.email, novo.telefone, novo.formulario_url, novo.divulgacao_url, novo.responsavel_parte_id, conferidoEm, conferidoPor, ator, trocaResp).run();
+  if (!r.meta.changes) return { ok: false, status: 400, error: MSG_RESP };
   const campos = [...mudaram, ...(d.conferir ? ['conferencia'] : [])];
   // Só os NOMES dos campos: o endereço do canal (e-mail do encarregado, às vezes) não vai para a trilha.
   await logAudit(db, 'titular.canal', ator, `Canal do titular atualizado: ${campos.join(', ') || 'nada mudou'}`, '', '', projectId);
