@@ -27,6 +27,7 @@ const TROCAR: Record<TabelaMescla, { rotulo: string; tabela: string; coluna: str
     { rotulo: 'Responsável de documento em arquivo', tabela: 'documentos_arquivo', coluna: 'responsavel_parte_id' },
     { rotulo: 'Responsável de pedido do titular', tabela: 'titular_pedidos', coluna: 'responsavel_parte_id' },
     { rotulo: 'Responsável de incidente', tabela: 'incidentes', coluna: 'responsavel_parte_id' },
+    { rotulo: 'Responsável do canal do titular', tabela: 'titular_canal', coluna: 'responsavel_parte_id' },
     { rotulo: 'Avaliação de terceiro', tabela: 'avaliacoes_terceiro', coluna: 'parte_id' },
     { rotulo: 'Criticidade de terceiro', tabela: 'criticidades_terceiro', coluna: 'parte_id' },
   ],

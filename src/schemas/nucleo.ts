@@ -291,6 +291,22 @@ export const tratativaSchema = z.object({
   texto: z.string().trim().min(1).max(5000),
 }).strict();
 
+/** Canal do titular (migration 0117). Campo ausente não mexe; `null` limpa. Só https; o link do portal é recusado no serviço (422). */
+const urlHttps = z.string().trim().max(500).refine(
+  (u) => { try { const x = new URL(u); return x.protocol === 'https:' && !x.username && !x.password; } catch { return false; } },
+  'Use um endereço https:// completo, sem usuário e senha',
+);
+export const titularCanalSchema = z.object({
+  email: z.email().max(200).nullish(),
+  telefone: z.string().trim().min(8).max(40).regex(/^[0-9+().\-\s]+$/, 'Telefone só com números, espaço, +, (, ), - e .').nullish(),
+  formulario_url: urlHttps.nullish(),
+  divulgacao_url: urlHttps.nullish(),
+  responsavel_parte_id: z.string().min(1).max(64).nullish(),
+  // "Conferi a página hoje": o servidor carimba o dia e quem conferiu (como a identidade do pedido, 0104).
+  conferir: z.literal(true).optional(),
+}).strict();
+export type TitularCanalCorpo = z.output<typeof titularCanalSchema>;
+
 export const incidenteCriarSchema = z.object({
   titulo: textoCurto,
   descricao: textoLongo.nullish(),

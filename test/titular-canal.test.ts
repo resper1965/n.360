@@ -1,0 +1,134 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { env } from 'cloudflare:test';
+import { applySchema, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { salvarCanal, lerCanal, resumoDoCanal, hostsDoApp, MSG_LINK_DO_PORTAL } from '../src/services/titular-canal';
+import { titularCanalSchema } from '../src/schemas';
+import { exportarProjeto } from '../src/portabilidade';
+import { mesclar } from '../src/services/mesclar';
+import { gerarPortal } from '../src/services/titular-pedidos';
+import { hojeEmSaoPaulo } from '../src/services/hoje';
+import fonteDoServico from '../src/services/titular-canal.ts?raw';
+
+/**
+ * Canal do titular (migration 0117, spec 2026-11-19): uma linha por projeto, gravada por quem gere o portal. O link do portal
+ * (`/solicitacao#<token>`, credencial de portador) nunca entra; a trilha leva só os nomes dos campos; sai na portabilidade.
+ */
+const P = 'tc-proj';
+const OUTRO = 'tc-outro';
+const HOSTS = hostsDoApp({});
+const ATOR = 'cons@ness.teste';
+const linha = () => env.DB.prepare('SELECT * FROM titular_canal WHERE project_id = ?').bind(P).first<Record<string, unknown>>();
+
+beforeAll(async () => {
+  await applySchema();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES
+      (?1, 'Cliente', 'ISO 27001', 'Controller', 'Active', 'org_ness'), (?2, 'Outro', 'ISO 27001', 'Controller', 'Active', 'org_ness')`).bind(P, OUTRO),
+    env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES
+      ('tc-pa', ?1, 'pessoa', 'Ana Exemplo'), ('tc-pa2', ?1, 'pessoa', 'Ana Exemplo Dup'), ('tc-pb', ?2, 'pessoa', 'Bruno Outro')`).bind(P, OUTRO),
+  ]);
+  await habilitarPrivacy(P, OUTRO);
+});
+
+describe('corpo (titularCanalSchema)', () => {
+  it('aceita e-mail, telefone e https; recusa o resto e campo do servidor (conferido_em)', () => {
+    const ok = (x: unknown) => titularCanalSchema.safeParse(x).success;
+    expect(ok({ email: 'privacidade@exemplo.com.br', telefone: '+55 11 4000-0000', formulario_url: 'https://exemplo.com.br/fale', divulgacao_url: null, conferir: true })).toBe(true);
+    expect(ok({})).toBe(true);
+    expect(ok({ email: 'nao-e-email' })).toBe(false);
+    expect(ok({ divulgacao_url: 'http://exemplo.com.br/privacidade' })).toBe(false);
+    expect(ok({ formulario_url: 'javascript:alert(1)' })).toBe(false);
+    expect(ok({ telefone: 'ligue já' })).toBe(false);
+    expect(ok({ conferido_em: '2020-01-01' })).toBe(false);
+    expect(ok({ conferir: false })).toBe(false);
+    expect(ok({ divulgacao_url: 'https://user:senha@exemplo.com.br/x' })).toBe(false);
+    expect(ok({ project_id: 'outro' })).toBe(false);
+  });
+});
+
+describe('salvarCanal', () => {
+  it('grava, lê com o nome do responsável e devolve só os nomes dos campos mudados; ausente não mexe, null limpa', async () => {
+    expect(await salvarCanal(env.DB, P, ATOR, { email: 'privacidade@exemplo.com.br', telefone: '11 4000-0000', responsavel_parte_id: 'tc-pa' }, HOSTS))
+      .toEqual({ ok: true, campos: ['email', 'telefone', 'responsavel_parte_id'] });
+    const { canal, portal_ativo } = await lerCanal(env.DB, P);
+    expect(canal).toMatchObject({ project_id: P, email: 'privacidade@exemplo.com.br', telefone: '11 4000-0000', formulario_url: null,
+      responsavel_parte_id: 'tc-pa', responsavel_nome: 'Ana Exemplo', atualizado_por: ATOR, conferido_em: null });
+    expect(portal_ativo).toBe(false);
+    expect(await salvarCanal(env.DB, P, ATOR, { telefone: null }, HOSTS)).toEqual({ ok: true, campos: ['telefone'] });
+    expect(await linha()).toMatchObject({ email: 'privacidade@exemplo.com.br', telefone: null });
+  });
+
+  it('o link do portal nunca entra: host do app ou caminho /solicitacao → 422 e nada gravado', async () => {
+    const urls = ['https://n360.ness.com.br/solicitacao#tok-abc123', 'https://niso.ness.com.br/privacy', 'https://nprivacy.ness.com.br/x',
+      'https://exemplo.com.br/solicitacao#tok-abc123', 'https://EXEMPLO.com.br/Solicitacao',
+      // variantes: barras extras, %-codificado, ponto final no host, porta, ponto-e-barra, ./ e ..
+      'https://exemplo.com.br//solicitacao#tok', 'https://exemplo.com.br///SOLICITACAO/', 'https://exemplo.com.br/%73olicitacao#tok',
+      'https://exemplo.com.br/%2Fsolicitacao#tok', 'https://n360.ness.com.br./x', 'https://N360.NESS.COM.BR:8443/x', 'https://exemplo.com.br/a/../solicitacao#tok',
+      'https://exemplo.com.br/./solicitacao', 'https://u:p@n360.ness.com.br/x'];
+    for (const url of urls) for (const campo of ['formulario_url', 'divulgacao_url'] as const) {
+      expect(await salvarCanal(env.DB, P, ATOR, { [campo]: url }, HOSTS), `${campo} ${url}`).toEqual({ ok: false, status: 422, error: MSG_LINK_DO_PORTAL });
+    }
+    const { n } = (await env.DB.prepare(`SELECT count(*) AS n FROM titular_canal WHERE coalesce(formulario_url, '') || coalesce(divulgacao_url, '') LIKE '%solicitacao%'
+      OR coalesce(formulario_url, '') || coalesce(divulgacao_url, '') LIKE '%ness.com.br%'`).first<{ n: number }>())!;
+    expect(n).toBe(0);
+    expect(hostsDoApp({ APP_URL: 'https://n360-homolog.exemplo.dev' })).toEqual(expect.arrayContaining(['n360-homolog.exemplo.dev', 'n360.ness.com.br']));
+  });
+
+  it('responsável de outro projeto ou inexistente: 400, nada muda', async () => {
+    expect(await salvarCanal(env.DB, P, ATOR, { responsavel_parte_id: 'tc-pb' }, HOSTS)).toMatchObject({ ok: false, status: 400 });
+    expect(await salvarCanal(env.DB, P, ATOR, { responsavel_parte_id: 'nao-existe' }, HOSTS)).toMatchObject({ ok: false, status: 400 });
+    expect((await linha())!.responsavel_parte_id).toBe('tc-pa');
+  });
+
+  it('conferência: o servidor carimba dia e pessoa; sem página é 422; outro campo não mexe; trocar a página apaga a conferência', async () => {
+    expect(await salvarCanal(env.DB, P, ATOR, { conferir: true }, HOSTS)).toMatchObject({ ok: false, status: 422 });
+    expect(await salvarCanal(env.DB, P, ATOR, { divulgacao_url: 'https://exemplo.com.br/privacidade', conferir: true }, HOSTS))
+      .toEqual({ ok: true, campos: ['divulgacao_url', 'conferencia'] });
+    expect(await linha()).toMatchObject({ conferido_em: hojeEmSaoPaulo(), conferido_por: ATOR });
+    await salvarCanal(env.DB, P, 'outra@ness.teste', { email: 'lgpd@exemplo.com.br' }, HOSTS);
+    expect(await linha()).toMatchObject({ conferido_em: hojeEmSaoPaulo(), conferido_por: ATOR, atualizado_por: 'outra@ness.teste' });
+    await salvarCanal(env.DB, P, ATOR, { divulgacao_url: 'https://exemplo.com.br/lgpd' }, HOSTS);
+    expect(await linha()).toMatchObject({ conferido_em: null, conferido_por: null });
+  });
+
+  it('trilha titular.canal só com os NOMES dos campos, nunca o endereço', async () => {
+    const { results } = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'titular.canal' AND project_id = ?`).bind(P).all<{ details: string }>();
+    expect(results.length).toBeGreaterThanOrEqual(5);
+    const texto = JSON.stringify(results);
+    for (const v of ['privacidade@', 'lgpd@', '4000', 'exemplo.com.br/']) expect(texto, v).not.toContain(v);
+    expect(texto).toContain('Canal do titular atualizado: email, telefone, responsavel_parte_id');
+  });
+});
+
+describe('resumoDoCanal (painel e trilha)', () => {
+  it('meios pelos campos preenchidos, divulgado pela página; o portal ativo conta à parte; projeto sem linha = vazio', async () => {
+    await salvarCanal(env.DB, P, ATOR, { formulario_url: 'https://exemplo.com.br/fale', telefone: '11 4000-0000' }, HOSTS);
+    expect(await resumoDoCanal(env.DB, P)).toEqual({ meios: ['email', 'telefone', 'formulario'], portal_ativo: false, divulgado: true, conferido_em: null });
+    expect(await resumoDoCanal(env.DB, OUTRO)).toEqual({ meios: [], portal_ativo: false, divulgado: false, conferido_em: null });
+    await gerarPortal(env.DB, OUTRO, ATOR);
+    expect(await resumoDoCanal(env.DB, OUTRO)).toEqual({ meios: [], portal_ativo: true, divulgado: false, conferido_em: null });
+  });
+});
+
+describe('portabilidade e mescla', () => {
+  it('a exportação do projeto leva a linha do canal; a do outro projeto não', async () => {
+    const a = await exportarProjeto(workerEnv(), P);
+    expect(a.dados.titular_canal).toEqual([expect.objectContaining({ project_id: P, email: 'lgpd@exemplo.com.br' })]);
+    const b = await exportarProjeto(workerEnv(), OUTRO);
+    expect(b.dados.titular_canal).toEqual([]);
+    expect(JSON.stringify(b)).not.toContain('lgpd@exemplo.com.br');
+  });
+
+  it('mesclar partes leva o responsável do canal para o cadastro que fica', async () => {
+    await salvarCanal(env.DB, P, ATOR, { responsavel_parte_id: 'tc-pa2' }, HOSTS);
+    const r = await mesclar(env.DB, 'partes', P, ATOR, 'tc-pa', 'tc-pa2');
+    expect('ok' in r && r.efeitos).toEqual(expect.arrayContaining([{ rotulo: 'Responsável do canal do titular', n: 1 }]));
+    expect((await linha())!.responsavel_parte_id).toBe('tc-pa');
+  });
+});
+
+describe('P0 do n.ot', () => {
+  it('o serviço não lê nem grava nada ot_ e não importa módulo do n.ot', () => {
+    expect(fonteDoServico).not.toMatch(/\bot_|from '\.\/ot/);
+  });
+});
