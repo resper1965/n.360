@@ -9,6 +9,7 @@ import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js'
 import { hojeSP } from '../hoje.js';
 import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 import { rotuloDe } from '../rotulos.js';
+import { semRepetir } from '../ot-comum.js';
 
 // Titular e incidentes (fatia 7 do núcleo, só registro interno): pedidos do titular, incidentes, consentimentos e prazos legais.
 // Toda regra é do servidor (protocolo, prazo congelado, encerramento do incidente); aqui só se mostra e se chama. Texto escapado.
@@ -93,7 +94,9 @@ async function renderTitular(c, h, a) {
     const novo = (acao, rotulo, primario = true) => ((acao === 'abrirNovoConsentimento' ? editar : registrar) ? `<button class="btn${primario ? ' btn-primary' : ''}" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
     // Link do portal público de solicitações (o cliente publica no site/app); gerá-lo é de quem registra os pedidos.
     const portalBtn = registrar ? ` <button class="btn" data-action="abrirPortalTitular" data-args='${args(proj.id)}'>Link do portal</button>` : '';
-    a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido') + portalBtn
+    // Canal do titular (0117): todos leem; quem registra os pedidos edita no mesmo botão.
+    const canalBtn = ` <button class="btn" data-action="abrirCanalTitular" data-args='${args(proj.id)}'>Canal do titular</button>`;
+    a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido') + portalBtn + canalBtn
         : aba === 'incidentes' ? novo('abrirNovoIncidente', '+ Registrar incidente')
         : aba === 'consentimentos' ? novo('abrirNovoConsentimento', '+ Registrar consentimento') : '';
 
@@ -120,7 +123,7 @@ async function renderTitular(c, h, a) {
         const { itens: visiveis } = filtrarDoPainel('titular', aba, pedidos);
         const responderPrimeiro = registrar ? visiveis.find((p) => p.situacao_prazo === 'atrasado') : null;
         if (responderPrimeiro) {
-            a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false) + portalBtn
+            a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false) + portalBtn + canalBtn
                 + ` <button class="btn btn-primary" data-action="abrirPedidoTitular" data-args='${args(proj.id, responderPrimeiro.id)}'>Responder ${escapeHTML(responderPrimeiro.protocolo)}</button>`;
         }
         // Filtros de tipo e status (spec 2026-10-19): na tela, sobre a lista já carregada.
@@ -394,6 +397,58 @@ window.desativarPortalTitular = async function (projectId) {
         forceCloseModal();
     } catch (e) { falha(e, 'Não foi possível desativar o portal'); }
 };
+
+// ─── Canal do titular (migration 0117, spec 2026-11-19): por onde o titular fala com a empresa e onde isso está publicado ──────
+// Grava quem registra os pedidos (`podeRegistrar`, o espelho de `podeGerirPortal` do servidor); os demais leem. A regra é do servidor
+// (recusa o link do portal, carimba a conferência): aqui só se mostra e se chama.
+const CAMPOS_CANAL = [['email', 'E-mail do canal', 'email', 200], ['telefone', 'Telefone', 'tel', 40],
+    ['formulario_url', 'Página do formulário (https://)', 'url', 500], ['divulgacao_url', 'Página de divulgação (https://)', 'url', 500]];
+
+window.abrirCanalTitular = async function (projectId) {
+    const grava = podeRegistrar();
+    let r, partes;
+    try {
+        [r, partes] = await Promise.all([
+            api('GET', `/api/v1/projects/${projectId}/titular-canal`),
+            // Secundário: sem a lista de pessoas, o responsável fica "Ninguém indicado".
+            grava ? api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`).catch(() => []) : [],
+        ]);
+    } catch (e) { falha(e, 'Não foi possível abrir o canal do titular'); return; }
+    const c = (r && r.canal) || {};
+    const portal = r && r.portal_ativo
+        ? '<p id="tc-portal" class="tc-dica">O portal de solicitações do n.360 está ativo e já conta como formulário. Não cole o link dele aqui: o link é a chave de acesso do formulário.</p>' : '';
+    const conferido = `<p id="tc-conferido">${c.conferido_em ? `Página de divulgação conferida em ${escapeHTML(dia(c.conferido_em))}.` : 'Página de divulgação nunca conferida.'}</p>`;
+    if (!grava) {
+        const valor = (v) => (v ? escapeHTML(v) : '<span class="pn-falta">Não informado</span>');
+        openModal(`<h3>Canal do titular</h3>${portal}
+            <dl class="tc-leitura">${CAMPOS_CANAL.map(([k, rotulo]) => `<dt>${escapeHTML(rotulo)}</dt><dd>${valor(c[k])}</dd>`).join('')}
+                <dt>Responsável</dt><dd>${valor(c.responsavel_nome)}</dd></dl>${conferido}`);
+        return;
+    }
+    const pessoas = lista(partes).map((p) => `<option value="${escapeHTML(p.id)}"${p.id === c.responsavel_parte_id ? ' selected' : ''}>${escapeHTML(p.nome)}</option>`).join('');
+    openModal(`<h3>Canal do titular</h3>
+        <p id="tc-dica" class="tc-dica">Basta um meio. Use uma caixa institucional (por exemplo, privacidade@empresa.com.br), não o e-mail pessoal do encarregado. A página de divulgação é onde o canal e o encarregado aparecem para o público, no site da empresa.</p>
+        ${portal}
+        ${CAMPOS_CANAL.map(([k, rotulo, tipo, max]) => `<div class="form-group"><label class="form-label" for="tc-${k}">${escapeHTML(rotulo)}</label>
+            <input class="form-input" id="tc-${k}" type="${tipo}" maxlength="${max}" aria-describedby="tc-dica" value="${escapeHTML(c[k] || '')}"></div>`).join('')}
+        <div class="form-group"><label class="form-label" for="tc-resp">Responsável (opcional)</label>
+            <select class="form-input" id="tc-resp"><option value="">Ninguém indicado</option>${pessoas}</select></div>
+        ${conferido}
+        <div class="form-group"><input type="checkbox" id="tc-conferir"> <label for="tc-conferir">Conferi a página de divulgação hoje</label></div>
+        <button class="btn btn-primary" data-action="salvarCanalTitular" data-args='${args(projectId)}'>Salvar</button>`);
+};
+
+window.salvarCanalTitular = (projectId) => semRepetir('salvarCanalTitular', async () => {
+    const corpo = { email: valorOuNulo('tc-email'), telefone: valorOuNulo('tc-telefone'), formulario_url: valorOuNulo('tc-formulario_url'),
+        divulgacao_url: valorOuNulo('tc-divulgacao_url'), responsavel_parte_id: el('tc-resp').value || null, ...(el('tc-conferir').checked ? { conferir: true } : {}) };
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/titular-canal`, corpo);
+        // O painel guardado deste projeto já não vale: o canal entra no passo 1 da trilha e no "O que fazer" (padrão de encarregado.js).
+        if (S.painel) for (const k of Object.keys(S.painel)) if (k.split('|')[1] === projectId) delete S.painel[k];
+        showToast('Canal do titular salvo.', 'success');
+        forceCloseModal();
+    } catch (e) { falha(e, 'Não foi possível salvar o canal do titular'); }
+});
 
 // Busca e eliminação pelo contato do pedido. A regra é do servidor (/data-subject: busca por igualdade, anonimização, trilha).
 let pedidoAberto = null;
