@@ -425,14 +425,18 @@ window.abrirCanalTitular = async function (projectId) {
                 <dt>Responsável</dt><dd>${valor(c.responsavel_nome)}</dd></dl>${conferido}`);
         return;
     }
-    const pessoas = lista(partes).map((p) => `<option value="${escapeHTML(p.id)}"${p.id === c.responsavel_parte_id ? ' selected' : ''}>${escapeHTML(p.nome)}</option>`).join('');
+    const ativas = lista(partes);
+    // Responsável gravado que a lista não traz (inativo ou lista indisponível): fica visível e marcado, para salvar não apagá-lo sem querer.
+    const orfao = c.responsavel_parte_id && !ativas.some((p) => p.id === c.responsavel_parte_id)
+        ? `<option value="${escapeHTML(c.responsavel_parte_id)}" selected>${escapeHTML(c.responsavel_nome || 'Responsável atual')} (atual, não listado)</option>` : '';
+    const pessoas = orfao + ativas.map((p) => `<option value="${escapeHTML(p.id)}"${p.id === c.responsavel_parte_id ? ' selected' : ''}>${escapeHTML(p.nome)}</option>`).join('');
     openModal(`<h3>Canal do titular</h3>
         <p id="tc-dica" class="tc-dica">Basta um meio. Use uma caixa institucional (por exemplo, privacidade@empresa.com.br), não o e-mail pessoal do encarregado. A página de divulgação é onde o canal e o encarregado aparecem para o público, no site da empresa.</p>
         ${portal}
         ${CAMPOS_CANAL.map(([k, rotulo, tipo, max]) => `<div class="form-group"><label class="form-label" for="tc-${k}">${escapeHTML(rotulo)}</label>
             <input class="form-input" id="tc-${k}" type="${tipo}" maxlength="${max}" aria-describedby="tc-dica" value="${escapeHTML(c[k] || '')}"></div>`).join('')}
         <div class="form-group"><label class="form-label" for="tc-resp">Responsável (opcional)</label>
-            <select class="form-input" id="tc-resp"><option value="">Ninguém indicado</option>${pessoas}</select></div>
+            <select class="form-input" id="tc-resp" data-orig="${escapeHTML(c.responsavel_parte_id || '')}"><option value="">Ninguém indicado</option>${pessoas}</select></div>
         ${conferido}
         <div class="form-group"><input type="checkbox" id="tc-conferir"> <label for="tc-conferir">Conferi a página de divulgação hoje</label></div>
         <button class="btn btn-primary" data-action="salvarCanalTitular" data-args='${args(projectId)}'>Salvar</button>`);
@@ -440,7 +444,7 @@ window.abrirCanalTitular = async function (projectId) {
 
 window.salvarCanalTitular = (projectId) => semRepetir('salvarCanalTitular', async () => {
     const corpo = { email: valorOuNulo('tc-email'), telefone: valorOuNulo('tc-telefone'), formulario_url: valorOuNulo('tc-formulario_url'),
-        divulgacao_url: valorOuNulo('tc-divulgacao_url'), responsavel_parte_id: el('tc-resp').value || null, ...(el('tc-conferir').checked ? { conferir: true } : {}) };
+        divulgacao_url: valorOuNulo('tc-divulgacao_url'), ...(el('tc-resp').value !== el('tc-resp').dataset.orig ? { responsavel_parte_id: el('tc-resp').value || null } : {}), ...(el('tc-conferir').checked ? { conferir: true } : {}) };
     try {
         await api('PUT', `/api/v1/projects/${projectId}/titular-canal`, corpo);
         // O painel guardado deste projeto já não vale: o canal entra no passo 1 da trilha e no "O que fazer" (padrão de encarregado.js).

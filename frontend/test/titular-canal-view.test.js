@@ -93,6 +93,28 @@ describe('formulário (quem grava)', () => {
         expect(ultimoToast('success')).toBe('Canal do titular salvo.');
     });
 
+    describe('responsável preservado ao salvar', () => {
+        const salvar = async (canal, partes, mexer) => {
+            S.user = { role: 'consultor' }; montarModal();
+            const f = servirEstrito({ [`GET ${B}/titular-canal`]: { ...CANAL, canal }, [`PUT ${B}/titular-canal`]: { ok: true }, ...(partes ? { [`GET ${B}/partes`]: partes } : {}) });
+            if (!partes) f.mockImplementation(async (u, o) => (chave(u, o) === `GET ${B}/partes` ? resposta({ error: 'x' }, 500) : resposta(chave(u, o) === `PUT ${B}/titular-canal` ? { ok: true } : { ...CANAL, canal })));
+            await window.abrirCanalTitular('p9');
+            mexer?.();
+            await window.salvarCanalTitular('p9');
+            return JSON.parse(f.mock.calls.find(([u, o]) => chave(u, o) === `PUT ${B}/titular-canal`)[1].body);
+        };
+        it('inalterado e listado: campo omitido', async () => { expect('responsavel_parte_id' in await salvar(CANAL.canal, PARTES)).toBe(false); });
+        it('inalterado e inativo (fora da lista): omitido e a opção aparece escapada', async () => {
+            const corpo = await salvar(CANAL.canal, [PARTES[1]]);
+            expect('responsavel_parte_id' in corpo).toBe(false);
+            expect(el('tc-resp').selectedOptions[0].textContent).toBe('Ana <i>Exemplo</i> (atual, não listado)');
+            expect(el('tc-resp').querySelector('i')).toBeNull();
+        });
+        it('trocado para outra parte: enviado', async () => { expect((await salvar(CANAL.canal, PARTES, () => { el('tc-resp').value = 'pa2'; })).responsavel_parte_id).toBe('pa2'); });
+        it('limpo explicitamente: null enviado', async () => { expect((await salvar(CANAL.canal, PARTES, () => { el('tc-resp').value = ''; })).responsavel_parte_id).toBeNull(); });
+        it('falha ao listar pessoas: responsável preservado (omitido)', async () => { expect('responsavel_parte_id' in await salvar(CANAL.canal, null)).toBe(false); });
+    });
+
     it('422 do servidor (link do portal): a mensagem do servidor aparece e o formulário fica aberto', async () => {
         S.user = { role: 'consultor' }; montarModal();
         const MSG = 'Este é o link do portal do n.360 (é a chave de acesso do formulário): não o grave aqui. O portal ativo já conta como formulário.';
