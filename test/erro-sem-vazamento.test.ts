@@ -154,18 +154,18 @@ describe('500 correlaciona em vez de vazar', () => {
     expect((corpo.request_id as string).length).toBeGreaterThan(0);
   }
 
-  it('evidence: excluir evidência referenciada pelo checklist vira 500 sem texto do D1', async () => {
-    await env.DB.batch([
-      env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES (?,?,?,?,?,?)`)
-        .bind('ev-vaz', PROJ, 'a.pdf', 'evidence/proj-vaz/ev-vaz-a.pdf', 'h', 'vaz@ness.io'),
-      env.DB.prepare(`INSERT INTO checklist_progress (project_id, phase_number, item_id, evidence_id) VALUES (?,?,?,?)`)
-        .bind(PROJ, 1, 'item-vaz', 'ev-vaz'),
-    ]);
+  it('evidence: falha do banco ao excluir vira 500 sem texto do D1', async () => {
+    await env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES (?,?,?,?,?,?)`)
+      .bind('ev-vaz', PROJ, 'a.pdf', 'evidence/proj-vaz/ev-vaz-a.pdf', 'h', 'vaz@ness.io').run();
     await env.STORAGE.put('evidence/proj-vaz/ev-vaz-a.pdf', 'conteudo');
-    const res = await req('/api/v1/evidence/ev-vaz', { method: 'DELETE', headers: admin });
-    await exigeSemVazamento(res, 'Erro ao excluir evidência');
-    // O banco recusou: a linha continua, então o arquivo para o qual ela aponta
-    // também precisa continuar. Antes o R2 era apagado primeiro.
+    await env.DB.prepare(`CREATE TRIGGER falha_exclusao_evidencia BEFORE DELETE ON evidence BEGIN SELECT RAISE(ABORT, 'falha simulada do banco'); END`).run();
+    try {
+      const res = await req('/api/v1/evidence/ev-vaz', { method: 'DELETE', headers: admin });
+      await exigeSemVazamento(res, 'Erro ao excluir evidência');
+    } finally {
+      await env.DB.prepare('DROP TRIGGER falha_exclusao_evidencia').run();
+    }
+    // O banco recusou: a linha continua, então o arquivo para o qual ela aponta também precisa continuar.
     expect(await env.DB.prepare('SELECT id FROM evidence WHERE id = ?').bind('ev-vaz').first()).not.toBeNull();
     expect(await env.STORAGE.head('evidence/proj-vaz/ev-vaz-a.pdf')).not.toBeNull();
   });

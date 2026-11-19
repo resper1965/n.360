@@ -1,14 +1,14 @@
 # Avaliação por IA em campo separado — design
 
 **Data:** 2026-11-19 · **Estado:** aguardando aprovação do dono
-**Escopo:** evidências (n.iso). Item 3 da consulta do TWYN.
+**Escopo:** evidências (n.iso). Item 3 da consulta de um cliente.
 
 ## 1. Por que
 
 A avaliação por IA de evidência sobrescreve a nota humana. Fatos em `origin/main`:
 
 - `src/routes/evidence.ts`, rota `POST /evidence/:id/evaluate`: grava `evaluation_notes = result.content` (o markdown da IA) junto com `evaluation_score`. A nota que a pessoa escreveu some.
-- No TWYN isso apagou a nota da triagem da evidência `mvliqq…`; foi preciso restaurá-la à mão. Reincide a cada reavaliação.
+- Num cliente isso apagou a nota da triagem de uma evidência; foi preciso restaurá-la à mão. Reincide a cada reavaliação.
 - `PATCH /projects/:id/evidence/:id` (PR #594) grava `evaluation_notes` como nota **humana** — mesmo campo que a IA atropela.
 
 Ou seja: um único campo (`evaluation_notes`) carrega dois donos (humano e IA), e o último a escrever vence.
