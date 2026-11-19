@@ -87,7 +87,7 @@ Operar), cada módulo com os seus passos, e um caminho único da organização c
 Decidido durante a execução e conferido no código (ledger `.superpowers/sdd/2026-11-18-onda4-jornada-comum/progress.md`).
 
 - `certification` e `monitor` viram alias na lista fechada `ALIAS_DE_TELA` (`frontend/src/produto.js:142`); `certification` segue também em `TELA_DO_AVISO` (`globals.js:1155`). O catálogo de telas não mudou. "Exportar riscos" já estava em Riscos (`grc.js:208`).
-- **ABERTO para o dono:** os CSV de fornecedores e de treinamentos perderam a única entrada na tela (o "Exportar" do Monitor). As rotas da API continuam. Decidir se Fornecedores e Treinamentos ganham botões "Exportar".
+- **RESOLVIDO (19/11/2026):** os CSV de fornecedores e de treinamentos **não** perderam a entrada na tela: as listas de Fornecedores e de Treinamentos já têm o botão "Exportar CSV" (`frontend/src/views/grc.js`, `exportar` em `montarLista`; `frontend/test/listas-niso-grc.test.js`). O "Exportar" do Monitor era uma segunda entrada. Nada a recolocar.
 - A grade da Jornada usa as 6 etapas do catálogo de passos; a régua usa as 5 comuns. Duas formas de agrupar convivem na mesma tela.
 - O n.ot não tem Painel: a régua dele aparece em "Ver situação" do Início e no assistente.
 - As chaves de `parametros_legais` da etapa 5 do n.privacy são as 3 de `CHAVES` (`src/services/parametros-legais.ts:9`). "Canal do titular" não tem campo (a etapa 1 é só o encarregado). O passo "cobertura" da trilha do n.privacy fica falso (não feito) quando o catálogo da LGPD não está carregado: o desconhecido aparece como não feito. A skill `implantacao-privacy` diz o mesmo (limite da plataforma, não lacuna do cliente).

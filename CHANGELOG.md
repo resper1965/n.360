@@ -13,7 +13,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ## [Não publicado]
 
 ### n.360, onda 4: jornada comum (spec 2026-11-18)
-- **Monitor saiu do menu do n.iso.** A grade etapa × fase passou para o topo da Jornada ("Fases por etapa"); links antigos para o Monitor abrem a Jornada. "Exportar riscos" continua na tela Riscos. As exportações de fornecedores e treinamentos em CSV, que só o Monitor oferecia, ficam fora da tela por enquanto (a API segue).
+- **Monitor saiu do menu do n.iso.** A grade etapa × fase passou para o topo da Jornada ("Fases por etapa"); links antigos para o Monitor abrem a Jornada. "Exportar riscos" continua na tela Riscos. As exportações de fornecedores e treinamentos em CSV seguem nas listas de Fornecedores e de Treinamentos (botão "Exportar CSV"); o Monitor só tinha uma segunda entrada para elas.
 - **Prontidão virou aba da Jornada** ("Prontidão para certificar"). O item Prontidão saiu do menu; avisos, e-mails e links antigos abrem a aba.
 - **Régua comum:** o Painel do n.iso e a linha "Ver situação" do Início mostram as cinco etapas (Começar, Levantar, Avaliar, Tratar, Operar) e o próximo passo de cada módulo (o cliente só lê). Quem tem o n.ot passa a ver o programa "Em operação" desde a primeira base de site aprovada; quem não tem o módulo não vê nada do n.ot. O bloco n.ot do `GET /painel` soma 6 consultas agrupadas ao lote existente (sem consulta por site).
 - **Trilha de implantação do n.privacy na tela:** as 7 etapas (Partida, Encarregado, Inventário, Bases e riscos, Terceiros, Titular e incidentes, Documentos e cobertura), derivadas do cadastro, no Painel do n.privacy e na régua; o agente lê a mesma trilha.
