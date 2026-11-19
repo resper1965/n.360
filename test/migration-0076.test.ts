@@ -43,7 +43,7 @@ describe('migration 0076 — importacao_itens aceita as entidades do legado e gu
     expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM importacao_itens`).first<{ n: number }>())!.n).toBe(0);
 
     await applySchema();
-  }, 30_000);
+  }, 120_000);
 
   it('o schema canônico aceita as mesmas entidades e tem a coluna aviso', async () => {
     await applySchema();

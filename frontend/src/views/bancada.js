@@ -6,6 +6,7 @@ import { vazioSemFases } from './monitor.js';
 import { indexarCatalogo, resolverAlvo, vizinhos } from '../bancada/estado.js';
 import { criarAutosave } from '../bancada/autosave.js';
 import { htmlDaTrilha } from '../bancada/trilha.js';
+import { htmlDaGrade } from '../bancada/grade.js';
 import { htmlDoCartao, htmlDosCriterios } from '../bancada/cartao.js';
 import { montarCopiloto } from '../bancada/copiloto.js';
 
@@ -150,7 +151,8 @@ function desenharTopo() {
             { rotulo: 'Notas do auditor', action: 'openAuditorNotesModal', args: [pid] },
             { rotulo: 'Dossiê da jornada', action: 'generateJourneyDossier', args: [pid] },
             { rotulo: 'Ver a prontidão para a certificação', action: 'navigate', args: ['certification'] },
-        ]) : ''}`;
+        ]) : ''}
+        ${S.passosCatalogo ? htmlDaGrade(S.passosCatalogo, b.fases) : ''}`;
 }
 
 // ── ações (data-action) ─────────────────────────────────────────────────────────────────────────────────
@@ -207,7 +209,7 @@ window.bancadaSalvarEIr = async () => {
 };
 
 window.bancadaBloquear = () => openModal(`<div class="modal-header"><span class="modal-title">Bloquear este passo</span></div>
-    <p class="bancada-nota">Diga o que impede o avanço e quem resolve. O motivo aparece no passo e no Monitor.</p>
+    <p class="bancada-nota">Diga o que impede o avanço e quem resolve. O motivo aparece no passo e na Jornada.</p>
     <label for="bloq-motivo" class="rotulo-campo">Motivo (obrigatório)</label><textarea id="bloq-motivo" class="form-input" rows="3"></textarea>
     <label for="bloq-resp" class="rotulo-campo">Responsável (obrigatório)</label><select id="bloq-resp" class="form-select">${opcoesDeResponsavel('')}</select>
     <p class="bancada-nota" id="bloq-erro" role="alert"></p>

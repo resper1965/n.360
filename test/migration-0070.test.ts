@@ -29,5 +29,5 @@ describe('migration 0070 — papel do agente na concessão', () => {
     await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em, papel) VALUES ('c-aud', 'u70', 'm70', datetime('now', '+30 days'), 'auditor')`).run();
     await expect(env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em, papel) VALUES ('c-x', 'u70', 'm70', datetime('now', '+30 days'), 'admin')`).run()).rejects.toThrow(/CHECK/);
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 });

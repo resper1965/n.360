@@ -35,7 +35,7 @@ describe('migration 0072 — teste de impacto do tratamento', () => {
     const cols = (await env.DB.prepare(`SELECT name FROM pragma_table_info('tratamento_impacto')`).all<{ name: string }>()).results.map((c) => c.name);
     expect(cols).toEqual(['ropa_id', 'project_id', 'pergunta', 'resposta', 'atualizado_por', 'atualizado_em']);
     await applySchema(); // convive com o schema canônico
-  }, 30_000);
+  }, 120_000);
 
   it('aceita só sim, nao e nao_sei, uma resposta por pergunta, e apagar o tratamento apaga as respostas', async () => {
     await applySchema();

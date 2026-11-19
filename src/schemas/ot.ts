@@ -156,6 +156,11 @@ export const sensorCriarSchema = z.object({ nome: livreSemPii(80, 1), faixa_orig
 
 /** Desvio (spec n-ot-desvio): tratar exige nota; aceitar exige justificativa e prazo de hoje até 90 dias. Só ids vão à trilha, nota e justificativa ficam na linha. */
 export const otDesvioTratarSchema = z.object({ nota: livreSemPii(500, 1) }).strict();
+/** Ação corretiva a partir do desvio: o texto é da pessoa (nunca copiado do desvio); o responsável é conferido na rota (como POST /capa). */
+export const otDesvioAcaoSchema = z.object({
+  titulo: livreSemPii(200, 5), descricao: livreSemPii(2000).optional(), assigned_to: livre(200).optional(),
+  assigned_to_parte_id: id.optional(), prazo: data.optional(),
+}).strict();
 export const PRAZO_MAX_ACEITE_DIAS = 90;
 const diaUtc = (d: Date) => d.toISOString().slice(0, 10);
 export const otDesvioAceitarSchema = z.object({
@@ -177,3 +182,15 @@ export const otAvaliacaoSchema = z.object({
 /** Confirmar vale só para a versão que o Gestor viu: o `updated_at` lido na tela. */
 export const otAvaliacaoConfirmarSchema = z.object({ updated_at: z.string().trim().min(1).max(40) }).strict();
 export const otAvaliacaoEvidenciaSchema = z.object({ evidencia_id: id }).strict();
+
+/** Referência núcleo → OT: exatamente um alvo do núcleo e site e/ou ativo de OT (o desvio entra no PR3). */
+export const otReferenciaCriarSchema = z.object({
+  risk_id: id.optional(), acao_id: id.optional(), incidente_id: id.optional(),
+  ot_site_id: id.optional(), ot_ativo_id: id.optional(),
+}).strict().refine((v) => [v.risk_id, v.acao_id, v.incidente_id].filter(Boolean).length === 1, 'Informe exatamente um entre risk_id, acao_id e incidente_id')
+  .refine((v) => !!(v.ot_site_id || v.ot_ativo_id), 'Informe ot_site_id e/ou ot_ativo_id');
+
+/** Fornecedor de OT: uma parte fornecedora com papel, em um site e/ou fluxo. */
+export const otFornecedorCriarSchema = z.object({
+  parte_id: id, papel: z.enum(['integrador', 'fabricante', 'acesso_remoto']), ot_site_id: id.optional(), ot_fluxo_id: id.optional(),
+}).strict().refine((v) => !!(v.ot_site_id || v.ot_fluxo_id), 'Informe ot_site_id e/ou ot_fluxo_id');

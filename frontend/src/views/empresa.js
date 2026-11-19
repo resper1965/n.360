@@ -1,7 +1,9 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, formatarData } from '../ui.js';
-import { modulosDaPessoa } from '../produto.js';
+import { modulosDaPessoa, orgDireta } from '../produto.js';
+import { semRepetir } from '../ot-comum.js';
+import { TELAS_DO_PAINEL } from './painel.js';
 
 // Cadastro da empresa do projeto (migration 0071) e o assistente "Novo projeto". O servidor decide tudo de novo:
 // CNPJ com dígito verificador, duplicidade na organização, quem cria e quem edita. Aqui é só a tela.
@@ -151,10 +153,13 @@ async function consultar(d) {
     ultimaConsulta = d;
     if (caixa) caixa.innerHTML = '<p style="color:var(--text-dim);font-size:0.85rem">Consultando a Receita Federal...</p>';
     let r;
+    const meu = W; // resposta tardia: o assistente (ou a tela) pode ter mudado; os campos por id seriam de outro
     try { r = await api('GET', `/api/v1/projects/consulta-cnpj/${d}`); } catch { // falha nunca bloqueia salvar: a pessoa preenche à mão
+        if (W !== meu) return;
         if (caixa) caixa.innerHTML = `<p style="color:var(--text-dim);font-size:0.85rem">A consulta de CNPJ está indisponível. Preencha os dados à mão.</p>`;
         return;
     }
+    if (W !== meu) return;
     const partes = [];
     const projetoAtual = S.empresaProjetoId;
     if (r.existente && r.existente.id !== projetoAtual) {
@@ -187,9 +192,95 @@ window.abrirProjetoExistente = async function (id) {
 
 const NORMAS = [['ISO 27001', 'ISO/IEC 27001:2022'], ['ISO 27701:2025', 'ISO/IEC 27701:2025'], ['LGPD', 'LGPD']];
 const PAPEIS = [['Controller', 'Controlador'], ['Processor', 'Operador'], ['Both', 'Controlador e operador']];
-const PASSOS = ['Empresa', 'Programa', 'Pessoas-chave', 'Resumo'];
+const PASSOS = ['Empresa', 'Programa', 'Pessoas-chave', 'Resumo', 'Pessoas e acessos', 'Primeiros passos'];
 
 let W = null;
+
+const $ = (id) => document.getElementById(id);
+const NOME_MODULO = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
+/** A organização em que o projeto nasceu é direta? A do platform_admin é a do seletor (X-Org-Id); a dos outros, a da sessão. */
+const orgDoProjetoDireta = () => {
+    const t = S.user && S.user.role === 'platform_admin' && typeof window.tipoOrgAtuacao === 'function' ? window.tipoOrgAtuacao() : null;
+    // Falha fechada: o platform_admin sem o tipo da organização carregado recebe só a opção de equipe (o servidor decide de qualquer forma).
+    if (S.user && S.user.role === 'platform_admin') return t ? t === 'direta' : true;
+    return orgDireta();
+};
+/** Papéis do passo: a direta só tem equipe (onda 1, decisão 8; o servidor recusa o resto); a consultoria convida também o cliente. */
+const papeisDoPasso = () => (orgDoProjetoDireta() ? [['consultor', 'Pessoa da equipe']]
+    : [['consultor', 'Consultor'], ['org_admin', 'Gestor do cliente'], ['org_user', 'Colaborador do cliente']]);
+/** Módulos que se oferecem a uma pessoa: os do projeto que quem convida também tem (espelho do teto; o servidor decide). */
+const modulosOferecidos = () => { const meus = modulosDaPessoa(); return W.projeto.modulos.filter((m) => !meus || meus.includes(m)); };
+/** P0-1: o n.ot nunca nasce marcado para uma pessoa; só vale marcado à mão. */
+const novaPessoa = () => ({ nome: '', email: '', papel: 'consultor', modulos: modulosOferecidos().filter((m) => m !== 'ot') });
+
+function linhaPessoa(p, i) {
+    const off = p.convidado ? ' disabled' : '';
+    const semDesignar = p.convidado && !p.designado && p.papel === 'consultor'
+        ? ` <button type="button" class="btn btn-ghost btn-sm" data-action="novoProjetoIr" data-args='[6]'>Continuar sem designar</button>` : '';
+    return `<fieldset class="np-pessoa"><legend class="form-label">Pessoa ${i + 1}</legend>
+        <div class="form-group"><label class="form-label" for="np-p${i}-nome">Nome</label><input class="form-input" id="np-p${i}-nome" maxlength="200" value="${escapeHTML(p.nome)}"${off}></div>
+        <div class="form-group"><label class="form-label" for="np-p${i}-email">E-mail</label><input class="form-input" id="np-p${i}-email" type="email" maxlength="320" value="${escapeHTML(p.email)}"${off}></div>
+        <div class="form-group"><label class="form-label" for="np-p${i}-papel">Papel</label><select class="form-input" id="np-p${i}-papel"${off}>${papeisDoPasso().map(([v, r]) => `<option value="${v}" ${p.papel === v ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+        <fieldset class="np-modulos"><legend class="form-label">Módulos</legend>${modulosOferecidos().map((m) => `<label><input type="checkbox" name="np-p${i}-modulo" value="${escapeHTML(m)}" ${p.modulos.includes(m) ? 'checked' : ''}${off}> ${NOME_MODULO[m] || escapeHTML(m)}${m === 'ot' ? ' (só se marcado)' : ''}</label>`).join('')}</fieldset>
+        <p class="np-erro-pessoa" id="np-p${i}-erro" role="alert">${escapeHTML(p.msg || '')}</p>${semDesignar}</fieldset>`;
+}
+
+function pessoasHtml() {
+    return `<p class="np-dica">Convide quem vai trabalhar no projeto. Cada pessoa recebe um e-mail para criar a senha. O n.ot nunca vem marcado: só dá acesso se for marcado aqui, pessoa a pessoa.</p>
+        ${W.acessos.map(linhaPessoa).join('')}
+        <button type="button" class="btn btn-ghost btn-sm" data-action="novoProjetoMaisPessoa">Adicionar pessoa</button>`;
+}
+
+/** O primeiro passo de cada módulo vem do servidor (`programa.etapas`, GET /painel): o n.ot só vem a quem tem o módulo (P0-1/P0-2). */
+async function carregarPrimeirosPassos() {
+    const meu = W; const pid = W.projeto.id;
+    let primeiros;
+    try {
+        const d = await api('GET', `/api/v1/projects/${pid}/painel`);
+        const et = (d && d.programa && d.programa.etapas) || {};
+        primeiros = ['iso', 'privacy', 'ot'].filter((m) => et[m] && et[m].proximo).map((m) => ({ m, ...et[m].proximo }));
+    } catch (err) { primeiros = 'erro'; }
+    // Resposta tardia: o assistente pode ter fechado ou ser de outro projeto; nada é escrito fora do dele.
+    if (W !== meu || !W || !W.projeto || W.projeto.id !== pid) return;
+    W.primeiros = primeiros;
+    if (W.passo === 6) mostrarPasso();
+}
+
+/** Convidado e não designado: a conta existe mas não vê o projeto. Nome e e-mail são do que a pessoa digitou, escapados; nada cru do servidor. */
+const avisosDeDesignacao = () => W.acessos.filter((p) => p.convidado && !p.designado).map((p) =>
+    `<p class="np-erro-pessoa" role="alert">Atenção: ${escapeHTML(p.nome || p.email)} (${escapeHTML(p.email)}) foi convidado(a) mas não foi designado(a) ao projeto e não consegue vê-lo. Designe em Governança.</p>`).join('');
+
+function primeirosHtml() {
+    const pid = W.projeto.id;
+    const avisos = avisosDeDesignacao();
+    if (W.primeiros === null) return `${avisos}<div class="loading"></div>`;
+    if (W.primeiros === 'erro' || !W.primeiros.length) {
+        return `${avisos}<p>O projeto foi criado. Abra-o no módulo para começar.</p>${W.projeto.modulos.map((m) =>
+            `<button type="button" class="btn btn-sm" data-action="painelAbrirProjeto" data-args='${escapeHTML(JSON.stringify([pid, m]))}'>Abrir no ${NOME_MODULO[m] || escapeHTML(m)}</button>`).join(' ')}`;
+    }
+    // Só há "Começar" para tela da lista fechada do painel (a mesma da régua); sem ela, o item sai sem botão.
+    return `${avisos}<ol class="np-primeiros">${W.primeiros.map((x) => `<li><strong>${NOME_MODULO[x.m]}</strong> <span>${escapeHTML(x.texto)}</span>
+        ${TELAS_DO_PAINEL.has(x.tela) ? `<button type="button" class="btn btn-sm btn-primary" data-action="novoProjetoComecar" data-args='${escapeHTML(JSON.stringify([pid, x.m]))}'>Começar</button>` : ''}</li>`).join('')}</ol>`;
+}
+
+window.novoProjetoComecar = function (projectId, m) {
+    const x = (W && Array.isArray(W.primeiros) ? W.primeiros : []).find((p) => p.m === m);
+    if (!(S.projects || []).some((p) => p.id === projectId)) { erroDoPasso('Não foi possível abrir o projeto agora. Feche e abra-o pela lista de projetos.'); return; }
+    W = null;
+    window.forceCloseModal();
+    if (x && typeof window.painelAbrirProximo === 'function') return window.painelAbrirProximo(projectId, x.tela, x.aba || null, x.fase ?? null, x.passo || null);
+    if (typeof window.painelAbrirProjeto === 'function') window.painelAbrirProjeto(projectId, m);
+};
+
+/** Lê as linhas do passo 5 para `W.acessos` (sem validar: validar é do convidar). */
+function lerAcessos() {
+    W.acessos = W.acessos.map((p, i) => (p.convidado ? p : {
+        nome: ($(`np-p${i}-nome`) || {}).value?.trim() ?? p.nome,
+        email: ($(`np-p${i}-email`) || {}).value?.trim() ?? p.email,
+        papel: ($(`np-p${i}-papel`) || {}).value || p.papel,
+        modulos: [...document.querySelectorAll(`input[name="np-p${i}-modulo"]:checked`)].map((x) => x.value),
+    }));
+}
 
 const erroDoPasso = (texto) => {
     const el = document.getElementById('np-erro');
@@ -202,6 +293,9 @@ function passoHtml() {
         <ol style="display:flex;gap:16px;list-style:none;padding:0;margin:0 0 1rem;font-size:0.8rem">${PASSOS.map((p, i) =>
             `<li ${i + 1 === W.passo ? 'aria-current="step" style="color:var(--accent);font-weight:600"' : 'style="color:var(--text-dim)"'}>${i + 1}. ${p}</li>`).join('')}</ol>`;
     const erro = '<div id="np-erro" role="alert" aria-live="assertive" style="color:var(--danger-ink);font-size:0.85rem;min-height:1.2em;margin:0.5rem 0"></div>';
+    // Depois de criado o projeto (passos 5 e 6) não há "Voltar": o projeto já existe.
+    if (W.passo === 5) return `${cab}<div id="np-passo">${pessoasHtml()}</div>${erro}<div class="np-rodape"><button class="btn btn-ghost" data-action="novoProjetoIr" data-args='[6]'>Pular</button><button class="btn btn-primary" data-action="novoProjetoConvidar">Convidar e seguir</button></div>`;
+    if (W.passo === 6) return `${cab}<div id="np-passo">${primeirosHtml()}</div>${erro}<div class="np-rodape"><span></span><button class="btn btn-primary" data-action="novoProjetoFechar">Fechar</button></div>`;
     const voltar = W.passo > 1 ? `<button class="btn btn-ghost" data-action="novoProjetoIr" data-args='[${W.passo - 1}]'>Voltar</button>` : '<span></span>';
     const seguir = W.passo < 4
         ? `<button class="btn btn-primary" data-action="novoProjetoIr" data-args='[${W.passo + 1}]'>Continuar</button>`
@@ -252,12 +346,13 @@ function passoHtml() {
 function mostrarPasso() {
     openModal(passoHtml(), 'modal-large');
     // Foco: no primeiro campo do passo; no resumo, no título (leitor de tela anuncia o passo).
-    const alvo = W.passo === 4 ? document.getElementById('np-titulo') : document.querySelector('#np-passo input:not([type=checkbox]):not([disabled]), #np-passo select');
+    const alvo = W.passo >= 4 ? document.getElementById('np-titulo') : document.querySelector('#np-passo input:not([type=checkbox]):not([disabled]), #np-passo select');
     alvo?.focus();
 }
 
 /** Guarda o que está na tela do passo atual e diz o erro que impede seguir (ou ''). */
 function guardarPasso() {
+    if (W.passo === 5) { lerAcessos(); return ''; }
     if (W.passo === 1) {
         W.empresa = lerFormEmpresa();
         if (!W.empresa.razao_social && !W.empresa.nome_fantasia) return 'Informe a razão social (ou o nome fantasia).';
@@ -293,6 +388,7 @@ window.abrirNovoProjeto = function () {
 
 window.novoProjetoIr = function (passo) {
     if (!W) return;
+    if (W.passo >= 5 && passo < 5) return; // o projeto já existe
     // Voltar não valida; seguir valida o passo atual.
     if (passo > W.passo) {
         const erro = guardarPasso();
@@ -300,6 +396,7 @@ window.novoProjetoIr = function (passo) {
     } else guardarPasso();
     W.passo = passo;
     mostrarPasso();
+    if (passo === 6 && W.primeiros === null) carregarPrimeirosPassos();
 };
 
 window.criarNovoProjeto = async function () {
@@ -320,7 +417,9 @@ window.criarNovoProjeto = async function () {
         ...(Object.keys(pessoas).length ? { pessoas } : {}),
     };
     let r;
+    const meu = W;
     try { r = await api('POST', '/api/v1/projects', corpo); } catch (err) {
+        if (W !== meu) return;
         if (btn) btn.disabled = false;
         const outro = err && err.body && err.body.projeto_existente;
         if (outro) {
@@ -331,15 +430,56 @@ window.criarNovoProjeto = async function () {
         erroDoPasso((err && err.message) || 'Não foi possível criar o projeto');
         return;
     }
-    W = null;
-    window.forceCloseModal();
     showToast('Projeto criado.', 'success');
     if (typeof window.loadProjects === 'function') await window.loadProjects();
-    const mods = r.modulos || [];
-    if (mods.includes('iso') && typeof window.openProjectDetail === 'function') return window.openProjectDetail(r.id);
-    if (typeof window.abrirProjetoNoModulo === 'function') window.abrirProjetoNoModulo(r.id, 'privacy');
-    if (typeof window.render === 'function') window.render();
+    if (W !== meu || !W) return; // fechado (ou outro assistente) durante a recarga
+    W.projeto = { id: r.id, modulos: Array.isArray(r.modulos) ? r.modulos : [] };
+    W.acessos = [novaPessoa()];
+    W.primeiros = null;
+    W.passo = 5;
+    mostrarPasso();
 };
+
+window.novoProjetoFechar = () => { W = null; window.forceCloseModal(); if (typeof window.render === 'function') window.render(); };
+
+window.novoProjetoMaisPessoa = function () {
+    if (!W || W.passo !== 5) return;
+    lerAcessos();
+    W.acessos.push(novaPessoa());
+    mostrarPasso();
+};
+
+/** Convida cada linha preenchida (POST /users; consultor também designado no projeto). Erro fica na linha; só segue sem erro. */
+window.novoProjetoConvidar = () => semRepetir('novoProjetoConvidar', async () => {
+    if (!W || W.passo !== 5) return;
+    lerAcessos();
+    const meu = W; const pid = W.projeto.id;
+    let falhou = false;
+    for (const [i, p] of W.acessos.entries()) {
+        if (p.designado || (!p.nome && !p.email)) continue;
+        const erro = (t) => { p.msg = t; const el = W === meu ? $(`np-p${i}-erro`) : null; if (el) el.textContent = t; falhou = true; };
+        const cliente = p.papel !== 'consultor';
+        if (!p.convidado) {
+            if (!p.nome || !p.email) { erro('Informe nome e e-mail.'); continue; }
+            if (!p.modulos.length) { erro('Escolha ao menos um módulo.'); continue; }
+            try {
+                const r = await api('POST', '/api/v1/users', { name: p.nome, email: p.email, role: p.papel, client_project_id: cliente ? pid : null, modulos: p.modulos });
+                p.convidado = true; // a conta existe: o retry nunca repete o convite
+                p.msg = 'Convite enviado.';
+                if (r && r.emailEnviado === false) { p.msg = 'Conta criada, mas o e-mail não foi enviado: reenvie o convite em Usuários.'; falhou = true; } // fica à vista até a pessoa seguir
+            } catch (err) { erro((err && err.message) || 'Não foi possível convidar.'); continue; }
+        }
+        if (cliente) { p.designado = true; continue; }
+        try {
+            await api('POST', `/api/v1/projects/${pid}/governance`, { name: p.nome, email: p.email, role_category: 'consultor', job_title: 'Consultor' });
+            p.designado = true;
+        } catch (err) { erro(`Convite enviado, mas a designação falhou: ${(err && err.message) || 'erro'}. Tente de novo ou designe em Governança.`); }
+        if (W !== meu) return;
+    }
+    if (W !== meu) return;
+    if (falhou) mostrarPasso();
+    if (!falhou) window.novoProjetoIr(6);
+});
 
 // ─── Dados da empresa (projeto existente) ──────────────────────────────────────────────────────────────
 

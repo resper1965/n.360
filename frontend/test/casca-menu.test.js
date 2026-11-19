@@ -59,7 +59,7 @@ const ESTRUTURA_ISO = [
     '[Comercial] true',
     'group-sales (aberto): nav-comercial=Comercial, nav-leads=Leads, nav-assessments=Levantamentos, nav-proposals=Propostas, nav-catalogo=Catálogo, nav-config=Configuração comercial',
     '[Implementação] false',
-    'group-impl: nav-project=Jornada, nav-certification=Prontidão, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Papéis e comitê',
+    'group-impl: nav-project=Jornada, nav-soa=SoA, nav-governance=Papéis e comitê',
     '[Operacional] false',
     'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Pessoas e parceiros, nav-areas=Áreas, nav-documentos=Políticas e normas, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
     '[Privacidade] false',

@@ -1,4 +1,5 @@
 import { genId, logAudit, refForaDoProjeto, setParcial } from '../helpers';
+import { reabrirDesvioDaAcao } from './ot-referencias';
 import { hojeEmSaoPaulo } from './hoje';
 
 /**
@@ -208,7 +209,7 @@ export async function atualizarAcao(db: D1Database, projectId: string, ropaId: s
 }
 
 export async function apagarAcao(db: D1Database, projectId: string, ropaId: string, id: string): Promise<boolean> {
-  const r = await db.prepare('DELETE FROM corrective_actions WHERE id = ? AND ropa_id = ? AND project_id = ?').bind(id, ropaId, projectId).run();
+  const [, r] = await db.batch([reabrirDesvioDaAcao(db, id), db.prepare('DELETE FROM corrective_actions WHERE id = ? AND ropa_id = ? AND project_id = ?').bind(id, ropaId, projectId)]);
   return (r.meta.changes ?? 0) > 0;
 }
 

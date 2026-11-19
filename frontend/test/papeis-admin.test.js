@@ -125,11 +125,23 @@ describe('área comercial desligada', () => {
 });
 
 // Organização direta (`org_tipo` do /auth/me): sem área comercial mesmo com o interruptor ligado; o servidor já recusa, o menu
-// só não oferece. A identidade também sai (GET /org/config é do comercial).
+// só não oferece. A identidade fica para o consultoria_admin (subconjunto do GET /org/config).
 describe('organização direta', () => {
-  it.each(['consultoria_admin', 'consultor'])('%s: nada da área comercial, sem identidade', async (papel) => {
+  it('consultoria_admin: Identidade visível mesmo com o comercial ligado; consultor não a vê', async () => {
+    await menu('consultoria_admin', true, 'direta');
+    expect(visivel('nav-identidade')).toBe(true);
+    await menu('consultor', true, 'direta');
+    expect(visivel('nav-identidade')).toBe(false);
+  });
+
+  it('consultoria (não direta) com comercial ligado: identidade continua na Configuração comercial', async () => {
+    await menu('consultoria_admin', true, 'consultoria');
+    expect(visivel('nav-identidade')).toBe(false);
+  });
+
+  it.each(['consultoria_admin', 'consultor'])('%s: nada da área comercial', async (papel) => {
     await menu(papel, true, 'direta');
-    for (const id of ['group-sales', 'label-group-sales', 'nav-comercial', 'nav-catalogo', 'nav-config', 'nav-proposals', 'nav-leads', 'nav-assessments', 'nav-settings', 'nav-identidade']) {
+    for (const id of ['group-sales', 'label-group-sales', 'nav-comercial', 'nav-catalogo', 'nav-config', 'nav-proposals', 'nav-leads', 'nav-assessments', 'nav-settings']) {
       expect(visivel(id), id).toBe(false);
     }
     expect(window.ehComercial()).toBe(false);

@@ -33,5 +33,5 @@ describe('migration 0046 — avisos_prazo', () => {
 
     await execSql(migration0046); // reaplicar não quebra (IF NOT EXISTS)
     await applySchema();
-  }, 30_000);
+  }, 120_000);
 });

@@ -10,7 +10,7 @@ import { passoPorId } from '../data/passos/catalogo';
 import { carregarContexto } from '../services/passos/contexto';
 import { avaliarPasso } from '../services/passos/avaliar';
 import { gravarSituacoes } from '../services/passos/fase';
-import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS } from '../services/organizacao';
+import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS, tipoDoProjeto, MSG_DIRETA_SEM_CLIENTE } from '../services/organizacao';
 import { INTERVIEW_TRACKS } from '../constants';
 import { MigrationService } from '../services/migration-service';
 import { ligarControles } from '../services/requisitos';
@@ -26,6 +26,7 @@ import { registerAssetRoutes } from './project-assets';
 import { encryptSecret, decryptSecret, isEncrypted } from '../secret-crypto';
 import { COLUNAS_REVOGACAO } from './controls';
 import { exportarProjeto } from '../portabilidade';
+import { podeVerOt, SEM_ACAO_OT } from '../services/ot-visibilidade';
 import { ipPermitido } from '../politica-tenant';
 import { papelValidoParaSso } from '../sso';
 import { appUrl } from '../config/url';
@@ -48,6 +49,7 @@ projectsApp.post('/:projectId/scim-token', somenteNess, async (c) => {
     const projectId = c.req.param('projectId');
     const projeto = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(projectId).first();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
+    if (await tipoDoProjeto(c.env.DB, projectId) === 'direta') return c.json(MSG_DIRETA_SEM_CLIENTE, 403);
 
     const token = `scim_${genToken()}${genToken()}`;
     const ator = c.get('user')?.email ?? 'system';
@@ -109,6 +111,7 @@ projectsApp.put('/:projectId/sso', somenteNess, async (c) => {
 
     const projeto = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(projectId).first();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
+    if (body.ativo && await tipoDoProjeto(c.env.DB, projectId) === 'direta') return c.json(MSG_DIRETA_SEM_CLIENTE, 403);
 
     // Papel de staff atribuído por provisionamento automático transformaria
     // "quem tem e-mail do domínio" em "quem administra a plataforma".
@@ -279,7 +282,7 @@ projectsApp.get('/:projectId/export', async (c) => {
     const recusa = (await modulosDoProjeto(c.env.DB, projectId)).map((m) => recusaDaPessoa(m, daPessoa)).find(Boolean);
     if (recusa) return c.json({ error: `${recusa}: a exportação completa inclui os dados dele.` }, 403);
 
-    const conteudo = await exportarProjeto(c.env, projectId, ehEquipeNess(c.get('user')));
+    const conteudo = await exportarProjeto(c.env, projectId, ehEquipeNess(c.get('user')), await podeVerOt(c.env.DB, c.get('user'), projectId));
 
     await logAudit(
       c.env.DB,
@@ -1006,13 +1009,19 @@ projectsApp.post('/:id/migrate-27701', async (c) => {
     }
 
     if (created) await ligarControles(c.env.DB, projectId);
-    await logAudit(c.env.DB, 'migration.27701', c.get('user')?.email ?? 'system', `27701 migration (2013->2022): ${gaps.length} gaps, ${created} new controls, project ${projectId}`, '', '', projectId);
+    // ids grossos do mapa sem linha no catálogo: visíveis, não inventados; decisão de produto pendente (spec onda 2, ruling e)
+    const { results: soltos } = await c.env.DB.prepare(
+      `SELECT id FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27001:2022' AND requisito_id IS NULL ORDER BY id`
+    ).bind(projectId).all<{ id: string }>();
+    const sem_requisito = (soltos || []).map((x) => x.id);
+    await logAudit(c.env.DB, 'migration.27701', c.get('user')?.email ?? 'system', `27701 migration (2013->2022): ${gaps.length} gaps, ${created} new controls, ${sem_requisito.length} sem requisito, project ${projectId}`, '', '', projectId);
 
     return c.json({
       ok: true,
       gaps,
       transformation_ratio: +transformationRatio.toFixed(2),
       new_controls_created: created,
+      sem_requisito,
     });
   } catch (e: any) {
     return erro500(c, 'Falha na migração 27701', e);
@@ -1050,13 +1059,19 @@ projectsApp.post('/:id/migrate-27701-2025', async (c) => {
     }
 
     if (created) await ligarControles(c.env.DB, projectId);
-    await logAudit(c.env.DB, 'migration.27701.2025', c.get('user')?.email ?? 'system', `27701:2025 migration: ${gaps.length} gaps, ${created} new controls, project ${projectId}`, '', '', projectId);
+    // ids grossos do mapa sem linha no catálogo: visíveis, não inventados; decisão de produto pendente (spec onda 2, ruling e)
+    const { results: soltos } = await c.env.DB.prepare(
+      `SELECT id FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27701:2025' AND requisito_id IS NULL ORDER BY id`
+    ).bind(projectId).all<{ id: string }>();
+    const sem_requisito = (soltos || []).map((x) => x.id);
+    await logAudit(c.env.DB, 'migration.27701.2025', c.get('user')?.email ?? 'system', `27701:2025 migration: ${gaps.length} gaps, ${created} new controls, ${sem_requisito.length} sem requisito, project ${projectId}`, '', '', projectId);
 
     return c.json({
       ok: true,
       gaps,
       transformation_ratio: +transformationRatio.toFixed(2),
       new_controls_created: created,
+      sem_requisito,
     });
   } catch (e: any) {
     return erro500(c, 'Falha na migração 27701:2025', e);
@@ -1258,11 +1273,12 @@ projectsApp.get('/:id/audit-pack', async (c) => {
     const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first<any>();
     if (!project) return c.json({ error: 'Project not found' }, 404);
 
+    const veOt = await podeVerOt(c.env.DB, c.get('user'), projectId);
     const [phases, controls, evidence, logs] = await Promise.all([
       c.env.DB.prepare('SELECT * FROM project_phases WHERE project_id = ? ORDER BY phase_number ASC').bind(projectId).all(),
       c.env.DB.prepare('SELECT * FROM compliance_controls WHERE project_id = ?').bind(projectId).all(),
       c.env.DB.prepare('SELECT * FROM evidence WHERE project_id = ?').bind(projectId).all(),
-      c.env.DB.prepare('SELECT * FROM audit_logs WHERE project_id = ? OR (project_id IS NULL AND details LIKE ?) ORDER BY created_at DESC LIMIT 100').bind(projectId, `%${projectId}%`).all()
+      c.env.DB.prepare(`SELECT * FROM audit_logs WHERE (project_id = ? OR (project_id IS NULL AND details LIKE ?))${veOt ? '' : SEM_ACAO_OT} ORDER BY created_at DESC LIMIT 100`).bind(projectId, `%${projectId}%`).all()
     ]);
 
     return c.json({
@@ -1283,8 +1299,9 @@ projectsApp.get('/:id/audit-pack', async (c) => {
 
 projectsApp.get('/:id/audit-trail', async (c) => {
   const projectId = c.req.param('id');
+  const veOt = await podeVerOt(c.env.DB, c.get('user'), projectId);
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM audit_logs WHERE project_id = ? ORDER BY created_at DESC LIMIT 500`
+    `SELECT * FROM audit_logs WHERE project_id = ?${veOt ? '' : SEM_ACAO_OT} ORDER BY created_at DESC LIMIT 500`
   ).bind(projectId).all();
   // IP, navegador, detalhes, justificativa e valores antes/depois (texto livre, às vezes de outras pessoas)
   // só a consultoria vê. Quem não é da equipe recebe quem, o quê e quando.

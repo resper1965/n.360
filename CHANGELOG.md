@@ -12,6 +12,31 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.360, onda 4: jornada comum (spec 2026-11-18)
+- **Monitor saiu do menu do n.iso.** A grade etapa × fase passou para o topo da Jornada ("Fases por etapa"); links antigos para o Monitor abrem a Jornada. "Exportar riscos" continua na tela Riscos. As exportações de fornecedores e treinamentos em CSV, que só o Monitor oferecia, ficam fora da tela por enquanto (a API segue).
+- **Prontidão virou aba da Jornada** ("Prontidão para certificar"). O item Prontidão saiu do menu; avisos, e-mails e links antigos abrem a aba.
+- **Régua comum:** o Painel do n.iso e a linha "Ver situação" do Início mostram as cinco etapas (Começar, Levantar, Avaliar, Tratar, Operar) e o próximo passo de cada módulo (o cliente só lê). Quem tem o n.ot passa a ver o programa "Em operação" desde a primeira base de site aprovada; quem não tem o módulo não vê nada do n.ot. O bloco n.ot do `GET /painel` soma 6 consultas agrupadas ao lote existente (sem consulta por site).
+- **Trilha de implantação do n.privacy na tela:** as 7 etapas (Partida, Encarregado, Inventário, Bases e riscos, Terceiros, Titular e incidentes, Documentos e cobertura), derivadas do cadastro, no Painel do n.privacy e na régua; o agente lê a mesma trilha.
+- **Onboarding encadeado:** ao criar uma organização, "Criar o primeiro projeto" abre o assistente nela; depois de criar o projeto, o assistente convida as pessoas e escolhe os módulos de cada uma (o n.ot nunca vem marcado; organização direta convida só a equipe) e termina no primeiro passo de cada módulo.
+
+### n.360, onda 3: o n.ot aponta para o núcleo (migração 0115, spec 2026-11-17)
+- **Muda para quem já usa:** quem não tem o módulo `ot` (na pessoa e no projeto) deixa de ver as ações `ot.%` no histórico (`audit-trail`), no `audit-pack`, no CSV do log de auditoria e na exportação do projeto. Agente e chave de API também não as recebem.
+- **Referência núcleo → OT:** risco, ação corretiva e incidente podem apontar para um site ou ativo do n.ot (tabela satélite `ot_referencias`, migração 0115; rotas `/ot/referencias`). Bloco "Vínculo com o n.ot" nos detalhes, só para quem tem o `ot`.
+- **Botão "Criar ação corretiva" no desvio:** o desvio vira ação do n.iso (exige o n.iso no projeto; título escrito pela pessoa, sem IP/MAC nem nome de ativo, zona ou site) e passa a `tratado` com a nota "Ação corretiva aberta". Idempotente; o vínculo não se remove.
+- **Quem criou a ação a partir do desvio não a conclui**, nem pela ação do incidente.
+- **Fornecedor de OT:** uma organização fornecedora ativa do cadastro de terceiros pode ser ligada a site e/ou fluxo do n.ot como integrador, fabricante ou acesso remoto (tabela satélite `ot_fornecedores`, migração 0116; rotas `/ot/fornecedores`; tela "Fornecedores" do n.ot). Juntar duas partes move esses vínculos, e a prévia da junção não os mostra.
+- **Perguntas de OT:** 4 perguntas genéricas podem ser criadas no questionário do projeto (exige o n.privacy). Como não têm tipo, aparecem em todo questionário de fornecedor do projeto; decisão do dono em aberto.
+- As migrações 0115 e 0116 foram aplicadas em produção em 18/11/2026 (workflow `db-migrate.yml`, com backup antes).
+
+### Remediação dos gaps das ondas 1 e 2 (2026-11-17)
+- **Organização direta edita a própria identidade:** o `consultoria_admin` da direta vê a tela "Identidade da organização" e edita nome, CNPJ, cor e logo; `GET /org/config` devolve para ele só nome, CNPJ, cor e selo (nunca preço, margem ou prefixo).
+- **SSO, SCIM e transferência recusam a direta:** gerar token SCIM, criar usuário por SCIM, reativar conta por SCIM (`PUT`/`PATCH` com `active: true`; desativar segue valendo) e ligar o SSO dão 403 na direta (desligar o SSO segue permitido); o provisionamento por SSO lança erro e o callback falha fechado com o erro genérico de login federado (não é um 403); transferir para uma direta um projeto com contas de cliente dá 409 (`destino_direta_com_clientes`).
+- **Migrações de 27701:** a resposta de `migrate-27701` e `migrate-27701-2025` ganha `sem_requisito`, a lista dos controles que ficaram sem requisito do catálogo.
+- **Quem pediu ou avaliou não aprova:** quem pediu a base do site (`eu_pedi_a_base`) ou avaliou o item (`eu_avaliei`) não vê mais o botão de aprovar/confirmar.
+- **Plano da direta:** a organização direta nasce com plano `direta`.
+- **Identidade da direta sem vazamento:** `PUT /org/config` do `consultoria_admin` da direta devolve só `nome`, `cnpj`, `corDestaque` e `seloNiso` (como o GET), nunca o modelo de custo da ness; `POST /org/logo` já devolvia só `ok`, `chave` e `tamanho`. O Início do n.ot não lista a base que a própria pessoa pediu nem os itens que ela avaliou entre as esperas por ela.
+- **Produção:** as migrações 0113 e 0114 foram aplicadas em 17/11/2026 (o "Pendente" da onda 2 abaixo está superado); o limite do D1 da prévia foi verificado na documentação (spec da onda 2, ruling (d)).
+
 ### n.360, onda 2: catálogo único de requisitos (migração 0114, spec 2026-11-17)
 - **Catálogo único:** a ONS RO-CB.BR.01 entra em `requisitos` (fonte `ons-ro-cb-br-01`, mesmos ids de `ot_requisitos`, que ganha `requisito_id`); `requisitos` ganha `texto`, `fonte_texto` e `categoria`. `ot_avaliacoes` e `ot_requisito_evidencias` continuam como estão.
 - **Situação única derivada, sem regravar nada:** `Planned` vale `nao_atende`; o item técnico do n.ot nunca vale `atende`. Rota nova de leitura `GET /projects/:projectId/requisitos-situacao` (n.iso exige o módulo `iso` na pessoa e no projeto; n.ot exige `ot`).
@@ -21,7 +46,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Muda para quem já usa:** `migrate-27701` e `migrate-27701-2025` passam a ligar os controles aos requisitos (`ligarControles`).
 - **Indicador:** `indicador` do n.iso não muda; o detalhe por norma vem ao lado, em `indicador_por_norma`.
 - **Texto normativo só onde a licença permite:** `PUT /requisitos/:id` aceita `texto` com `fonte_texto` (só `platform_admin`); ISO recusa (400, texto protegido por licença); a trilha registra só "texto atualizado (N caracteres)". `GET /requisitos` e `GET /requisitos/:id` devolvem `texto`, `fonte_texto` e `categoria`, sempre nulos para ISO.
-- **Pendente:** a migração 0114 ainda não foi aplicada em produção; rodar antes `scripts/sonda-onda2.sql` (só leitura).
+- ~~Pendente: a migração 0114 ainda não foi aplicada em produção.~~ Aplicada em 17/11/2026 (`migrations/README.md`).
 
 ### n.360, onda 1: organização direta (spec 2026-11-16)
 - **Organização direta** (migração 0113, `organizations.tipo`): a empresa que usa o n.360 por conta própria. O administrador dela (`consultoria_admin`) exerce, no projeto da própria organização, os atos que eram só do `org_admin`: Gestor ARCiber do n.ot (se constar no cargo), ver IP/MAC, painel e avisos do n.ot, assinatura e revogação de aprovação, titular. Sem área comercial e sem conta de cliente; agente e chave de API não passam. O tipo é lido do banco e nunca muda.
@@ -30,7 +55,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Minhas aprovações** e `decisoes` do painel não listam mais o pedido que a própria pessoa criou.
 - **Esperando a sua decisão:** `decisoes` também vai à equipe que é destinatária de pedido.
 - **Consultorias → Organizações** no menu e nas telas; criação com Tipo (Consultoria/Direta) e Módulos contratados; lista com coluna Tipo. `GET /auth/me` devolve `org_tipo`; `GET /platform/orgs` devolve `tipo`. Na direta somem Comercial, Levantamentos, Preços e margens e Identidade.
-- **Pendente:** a migração 0113 ainda não foi aplicada em produção.
+- **Migração 0113 aplicada em produção em 17/11/2026** (junto com a 0114, run `44149022784`).
 
 ### n.360: o Início é a lista dos projetos e ninguém é redirecionado na entrada
 - **Início sem projeto ativo:** lista dos projetos com "Ver situação" (abre na linha e não muda o projeto) e "Abrir no n.x" (entrar é só por clique). O seletor mostra "Nenhum projeto escolhido"; a alternância Projeto/Carteira saiu. O cliente vê o projeto dele já aberto.

@@ -97,7 +97,8 @@ function corpoPolitica(i) {
         ${editar ? `<div class="form-group"><label class="form-label" for="ass-arq">Arquivo</label><input class="form-input" type="file" id="ass-arq"></div><button class="btn" data-action="otAssAnexar" data-args='${args(i.codigo)}'>Anexar arquivo</button>` : ''}`;
     const subsidio = `<h4>Subsídio do levantamento</h4>${sub.length ? `<ul>${sub.map((s) => `<li>${escapeHTML(s.site_nome)}: ${escapeHTML(s.pergunta)}: <strong>${escapeHTML(RESPOSTA[s.resposta] || String(s.resposta))}</strong> (${escapeHTML(formatarData(s.realizado_em))}) <button class="btn btn-sm" data-action="otAssIrLevantamento" data-args='${args(s.site_id, s.levantamento_id)}'>Ver levantamento</button></li>`).join('')}</ul>` : '<p class="org-dica">Sem respostas do roteiro para este item.</p>'}`;
     const confirmacao = av.situacao && av.confirmado ? `<p class="org-dica">Confirmado por ${escapeHTML(av.confirmado_por_nome || '—')} em ${escapeHTML(formatarData(av.confirmado_em))}.</p>` : '';
-    const confirmar_ = ehGestor() && av.situacao && !av.confirmado ? `<button class="btn" data-action="otAssConfirmar" data-args='${args(i.codigo)}'>Confirmar</button>` : '';
+    const confirmar_ = ehGestor() && av.situacao && !av.confirmado
+        ? (av.eu_avaliei ? '<p class="org-dica">Quem avaliou o item não o confirma: peça a outra pessoa.</p>' : `<button class="btn" data-action="otAssConfirmar" data-args='${args(i.codigo)}'>Confirmar</button>`) : '';
     return `${form}${confirmacao}${confirmar_}${evidencias}${subsidio}`;
 }
 window.otAssIrLevantamento = (site, lev) => { closeModal(); window.otTela('site', site, 'projeto', { otSub: 'levantamento', otLevantamento: lev }); };

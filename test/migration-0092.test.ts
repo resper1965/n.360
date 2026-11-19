@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { execSql, applySchema, seedTwoProjects } from './helpers/d1';
 import migration0092 from '../migrations/0092_ot_coleta.sql?raw';
+
+// Reconstrói o esquema (DROP + applySchema): numa máquina lenta/carregada passa fácil de 5 s.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 const C = 'ot1:k1:aXY=:Y3Q=';
 const lote = (id: string, c: Record<string, unknown> = {}) => {

@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { execSql, applySchema } from './helpers/d1';
 import migration0089 from '../migrations/0089_modulo_ot.sql?raw';
+
+// Reconstrói o esquema (DROP + applySchema): numa máquina lenta/carregada passa fácil de 5 s.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 // O banco de antes da 0089: as duas tabelas com o CHECK de dois módulos e os gatilhos da 0060 e da 0066.
 const ANTERIOR = `

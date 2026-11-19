@@ -1,12 +1,12 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, genId, logAudit } from '../helpers';
+import { erro500, genId, logAudit, refForaDoProjeto } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema, otReferenciaCriarSchema, otDesvioAcaoSchema, otFornecedorCriarSchema,
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
@@ -17,6 +17,12 @@ import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
+import { apagarFornecedor, criarFornecedor, lerFornecedores } from '../services/ot-fornecedores';
+import { apagarReferencia, ehVinculoDoDesvio, MSG_VINCULO_DO_DESVIO, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
+import { criarAcaoDoDesvio, citaNomeOt, MSG_NOME_OT } from '../services/ot-desvio-acao';
+import { MSG_RESPONSAVEL, temResponsavel } from './capa';
+import { modulosDoProjeto, recusaDoModulo } from '../modulos';
+import { semearPerguntasOt } from '../services/fornecedor-modelos';
 import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
@@ -749,7 +755,7 @@ const respostaAvaliacao = (c: C, r: { ok: true } | { ok: false; status: 400 | 40
 otApp.get('/assessment', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
-    return c.json(await montarAssessment(db, projectId, JSON.parse(sites)));
+    return c.json(await montarAssessment(db, projectId, JSON.parse(sites), user.id));
   } catch (e) { return erro500(c, 'Falha ao montar o assessment', e); }
 });
 
@@ -984,8 +990,8 @@ otApp.delete('/sensores/:id', async (c) => {
 // ─── base do site (spec fluidez §3 e §6) ────────────────────────────────────
 otApp.get('/sites/:id/situacao', async (c) => {
   try {
-    const { db, projectId, sites } = await contexto(c);
-    const s = daLista(sites, c.req.param('id')) ? await situacaoDoSite(db, projectId, c.req.param('id')) : null;
+    const { db, user, projectId, sites } = await contexto(c);
+    const s = daLista(sites, c.req.param('id')) ? await situacaoDoSite(db, projectId, c.req.param('id'), user.id) : null;
     return s ? c.json(s) : NAO_ENCONTRADO(c, 'Site');
   } catch (e) { return erro500(c, 'Falha ao ler a situação do site', e); }
 });
@@ -1103,6 +1109,11 @@ otApp.get('/desvios', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao listar os desvios', e); }
 });
 
+/** Aviso antes da trilha: o UPDATE já gravou, e uma falha da trilha não pode levar o webhook junto.
+ * O getter `c.executionCtx` lança sem contexto (app.request, testes): aí o aviso é solto, sem waitUntil. */
+const avisarFechado = (c: C, projectId: string, linha: LinhaDesvio) =>
+  avisar(c.env, { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } }, projectId, [linha], 'fechado');
+
 /** aberto → tratado/aceito, com trilha e webhook `fechado` (como o lote aprovado). Guarda na situação: outro clique não sobrescreve. */
 async function fecharDesvio(c: C, situacao: 'tratado' | 'aceito', nota: string, aceitoAte: string | null) {
   const { db, user, projectId, sites } = await contexto(c);
@@ -1113,9 +1124,7 @@ async function fecharDesvio(c: C, situacao: 'tratado' | 'aceito', nota: string, 
     const existe = await db.prepare(`SELECT 1 FROM ot_desvios WHERE id = ? AND project_id = ? AND ${NO_SITE}`).bind(id, projectId, sites).first();
     return existe ? c.json({ error: 'Só desvio aberto pode ser tratado ou aceito' }, 409) : NAO_ENCONTRADO(c, 'Desvio');
   }
-  // aviso antes da trilha: o UPDATE já gravou, e uma falha da trilha não pode levar o webhook junto
-  // o getter `c.executionCtx` lança sem contexto (app.request, testes): aí o aviso é solto, sem waitUntil
-  avisar(c.env, { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } }, projectId, [linha], 'fechado');
+  avisarFechado(c, projectId, linha);
   await trilha(c, `ot.desvio.${situacao}`, projectId, `Desvio ${id} ${situacao}`, { tipo: 'ot_desvio', id });
   return c.json({ ok: true });
 }
@@ -1128,6 +1137,35 @@ otApp.post('/desvios/:id/tratar', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao tratar o desvio', e); }
 });
 
+// Ação corretiva do núcleo a partir do desvio. O título é lido por quem não tem o ot: o servidor nunca o preenche com dado do desvio.
+otApp.post('/desvios/:id/acao', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const id = c.req.param('id')!;
+    const v = await validateBody(c, otDesvioAcaoSchema);
+    if (!v.success) return v.response;
+    const d = v.data;
+    if (!temResponsavel(d.assigned_to_parte_id, d.assigned_to)) return c.json({ error: MSG_RESPONSAVEL }, 400);
+    if (!(await modulosDoProjeto(db, projectId)).includes('iso')) return c.json({ error: 'Habilite o n.iso no projeto para criar ações corretivas.' }, 409);
+    if (!await db.prepare(`SELECT 1 FROM ot_desvios WHERE id = ? AND project_id = ? AND ${NO_SITE}`).bind(id, projectId, sites).first()) return NAO_ENCONTRADO(c, 'Desvio');
+    const ref = await db.prepare(`SELECT acao_id FROM ot_referencias WHERE ot_desvio_id = ?`).bind(id).first<{ acao_id: string | null }>();
+    if (ref) return ref.acao_id ? c.json({ ok: true, acao_id: ref.acao_id, ja_existia: true }) : c.json({ error: 'Este desvio já está ligado a outro item.' }, 409);
+    const situacao = await db.prepare(`SELECT situacao FROM ot_desvios WHERE id = ?`).bind(id).first<{ situacao: string }>();
+    if (situacao?.situacao !== 'aberto') return c.json({ error: 'Só desvio aberto vira ação corretiva' }, 409);
+    const fora = await refForaDoProjeto(db, projectId, d, ['assigned_to_parte_id']);
+    if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
+    if (await citaNomeOt(db, projectId, d.titulo, d.descricao)) return c.json({ error: MSG_NOME_OT }, 400);
+    const r = await criarAcaoDoDesvio(db, projectId, id, sites, user.id, d);
+    if (!r) { // perdeu a corrida: quem ganhou já criou a ação (ou o desvio saiu de aberto)
+      const g = await db.prepare(`SELECT acao_id FROM ot_referencias WHERE ot_desvio_id = ?`).bind(id).first<{ acao_id: string | null }>();
+      return g?.acao_id ? c.json({ ok: true, acao_id: g.acao_id, ja_existia: true }) : c.json({ error: 'Só desvio aberto vira ação corretiva' }, 409);
+    }
+    avisarFechado(c, projectId, r.desvio);
+    await trilha(c, 'ot.desvio.acao', projectId, 'Ação corretiva aberta a partir do desvio', { tipo: 'ot_desvio', id });
+    return c.json({ ok: true, acao_id: r.acaoId, ja_existia: false }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a ação corretiva', e); }
+});
+
 otApp.post('/desvios/:id/aceitar', async (c) => {
   try {
     if (!(await ehGestorArciber(c, c.req.param('projectId')!))) return c.json({ error: 'Forbidden: só o Gestor ARCiber aceita um desvio' }, 403);
@@ -1135,4 +1173,89 @@ otApp.post('/desvios/:id/aceitar', async (c) => {
     if (!v.success) return v.response;
     return await fecharDesvio(c, 'aceito', v.data.justificativa, `${v.data.ate}T23:59:59.999Z`);
   } catch (e) { return erro500(c, 'Falha ao aceitar o desvio', e); }
+});
+
+// ─── referências núcleo → OT (0115) ─────────────────────────────────────────
+// Escrita: o guarda `otApp.on([POST,PUT,PATCH,DELETE])` do topo já exige podeEditarOt (técnico: 403).
+// Satélite: o núcleo não lê esta tabela. Leitura e escrita sempre com `sites` (P0-4); a trilha leva só o id.
+const ALVOS_NUCLEO = [['risk_id', 'risk'], ['acao_id', 'acao'], ['incidente_id', 'incidente']] as const;
+
+otApp.get('/referencias', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const q = c.req.query();
+    const nucleo = ALVOS_NUCLEO.flatMap(([k, tipo]) => (q[k] ? [{ tipo, id: q[k] } as AlvoNucleo] : []));
+    if (nucleo.length > 1) return c.json({ error: 'Filtre por um só item do núcleo' }, 400);
+    const referencias = await lerReferencias(db, projectId, { nucleo: nucleo[0], ot_site_id: q.ot_site_id, ot_ativo_id: q.ot_ativo_id }, sites);
+    return c.json({ referencias });
+  } catch (e) { return erro500(c, 'Falha ao listar as referências', e); }
+});
+
+otApp.post('/referencias', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otReferenciaCriarSchema);
+    if (!v.success) return v.response;
+    const [k, tipo] = ALVOS_NUCLEO.find(([k]) => v.data[k])!;
+    const r = await criarReferencia(db, projectId, { tipo, id: v.data[k]! }, { ot_site_id: v.data.ot_site_id, ot_ativo_id: v.data.ot_ativo_id }, user.id, sites);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await trilha(c, 'ot.referencia.criada', projectId, 'Referência criada', { tipo: 'ot_referencia', id: r.id });
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a referência', e); }
+});
+
+otApp.delete('/referencias/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const id = c.req.param('id');
+    if (!await apagarReferencia(db, projectId, id, sites)) return await ehVinculoDoDesvio(db, projectId, id, sites) ? c.json({ error: MSG_VINCULO_DO_DESVIO }, 409) : NAO_ENCONTRADO(c, 'Referência');
+    await trilha(c, 'ot.referencia.removida', projectId, 'Referência removida', { tipo: 'ot_referencia', id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao remover a referência', e); }
+});
+
+// ─── fornecedor de OT (0116) ────────────────────────────────────────────────
+// Satélite: a parte segue no cadastro comum, sem campo de OT. Escrita: guarda do topo (podeEditarOt). Leitura, escrita e DELETE sempre com `sites`.
+otApp.get('/fornecedores', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const q = c.req.query();
+    return c.json({ fornecedores: await lerFornecedores(db, projectId, sites, { ot_site_id: q.ot_site_id, parte_id: q.parte_id }) });
+  } catch (e) { return erro500(c, 'Falha ao listar os fornecedores de OT', e); }
+});
+
+otApp.post('/fornecedores', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otFornecedorCriarSchema);
+    if (!v.success) return v.response;
+    const r = await criarFornecedor(db, projectId, v.data, user.id, sites);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    if (r.criado) await trilha(c, 'ot.fornecedor.criado', projectId, 'Fornecedor de OT criado', { tipo: 'ot_fornecedor', id: r.id });
+    return c.json({ ok: true, id: r.id }, r.criado ? 201 : 200);
+  } catch (e) { return erro500(c, 'Falha ao criar o fornecedor de OT', e); }
+});
+
+// Perguntas de OT no questionário do projeto. A avaliação de terceiro é da faixa privacy: sem o módulo (projeto ou pessoa), o mesmo 403 dela e nenhuma linha.
+otApp.post('/fornecedores/:id/perguntas-padrao', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const recusa = await recusaDoModulo(db, user, projectId, 'privacy');
+    if (recusa) return c.json({ error: recusa }, 403);
+    const id = c.req.param('id');
+    if (!(await lerFornecedores(db, projectId, sites, {})).some((f) => f.id === id)) return NAO_ENCONTRADO(c, 'Fornecedor de OT');
+    const criadas = await semearPerguntasOt(db, projectId);
+    if (criadas) await trilha(c, 'ot.fornecedor.perguntas', projectId, 'Perguntas de OT no questionário do projeto', { tipo: 'ot_fornecedor', id });
+    return c.json({ ok: true, criadas });
+  } catch (e) { return erro500(c, 'Falha ao criar as perguntas de OT', e); }
+});
+
+otApp.delete('/fornecedores/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const id = c.req.param('id');
+    if (!await apagarFornecedor(db, projectId, id, sites)) return NAO_ENCONTRADO(c, 'Fornecedor de OT');
+    await trilha(c, 'ot.fornecedor.removido', projectId, 'Fornecedor de OT removido', { tipo: 'ot_fornecedor', id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao remover o fornecedor de OT', e); }
 });

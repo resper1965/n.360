@@ -31,7 +31,7 @@ describe('casca do n.ot', () => {
     it('no /ot o menu tem só os itens do n.ot; a marca é n.ot em minúsculas, com o ponto em accent', () => {
         montarApp();
         aplicarCasca('ot');
-        expect(visiveis()).toEqual(['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos']);
+        expect(visiveis()).toEqual(['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos']);
         expect(document.title).toMatch(/^n\.ot \| ness\./);
         expect(el('sidebar-logo-mark').textContent).toBe('n.ot');
         expect(el('sidebar-logo-mark').innerHTML).toContain('var(--accent)');

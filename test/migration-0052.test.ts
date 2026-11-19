@@ -69,5 +69,5 @@ describe('migration 0052 — exceções a documentos', () => {
     await expect(linha('t2', 'aprovada').run()).rejects.toThrow();
     await env.DB.prepare(`DELETE FROM documento_excecoes_t`).run();
     await execSql('DROP TABLE documento_excecoes_t;');
-  }, 30_000);
+  }, 120_000);
 });

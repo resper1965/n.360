@@ -73,6 +73,19 @@ describe('pendenciasDoPapel', () => {
     });
 });
 
+describe('pendenciasDoPapel: o que a pessoa mesma pediu ou avaliou não espera por ela', () => {
+    const papel = { id: 'u1', podeAprovar: false, podeEditar: true, gestor: true };
+    it('base pedida por mim não aparece; a de outra pessoa sim', () => {
+        const mk = (eu) => pendenciasDoPapel({ ...base, sites: { s1: 'SE X' }, situacoes: { s1: { proximo_passo: 'aguardar_base', eu_pedi_a_base: eu } } }, papel).filter((x) => x.tipo === 'base');
+        expect(mk(true)).toEqual([]);
+        expect(mk(false)).toHaveLength(1);
+    });
+    it('item que eu avaliei sai da contagem de itens para confirmar', () => {
+        const assessment = { resumo: { a_confirmar: 2, revisar: 0 }, itens: [{ tipo: 'politica', avaliacao: { situacao: 'atende', eu_avaliei: true } }, { tipo: 'politica', avaliacao: { situacao: 'atende', eu_avaliei: false } }] };
+        expect(pendenciasDoPapel({ ...base, assessment }, papel).map((x) => x.texto)).toEqual(['1 item do assessment para confirmar']);
+    });
+});
+
 describe('montarInicio', () => {
     const B = '/api/v1/projects/p9/ot';
     const ORIGEM = {

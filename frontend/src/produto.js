@@ -21,7 +21,7 @@ export const PRODUTOS = {
 const MODULOS = ['iso', 'privacy', 'ot'];
 
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
-export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
+export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-questionarios-fornecedor', 'nav-titulares', 'nav-dados-titular',
@@ -30,7 +30,7 @@ export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 
  * O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`). `nav-ot` não é mais item de menu (o n.ot abre
  * pelo "Abrir no n.ot" da linha do projeto no Início), mas fica aqui: é o que diz que a tela `ot` é do n.ot (`produtoDaTela`).
  */
-export const SO_OT = ['nav-ot', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos'];
+export const SO_OT = ['nav-ot', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -121,19 +121,28 @@ export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${p
 
 /** Para onde um aviso leva: a tela, ou o caminho do módulo quando a tela é só de outro. No n.360 navega: o router leva ao módulo. */
 export function destinoDoAviso(tela, loc = window.location) {
-    const dono = produtoDaTela(tela);
+    // Tela que saiu do menu (alias): o dono é o da tela que a substitui (o n.iso), e o endereço leva o nome antigo para a aba certa.
+    const alias = aliasDaTela(tela);
+    const dono = alias ? moduloDaTela(alias.tela) : produtoDaTela(tela);
     const aqui = produtoAtual(loc);
-    return dono && aqui !== 'n360' && dono !== aqui ? { href: enderecoDoProduto(dono) } : { navegar: tela };
+    return dono && aqui !== 'n360' && dono !== aqui ? { href: enderecoDoProduto(dono) + (alias ? `?tela=${encodeURIComponent(tela)}` : '') } : { navegar: tela };
 }
 
 /**
  * Telas dos módulos (as que o render desenha fora do hub): a lista fechada do `?tela=` com que o n.360 abre um módulo na tela
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
-export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
+export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'assets', 'metrics', 'acknowledgments',
     'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'lia-ficha', 'incidente-ficha', 'avaliacoes-terceiros', 'questionarios-fornecedor', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
-    'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
+    'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review', 'ot'];
+/**
+ * Telas que saíram do menu e seguem valendo como endereço (link salvo, e-mail, aviso, `?tela=`): a tela que as substitui e, se
+ * houver, a aba dela. Nunca 404 nem tela em branco (o `render` não desenha nada para tela sem ramo). Lista fechada;
+ * `Object.hasOwn` barra `__proto__`/`constructor`.
+ */
+export const ALIAS_DE_TELA = { monitor: { tela: 'project-detail' }, certification: { tela: 'project-detail', jornadaAba: 'prontidao' } };
+export const aliasDaTela = (tela) => (typeof tela === 'string' && Object.hasOwn(ALIAS_DE_TELA, tela) ? ALIAS_DE_TELA[tela] : null);
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
 const CHAVE_AVISO = 'n360_aviso';
 // O filtro do painel (filtro-painel.js) que acompanha a tela: só a chave da lista fechada, no storage e não no endereço.
@@ -173,7 +182,7 @@ export function enderecoNoModulo(modulo, tela, proj) {
 
 /** O passo ou a fase da Bancada que o n.360 leva ao módulo (`&fase=3&passo=p3_3`); só na tela da jornada. */
 function alvoNoEndereco(tela) {
-    const alvo = tela === 'project-detail' ? S.bancadaAlvo : null;
+    const alvo = (tela === 'project-detail' || (aliasDaTela(tela) || {}).tela === 'project-detail') ? S.bancadaAlvo : null;
     if (!alvo) return '';
     const par = (k, v) => (v !== undefined && v !== null && v !== '' ? `&${k}=${encodeURIComponent(v)}` : '');
     return `${par('fase', alvo.fase)}${par('passo', alvo.passo)}`;
@@ -218,8 +227,10 @@ export function pedidoDoHub(loc = window.location) {
     const resto = q.toString();
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
     if (aviso) return { aviso };
-    const dono = moduloDaTela(tela);
-    return TELAS_DOS_MODULOS.includes(tela) && (dono === null || dono === produto || aba) ? { tela, aba, ...(filtro && filtro.tela === tela ? { filtro } : {}) } : null;
+    // Tela que saiu (alias) vale pelo destino; devolve o nome pedido: o navigate resolve o alias (e a aba, quando há).
+    const real = aliasDaTela(tela)?.tela ?? tela;
+    const dono = moduloDaTela(real);
+    return TELAS_DOS_MODULOS.includes(real) && (dono === null || dono === produto || aba) ? { tela, aba, ...(filtro && filtro.tela === tela ? { filtro } : {}) } : null;
 }
 
 const rotuloDoGrupo = (doc, grupo) => doc.querySelector(`.sidebar-label[data-args='["${grupo}"]']`);
@@ -452,7 +463,7 @@ export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos 
 /** Os itens do menu do n.ot: só dentro do /ot, com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
 export function atualizarItemOt(doc = document) {
     const dentro = produtoAtual() === 'ot' && !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
-    for (const id of ['secao-ot-organizacao', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro; }
+    for (const id of ['secao-ot-organizacao', 'nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro; }
     const ac = doc.getElementById('nav-ot-acessos');
     if (ac) ac.hidden = !(dentro && podeEditarOt());
 }

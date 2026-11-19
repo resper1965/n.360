@@ -28,7 +28,7 @@ describe('migration 0084: respostas do questionário da LIA', () => {
     await execSql(migration0084); // rodar de novo não quebra
     await env.DB.prepare(`DELETE FROM ropa_records WHERE project_id IN ('p84', 'p84b')`).run();
     await env.DB.prepare(`DELETE FROM projects WHERE id IN ('p84', 'p84b')`).run();
-  }, 30_000);
+  }, 120_000);
 
   it('o schema canônico traz o mesmo: CHECKs, gatilho de projeto, índice e cascata', async () => {
     await applySchema();

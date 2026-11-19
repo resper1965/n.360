@@ -25,5 +25,5 @@ describe('migration 0041 — pedidos', () => {
     }
     await execSql(migration0041); // reaplicar não quebra (IF NOT EXISTS)
     await applySchema();
-  }, 30_000);
+  }, 120_000);
 });

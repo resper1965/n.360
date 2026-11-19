@@ -3,6 +3,7 @@ import { log } from './observability';
 import type { Bindings } from './index';
 import { PAPEIS_SSO } from './schemas/auth';
 import { isValidWebhookUrl } from './routes/integrations';
+import { tipoDoProjeto, MSG_DIRETA_SEM_CLIENTE } from './services/organizacao';
 
 /**
  * SSO por OIDC, por tenant (item 4.1 do `enterprise-grade-plan.md`).
@@ -355,6 +356,8 @@ export async function provisionar(
   cfg: ConfigSso,
   claims: Claims
 ): Promise<Provisionado> {
+  // Defesa em profundidade: config antiga numa direta também para, antes de qualquer insert.
+  if (await tipoDoProjeto(env.DB, cfg.project_id) === 'direta') throw new Error(MSG_DIRETA_SEM_CLIENTE.error);
   const email = claims.email!.toLowerCase().trim();
 
   const existente = await env.DB.prepare(

@@ -100,7 +100,7 @@ describe('projetos do produto', () => {
 describe('casca', () => {
     it('casca ot: menu com Início, Sites e a seção Organização; fora do n.ot, nada disso aparece', () => {
         montarApp();
-        const ids = ['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-acessos'];
+        const ids = ['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
         aplicarCasca('ot');
         for (const id of ids) expect(el(id).dataset.foraDoProduto, id).toBeUndefined();
         expect(el('secao-ot-organizacao').classList.contains('sidebar-secao')).toBe(true);
@@ -305,6 +305,22 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
 });
 
 describe('pedidoDoHub (?tela= e aviso no boot do módulo)', () => {
+    it('?tela=certification (aviso, e-mail) é aceito no n.iso e mantém o nome: o navigate abre a aba', () => {
+        ir('/iso?tela=certification');
+        expect(pedidoDoHub()).toEqual({ tela: 'certification', aba: null });
+    });
+    it('tela que saiu (?tela=monitor) é aceita no módulo dela e mantém o nome antigo: o navigate resolve o alias', () => {
+        ir('/iso?tela=monitor');
+        expect(pedidoDoHub()).toEqual({ tela: 'monitor', aba: null });
+        expect(location.search).toBe('');
+        ir('/privacy?tela=monitor');
+        expect(pedidoDoHub()).toBeNull();
+    });
+    it('alias é lista fechada: __proto__ e constructor não passam', async () => {
+        const { aliasDaTela } = await import('../src/produto.js');
+        expect(aliasDaTela('monitor')).toEqual({ tela: 'project-detail' });
+        for (const t of ['__proto__', 'constructor', 'toString', '', undefined]) expect(aliasDaTela(t), String(t)).toBeNull();
+    });
     it('toda tela da lista fechada tem ramo no render e nenhuma é do hub', () => {
         for (const t of TELAS_DOS_MODULOS) {
             expect(fonteRouter, t).toContain(`S.view === '${t}'`);

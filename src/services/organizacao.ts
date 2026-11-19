@@ -226,3 +226,11 @@ export async function adminDireto(
   return !!await db.prepare(`SELECT 1 FROM organizations o JOIN projects p ON p.org_id = o.id
     WHERE o.id = ? AND p.id = ? AND o.tipo = 'direta' AND o.status = 'Active'`).bind(org, projectId).first();
 }
+
+/** Tipo da organização dona do projeto; `null` se o projeto não existe. */
+export async function tipoDoProjeto(db: D1Database, projectId: string): Promise<TipoOrg | null> {
+  const r = await db.prepare('SELECT o.tipo AS tipo FROM projects p JOIN organizations o ON o.id = p.org_id WHERE p.id = ?')
+    .bind(projectId).first<{ tipo: TipoOrg }>();
+  return r?.tipo ?? null;
+}
+export const MSG_DIRETA_SEM_CLIENTE = { error: 'A organização direta não tem conta de cliente: SSO e SCIM não se aplicam.' } as const;

@@ -43,6 +43,14 @@ describe('produtoDaTela e destinoDoAviso', () => {
         expect(destinoDoAviso('documentos', loc)).toEqual({ navegar: 'documentos' });
         expect(destinoDoAviso('terceiros', loc)).toEqual({ navegar: 'terceiros' });
     });
+    it('aviso de tela que virou alias (certification, monitor) vai ao n.iso, com o nome antigo para a aba; dentro do n.iso, navega', () => {
+        const em = (pathname) => ({ hostname: 'n360.ness.com.br', pathname, search: '', origin: 'https://n360.ness.com.br' });
+        for (const aqui of ['/privacy', '/ot']) {
+            expect(destinoDoAviso('certification', em(aqui))).toEqual({ href: '/iso?tela=certification' });
+            expect(destinoDoAviso('monitor', em(aqui))).toEqual({ href: '/iso?tela=monitor' });
+        }
+        expect(destinoDoAviso('certification', em('/iso'))).toEqual({ navegar: 'certification' });
+    });
 });
 
 describe('RoPA', () => {
