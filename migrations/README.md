@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0116** (`ls migrations/*.sql | tail -1`). São 117 arquivos
+- Última migration no repositório: **0117** (`ls migrations/*.sql | tail -1`). São 118 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -777,6 +777,10 @@ $ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1
 $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
+
+## 0117 — canal do titular (2026-11-19)
+
+Cria `titular_canal` (uma linha por projeto: `id`, `project_id` UNIQUE com CASCADE, `email`, `telefone`, `formulario_url` e `divulgacao_url` com CHECK de tamanho, `responsavel_parte_id` com SET NULL, `conferido_em`, `conferido_por`, `atualizado_por`, `updated_at`). Aditiva e repetível; sem índice além do UNIQUE. Spec `2026-11-19-canal-do-titular-design`. **Status: PENDENTE de aplicar.** Quem aplica é o dono, com backup antes (`npm run db:backup`): ou `npx wrangler d1 migrations apply niso-db --remote` antes do merge do PR1 do canal, ou o workflow manual `db-migrate.yml` logo depois do merge (o deploy do merge recusa sozinho com a migration pendente) e então *Deploy*. Conferir: `PRAGMA table_info(titular_canal)` mostra 11 colunas e `SELECT name FROM d1_migrations WHERE name = '0117_titular_canal.sql'` devolve 1 linha. Só troque este status para APLICADA com essa evidência medida, num commit separado.
 
 ## 0116 — fornecedor de OT (2026-11-17)
 

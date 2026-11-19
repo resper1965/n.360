@@ -15,6 +15,7 @@ describe('migration 0039 — envio, aceite e contrato', () => {
       CREATE TABLE propostas (id TEXT PRIMARY KEY, org_id TEXT NOT NULL, cliente TEXT NOT NULL, criada_por TEXT NOT NULL);
       DROP TABLE IF EXISTS contracts;
       CREATE TABLE contracts (id TEXT PRIMARY KEY, proposal_id TEXT, org_id TEXT NOT NULL DEFAULT 'org_ness');
+      DROP TABLE IF EXISTS titular_canal;
       DROP TABLE IF EXISTS projects;
       CREATE TABLE projects (id TEXT PRIMARY KEY, client_name TEXT NOT NULL);
     `);

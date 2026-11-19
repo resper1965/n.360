@@ -56,7 +56,7 @@ import { pontoDePartidaApp } from './routes/ponto-de-partida';
 import { painelApp, carteiraApp } from './routes/painel';
 import { similaresApp } from './routes/similares';
 import { empresaApp } from './routes/empresa';
-import { parametrosLegaisApp, titularPedidosApp, titularPortalApp, incidentesApp, consentimentosApp } from './routes/titular';
+import { parametrosLegaisApp, titularPedidosApp, titularPortalApp, titularCanalApp, incidentesApp, consentimentosApp } from './routes/titular';
 import { publicTitularApp } from './routes/public-titular';
 import { agentesApp } from './routes/agentes';
 import { auditorApp } from './routes/auditor';
@@ -512,6 +512,7 @@ app.route('/api/v1/projects/:projectId/empresa', empresaApp);
 app.route('/api/v1/parametros-legais', parametrosLegaisApp);
 app.route('/api/v1/projects/:projectId/titular-pedidos', titularPedidosApp);
 app.route('/api/v1/projects/:projectId/titular-portal', titularPortalApp);
+app.route('/api/v1/projects/:projectId/titular-canal', titularCanalApp);
 app.route('/api/v1/projects/:projectId/incidentes', incidentesApp);
 app.route('/api/v1/projects/:projectId/consentimentos', consentimentosApp);
 
