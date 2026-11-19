@@ -156,6 +156,28 @@ describe('3) PATCH grava notas de avaliação', () => {
     expect((await evidencia('ev-acme-a61'))!.evaluation_status).not.toBe('conforming');
   });
 
+  it('evidência assinada: mudar o status é 409 e nada muda; as notas seguem editáveis', async () => {
+    await inserirEvidencia('ev-acme-a61', { ciso_approved_by: 'Líder', evaluation_status: 'conforming' });
+    const url = `/api/v1/projects/${P}/evidence/ev-acme-a61`;
+    const r1 = await chamar(url, { method: 'PATCH', headers: json(consultor), body: JSON.stringify({ evaluation_notes: 'x', evaluation_status: 'partial' }) });
+    expect(r1.status).toBe(409);
+    const ev = await evidencia('ev-acme-a61');
+    expect(ev!.evaluation_status).toBe('conforming');
+    expect(ev!.evaluation_notes).toBeNull();
+    const r2 = await chamar(url, { method: 'PATCH', headers: json(consultor), body: JSON.stringify({ evaluation_notes: 'só nota' }) });
+    expect(r2.status).toBe(200);
+    expect((await evidencia('ev-acme-a61'))!.evaluation_notes).toBe('só nota');
+    expect((await evidencia('ev-acme-a61'))!.evaluation_status).toBe('conforming');
+  });
+
+  it('DELETE registra os ids dos itens de checklist desvinculados', async () => {
+    await inserirEvidencia('ev-acme-a61', { control_id: null });
+    await env.DB.prepare(`INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, evidence_id) VALUES ('cp-x', ?, 2, 'p2_9', 1, 'ev-acme-a61')`).bind(P).run();
+    expect((await chamar('/api/v1/evidence/ev-acme-a61', { method: 'DELETE', headers: consultor })).status).toBe(200);
+    const log = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'evidence.deleted' ORDER BY created_at DESC`).first<any>();
+    expect(log.details).toContain('p2_9');
+  });
+
   it('papel só-leitura (org_user) não altera avaliação (403)', async () => {
     await inserirEvidencia('ev-acme-a61');
     const res = await chamar(`/api/v1/projects/${P}/evidence/ev-acme-a61`, { method: 'PATCH', headers: json(cliente), body: JSON.stringify({ evaluation_notes: 'tentativa' }) });

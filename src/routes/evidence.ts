@@ -138,6 +138,7 @@ evidenceApp.delete('/:id', async (c) => {
     // MESMA transação (`db.batch`). As outras FKs para `evidence`
     // (evidencia_requisitos, ot_requisito_evidencias) são ON DELETE CASCADE.
     // Falha do R2 depois disso vira objeto órfão — vai ao log, não desfaz a exclusão.
+    const soltos = (await c.env.DB.prepare('SELECT item_id FROM checklist_progress WHERE evidence_id = ?').bind(id).all<{ item_id: string }>()).results.map((x) => x.item_id);
     const r = await c.env.DB.batch([
       c.env.DB.prepare('UPDATE checklist_progress SET evidence_id = NULL WHERE evidence_id = ?').bind(id),
       c.env.DB.prepare('DELETE FROM evidence WHERE id = ?').bind(id),
@@ -146,7 +147,7 @@ evidenceApp.delete('/:id', async (c) => {
     if (ev.r2_key) {
       await c.env.STORAGE.delete(ev.r2_key).catch((e: unknown) => registraErro(c, e));
     }
-    await logAudit(c.env.DB, 'evidence.deleted', c.get('user')?.email ?? 'system', `Evidência ${ev.file_name} excluída permanentemente${itensSoltos ? `; ${itensSoltos} item(ns) de checklist desvinculado(s)` : ''}.`, '', '', ev.project_id);
+    await logAudit(c.env.DB, 'evidence.deleted', c.get('user')?.email ?? 'system', `Evidência ${ev.file_name} excluída permanentemente${itensSoltos ? `; ${itensSoltos} item(ns) de checklist desvinculado(s): ${soltos.join(', ')}` : ''}.`, '', '', ev.project_id);
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Erro ao excluir evidência', e);
@@ -429,13 +430,14 @@ projectEvidenceApp.get('/', async (c) => {
 // Notas de avaliação: grava evaluation_notes e/ou evaluation_status (domínio
 // canônico). Não mexe em control_id nem em assinatura. A autorização é a da faixa
 // (contrato ativo + write-guard): papel só-leitura cai em 403 no middleware, e o
-// agente MCP não tem ferramenta para isto, então precisa da confirmação humana.
+// agente MCP é recusado em FORA_DO_AGENTE: a avaliação humana é pela interface.
 projectEvidenceApp.patch('/:evidenceId', async (c) => {
   try {
     const projectId = c.req.param('projectId');
     const id = c.req.param('evidenceId');
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
-    const ev = await c.env.DB.prepare('SELECT id, project_id FROM evidence WHERE id = ?').bind(id).first<{ project_id: string }>();
+    const ev = await c.env.DB.prepare('SELECT id, project_id, evaluation_status, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?')
+      .bind(id).first<{ project_id: string; evaluation_status: string | null; ciso_approved_by: string | null; ceo_approved_by: string | null }>();
     if (!ev || ev.project_id !== projectId) return c.json({ error: 'Evidência não encontrada' }, 404);
 
     const v = await validateBody(c, evidenciaAvaliacaoSchema);
@@ -444,6 +446,12 @@ projectEvidenceApp.patch('/:evidenceId', async (c) => {
     const temNotas = 'evaluation_notes' in body;
     const temStatus = 'evaluation_status' in body;
     if (!temNotas && !temStatus) return c.json({ error: 'Envie evaluation_notes e/ou evaluation_status.' }, 400);
+
+    // A assinatura cobre o conteúdo (hash), não as notas: notas seguem editáveis. O status de evidência
+    // assinada só muda revogando a assinatura ou corrigindo o conteúdo (como a avaliação por IA, que também não o troca).
+    if (temStatus && body.evaluation_status !== (ev.evaluation_status || 'pending') && (ev.ciso_approved_by || ev.ceo_approved_by)) {
+      return c.json({ error: 'Evidência assinada: o status não muda por aqui. Revogue a assinatura ou corrija o conteúdo da evidência.' }, 409);
+    }
 
     const sets: string[] = [];
     const vals: unknown[] = [];
