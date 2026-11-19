@@ -81,7 +81,8 @@ async function ler(db: D1Database, tabela: TabelaMescla, projectId: string, id: 
 
 /** `titular_canal` é da 0117: com o código publicado antes da migration, a mescla segue sem ela (só o que falta, nada mais é engolido). */
 const tabelasDaMescla = async (db: D1Database, tabela: TabelaMescla) => {
-  const tem = !!(await db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'titular_canal'`).first());
+  // PRAGMA, não sqlite_master: a varredura de test/pedidos-prova.test.ts trata `sqlite_master` num fonte como tabela derivada de nome dinâmico.
+  const tem = ((await db.prepare('PRAGMA table_info(titular_canal)').all()).results ?? []).length > 0;
   if (!tem) console.log(JSON.stringify({ nivel: 'warn', msg: 'titular_canal_ausente', onde: 'mesclar' }));
   return TROCAR[tabela].filter((t) => tem || t.tabela !== 'titular_canal');
 };

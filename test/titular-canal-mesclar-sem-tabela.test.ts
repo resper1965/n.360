@@ -28,7 +28,7 @@ describe('mescla de partes sem a tabela titular_canal', () => {
 
   it('outro erro de banco sobe: só a tabela ausente é tolerada', async () => {
     await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('ms-c', 'ms', 'pessoa', 'C'), ('ms-d', 'ms', 'pessoa', 'D')`).run();
-    const db = { prepare: (sql: string) => (sql.includes('sqlite_master') ? { first: async () => { throw new Error('D1_ERROR: database is locked'); } } : env.DB.prepare(sql)) } as unknown as D1Database;
+    const db = { prepare: (sql: string) => (sql.includes('PRAGMA table_info(titular_canal)') ? { all: async () => { throw new Error('D1_ERROR: database is locked'); } } : env.DB.prepare(sql)) } as unknown as D1Database;
     await expect(previaDaMescla(db, 'partes', 'ms', 'ms-c', 'ms-d')).rejects.toThrow('database is locked');
   });
 });
