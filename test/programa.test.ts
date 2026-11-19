@@ -91,14 +91,16 @@ describe('primeiroMarco', () => {
 const visao = (x: Record<string, unknown> = {}): VisaoDoEncarregado => ({
   encarregados: [], tratamentos: { total: 0, sem_base_legal: 0, sem_responsavel: 0, lia_pendente: 0, dpia_pendente: 0, com_terceiro_vencido: 0 },
   terceiros: { total: 0, sem_tipo: 0, pendentes: 0, vencidos: 0, reprovados: 0, com_pendencia: 0 }, prazos_legais: { nao_definidos: ['titular.resposta'] },
-  pedidos_titular: { atrasados: 0 }, incidentes: { comunicacoes_atrasadas: 0 }, lgpd: { carregada: false }, ...x,
+  pedidos_titular: { atrasados: 0 }, incidentes: { comunicacoes_atrasadas: 0 }, lgpd: { carregada: false }, canal: { meios: [], portal_ativo: false, divulgado: false, conferido_em: null }, ...x,
 }) as unknown as VisaoDoEncarregado;
+
+const CANAL_DO_TESTE = { meios: ['email'], portal_ativo: false, divulgado: true, conferido_em: null };
 
 describe('trilha do n.privacy (7 etapas da skill, derivadas)', () => {
   it('7 passos, ordens 0 a 6, critério da lista fechada, etapa comum e tela conhecida', () => {
     expect(PASSOS_PRIVACY.map((p) => p.ordem).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
     for (const p of PASSOS_PRIVACY) expect(CRITERIOS_PRIVACY, p.id).toContain(p.criterio);
-    expect(PASSOS_PRIVACY.map((p) => [p.rotulo, p.etapa])).toEqual([['Partida', 'comecar'], ['Encarregado', 'comecar'], ['Inventário', 'levantar'],
+    expect(PASSOS_PRIVACY.map((p) => [p.rotulo, p.etapa])).toEqual([['Partida', 'comecar'], ['Encarregado e canal', 'comecar'], ['Inventário', 'levantar'],
       ['Bases e riscos', 'avaliar'], ['Terceiros', 'tratar'], ['Documentos e cobertura', 'tratar'], ['Titular e incidentes', 'operar']]);
   });
   it('projeto vazio: nada feito, Começar, próximo é a Partida', () => {
@@ -108,7 +110,8 @@ describe('trilha do n.privacy (7 etapas da skill, derivadas)', () => {
   });
   it('encarregado e inventário completo: Começar e Levantar feitos; a etapa em curso é Avaliar', () => {
     const p = etapasDoPrivacy(visao({ encarregados: [{ id: 'e', nome: 'E', email: null }],
-      tratamentos: { total: 3, sem_base_legal: 0, sem_responsavel: 0, lia_pendente: 1, dpia_pendente: 0, com_terceiro_vencido: 0 } }));
+      tratamentos: { total: 3, sem_base_legal: 0, sem_responsavel: 0, lia_pendente: 1, dpia_pendente: 0, com_terceiro_vencido: 0 },
+      canal: { meios: ['email'], portal_ativo: false, divulgado: true, conferido_em: null } }));
     expect(p.etapas.slice(0, 3).map((e) => [e.id, e.feitos, e.total])).toEqual([['comecar', 2, 2], ['levantar', 1, 1], ['avaliar', 0, 1]]);
     expect(p.etapa).toBe('avaliar');
   });
@@ -129,9 +132,12 @@ describe('trilha do n.privacy (7 etapas da skill, derivadas)', () => {
   it('cada critério: verdadeiro no caso feito, falso quando o campo que o define falha', () => {
     const trat = (x: object) => ({ total: 2, sem_base_legal: 0, sem_responsavel: 0, lia_pendente: 0, dpia_pendente: 0, com_terceiro_vencido: 0, ...x });
     const ter = (x: object) => ({ total: 2, sem_tipo: 0, pendentes: 0, vencidos: 0, reprovados: 0, com_pendencia: 0, ...x });
+    const CANAL_OK = { meios: ['email'], portal_ativo: false, divulgado: true, conferido_em: null };
     const casos: [string, Record<string, unknown>, Record<string, unknown>][] = [
       ['algum_cadastro', { terceiros: ter({}) }, {}],
-      ['encarregado', { encarregados: [{}] }, {}],
+      ['encarregado_e_canal', { encarregados: [{}], canal: CANAL_OK }, { canal: CANAL_OK }],
+      ['encarregado_e_canal', { encarregados: [{}], canal: CANAL_OK }, { encarregados: [{}], canal: { ...CANAL_OK, meios: [] } }],
+      ['encarregado_e_canal', { encarregados: [{}], canal: CANAL_OK }, { encarregados: [{}], canal: { ...CANAL_OK, divulgado: false } }],
       ['inventario_completo', { tratamentos: trat({}) }, { tratamentos: trat({ sem_base_legal: 1 }) }],
       ['inventario_completo', { tratamentos: trat({}) }, { tratamentos: trat({ sem_responsavel: 1 }) }],
       ['bases_e_riscos', { tratamentos: trat({}) }, { tratamentos: trat({ lia_pendente: 1 }) }],
@@ -147,5 +153,22 @@ describe('trilha do n.privacy (7 etapas da skill, derivadas)', () => {
     expect(criterioPrivacy('algum_cadastro', visao())).toBe(false);
     expect(criterioPrivacy('inventario_completo', visao())).toBe(false); // vazio não é completo
     expect(criterioPrivacy('terceiros_em_dia', visao())).toBe(false);
+  });
+  it('passo 1 "Encarregado e canal": sem encarregado, sem meio, meio sem divulgação, tudo; e só o portal ativo', () => {
+    const c = (canal: object, enc: object[] = [{}]) => criterioPrivacy('encarregado_e_canal',
+      visao({ encarregados: enc, canal: { meios: [], portal_ativo: false, divulgado: false, conferido_em: null, ...canal } }));
+    expect(c({ meios: ['email'], divulgado: true }, [])).toBe(false);
+    expect(c({ divulgado: true })).toBe(false);
+    expect(c({ meios: ['telefone'] })).toBe(false);
+    expect(c({ meios: ['formulario'], divulgado: true })).toBe(true);
+    expect(c({ portal_ativo: true, divulgado: true })).toBe(true);
+    expect(c({ portal_ativo: true })).toBe(false);
+    // "conferido em" não entra na regra (decisão 2 da onda 4: sem marca manual)
+    expect(c({ meios: ['email'], divulgado: true, conferido_em: null })).toBe(true);
+    expect(criterioPrivacy('encarregado', visao({ encarregados: [{}], canal: CANAL_DO_TESTE }))).toBe(false); // a chave antiga saiu da lista
+  });
+  it('o passo 1 leva a Solicitações com a ação "Registrar o canal"; o id não muda', () => {
+    expect(PASSOS_PRIVACY.find((p) => p.ordem === 1)).toEqual({ id: 'encarregado', ordem: 1, rotulo: 'Encarregado e canal', etapa: 'comecar',
+      criterio: 'encarregado_e_canal', tela: 'titular', acao: 'Registrar o canal' });
   });
 });

@@ -24,7 +24,7 @@ export function etapaDaFase(fase: number): EtapaComum | null {
 }
 
 /** Lista FECHADA do que decide se um passo da trilha do n.privacy está feito: cada chave tem a sua regra em `criterioPrivacy`. */
-export const CRITERIOS_PRIVACY = ['algum_cadastro', 'encarregado', 'inventario_completo', 'bases_e_riscos', 'terceiros_em_dia', 'prazos_e_atrasos', 'cobertura_lgpd'] as const;
+export const CRITERIOS_PRIVACY = ['algum_cadastro', 'encarregado_e_canal', 'inventario_completo', 'bases_e_riscos', 'terceiros_em_dia', 'prazos_e_atrasos', 'cobertura_lgpd'] as const;
 export type CriterioPrivacy = (typeof CRITERIOS_PRIVACY)[number];
 export type PassoPrivacy = { id: string; ordem: number; rotulo: string; etapa: EtapaComum; criterio: CriterioPrivacy; tela: string; acao: string };
 
@@ -34,7 +34,7 @@ export type PassoPrivacy = { id: string; ordem: number; rotulo: string; etapa: E
  */
 export const PASSOS_PRIVACY: readonly PassoPrivacy[] = [
   { id: 'partida', ordem: 0, rotulo: 'Partida', etapa: 'comecar', criterio: 'algum_cadastro', tela: 'importacao', acao: 'Trazer o que já existe' },
-  { id: 'encarregado', ordem: 1, rotulo: 'Encarregado', etapa: 'comecar', criterio: 'encarregado', tela: 'encarregado', acao: 'Indicar o encarregado' },
+  { id: 'encarregado', ordem: 1, rotulo: 'Encarregado e canal', etapa: 'comecar', criterio: 'encarregado_e_canal', tela: 'titular', acao: 'Registrar o canal' },
   { id: 'inventario', ordem: 2, rotulo: 'Inventário', etapa: 'levantar', criterio: 'inventario_completo', tela: 'ropa', acao: 'Abrir os tratamentos' },
   { id: 'bases_e_riscos', ordem: 3, rotulo: 'Bases e riscos', etapa: 'avaliar', criterio: 'bases_e_riscos', tela: 'ropa', acao: 'Fazer LIA e RIPD' },
   { id: 'terceiros', ordem: 4, rotulo: 'Terceiros', etapa: 'tratar', criterio: 'terceiros_em_dia', tela: 'terceiros', acao: 'Avaliar os fornecedores' },
