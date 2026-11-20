@@ -186,6 +186,15 @@ describe('concluir a ação do desvio', () => {
     expect(await status(id)).toBe('In Progress');
   });
 
+  it('status fora de Open, In Progress e Closed: 400 e a ação não muda (não se contorna a recusa com "closed")', async () => {
+    const id = await nova('d-st');
+    for (const s of ['closed', 'CLOSED', 'Closed ', 'Done', '']) {
+      expect((await capa(cons, id, { status: s })).status, JSON.stringify(s)).toBe(400);
+    }
+    expect(await status(id)).toBe('Open');
+    expect((await capa(cons, id, { status: 'Closed' })).status).toBe(403); // o criador segue recusado com o valor certo
+  });
+
   it('outra pessoa fecha: 200 e a resposta não revela a origem', async () => {
     const id = await nova('dc2');
     const r = await capa(await outro(), id, { status: 'Closed' });
