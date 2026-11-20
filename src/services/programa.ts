@@ -76,7 +76,9 @@ export function criterioPrivacy(c: string, v: VisaoDoEncarregado): boolean {
   const t = v.tratamentos, te = v.terceiros;
   switch (c) {
     case 'algum_cadastro': return v.encarregados.length + t.total + te.total > 0;
-    case 'encarregado': return v.encarregados.length > 0;
+    // Passo 1 (spec 2026-11-19, decisão 2): encarregado indicado, ao menos um meio (o portal ativo conta como formulário) e a página de
+    // divulgação. "Conferido em" fica fora (sem marca manual, decisão 2 da onda 4).
+    case 'encarregado_e_canal': return v.encarregados.length > 0 && (v.canal.meios.length > 0 || v.canal.portal_ativo) && v.canal.divulgado;
     case 'inventario_completo': return t.total > 0 && t.sem_base_legal === 0 && t.sem_responsavel === 0;
     case 'bases_e_riscos': return t.total > 0 && t.lia_pendente === 0 && t.dpia_pendente === 0;
     case 'terceiros_em_dia': return te.total > 0 && te.sem_tipo + te.pendentes + te.vencidos + te.reprovados === 0;

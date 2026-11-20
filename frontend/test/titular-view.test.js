@@ -112,7 +112,8 @@ describe('pedidos', () => {
     it('papel só de leitura não tem o botão de registrar', async () => {
         S.user = { role: 'org_user' };
         await abrir('pedidos');
-        expect(el('a').innerHTML).toBe('');
+        // Só o "Canal do titular" (leitura) fica para quem não registra.
+        expect([...el('a').querySelectorAll('button')].map((b) => b.dataset.action)).toEqual(['abrirCanalTitular']);
     });
     it('registrar manda tipo, canal, contato e, só se preenchida, a data; mostra o protocolo e o prazo', async () => {
         const f = await abrir('pedidos', { [`POST ${B}/titular-pedidos`]: { ok: true, id: 'n', protocolo: 'PT-2026-0004', prazo_em: '2026-10-25T00:00:00.000Z' } });

@@ -780,7 +780,7 @@ $ npx wrangler d1 migrations list niso-db --remote
 
 ## 0117 — canal do titular (2026-11-19)
 
-Cria `titular_canal` (uma linha por projeto: `id`, `project_id` UNIQUE com CASCADE, `email`, `telefone`, `formulario_url` e `divulgacao_url` com CHECK de tamanho, `responsavel_parte_id` com SET NULL, `conferido_em`, `conferido_por`, `atualizado_por`, `updated_at`). Aditiva e repetível; sem índice além do UNIQUE. Spec `2026-11-19-canal-do-titular-design`. **Status: PENDENTE de aplicar.** Quem aplica é o dono, com backup antes (`npm run db:backup`): ou `npx wrangler d1 migrations apply niso-db --remote` antes do merge do PR1 do canal, ou o workflow manual `db-migrate.yml` logo depois do merge (o deploy do merge recusa sozinho com a migration pendente) e então *Deploy*. Conferir: `PRAGMA table_info(titular_canal)` mostra 11 colunas e `SELECT name FROM d1_migrations WHERE name = '0117_titular_canal.sql'` devolve 1 linha. Só troque este status para APLICADA com essa evidência medida, num commit separado.
+Cria `titular_canal` (uma linha por projeto: `id`, `project_id` UNIQUE com CASCADE, `email`, `telefone`, `formulario_url` e `divulgacao_url` com CHECK de tamanho, `responsavel_parte_id` com SET NULL, `conferido_em`, `conferido_por`, `atualizado_por`, `updated_at`). Aditiva e repetível; sem índice além do UNIQUE. Spec `2026-11-19-canal-do-titular-design`. **Status: APLICADA em produção em 19/11/2026** (workflow `db-migrate.yml`, run 24, a partir da `main` em be6ec3a, com backup antes). Evidência medida no D1 de produção: `PRAGMA table_info(titular_canal)` devolveu 11 colunas e `d1_migrations` tem a linha `0117_titular_canal.sql` como a última. Falta só o *Deploy* do código do canal.
 
 ## 0116 — fornecedor de OT (2026-11-17)
 
