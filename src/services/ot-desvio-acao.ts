@@ -2,6 +2,7 @@
 import { normaliza } from './copiloto-ropa';
 import { TETO_LEITURA_OT } from './ot-inventario';
 import type { LinhaDesvio } from './ot-desvio';
+import { podeVerOt } from './ot-visibilidade';
 
 /** Só o campo recusado, nunca o nome (quem não tem o n.ot não aprende nomes). */
 export const msgNomeOt = (campo: string) => `${campo} não pode citar o nome de ativos, zonas ou sites do projeto.`;
@@ -55,4 +56,24 @@ export const MSG_CRIADOR_NAO_CONCLUI = 'Quem criou a ação a partir do desvio n
  */
 export async function criadorDaAcaoDoDesvio(db: D1Database, acaoId: string, userId: string): Promise<boolean> {
   return !!(await db.prepare('SELECT 1 FROM ot_referencias WHERE acao_id = ? AND ot_desvio_id IS NOT NULL AND criado_por = ?').bind(acaoId, userId).first());
+}
+
+/**
+ * Editar uma ação ligada ao n.ot (qualquer `ot_referencias.acao_id`) segue a regra da criação: o texto NOVO de título, descrição
+ * ou responsável não cita nome de ativo/zona/site, porque o núcleo o mostra a quem não tem o n.ot. Só confere quem tem o n.ot no
+ * projeto (quem não tem não conhece os nomes e não recebe pista) e só o campo que mudou (título antigo não trava a troca de status).
+ * Devolve a mensagem de recusa ou null.
+ */
+export async function edicaoCitaNomeOt(
+  db: D1Database, acaoId: string, user: Parameters<typeof podeVerOt>[1],
+  novo: { title?: string | null; description?: string | null; assigned_to?: string | null },
+): Promise<string | null> {
+  const a = await db.prepare(`SELECT project_id, title, description, assigned_to FROM corrective_actions ca
+    WHERE id = ? AND EXISTS (SELECT 1 FROM ot_referencias r WHERE r.acao_id = ca.id)`).bind(acaoId)
+    .first<{ project_id: string | null; title: string | null; description: string | null; assigned_to: string | null }>();
+  if (!a?.project_id || !(await podeVerOt(db, user, a.project_id))) return null;
+  const campos = ([['O título', novo.title, a.title], ['A descrição', novo.description, a.description], ['O responsável', novo.assigned_to, a.assigned_to]] as const)
+    .filter(([, n, o]) => typeof n === 'string' && n !== o).map(([r, n]) => [r, n as string] as [string, string]);
+  const campo = campos.length ? await campoQueCitaNomeOt(db, a.project_id, campos) : null;
+  return campo ? msgNomeOt(campo) : null;
 }

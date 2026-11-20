@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
-import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
+import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, habilitarPrivacy, concederModulos, designarConsultor } from './helpers/d1';
 
 // Desvio → ação corretiva (onda 3, Task 4). O título é lido por quem não tem o ot: só o que a pessoa escreveu, sem nome de ativo/zona/site.
 type H = Record<string, string>;
@@ -274,6 +274,72 @@ describe('concluir a ação do desvio', () => {
     const r2 = await capa(o, id, { status: 'Closed' });
     expect(r2.status, await r2.clone().text()).toBe(200);
     expect((await chamar(cons, 'DELETE', `${P}/referencias/${(await c2.json<{ id: string }>()).id}`)).status).toBe(200);
+  });
+});
+
+describe('editar o texto de uma ação ligada ao n.ot', () => {
+  async function nova(d: string) {
+    await desvio(d);
+    return (await (await acao(cons, d, ok)).json<{ acao_id: string }>()).acao_id;
+  }
+  const capa = (h: H, id: string, corpo: Record<string, unknown>) => chamar(h, 'PUT', `/api/v1/capa/${id}`, { status: 'Open', ...corpo });
+  const titulo = async (id: string) => (await env.DB.prepare('SELECT title FROM corrective_actions WHERE id = ?').bind(id).first<{ title: string }>())!.title;
+
+  it('PUT /capa: renomear com nome de ativo, zona ou site (qualquer pontuação) é 400 dizendo só o campo, e nada muda', async () => {
+    const id = await nova('de1');
+    for (const [corpo, campo] of [
+      [{ title: 'Trocar senha da rtu principal' }, 'O título'],
+      [{ title: ok.titulo, description: 'Ver a zona-controle amanhã' }, 'A descrição'],
+      [{ title: ok.titulo, assigned_to: 'Turno da Subestacao Agata' }, 'O responsável'],
+    ] as const) {
+      const r = await capa(cons, id, corpo);
+      expect(r.status, JSON.stringify(corpo)).toBe(400);
+      const corpoResp = await r.json<{ error: string }>();
+      expect(corpoResp.error).toBe(`${campo} não pode citar o nome de ativos, zonas ou sites do projeto.`);
+      expect(JSON.stringify(corpoResp)).not.toMatch(/RTU|Ágata|Agata|Controle/i);
+    }
+    expect(await titulo(id)).toBe(ok.titulo);
+    expect((await capa(cons, id, { title: 'Revisar a regra com o integrador' })).status).toBe(200);
+  });
+
+  it('só o campo que mudou é conferido: título legado com nome não trava a troca de status', async () => {
+    const id = await nova('de2');
+    await run('UPDATE corrective_actions SET title = ? WHERE id = ?', 'Legado RTU-Principal', id);
+    expect((await capa(cons, id, { title: 'Legado RTU-Principal', status: 'In Progress' })).status).toBe(200);
+  });
+
+  it('quem não tem o n.ot não recebe pista: o mesmo texto passa (ele não conhece os nomes) e a resposta é a comum', async () => {
+    const id = await nova('de3');
+    await designarConsultor('s@ness.lat', 'proj-a');
+    const semModulo = await sessionFor({ id: 'cons:s@ness.lat', email: 's@ness.lat', role: 'consultor' });
+    const r = await capa(semModulo, id, { title: 'Visita à Subestação Ágata' });
+    expect(r.status, await r.clone().text()).toBe(200);
+  });
+
+  it('ação sem ligação com o n.ot: o texto é livre', async () => {
+    await run(`INSERT INTO corrective_actions (id, project_id, title, status) VALUES ('ca-livre-e', 'proj-a', 'Livre', 'Open')`);
+    expect((await capa(cons, 'ca-livre-e', { title: 'Trocar a RTU-Principal' })).status).toBe(200);
+  });
+
+  it('pela rota da atividade (ROPA) também: ação da atividade ligada a um site do n.ot não recebe o nome', async () => {
+    await habilitarPrivacy('proj-a');
+    await concederModulos(['cons:c@ness.lat'], ['ot', 'privacy']);
+    await run(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-de', 'proj-a', 'Folha')`);
+    await run(`INSERT INTO corrective_actions (id, project_id, ropa_id, title, status) VALUES ('ca-ropa-de', 'proj-a', 'ropa-de', 'Revisar acesso', 'Open')`);
+    await run(`INSERT INTO ot_referencias (id, project_id, acao_id, ot_site_id, criado_por) VALUES ('ref-ropa-de', 'proj-a', 'ca-ropa-de', 's1', 'u')`);
+    const r = await chamar(cons, 'PUT', '/api/v1/projects/proj-a/ropa/ropa-de/acoes/ca-ropa-de', { title: 'Revisar acesso da Subestação Ágata' });
+    expect(r.status, await r.clone().text()).toBe(400);
+    expect(await r.json()).toEqual({ error: 'O título não pode citar o nome de ativos, zonas ou sites do projeto.' });
+  });
+
+  it('pela rota do incidente também: religada a um incidente, renomear com nome é 400', async () => {
+    const id = await nova('de4');
+    await run(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, risco_titular, status) VALUES ('inc-de4', 'proj-a', 'IN-2026-0915', 'X', '2026-10-01', 'baixo', 'avaliado')`);
+    expect((await capa(cons, id, { title: ok.titulo, incidente_id: 'inc-de4' })).status).toBe(200);
+    const r = await chamar(cons, 'PUT', `/api/v1/projects/proj-a/incidentes/inc-de4/acoes/${id}`, { title: 'Desligar a RTU Principal' });
+    expect(r.status, await r.clone().text()).toBe(400);
+    expect(await r.json()).toEqual({ error: 'O título não pode citar o nome de ativos, zonas ou sites do projeto.' });
+    expect(await titulo(id)).toBe(ok.titulo);
   });
 });
 
