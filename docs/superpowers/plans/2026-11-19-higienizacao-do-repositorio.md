@@ -76,7 +76,7 @@ Comandos: `git shortlog -sne`, `git log origin/main --format=%s`, `git rev-list 
 
 - main: 55 commits na leitura de `git log origin/main` (histórico raso/limitado do worktree; `git rev-list --count --all` = 835 em todas as refs). 0 merge commits: histórico linear, squash policy confirmada. 55/55 terminam em `(#NNN)`.
 - Conventional commits: 53 de 55 (96%) seguem `tipo(escopo): ...`. 2 fora do padrão (ambos em português livre: "Achados do Codex no #544 ...", "Órgãos públicos estruturados ... (#544)").
-- Autoria (`git shortlog -sne origin/main`): Ricardo Esper (noreply do GitHub) 54, dependabot 1. Em todas as refs (`git log --all`): Ricardo Esper 657 + 1 com e-mail diferente (resper@bekaa.eu), resper1965 4 (mesmo e-mail noreply), Claude (noreply@anthropic.com) 149, dependabot 24. Inconsistência menor: 1 commit com e-mail `resper@bekaa.eu` e o nome "resper1965" vs "Ricardo Esper". Corrigir só se o dono quiser, e apenas via `.mailmap` (não reescreve histórico).
+- Autoria (`git shortlog -sne origin/main`): Ricardo Esper (noreply do GitHub) 54, dependabot 1. Em todas as refs (`git log --all`): Ricardo Esper 657 + 1 com e-mail diferente (o e-mail pessoal do dono), resper1965 4 (mesmo e-mail noreply), Claude (noreply@anthropic.com) 149, dependabot 24. Inconsistência menor: 1 commit com e-mail o e-mail pessoal do dono e o nome "resper1965" vs "Ricardo Esper". Corrigir só se o dono quiser, e apenas via `.mailmap` (não reescreve histórico).
 - Arquivos grandes: maior blob no histórico = `docs/openapi.json` (~1,25 MB, várias revisões, 15 maiores são todas versões dele). Nada de binário grande, nada acima de ~1,3 MB. Tamanho do `.git`: não conferido (worktree usa arquivo `.git`). Não há justificativa de tamanho para filter-repo.
 - Arquivos rastreados: 1835. `docs/arquivo/` tem 93 arquivos.
 
@@ -143,7 +143,7 @@ Recomendação por workflow:
 ### Fase 4 — Convenções
 O repositório já tem CONTRIBUTING.md, SECURITY.md, CODEOWNERS e pull_request_template.md. O que falta/pode melhorar:
 1. Um trecho em CONTRIBUTING.md sobre commit message: `tipo(escopo): resumo (#PR)` em português, tipos permitidos (feat, fix, docs, chore, refactor, test, ci, perf), squash com título do PR em padrão. Conformidade atual 96% (53/55): só formalizar. Quem: Claude (PR de docs). Reversível: sim.
-2. `.mailmap` para unificar `resper@bekaa.eu` / "resper1965" / "Ricardo Esper" (não reescreve histórico). Quem: Claude. Reversível: sim.
+2. `.mailmap` para unificar o e-mail pessoal do dono / "resper1965" / "Ricardo Esper" (não reescreve histórico). Quem: Claude. Reversível: sim.
 3. `.gitignore`: acrescentar `.superpowers/`, `scratch/`, `.wrangler/`. Quem: Claude. Reversível: sim.
 4. Política de branches: apagar após merge (já automático), e cada branch ligado a um PR; reaproveitar um mesmo branch para dezenas de PRs (ex.: 29 PRs em `claude/friendly-ptolemy-1d3lrq`) dificulta o rastreio.
 5. Publicar release para v11.0.0 e definir critério de tag (por onda?): `gh release create v11.0.0 --generate-notes --verify-tag`. Quem: Dono. Reversível: sim (excluir release).
