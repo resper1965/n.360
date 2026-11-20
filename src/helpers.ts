@@ -614,7 +614,7 @@ export async function somenteNess(
 // `consultoria_admin`: o funil e o catálogo da PRÓPRIA organização (as rotas cortam por `exigirOrg`).
 const PAPEIS_COMERCIAL = new Set(['platform_admin', 'comercial', 'consultoria_admin']);
 
-// Organização direta (decisão 11) não tem área comercial: `org_direta` é posto pelo authMiddleware, que lê o tipo no banco.
+// Organização direta (decisão 11) não tem área comercial: `org_direta` é posto pelo authMiddleware (tipo da organização ATIVA, lido no banco: a da sessão, ou o X-Org-Id do platform_admin).
 export function ehComercial(user: { role?: string | null; org_direta?: boolean } | null | undefined): boolean {
   return PAPEIS_COMERCIAL.has(user?.role ?? '') && user?.org_direta !== true;
 }
