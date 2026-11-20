@@ -780,7 +780,7 @@ $ npx wrangler d1 migrations list niso-db --remote
 
 ## 0118 — avaliação por IA em campo próprio (2026-11-20)
 
-`ALTER TABLE evidence ADD COLUMN avaliacao_ia TEXT`: o veredito de `niso_evaluate_evidence` passa para esta coluna e `evaluation_notes` fica só com a nota humana. Aditiva; não repetível depois de aplicada (o D1 registra em `d1_migrations`). **Status: PENDENTE de aplicar.** O dono aplica com backup antes (workflow manual `db-migrate.yml` a partir da `main`) e só então roda o *Deploy* (o deploy recusa sozinho com migration pendente). Conferir: `PRAGMA table_info(evidence)` lista `avaliacao_ia` e `SELECT name FROM d1_migrations WHERE name = '0118_evidencia_avaliacao_ia.sql'` devolve 1 linha. Só troque este status para APLICADA com essa evidência medida, num commit separado.
+`ALTER TABLE evidence ADD COLUMN avaliacao_ia TEXT`: o veredito de `niso_evaluate_evidence` passa para esta coluna e `evaluation_notes` fica só com a nota humana. Aditiva; não repetível depois de aplicada (o D1 registra em `d1_migrations`). **Status: APLICADA em produção em 20/11/2026** (workflow `db-migrate.yml`, a partir da `main` em b290f94, com backup antes). Evidência medida no D1 de produção: `PRAGMA table_info(evidence)` lista `avaliacao_ia` e `d1_migrations` tem a linha `0118_evidencia_avaliacao_ia.sql` como a última (120 registros).
 
 ## 0117 — canal do titular (2026-11-19)
 

@@ -14,7 +14,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ### n.iso: a avaliação da IA deixa de apagar a nota humana (migração 0118)
 - "Avaliar evidência" pela IA (`niso_evaluate_evidence`) grava o veredito no campo novo `avaliacao_ia`; a nota da pessoa (`evaluation_notes`) não é mais sobrescrita, nem ao reavaliar. O GET da evidência e a rastreabilidade devolvem o novo campo; invalidar a evidência limpa a avaliação da IA.
-- A migração 0118 (aditiva) é aplicada pelo dono, com backup antes; enquanto não for, o deploy recusa publicar.
+- A migração 0118 (aditiva) foi aplicada em produção em 20/11/2026 (coluna `avaliacao_ia` conferida no banco). Em ambientes que ainda não a aplicaram, o deploy recusa publicar.
 
 ### n.privacy: canal do titular (migração 0117, spec 2026-11-19)
 - **Muda para quem já usa:** o passo 1 da trilha do n.privacy passa a se chamar "Encarregado e canal" e só fica feito com o encarregado indicado, ao menos um meio de contato (e-mail, telefone ou formulário; o portal de solicitações ativo conta) e a página onde o canal e o encarregado estão publicados. Projetos que tinham o passo 1 feito só com o encarregado voltam a tê-lo por fazer, e o "O que fazer" do Painel do n.privacy ganha "Canal do titular não registrado" (Exigido) até o canal ser registrado em Solicitações → "Canal do titular". Nenhum dado foi migrado: basta registrar o canal. "Canal sem página de divulgação ou nunca conferido" entra em "Planejar". O Painel mostra "Canal do titular: Registrado/Não registrado".
