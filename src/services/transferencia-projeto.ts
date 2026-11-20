@@ -49,8 +49,10 @@ export async function transferirProjeto(db: D1Database, e: EntradaTransferencia)
   const motivo = JSON.stringify(e.motivo.replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, 500));
   const res = await db.batch([
     db.prepare(`UPDATE projects SET org_id = ? WHERE id = ? AND org_id = ?
-        AND EXISTS (SELECT 1 FROM organizations WHERE id = ? AND status = 'Active')`)
-      .bind(e.orgDestinoId, e.projetoId, origem, e.orgDestinoId),
+        AND EXISTS (SELECT 1 FROM organizations WHERE id = ? AND status = 'Active')
+        AND NOT EXISTS (SELECT 1 FROM organizations d WHERE d.id = ? AND d.tipo = 'direta'
+          AND EXISTS (SELECT 1 FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')))`)
+      .bind(e.orgDestinoId, e.projetoId, origem, e.orgDestinoId, e.orgDestinoId, e.projetoId),
     // Uma linha só (batch de tamanho fixo), com a lista exata do que o DELETE abaixo remove: mesma
     // condição, mesma transação. ponytail: sem `governance.removed` por consultor; a lista vai aqui.
     db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
