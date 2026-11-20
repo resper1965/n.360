@@ -109,7 +109,7 @@ evidenceApp.put('/:id/content', async (c) => {
     // Conteúdo novo é documento novo: a revisão e as assinaturas eram do texto anterior.
     // Sem isto o cliente (org_user pode editar) reescrevia documento já revisado e ele seguia conforme.
     await c.env.DB.prepare(
-      `UPDATE evidence SET file_size = ?, file_hash = ?, uploaded_by = ?, evaluation_status = 'pending', evaluation_score = NULL, evaluation_notes = NULL,
+      `UPDATE evidence SET file_size = ?, file_hash = ?, uploaded_by = ?, evaluation_status = 'pending', evaluation_score = NULL, evaluation_notes = NULL, avaliacao_ia = NULL,
          ciso_approved_by = NULL, ciso_approved_at = NULL, ciso_approved_ip = NULL, ciso_approved_ua = NULL,
          ceo_approved_by = NULL, ceo_approved_at = NULL, ceo_approved_ip = NULL, ceo_approved_ua = NULL,
          updated_at = CURRENT_TIMESTAMP WHERE id = ?`
@@ -213,7 +213,7 @@ evidenceApp.put('/:id', async (c) => {
       const tinhaAprovacao = !!(ev.ciso_approved_by || ev.ceo_approved_by);
       if (mudou) {
         await c.env.DB.prepare(
-          `UPDATE evidence SET control_id = ?, evaluation_status = 'pending', evaluation_score = NULL, evaluation_notes = NULL,
+          `UPDATE evidence SET control_id = ?, evaluation_status = 'pending', evaluation_score = NULL, evaluation_notes = NULL, avaliacao_ia = NULL,
              ciso_approved_by = NULL, ciso_approved_at = NULL, ciso_approved_ip = NULL, ciso_approved_ua = NULL,
              ceo_approved_by = NULL, ceo_approved_at = NULL, ceo_approved_ip = NULL, ceo_approved_ua = NULL,
              updated_at = datetime('now') WHERE id = ?`
