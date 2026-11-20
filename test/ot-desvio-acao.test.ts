@@ -121,6 +121,18 @@ describe('POST /desvios/:id/acao', () => {
     expect((await acao(cons, 'd4', { ...ok, titulo: 'Texto inócuo sobre ab processo' })).status).toBe(201); // nome com menos de 3 letras é ignorado
   });
 
+  it('hífen, espaço e pontuação não escondem o nome (RTU-Principal); o responsável também é conferido', async () => {
+    await desvio('d4b');
+    for (const titulo of ['Revisar o RTU Principal do pátio', 'Revisar rtu.principal', 'Revisar RTU  -  Principal', 'Segregar a zona_controle']) {
+      const r = await acao(cons, 'd4b', { ...ok, titulo });
+      expect(r.status, titulo).toBe(400);
+      expect((await r.json<{ error: string }>()).error).toBe('O texto não pode citar o nome de ativos, zonas ou sites do projeto.');
+    }
+    expect((await acao(cons, 'd4b', { ...ok, assigned_to: 'Equipe da Subestação Ágata' })).status).toBe(400);
+    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'd4b'`)).toBe(0);
+    expect((await acao(cons, 'd4b', { ...ok, titulo: 'Texto inócuo sobre processo' })).status).toBe(201);
+  });
+
   it('agente e chave de API recusados (P0-2); sem ot e técnico: 403', async () => {
     await desvio('d5');
     expect((await acao({ 'X-API-Key': CHAVE }, 'd5', ok)).status).toBe(403);

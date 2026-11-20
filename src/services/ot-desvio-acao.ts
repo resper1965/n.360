@@ -5,12 +5,15 @@ import type { LinhaDesvio } from './ot-desvio';
 
 export const MSG_NOME_OT = 'O texto não pode citar o nome de ativos, zonas ou sites do projeto.';
 
-/** Texto cita (sem caixa e sem acento) o nome de ativo/zona/site ativo do projeto? Nomes com menos de 3 letras não contam. */
+// Sem acento, sem caixa e SEM separador: "RTU-Principal", "RTU Principal" e "rtu.principal" são o mesmo nome. Substring de propósito: o erro seguro é bloquear.
+const compacta = (t: string) => normaliza(t).replace(/[^\p{L}\p{N}]+/gu, '');
+
+/** Texto cita o nome de ativo/zona/site ativo do projeto? Nomes com menos de 3 letras ou dígitos não contam. */
 export async function citaNomeOt(db: D1Database, projectId: string, ...textos: (string | undefined)[]): Promise<boolean> {
-  const texto = normaliza(textos.filter(Boolean).join(' | '));
+  const texto = compacta(textos.filter(Boolean).join(' | '));
   for (const t of ['ot_ativos', 'ot_zonas', 'ot_sites']) {
     const { results } = await db.prepare(`SELECT nome FROM ${t} WHERE project_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId).all<{ nome: string }>();
-    if (results.some((r) => { const n = normaliza(r.nome.trim()); return n.length >= 3 && texto.includes(n); })) return true;
+    if (results.some((r) => { const n = compacta(r.nome); return n.length >= 3 && texto.includes(n); })) return true;
   }
   return false;
 }
