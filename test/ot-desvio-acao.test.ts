@@ -113,7 +113,7 @@ describe('POST /desvios/:id/acao', () => {
       const r = await acao(cons, 'd4', { ...ok, titulo });
       expect(r.status, titulo).toBe(400);
       const e = (await r.json<{ error: string }>()).error;
-      expect(e).toBe('O texto não pode citar o nome de ativos, zonas ou sites do projeto.');
+      expect(e).toBe('O título não pode citar o nome de ativos, zonas ou sites do projeto.');
       expect(e.toLowerCase()).not.toMatch(/rtu|ágata|agata|controle/);
     }
     expect((await acao(cons, 'd4', { ...ok, titulo: 'Texto inócuo sobre processo', descricao: 'cita a Zona Controle' })).status).toBe(400); // descrição também
@@ -126,11 +126,23 @@ describe('POST /desvios/:id/acao', () => {
     for (const titulo of ['Revisar o RTU Principal do pátio', 'Revisar rtu.principal', 'Revisar RTU  -  Principal', 'Segregar a zona_controle']) {
       const r = await acao(cons, 'd4b', { ...ok, titulo });
       expect(r.status, titulo).toBe(400);
-      expect((await r.json<{ error: string }>()).error).toBe('O texto não pode citar o nome de ativos, zonas ou sites do projeto.');
+      expect((await r.json<{ error: string }>()).error).toBe('O título não pode citar o nome de ativos, zonas ou sites do projeto.');
     }
     expect((await acao(cons, 'd4b', { ...ok, assigned_to: 'Equipe da Subestação Ágata' })).status).toBe(400);
     expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'd4b'`)).toBe(0);
     expect((await acao(cons, 'd4b', { ...ok, titulo: 'Texto inócuo sobre processo' })).status).toBe(201);
+  });
+
+  it('cada campo é conferido sozinho: o fim de um + o começo do seguinte não formam nome por colagem; a recusa diz só o campo', async () => {
+    await desvio('d4c');
+    // "Zona" (fim do título) + "Controle" (começo da descrição) colados formariam a zona "Zona Controle": não é citação
+    const colado = await acao(cons, 'd4c', { ...ok, titulo: 'Revisar a regra da zona', descricao: 'Controle de acesso remoto' });
+    expect(colado.status, await colado.clone().text()).toBe(201);
+    await desvio('d4d');
+    const msg = async (extra: Record<string, string>) => (await (await acao(cons, 'd4d', { ...ok, ...extra })).json<{ error: string }>()).error;
+    expect(await msg({ descricao: 'cita a Zona Controle' })).toBe('A descrição não pode citar o nome de ativos, zonas ou sites do projeto.');
+    expect(await msg({ assigned_to: 'Equipe RTU Principal' })).toBe('O responsável não pode citar o nome de ativos, zonas ou sites do projeto.');
+    expect(await msg({ titulo: 'Trocar o rtu-principal' })).toBe('O título não pode citar o nome de ativos, zonas ou sites do projeto.');
   });
 
   it('agente e chave de API recusados (P0-2); sem ot e técnico: 403', async () => {
