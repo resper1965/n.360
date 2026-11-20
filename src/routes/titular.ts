@@ -364,7 +364,7 @@ incidentesApp.put('/:id/acoes/:acaoId', async (c) => {
     if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
     // Religar a ação do desvio a um incidente não contorna a segregação: quem a criou também não a conclui por aqui.
     if (v.data.status === 'Closed' && await criadorDaAcaoDoDesvio(c.env.DB, c.req.param('acaoId'), c.get('user').id)) return c.json({ error: MSG_CRIADOR_NAO_CONCLUI }, 403);
-    const nomeOt = await edicaoCitaNomeOt(c.env.DB, c.req.param('acaoId'), c.get('user'), v.data);
+    const nomeOt = await edicaoCitaNomeOt(c.env.DB, c.req.param('projectId'), c.req.param('acaoId'), c.get('user'), v.data);
     if (nomeOt) return c.json({ error: nomeOt }, 400);
     const r = await atualizarAcaoDoIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.req.param('acaoId'), c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);

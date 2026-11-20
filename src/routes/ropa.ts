@@ -438,7 +438,7 @@ projectRopaApp.put('/:recordId/acoes/:acaoId', async (c) => {
     const v = await validateBody(c, acaoAtividadeAtualizarSchema);
     if (!v.success) return v.response;
     if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
-    const nomeOt = await edicaoCitaNomeOt(c.env.DB, c.req.param('acaoId'), c.get('user'), v.data);
+    const nomeOt = await edicaoCitaNomeOt(c.env.DB, c.req.param('projectId'), c.req.param('acaoId'), c.get('user'), v.data);
     if (nomeOt) return c.json({ error: nomeOt }, 400);
     const projectId = c.req.param('projectId')!;
     const r = await atualizarAcao(c.env.DB, projectId, c.req.param('recordId'), c.req.param('acaoId'), v.data);

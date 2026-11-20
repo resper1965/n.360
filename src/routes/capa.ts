@@ -25,11 +25,11 @@ capaApp.put('/:id', async (c) => {
     const body = v.data as any;
     if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && body.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
     if (body.status === 'Closed' && await criadorDaAcaoDoDesvio(c.env.DB, id, c.get('user').id)) return c.json({ error: MSG_CRIADOR_NAO_CONCLUI }, 403);
-    const nomeOt = await edicaoCitaNomeOt(c.env.DB, id, c.get('user'), body);
-    if (nomeOt) return c.json({ error: nomeOt }, 400);
     // O projeto vem da CAPA gravada, nunca do corpo. Sem isto, apontar para o risco de outro
     // projeto deixava o dono dele apagar esta CAPA pelo ON DELETE CASCADE.
     const atual = await c.env.DB.prepare('SELECT project_id FROM corrective_actions WHERE id = ?').bind(id).first<{ project_id: string | null }>();
+    const nomeOt = await edicaoCitaNomeOt(c.env.DB, atual?.project_id, id, c.get('user'), body);
+    if (nomeOt) return c.json({ error: nomeOt }, 400);
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['audit_id', 'risk_id', 'control_id', 'assigned_to_parte_id', 'incidente_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
     // Ação antiga sem responsável segue editável; o que não vale é deixá-la sem ele ao mexer nos campos do responsável.
