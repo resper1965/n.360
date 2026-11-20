@@ -258,12 +258,12 @@ describe('Assinatura eletrônica (D1 real)', () => {
       expect(await statusDe('ev-1')).toBe(esperado);
     });
 
-    it('a IA não mexe no status de evidência já assinada pelo Líder SGSI, só em nota e texto', async () => {
+    it('a IA não mexe no status de evidência já assinada pelo Líder SGSI, só em avaliacao_ia', async () => {
       await post('/api/v1/evidence/ev-1/approve', { role: 'ciso', password: 'password123' });
       await avaliar('# Veredito: NÃO CONFORME\n- **Score de Confiança**: 30');
-      const ev = await env.DB.prepare('SELECT evaluation_status, evaluation_notes FROM evidence WHERE id = ?').bind('ev-1').first<any>();
+      const ev = await env.DB.prepare('SELECT evaluation_status, avaliacao_ia FROM evidence WHERE id = ?').bind('ev-1').first<any>();
       expect(ev.evaluation_status).toBe('conforming');
-      expect(ev.evaluation_notes).toContain('NÃO CONFORME');
+      expect(ev.avaliacao_ia).toContain('NÃO CONFORME');
     });
 
     it('evaluation_status NULL também vira conforme na assinatura', async () => {

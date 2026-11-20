@@ -382,6 +382,9 @@ CREATE TABLE IF NOT EXISTS evidence (
     evaluation_status TEXT DEFAULT 'pending',
     evaluation_score REAL,
     evaluation_notes TEXT,
+    -- Avaliação por IA (niso_evaluate_evidence), migration 0117. Separada de
+    -- evaluation_notes (nota humana) para a reavaliação não apagar a nota.
+    avaliacao_ia TEXT,
     ciso_approved_by TEXT,
     ciso_approved_at TEXT,
     ciso_approved_ip TEXT,

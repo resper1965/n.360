@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0117** (`ls migrations/*.sql | tail -1`). São 118 arquivos
+- Última migration no repositório: **0118** (`ls migrations/*.sql | tail -1`). São 119 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -777,6 +777,10 @@ $ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1
 $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
+
+## 0118 — avaliação por IA em campo próprio (2026-11-20)
+
+`ALTER TABLE evidence ADD COLUMN avaliacao_ia TEXT`: o veredito de `niso_evaluate_evidence` passa para esta coluna e `evaluation_notes` fica só com a nota humana. Aditiva; não repetível depois de aplicada (o D1 registra em `d1_migrations`). **Status: PENDENTE de aplicar.** O dono aplica com backup antes (workflow manual `db-migrate.yml` a partir da `main`) e só então roda o *Deploy* (o deploy recusa sozinho com migration pendente). Conferir: `PRAGMA table_info(evidence)` lista `avaliacao_ia` e `SELECT name FROM d1_migrations WHERE name = '0118_evidencia_avaliacao_ia.sql'` devolve 1 linha. Só troque este status para APLICADA com essa evidência medida, num commit separado.
 
 ## 0117 — canal do titular (2026-11-19)
 
