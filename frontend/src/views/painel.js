@@ -72,11 +72,12 @@ function identidade(d, proj) {
     const porte = emp.porte ? `${emp.porte}${emp.funcionarios ? `, ${emp.funcionarios} pessoas` : ''}` : emp.funcionarios ? `${emp.funcionarios} pessoas` : '';
     const local = [emp.municipio, emp.uf].filter(Boolean).join(', ');
     const encs = (Array.isArray(d.encarregados) ? d.encarregados : []).map((x) => x.nome).join(', ');
+    const canal = d.canal_titular && d.canal_titular.registrado ? 'Registrado' : '';
     const completo = emp.razao_social && (emp.cnpj || emp.documento_alternativo) && emp.setor;
     return `<section class="pn-ident" aria-labelledby="pn-empresa"><div>
             <h2 id="pn-empresa">${e(razao)}${emp.nome_fantasia && emp.nome_fantasia !== razao ? `<small>${e(emp.nome_fantasia)}</small>` : ''}</h2>
             <dl>${campo('CNPJ', emp.cnpj ? cnpj(emp.cnpj) : emp.documento_alternativo)}${campo('Setor', setor)}${campo('Porte', porte)}${campo('Local', local)}
-                ${'privacy' in (d.modulos || {}) ? campo('Encarregado', encs, 'Não indicado') : ''}${campo('Programa', d.programa && d.programa.rotulo)}</dl>
+                ${'privacy' in (d.modulos || {}) ? campo('Encarregado', encs, 'Não indicado') + campo('Canal do titular', canal, 'Não registrado') : ''}${campo('Programa', d.programa && d.programa.rotulo)}</dl>
         </div><div><button type="button" class="btn" data-action="abrirDadosEmpresa" data-args='${args(proj.id)}'>${completo ? 'Dados da empresa' : 'Completar o cadastro'}</button></div></section>`;
 }
 

@@ -629,7 +629,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `programa.etapas` (um `ProgramaDoModulo` por modulo do pedido: `etapa`, `feitos`, `total`, `proximo`, `etapas`), calculado por
   `etapasDoPrograma` (`src/services/programa.ts`), que SO LE: n.iso por fase (`FASES_DO_ISO`: 0-6, 7-8, 9-10, 11-28, 29-40;
   `carregarContexto` + `montarBancada`, nunca a rota da Bancada, que grava); n.ot por site (`situacaoDoSite` dos `sitesPermitidos`;
-  em operacao com desvio aberto = Tratar); n.privacy pelas 7 etapas da skill `implantacao-privacy` (`PASSOS_PRIVACY` em
+  em operacao com desvio aberto = Tratar); n.privacy pelas 7 etapas da skill `implantacao-privacy` (a etapa 1 e "Encarregado e canal", criterio `encarregado_e_canal`: encarregado + ao menos um meio de `resumoDoCanal` ou portal ativo + pagina de divulgacao; `conferido_em` fica fora; a visao do encarregado traz `canal` e as prioridades "Canal do titular nao registrado" (alta) e "Canal sem pagina de divulgacao ou nunca conferido" (media)) (`PASSOS_PRIVACY` em
   `src/data/programa.ts`, criterio de chave fechada `CRITERIOS_PRIVACY` avaliado por `criterioPrivacy` sobre `visaoDoEncarregado`, falha
   fechada; a etapa 5 exige as tres chaves de `CHAVES` de `parametros_legais` cadastradas e nada atrasado; sem marca manual nem migration;
   a etapa "Documentos e cobertura" fica "por fazer" (falha fechada) enquanto o catalogo da LGPD nao esta carregado na plataforma; o Painel do n.privacy mostra a "Trilha de implantacao" quando o projeto sai do comeco; a skill le `programa.etapas.privacy` e o rotulo

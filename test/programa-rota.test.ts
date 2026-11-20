@@ -132,7 +132,7 @@ describe('programa.etapas.privacy', () => {
     await concederModulos(['u-t'], ['iso', 'ot', 'privacy']);
     const d = await painel(tecnico, '?modulo=privacy');
     expect(Object.keys(d.programa.etapas)).toEqual(['privacy']);
-    expect(d.programa.etapas.privacy.passos.map((p: any) => p.rotulo)).toEqual(['Partida', 'Encarregado', 'Inventário', 'Bases e riscos', 'Terceiros', 'Documentos e cobertura', 'Titular e incidentes']);
+    expect(d.programa.etapas.privacy.passos.map((p: any) => p.rotulo)).toEqual(['Partida', 'Encarregado e canal', 'Inventário', 'Bases e riscos', 'Terceiros', 'Documentos e cobertura', 'Titular e incidentes']);
     expect((await painel(semOt)).programa.etapas.privacy).toBeUndefined();
     expect(JSON.stringify(d.programa.etapas.privacy)).not.toMatch(/site|desvio|"ot"/i);
   });

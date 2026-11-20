@@ -504,6 +504,8 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
       municipio: empresa.municipio, uf: empresa.uf,
     },
     encarregados: (privacy?.encarregados ?? (encs.results as { nome: string }[])).map((e) => ({ nome: e.nome })),
+    // Canal do titular (0117): só o sim/não para a identidade do Painel do n.privacy; o resumo vem da mesma visão (nenhuma consulta a mais).
+    ...(privacy ? { canal_titular: { registrado: privacy.visao.canal.meios.length > 0 || privacy.visao.canal.portal_ativo, divulgado: privacy.visao.canal.divulgado } } : {}),
     programa,
     saude: saudeDoProjeto({ itens: todos, comecando: Object.values(blocos).every((b) => b.comecando), decisoes: decisoes.length, cliente: quem.cliente,
       proximo: proximoDe(Object.values(blocos).map((b) => b.proximo)) }),
