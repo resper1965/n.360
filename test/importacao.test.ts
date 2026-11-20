@@ -663,7 +663,8 @@ describe('trava de gravação (status próprio)', () => {
 });
 
 describe('terceiros (fatia 2)', () => {
-  const futuro = new Date(Date.now() + 365 * 864e5).toISOString().slice(0, 10);
+  // a data de hoje do servidor é a de Brasília; em UTC, entre 21h e 24h passava do teto de 12 meses
+  const futuro = somarDias(hojeEmSaoPaulo(), 365);
   const terceiro = (nome: string, extra: Record<string, unknown> = {}) => ({
     nome, tipo: 'medio', confianca: 'alta', origem: `linha sobre ${nome}`, ...extra,
   });
