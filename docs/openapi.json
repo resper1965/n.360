@@ -3327,7 +3327,11 @@
                   },
                   "status": {
                     "type": "string",
-                    "minLength": 1
+                    "enum": [
+                      "Open",
+                      "In Progress",
+                      "Closed"
+                    ]
                   },
                   "resolution": {
                     "type": [

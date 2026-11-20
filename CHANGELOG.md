@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Pontos menores das ondas 1 a 4, lote 1 (segurança e integridade)
+- **Área comercial segue a organização ativa.** O `platform_admin` que age numa organização direta por `X-Org-Id` deixa de ser tratado como comercial dela: propostas, serviços, preços de assessment e contadores de leads respondem 403 ou vazio, como para a própria equipe da direta.
+- **Texto seguro da ação do desvio.** Título, descrição e responsável da ação criada a partir de um desvio do n.ot não podem citar o nome de ativo, zona ou site do projeto, mesmo com hífen, espaço ou pontuação diferentes ("RTU Principal" para o ativo "RTU-Principal").
+- **Status da ação corretiva.** `PUT /capa/:id` só aceita `Open`, `In Progress` e `Closed` (400 para o resto); "closed" já não contorna a recusa de fechar a ação que a própria pessoa criou do desvio.
+- **Transferência de projeto para organização direta.** A conferência "sem conta de cliente" passa a valer dentro da própria gravação: uma conta de cliente criada no meio da transferência a interrompe (409), sem mover nada.
+
 ### n.iso: a avaliação da IA deixa de apagar a nota humana (migração 0118)
 - "Avaliar evidência" pela IA (`niso_evaluate_evidence`) grava o veredito no campo novo `avaliacao_ia`; a nota da pessoa (`evaluation_notes`) não é mais sobrescrita, nem ao reavaliar. O GET da evidência e a rastreabilidade devolvem o novo campo; invalidar a evidência limpa a avaliação da IA.
 - A migração 0118 (aditiva) foi aplicada em produção em 20/11/2026 (coluna `avaliacao_ia` conferida no banco). Em ambientes que ainda não a aplicaram, o deploy recusa publicar.

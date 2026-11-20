@@ -3,16 +3,24 @@ import { normaliza } from './copiloto-ropa';
 import { TETO_LEITURA_OT } from './ot-inventario';
 import type { LinhaDesvio } from './ot-desvio';
 
-export const MSG_NOME_OT = 'O texto não pode citar o nome de ativos, zonas ou sites do projeto.';
+/** Só o campo recusado, nunca o nome (quem não tem o n.ot não aprende nomes). */
+export const msgNomeOt = (campo: string) => `${campo} não pode citar o nome de ativos, zonas ou sites do projeto.`;
 
-/** Texto cita (sem caixa e sem acento) o nome de ativo/zona/site ativo do projeto? Nomes com menos de 3 letras não contam. */
-export async function citaNomeOt(db: D1Database, projectId: string, ...textos: (string | undefined)[]): Promise<boolean> {
-  const texto = normaliza(textos.filter(Boolean).join(' | '));
+// Sem acento, sem caixa e SEM separador: "RTU-Principal", "RTU Principal" e "rtu.principal" são o mesmo nome. Substring de propósito: o erro seguro é bloquear.
+const compacta = (t: string) => normaliza(t).replace(/[^\p{L}\p{N}]+/gu, '');
+
+/** Primeiro campo (rótulo + texto) que cita o nome de ativo/zona/site ativo do projeto, ou null. Cada campo é conferido sozinho: colar o fim de um no começo do outro geraria falso positivo. Nomes com menos de 3 letras ou dígitos não contam. */
+export async function campoQueCitaNomeOt(db: D1Database, projectId: string, campos: [string, string | undefined][]): Promise<string | null> {
+  const nomes: string[] = [];
   for (const t of ['ot_ativos', 'ot_zonas', 'ot_sites']) {
     const { results } = await db.prepare(`SELECT nome FROM ${t} WHERE project_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId).all<{ nome: string }>();
-    if (results.some((r) => { const n = normaliza(r.nome.trim()); return n.length >= 3 && texto.includes(n); })) return true;
+    for (const r of results) { const n = compacta(r.nome); if (n.length >= 3) nomes.push(n); }
   }
-  return false;
+  for (const [rotulo, texto] of campos) {
+    const c = texto ? compacta(texto) : '';
+    if (c && nomes.some((n) => c.includes(n))) return rotulo;
+  }
+  return null;
 }
 
 export interface DadosAcao { titulo: string; descricao?: string; assigned_to?: string; assigned_to_parte_id?: string; prazo?: string }

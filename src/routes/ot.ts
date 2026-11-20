@@ -19,7 +19,7 @@ import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
 import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
 import { apagarFornecedor, criarFornecedor, lerFornecedores } from '../services/ot-fornecedores';
 import { apagarReferencia, ehVinculoDoDesvio, MSG_VINCULO_DO_DESVIO, criarReferencia, lerReferencias, type AlvoNucleo } from '../services/ot-referencias';
-import { criarAcaoDoDesvio, citaNomeOt, MSG_NOME_OT } from '../services/ot-desvio-acao';
+import { criarAcaoDoDesvio, campoQueCitaNomeOt, msgNomeOt } from '../services/ot-desvio-acao';
 import { MSG_RESPONSAVEL, temResponsavel } from './capa';
 import { modulosDoProjeto, recusaDoModulo } from '../modulos';
 import { semearPerguntasOt } from '../services/fornecedor-modelos';
@@ -1154,7 +1154,8 @@ otApp.post('/desvios/:id/acao', async (c) => {
     if (situacao?.situacao !== 'aberto') return c.json({ error: 'Só desvio aberto vira ação corretiva' }, 409);
     const fora = await refForaDoProjeto(db, projectId, d, ['assigned_to_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
-    if (await citaNomeOt(db, projectId, d.titulo, d.descricao)) return c.json({ error: MSG_NOME_OT }, 400);
+    const citado = await campoQueCitaNomeOt(db, projectId, [['O título', d.titulo], ['A descrição', d.descricao], ['O responsável', d.assigned_to]]);
+    if (citado) return c.json({ error: msgNomeOt(citado) }, 400);
     const r = await criarAcaoDoDesvio(db, projectId, id, sites, user.id, d);
     if (!r) { // perdeu a corrida: quem ganhou já criou a ação (ou o desvio saiu de aberto)
       const g = await db.prepare(`SELECT acao_id FROM ot_referencias WHERE ot_desvio_id = ?`).bind(id).first<{ acao_id: string | null }>();

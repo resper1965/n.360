@@ -113,12 +113,36 @@ describe('POST /desvios/:id/acao', () => {
       const r = await acao(cons, 'd4', { ...ok, titulo });
       expect(r.status, titulo).toBe(400);
       const e = (await r.json<{ error: string }>()).error;
-      expect(e).toBe('O texto não pode citar o nome de ativos, zonas ou sites do projeto.');
+      expect(e).toBe('O título não pode citar o nome de ativos, zonas ou sites do projeto.');
       expect(e.toLowerCase()).not.toMatch(/rtu|ágata|agata|controle/);
     }
     expect((await acao(cons, 'd4', { ...ok, titulo: 'Texto inócuo sobre processo', descricao: 'cita a Zona Controle' })).status).toBe(400); // descrição também
     expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'd4'`)).toBe(0);
     expect((await acao(cons, 'd4', { ...ok, titulo: 'Texto inócuo sobre ab processo' })).status).toBe(201); // nome com menos de 3 letras é ignorado
+  });
+
+  it('hífen, espaço e pontuação não escondem o nome (RTU-Principal); o responsável também é conferido', async () => {
+    await desvio('d4b');
+    for (const titulo of ['Revisar o RTU Principal do pátio', 'Revisar rtu.principal', 'Revisar RTU  -  Principal', 'Segregar a zona_controle']) {
+      const r = await acao(cons, 'd4b', { ...ok, titulo });
+      expect(r.status, titulo).toBe(400);
+      expect((await r.json<{ error: string }>()).error).toBe('O título não pode citar o nome de ativos, zonas ou sites do projeto.');
+    }
+    expect((await acao(cons, 'd4b', { ...ok, assigned_to: 'Equipe da Subestação Ágata' })).status).toBe(400);
+    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'd4b'`)).toBe(0);
+    expect((await acao(cons, 'd4b', { ...ok, titulo: 'Texto inócuo sobre processo' })).status).toBe(201);
+  });
+
+  it('cada campo é conferido sozinho: o fim de um + o começo do seguinte não formam nome por colagem; a recusa diz só o campo', async () => {
+    await desvio('d4c');
+    // "Zona" (fim do título) + "Controle" (começo da descrição) colados formariam a zona "Zona Controle": não é citação
+    const colado = await acao(cons, 'd4c', { ...ok, titulo: 'Revisar a regra da zona', descricao: 'Controle de acesso remoto' });
+    expect(colado.status, await colado.clone().text()).toBe(201);
+    await desvio('d4d');
+    const msg = async (extra: Record<string, string>) => (await (await acao(cons, 'd4d', { ...ok, ...extra })).json<{ error: string }>()).error;
+    expect(await msg({ descricao: 'cita a Zona Controle' })).toBe('A descrição não pode citar o nome de ativos, zonas ou sites do projeto.');
+    expect(await msg({ assigned_to: 'Equipe RTU Principal' })).toBe('O responsável não pode citar o nome de ativos, zonas ou sites do projeto.');
+    expect(await msg({ titulo: 'Trocar o rtu-principal' })).toBe('O título não pode citar o nome de ativos, zonas ou sites do projeto.');
   });
 
   it('agente e chave de API recusados (P0-2); sem ot e técnico: 403', async () => {
@@ -172,6 +196,15 @@ describe('concluir a ação do desvio', () => {
     expect(await status(id)).toBe('Open');
     expect((await capa(cons, id, { status: 'In Progress' })).status).toBe(200);
     expect(await status(id)).toBe('In Progress');
+  });
+
+  it('status fora de Open, In Progress e Closed: 400 e a ação não muda (não se contorna a recusa com "closed")', async () => {
+    const id = await nova('d-st');
+    for (const s of ['closed', 'CLOSED', 'Closed ', 'Done', '']) {
+      expect((await capa(cons, id, { status: s })).status, JSON.stringify(s)).toBe(400);
+    }
+    expect(await status(id)).toBe('Open');
+    expect((await capa(cons, id, { status: 'Closed' })).status).toBe(403); // o criador segue recusado com o valor certo
   });
 
   it('outra pessoa fecha: 200 e a resposta não revela a origem', async () => {

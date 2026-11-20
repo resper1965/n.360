@@ -131,7 +131,7 @@ window.otSalvarAceite = (id) => {
 
 // Ação corretiva do núcleo a partir do desvio (POST /ot/desvios/:id/acao). O título vai para quem não tem o n.ot: nada do desvio entra nele.
 window.otCriarAcaoDesvio = (id) => modal('Criar ação corretiva', `<div class="form-group"><label class="form-label" for="des-acao-titulo">Título</label>
-    <input class="form-input" id="des-acao-titulo" maxlength="200" autofocus><p class="org-dica">Não use IP, e-mail nem o nome de ativos</p></div>
+    <input class="form-input" id="des-acao-titulo" maxlength="200" autofocus><p class="org-dica">Não use IP, e-mail nem o nome de ativos, zonas ou sites, nem no título nem no responsável</p></div>
     <div class="form-group"><label class="form-label" for="des-acao-resp">Responsável</label><input class="form-input" id="des-acao-resp" maxlength="200"></div>
     <div class="form-group"><label class="form-label" for="des-acao-prazo">Prazo</label><input class="form-input" type="date" id="des-acao-prazo" min="${hojeSP()}"></div>
     <div id="des-acao-erro" class="org-dica" role="alert"></div>`, 'otSalvarAcaoDesvio', id, 'Criar ação');

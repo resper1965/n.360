@@ -354,6 +354,10 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
   if (leitura.orgSuspensa) return c.json(ORG_SUSPENSA, 403);
   // Lido do banco nesta requisição (nunca da sessão): `ehComercial` nega a conta de organização direta (decisão 11).
   user.org_direta = leitura.orgDireta;
+  // O platform_admin age na organização do X-Org-Id (a da sessão é a org_ness): o tipo que vale é o da ATIVA. Organização inexistente
+  // dá `null` (não direta); quem a recusa é `resolverOrg`. Uma consulta, só para platform_admin que manda o cabeçalho.
+  const orgAtiva = user.role === 'platform_admin' ? c.req.header('X-Org-Id')?.trim() : '';
+  if (orgAtiva) user.org_direta = (await tipoDaOrg(c.env.DB, orgAtiva)) === 'direta';
 
   // Documento legal MATERIAL pendente barra o acesso até o aceite — muda base
   // legal ou retenção, e seguir usando o produto sem aceitar seria tratar o

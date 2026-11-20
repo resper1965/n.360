@@ -274,3 +274,28 @@ describe('POST /api/v1/platform/projects/:id/transferir', () => {
     expect(MSG_CORRIDA).toEqual({ error: 'O projeto mudou de consultoria; tente de novo' });
   });
 });
+
+describe('janela entre a conferência e o batch (destino direta)', () => {
+  it('conta de cliente que nasce depois da conferência: nada é movido (corrida), nem o projeto nem as concessões', async () => {
+    await semearProjeto('p-janela');
+    await env.DB.prepare(`INSERT OR IGNORE INTO organizations (id, name, slug, max_projects, max_users, tipo) VALUES ('org_dj','Direta J','direta-j',5,5,'direta')`).run();
+    // o SELECT de conferência (consulta a `users`) enxerga "sem clientes"; a conta nasce em seguida, antes do batch
+    const ctx = new Proxy(env.DB, {
+      get(alvo, k) {
+        const v = (alvo as any)[k];
+        if (k !== 'prepare') return typeof v === 'function' ? v.bind(alvo) : v;
+        return (sql: string) => {
+          if (!sql.trimStart().startsWith('SELECT 1 FROM users WHERE client_project_id')) return v.call(alvo, sql);
+          return { bind: () => ({ first: async () => {
+            await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-janela','janela@cliente.lat','x','J','org_user','p-janela')`).run();
+            return null;
+          } }) };
+        };
+      },
+    }) as unknown as D1Database;
+    const r = await transferirProjeto(ctx, { projetoId: 'p-janela', orgDestinoId: 'org_dj', motivo: MOTIVO, atorEmail: 'pa@ness.lat', ip: '1.1.1.1' });
+    expect(r).toEqual({ ok: false, motivo: 'corrida' });
+    expect((await um('SELECT org_id FROM projects WHERE id = ?', 'p-janela')).org_id).toBe('org_ness');
+    expect((await um(`SELECT count(*) n FROM agente_concessoes WHERE project_id = 'p-janela' AND revogado_em IS NULL`)).n).toBeGreaterThan(0);
+  });
+});

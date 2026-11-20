@@ -130,7 +130,7 @@ export const capaUpdateSchema = z.object({
   assigned_to_parte_id: parcial,
   incidente_id: parcial,
   due_date: dataIso.nullish(),
-  status: z.string().min(1, 'Status é obrigatório'),
+  status: z.enum(['Open', 'In Progress', 'Closed'], { message: 'Status inválido' }),
   resolution: parcial,
   root_cause: parcial,
   action_plan: parcial,
