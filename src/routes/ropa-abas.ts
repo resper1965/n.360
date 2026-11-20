@@ -30,6 +30,7 @@ import { motivosDeRisco } from '../services/riscos-atividade';
 import { RISCOS_PRIVACIDADE } from '../data/riscos-privacidade';
 // D2: copiloto da descrição por etapa (propõe; a pessoa aceita).
 import { rascunharEtapa } from '../services/copiloto-etapa';
+import { edicaoCitaNomeOt } from '../services/ot-desvio-acao';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
 
@@ -281,6 +282,9 @@ ropaAbasApp.put('/gaps/:id', async (c) => {
     if (!v.success) return v.response;
     if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir gap é decisão do consultor: use niso_concluir_acao' }, 403);
     const { projectId, recordId } = ids(c);
+    // O gap vira o título (1ª linha) e a descrição (inteira) da ação, e a recomendação e o plano vão às colunas de mesmo nome.
+    const nomeOt = await edicaoCitaNomeOt(c.env.DB, projectId, c.req.param('id')!, c.get('user'), { description: v.data.gap, recomendacao: v.data.recomendacao, action_plan: v.data.plano_acao });
+    if (nomeOt) return c.json({ error: nomeOt }, 400);
     const r = await atualizarGap(c.env.DB, projectId, recordId, c.req.param('id')!, quem(c), v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao atualizar o gap', e); }

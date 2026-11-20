@@ -5,7 +5,7 @@ import { logAudit, requireResourceAccess, erro500, refForaDoProjeto, setParcial 
 import { validateBody, createCapaSchema, capaUpdateSchema } from '../schemas';
 import { escopoRopa } from '../services/escopo-itens';
 import { reabrirDesvioDaAcao } from '../services/ot-referencias';
-import { criadorDaAcaoDoDesvio, MSG_CRIADOR_NAO_CONCLUI } from '../services/ot-desvio-acao';
+import { criadorDaAcaoDoDesvio, MSG_CRIADOR_NAO_CONCLUI, edicaoCitaNomeOt } from '../services/ot-desvio-acao';
 
 /** Responsável da ação: a parte do cadastro ou o texto livre, como o gap. Vazio nos dois não vale. */
 export const MSG_RESPONSAVEL = 'Indique o responsável pela ação (cadastro de partes ou texto livre).';
@@ -28,6 +28,8 @@ capaApp.put('/:id', async (c) => {
     // O projeto vem da CAPA gravada, nunca do corpo. Sem isto, apontar para o risco de outro
     // projeto deixava o dono dele apagar esta CAPA pelo ON DELETE CASCADE.
     const atual = await c.env.DB.prepare('SELECT project_id FROM corrective_actions WHERE id = ?').bind(id).first<{ project_id: string | null }>();
+    const nomeOt = await edicaoCitaNomeOt(c.env.DB, atual?.project_id, id, c.get('user'), body);
+    if (nomeOt) return c.json({ error: nomeOt }, 400);
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['audit_id', 'risk_id', 'control_id', 'assigned_to_parte_id', 'incidente_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
     // Ação antiga sem responsável segue editável; o que não vale é deixá-la sem ele ao mexer nos campos do responsável.
