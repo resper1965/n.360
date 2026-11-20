@@ -107,6 +107,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // ROPA nem de DPIA, e não apaga análise crítica, que é registro assinado. Revogar aprovação de
   // CONTROLE e do projeto também é ato do cliente (abaixo).
   // Assinatura eletrônica é ato humano, pela interface (senha do assinante).
+  // Avaliação humana da evidência (notas e status): é da tela, sem passar pelo "sim" nem pela trilha de decisão do agente.
+  [/^\/api\/v1\/projects\/[^/]+\/evidence\/[^/]+$/, 'avaliação humana da evidência é pela interface', ['PATCH']],
   [/^\/api\/v1\/evidence\/[^/]+\/(signatures\/)?approve$/, 'assinatura eletrônica é ato humano, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/(ropa|dpia)\/[^/]+\/revoke-approval$/, 'revogar aprovação de ROPA e DPIA é da direção, pela interface'],
   [/^\/api\/v1\/(controls\/[^/]+\/revoke-approval|projects\/[^/]+\/revoke-approvals)$/, 'revogar aprovação é ato do cliente', ['POST']],
@@ -121,6 +123,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
   // Mesclar duplicata move vínculos e inativa um cadastro: ato do consultor, pela interface, com a prévia na tela.
   [/^\/api\/v1\/projects\/[^/]+\/mesclar$/, 'mesclar cadastros é feito pela interface, com a prévia do que muda', ['POST']],
+  // Canal do titular (0117): "conferido em" é afirmação de uma pessoa sobre a página do cliente; o agente lê o canal e não o grava.
+  [/^\/api\/v1\/projects\/[^/]+\/titular-canal$/, 'o canal do titular é registrado por uma pessoa, pela interface; o agente só lê', ['PUT', 'POST', 'PATCH', 'DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos-arquivo(\/|$)/, 'documento em arquivo (cadastro, envio e exclusão) é feito pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
   // Rascunho de IA do n.privacy é da tela, para a pessoa revisar (fatia 5.3); o agente já é a IA.
   [/^\/api\/v1\/projects\/[^/]+\/titular-pedidos\/[^/]+\/(identidade|encaminhamentos(\/[^/]+)?)$/, 'identidade e encaminhamento do pedido do titular são atos de pessoa, pela interface'],

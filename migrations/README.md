@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0116** (`ls migrations/*.sql | tail -1`). São 117 arquivos
+- Última migration no repositório: **0117** (`ls migrations/*.sql | tail -1`). São 118 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -777,6 +777,10 @@ $ npx wrangler d1 execute niso-db --remote --json --command "SELECT name FROM d1
 $ npx wrangler d1 migrations list niso-db --remote
 ✅ No migrations to apply!
 ```
+
+## 0117 — canal do titular (2026-11-19)
+
+Cria `titular_canal` (uma linha por projeto: `id`, `project_id` UNIQUE com CASCADE, `email`, `telefone`, `formulario_url` e `divulgacao_url` com CHECK de tamanho, `responsavel_parte_id` com SET NULL, `conferido_em`, `conferido_por`, `atualizado_por`, `updated_at`). Aditiva e repetível; sem índice além do UNIQUE. Spec `2026-11-19-canal-do-titular-design`. **Status: APLICADA em produção em 19/11/2026** (workflow `db-migrate.yml`, run 24, a partir da `main` em be6ec3a, com backup antes). Evidência medida no D1 de produção: `PRAGMA table_info(titular_canal)` devolveu 11 colunas e `d1_migrations` tem a linha `0117_titular_canal.sql` como a última. Falta só o *Deploy* do código do canal.
 
 ## 0116 — fornecedor de OT (2026-11-17)
 

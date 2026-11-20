@@ -209,9 +209,22 @@ export const precificacaoConfigSchema = z.record(z.string().max(200), z.unknown(
 export const evidenciaVincularSchema = z.object({
   // `null` desassocia; a presença da chave é checada pelo handler.
   control_id: z.string().max(200).nullable().optional(),
+  // Documento VIGENTE a que a evidência se liga; `null` desvincula. O handler
+  // confere que existe, é do projeto e está vigente. A ligação é ao DOCUMENTO,
+  // não a uma versão fixa (acompanha a versão vigente).
+  documento_id: z.string().max(200).nullable().optional(),
 });
 
 export const evidenciaTextoSchema = z.object({ text: z.string().optional() });
+
+// PATCH de avaliação: nota (texto; `null` limpa) e/ou veredito do avaliador.
+// 'conforming' NÃO entra: conforme é a assinatura do Líder SGSI (assinarEvidencia),
+// com autoridade de governança, senha e hash do conteúdo — marcá-lo por PATCH de
+// nota driblava essas travas e inflava a cobertura (que conta `conforming` como válido).
+export const evidenciaAvaliacaoSchema = z.object({
+  evaluation_notes: z.string().max(20000).nullable().optional(),
+  evaluation_status: z.enum(['pending', 'partial', 'non_conforming']).optional(),
+});
 
 export const evidenciaAssinarSchema = z.object({
   // Hash SHA-256 que a tela exibiu; obrigatório (o handler responde 400 depois das checagens de autoridade).

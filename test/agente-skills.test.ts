@@ -141,6 +141,12 @@ describe('implantacao-privacy e a trilha da tela (onda 4)', () => {
     expect(skill).toContain('programa.etapas.privacy');
     expect(skill).toContain('/painel?modulo=privacy');
   });
+  it('etapa 1 lê o canal em niso_privacy_encarregado, manda registrar pela interface e nunca cita o link do portal', () => {
+    expect(skill).toContain('| 1. Encarregado e canal |');
+    expect(skill).toContain('`canal`');
+    expect(skill).toContain('Registrar o canal é pela interface');
+    expect(skill).not.toContain('/solicitacao');
+  });
   it('a skill não menciona o n.ot (P0-2)', () => {
     expect(skill).not.toMatch(/n\.ot|\bsites?\b|desvio/i);
   });

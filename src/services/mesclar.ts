@@ -27,6 +27,7 @@ const TROCAR: Record<TabelaMescla, { rotulo: string; tabela: string; coluna: str
     { rotulo: 'Responsável de documento em arquivo', tabela: 'documentos_arquivo', coluna: 'responsavel_parte_id' },
     { rotulo: 'Responsável de pedido do titular', tabela: 'titular_pedidos', coluna: 'responsavel_parte_id' },
     { rotulo: 'Responsável de incidente', tabela: 'incidentes', coluna: 'responsavel_parte_id' },
+    { rotulo: 'Responsável do canal do titular', tabela: 'titular_canal', coluna: 'responsavel_parte_id' },
     { rotulo: 'Avaliação de terceiro', tabela: 'avaliacoes_terceiro', coluna: 'parte_id' },
     { rotulo: 'Criticidade de terceiro', tabela: 'criticidades_terceiro', coluna: 'parte_id' },
   ],
@@ -78,6 +79,13 @@ async function ler(db: D1Database, tabela: TabelaMescla, projectId: string, id: 
   return db.prepare(sql).bind(id, projectId).first<Cadastro>();
 }
 
+/** `titular_canal` é da 0117: com o código publicado antes da migration, a mescla segue sem ela (só o que falta, nada mais é engolido). */
+const tabelasDaMescla = async (db: D1Database, tabela: TabelaMescla) => {
+  // PRAGMA, não sqlite_master: a varredura de test/pedidos-prova.test.ts trata `sqlite_master` num fonte como tabela derivada de nome dinâmico.
+  const tem = ((await db.prepare('PRAGMA table_info(titular_canal)').all()).results ?? []).length > 0;
+  if (!tem) console.log(JSON.stringify({ nivel: 'warn', msg: 'titular_canal_ausente', onde: 'mesclar' }));
+  return TROCAR[tabela].filter((t) => tem || t.tabela !== 'titular_canal');
+};
 const quantos = async (db: D1Database, sql: string, ...b: string[]) => (await db.prepare(sql).bind(...b).first<{ n: number }>())?.n ?? 0;
 
 /** O encarregado (DPO) do projeto: a linha de assinatura da governança só se altera pela interface. */
@@ -115,7 +123,7 @@ export async function previaDaMescla(db: D1Database, tabela: TabelaMescla, proje
   }
 
   const efeitos: Efeito[] = [];
-  for (const t of TROCAR[tabela]) {
+  for (const t of await tabelasDaMescla(db, tabela)) {
     const n = await quantos(db, `SELECT count(*) AS n FROM ${t.tabela} WHERE ${t.coluna} = ? AND project_id = ?`, removerId, projectId);
     if (n) efeitos.push({ rotulo: t.rotulo, n });
   }
@@ -140,7 +148,7 @@ export async function mesclar(db: D1Database, tabela: TabelaMescla, projectId: s
   const stmts: D1PreparedStatement[] = [];
   const email = tabela === 'partes' && (await copiaEmail(db, { id: k, nome: '', status: '' }, p)) ? 1 : 0;
 
-  for (const t of TROCAR[tabela]) {
+  for (const t of await tabelasDaMescla(db, tabela)) {
     stmts.push(db.prepare(`UPDATE ${t.tabela} SET ${t.coluna} = ? WHERE ${t.coluna} = ? AND project_id = ?`).bind(k, d, p));
   }
   for (const t of LIGAR[tabela]) {

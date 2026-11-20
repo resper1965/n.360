@@ -5,7 +5,21 @@ import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAcce
 import type { PapelAssinatura } from '../helpers';
 import { EvidenceAgent } from '../agents/evidence';
 import { listPaged } from '../helpers';
-import { validateBody, evidenceContentSchema, evidenciaVincularSchema, evidenciaTextoSchema, evidenciaAssinarSchema } from '../schemas';
+import { validateBody, evidenceContentSchema, evidenciaVincularSchema, evidenciaTextoSchema, evidenciaAssinarSchema, evidenciaAvaliacaoSchema } from '../schemas';
+
+/**
+ * Confere que o documento existe, é do MESMO projeto e está `vigente`. Devolve a
+ * mensagem de erro (400) ou `null` se pode vincular. Obsoleto/rascunho é recusado:
+ * evidência só acompanha documento vigente (a ligação é ao documento, que resolve
+ * à versão vigente, não a uma versão fixa). Usado no PUT e no upload.
+ */
+async function erroDocumentoVigente(db: Bindings['DB'], projectId: string, docId: string): Promise<string | null> {
+  const doc = await db.prepare('SELECT status FROM documentos WHERE id = ? AND project_id = ?').bind(docId, projectId).first<{ status: string }>();
+  // Mesma resposta para inexistente e de outro projeto (não revela documento alheio).
+  if (!doc) return 'Documento não encontrado neste projeto';
+  if (doc.status !== 'vigente') return `Documento não está vigente (status: ${doc.status}); vincule a versão vigente do documento`;
+  return null;
+}
 
 export const evidenceApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectEvidenceApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -117,61 +131,102 @@ evidenceApp.delete('/:id', async (c) => {
     const ev = await c.env.DB.prepare('SELECT file_name, r2_key, project_id FROM evidence WHERE id = ?').bind(id).first<any>();
     if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
 
-    // Banco primeiro: se o DELETE falhar (ex.: FK do checklist), a linha e o
-    // arquivo continuam juntos. Ao contrário, a linha sobrava apontando para um
-    // objeto já apagado. Falha do R2 depois disso vira objeto órfão — vai ao log,
-    // mas não desfaz a exclusão.
-    await c.env.DB.prepare('DELETE FROM evidence WHERE id = ?').bind(id).run();
+    // `checklist_progress.evidence_id` referencia `evidence` SEM ON DELETE: a FK
+    // (RESTRICT) derrubava o DELETE com 500 quando um item de checklist apontava
+    // para a evidência. Soltamos o vínculo
+    // primeiro — o item permanece, como faria ON DELETE SET NULL — e apagamos na
+    // MESMA transação (`db.batch`). As outras FKs para `evidence`
+    // (evidencia_requisitos, ot_requisito_evidencias) são ON DELETE CASCADE.
+    // Falha do R2 depois disso vira objeto órfão — vai ao log, não desfaz a exclusão.
+    const soltos = (await c.env.DB.prepare('SELECT item_id FROM checklist_progress WHERE evidence_id = ?').bind(id).all<{ item_id: string }>()).results.map((x) => x.item_id);
+    const r = await c.env.DB.batch([
+      c.env.DB.prepare('UPDATE checklist_progress SET evidence_id = NULL WHERE evidence_id = ?').bind(id),
+      c.env.DB.prepare('DELETE FROM evidence WHERE id = ?').bind(id),
+    ]);
+    const itensSoltos = r[0]?.meta?.changes ?? 0;
     if (ev.r2_key) {
       await c.env.STORAGE.delete(ev.r2_key).catch((e: unknown) => registraErro(c, e));
     }
-    await logAudit(c.env.DB, 'evidence.deleted', c.get('user')?.email ?? 'system', `Evidência ${ev.file_name} excluída permanentemente.`, '', '', ev.project_id);
+    await logAudit(c.env.DB, 'evidence.deleted', c.get('user')?.email ?? 'system', `Evidência ${ev.file_name} excluída permanentemente${itensSoltos ? `; ${itensSoltos} item(ns) de checklist desvinculado(s): ${soltos.join(', ')}` : ''}.`, '', '', ev.project_id);
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Erro ao excluir evidência', e);
   }
 });
 
-// Re-associa (ou desassocia) uma evidência a um controle. Faltava caminho de API
-// para isso — o control_id só era definido no upload.
+// Re-associa (ou desassocia) uma evidência a um controle e/ou a um documento
+// vigente. Faltava caminho de API para o documento — o PUT antes só lia
+// control_id, então documento_id vinha no corpo e era ignorado em silêncio.
 evidenceApp.put('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
-    const ev = await c.env.DB.prepare('SELECT id, project_id, control_id, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<any>();
+    const ev = await c.env.DB.prepare('SELECT id, project_id, control_id, documento_id, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<any>();
     if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
 
     const v = await validateBody(c, evidenciaVincularSchema);
     if (!v.success) return v.response;
     const body = v.data;
-    if (!('control_id' in body)) {
-      return c.json({ error: 'Envie control_id (id do controle, ou null para desassociar).' }, 400);
+    const temControle = 'control_id' in body;
+    const temDocumento = 'documento_id' in body;
+    if (!temControle && !temDocumento) {
+      return c.json({ error: 'Envie control_id e/ou documento_id (null para desassociar).' }, 400);
     }
-    const novoControle = body.control_id ?? null;
 
-    // Aterramento de tenant: só vincula a um controle DO MESMO projeto. Mesma
-    // resposta para inexistente e de outro projeto (como no upload): um 403
-    // distinto confirmava que o id existe em outro tenant.
-    if (novoControle !== null) {
+    const resp: Record<string, unknown> = { ok: true };
+    const novoDoc = temDocumento ? (body.documento_id ?? null) : null;
+    const novoControle = temControle ? (body.control_id ?? null) : null;
+
+    // Validar TODOS os alvos ANTES de qualquer escrita: com documento_id válido e
+    // control_id inválido, antes gravava o documento e só então recusava com 400 —
+    // uma gravação parcial sob resposta de erro. Agora nada é escrito num 400.
+    if (temDocumento && novoDoc !== null) {
+      const erro = await erroDocumentoVigente(c.env.DB, ev.project_id, novoDoc);
+      if (erro) return c.json({ error: erro }, 400);
+    }
+    if (temControle && novoControle !== null) {
+      // Aterramento de tenant: só vincula a um controle DO MESMO projeto. Mesma
+      // resposta para inexistente e de outro projeto (como no upload): um 403
+      // distinto confirmava que o id existe em outro tenant.
       const ctrl = await c.env.DB.prepare('SELECT 1 FROM compliance_controls WHERE id = ? AND project_id = ?').bind(novoControle, ev.project_id).first();
       if (!ctrl) return c.json({ error: 'Controle não encontrado neste projeto' }, 400);
     }
 
-    // Mudar o controle-alvo invalida a avaliação anterior (foi feita contra outro
-    // controle): volta a 'pending' e as assinaturas (revisão contra o outro controle) caem.
-    // Sem efeito se o vínculo não mudou.
-    const mudou = novoControle !== (ev.control_id ?? null);
-    if (mudou) {
-      await c.env.DB.prepare(
-        `UPDATE evidence SET control_id = ?, evaluation_status = 'pending', evaluation_score = NULL, evaluation_notes = NULL,
-           ciso_approved_by = NULL, ciso_approved_at = NULL, ciso_approved_ip = NULL, ciso_approved_ua = NULL,
-           ceo_approved_by = NULL, ceo_approved_at = NULL, ceo_approved_ip = NULL, ceo_approved_ua = NULL,
-           updated_at = datetime('now') WHERE id = ?`
-      ).bind(novoControle, id).run();
-      const assinaram = [ev.ciso_approved_by ? `Líder SGSI (${ev.ciso_approved_by})` : '', ev.ceo_approved_by ? `Direção (${ev.ceo_approved_by})` : ''].filter(Boolean).join(' e ') || 'ninguém';
-      await logAudit(c.env.DB, 'evidence.relinked', c.get('user')?.email ?? 'system', `Evidência ${id} re-associada: controle ${ev.control_id ?? '(nenhum)'} -> ${novoControle ?? '(nenhum)'}; avaliação resetada; assinaturas apagadas de: ${assinaram}.`, '', '', ev.project_id);
+    // documento_id: liga a evidência ao DOCUMENTO vigente do projeto (não a uma
+    // versão fixa). Ortogonal ao controle: não mexe em avaliação nem assinatura.
+    if (temDocumento) {
+      const mudouDoc = novoDoc !== (ev.documento_id ?? null);
+      if (mudouDoc) {
+        await c.env.DB.prepare(`UPDATE evidence SET documento_id = ?, updated_at = datetime('now') WHERE id = ?`).bind(novoDoc, id).run();
+        await logAudit(c.env.DB, 'evidence.documento_vinculado', c.get('user')?.email ?? 'system', `Evidência ${id}: documento ${ev.documento_id ?? '(nenhum)'} -> ${novoDoc ?? '(nenhum)'}.`, '', '', ev.project_id);
+      }
+      resp.documento_id = novoDoc;
+      resp.documento_relinked = mudouDoc;
     }
-    return c.json({ ok: true, control_id: novoControle, relinked: mudou });
+
+    if (temControle) {
+      // Mudar o controle-alvo invalida a avaliação anterior (foi feita contra outro
+      // controle): volta a 'pending' e as assinaturas (revisão contra o outro controle)
+      // caem. É INTENCIONAL — a resposta devolve `approvals_reset` e a trilha registra
+      // quem trocou e de quem era a assinatura apagada. Sem efeito se o vínculo não mudou.
+      const mudou = novoControle !== (ev.control_id ?? null);
+      const tinhaAprovacao = !!(ev.ciso_approved_by || ev.ceo_approved_by);
+      if (mudou) {
+        await c.env.DB.prepare(
+          `UPDATE evidence SET control_id = ?, evaluation_status = 'pending', evaluation_score = NULL, evaluation_notes = NULL,
+             ciso_approved_by = NULL, ciso_approved_at = NULL, ciso_approved_ip = NULL, ciso_approved_ua = NULL,
+             ceo_approved_by = NULL, ceo_approved_at = NULL, ceo_approved_ip = NULL, ceo_approved_ua = NULL,
+             updated_at = datetime('now') WHERE id = ?`
+        ).bind(novoControle, id).run();
+        const assinaram = [ev.ciso_approved_by ? `Líder SGSI (${ev.ciso_approved_by})` : '', ev.ceo_approved_by ? `Direção (${ev.ceo_approved_by})` : ''].filter(Boolean).join(' e ') || 'ninguém';
+        await logAudit(c.env.DB, 'evidence.relinked', c.get('user')?.email ?? 'system', `Evidência ${id} re-associada: controle ${ev.control_id ?? '(nenhum)'} -> ${novoControle ?? '(nenhum)'}; avaliação resetada; assinaturas apagadas de: ${assinaram}.`, '', '', ev.project_id);
+      }
+      resp.control_id = novoControle;
+      resp.relinked = mudou;
+      resp.approvals_reset = mudou && tinhaAprovacao;
+    }
+
+    return c.json(resp);
   } catch (e: any) {
     return erro500(c, 'Erro ao re-associar evidência', e);
   }
@@ -372,6 +427,49 @@ projectEvidenceApp.get('/', async (c) => {
   return c.json({ ok: true, evidence: semRastros(p.results) }, 200, { 'X-Has-More': String(p.hasMore) });
 });
 
+// Notas de avaliação: grava evaluation_notes e/ou evaluation_status (domínio
+// canônico). Não mexe em control_id nem em assinatura. A autorização é a da faixa
+// (contrato ativo + write-guard): papel só-leitura cai em 403 no middleware, e o
+// agente MCP é recusado em FORA_DO_AGENTE: a avaliação humana é pela interface.
+projectEvidenceApp.patch('/:evidenceId', async (c) => {
+  try {
+    const projectId = c.req.param('projectId');
+    const id = c.req.param('evidenceId');
+    await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
+    const ev = await c.env.DB.prepare('SELECT id, project_id, evaluation_status, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?')
+      .bind(id).first<{ project_id: string; evaluation_status: string | null; ciso_approved_by: string | null; ceo_approved_by: string | null }>();
+    if (!ev || ev.project_id !== projectId) return c.json({ error: 'Evidência não encontrada' }, 404);
+
+    const v = await validateBody(c, evidenciaAvaliacaoSchema);
+    if (!v.success) return v.response;
+    const body = v.data;
+    const temNotas = 'evaluation_notes' in body;
+    const temStatus = 'evaluation_status' in body;
+    if (!temNotas && !temStatus) return c.json({ error: 'Envie evaluation_notes e/ou evaluation_status.' }, 400);
+
+    // A assinatura cobre o conteúdo (hash), não as notas: notas seguem editáveis. O status de evidência
+    // assinada só muda revogando a assinatura ou corrigindo o conteúdo (como a avaliação por IA, que também não o troca).
+    if (temStatus && body.evaluation_status !== (ev.evaluation_status || 'pending') && (ev.ciso_approved_by || ev.ceo_approved_by)) {
+      return c.json({ error: 'Evidência assinada: o status não muda por aqui. Revogue a assinatura ou corrija o conteúdo da evidência.' }, 409);
+    }
+
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    if (temNotas) { sets.push('evaluation_notes = ?'); vals.push(body.evaluation_notes ?? null); }
+    if (temStatus) { sets.push('evaluation_status = ?'); vals.push(body.evaluation_status); }
+    sets.push("updated_at = datetime('now')");
+    vals.push(id);
+    await c.env.DB.prepare(`UPDATE evidence SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+
+    const user = c.get('user');
+    await logAudit(c.env.DB, 'evidence.evaluation_updated', user?.email ?? 'system',
+      `Avaliação da evidência ${id} atualizada por ${user?.email ?? 'system'}${temStatus ? `; status -> ${body.evaluation_status}` : ''}${temNotas ? '; notas atualizadas' : ''}.`, '', '', projectId);
+    return c.json({ ok: true, ...(temStatus ? { evaluation_status: body.evaluation_status } : {}) });
+  } catch (e) {
+    return erro500(c, 'Falha ao atualizar avaliação da evidência', e);
+  }
+});
+
 projectEvidenceApp.post('/upload', async (c) => {
   try {
     const projectId = c.req.param('projectId') as string;
@@ -379,6 +477,7 @@ projectEvidenceApp.post('/upload', async (c) => {
     const file = body['file'] as File;
     const pedido = typeof body['control_id'] === 'string' ? body['control_id'] : '';
     const ref = typeof body['control_ref'] === 'string' ? body['control_ref'] : '';
+    const docPedido = typeof body['documento_id'] === 'string' ? body['documento_id'] : '';
 
     if (!file) {
       return c.json({ error: 'No file provided' }, 400);
@@ -404,6 +503,15 @@ projectEvidenceApp.post('/upload', async (c) => {
       controlId = await idDoControle(c.env.DB, projectId, ref);
     }
 
+    // documento_id (opcional, via niso_create_evidence): documento vigente do
+    // projeto. Conferido ANTES de tocar no R2, como o controle.
+    let documentoId: string | null = null;
+    if (docPedido) {
+      const erro = await erroDocumentoVigente(c.env.DB, projectId, docPedido);
+      if (erro) return c.json({ error: erro }, 400);
+      documentoId = docPedido;
+    }
+
     const id = genId();
     const r2Key = `evidence/${projectId}/${id}-${file.name}`;
     const arrayBuffer = await file.arrayBuffer();
@@ -419,9 +527,9 @@ projectEvidenceApp.post('/upload', async (c) => {
     const user = c.get('user');
     try {
       await c.env.DB.prepare(
-        `INSERT INTO evidence (id, project_id, control_id, file_name, file_size, file_type, r2_key, file_hash, evaluation_status, uploaded_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, datetime('now'))`
-      ).bind(id, projectId, controlId, file.name, file.size, file.type || 'application/octet-stream', r2Key, realSha256, user?.email || 'system').run();
+        `INSERT INTO evidence (id, project_id, control_id, documento_id, file_name, file_size, file_type, r2_key, file_hash, evaluation_status, uploaded_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, datetime('now'))`
+      ).bind(id, projectId, controlId, documentoId, file.name, file.size, file.type || 'application/octet-stream', r2Key, realSha256, user?.email || 'system').run();
     } catch (e) {
       // Compensação: sem a linha no banco, o objeto no R2 seria órfão. Se
       // a própria compensação falhar, o órfão fica registrado no log.

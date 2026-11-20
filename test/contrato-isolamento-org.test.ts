@@ -255,6 +255,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },
   // n.ot (0097): dados é objeto JSON (CHECK)
   ot_fluxos_pendentes: { dados: '{}', origem_ip_hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+  // Canal do titular (0117): todas as colunas são opcionais; o e-mail entra para a linha ter conteúdo a vazar na varredura
+  titular_canal: { email: 'canal@varredura.teste' },
 };
 
 /**

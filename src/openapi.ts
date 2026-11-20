@@ -47,6 +47,7 @@ import {
   evidenciaAssinarSchema,
   evidenciaTextoSchema,
   evidenciaVincularSchema,
+  evidenciaAvaliacaoSchema,
   governanceMemberSchema,
   homologacaoConcluirSchema,
   homologacaoCriarSchema,
@@ -131,7 +132,7 @@ import {
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema,
   riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema, criticidadeTerceiroSchema,
-  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, portalConsultarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, encaminhamentoCriarSchema, encaminhamentoAtualizarSchema, consentimentoCriarSchema,
+  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, titularCanalSchema, portalAbrirSchema, portalConsultarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, encaminhamentoCriarSchema, encaminhamentoAtualizarSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
 import {
@@ -288,6 +289,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/empresa', schema: empresaSchema, nome: 'empresaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/evidence/:evidenceId/requisitos', schema: documentoRequisitosSchema, nome: 'documentoRequisitosSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/evidence/:evidenceId/validade', schema: evidenciaValidadeSchema, nome: 'evidenciaValidadeSchema' },
+  { metodo: 'PATCH', caminho: '/api/v1/projects/:projectId/evidence/:evidenceId', schema: evidenciaAvaliacaoSchema, nome: 'evidenciaAvaliacaoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/generate-document', schema: documentoGerarSchema, nome: 'documentoGerarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/homologacoes/:id/concluir', schema: homologacaoConcluirSchema, nome: 'homologacaoConcluirSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/homologacoes/:id/novo-link', schema: homologacaoNovoLinkSchema, nome: 'homologacaoNovoLinkSchema' },
@@ -405,6 +407,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/criticidades', schema: criticidadeTerceiroSchema, nome: 'criticidadeTerceiroSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/documentos', schema: terceiroDocumentoSchema, nome: 'terceiroDocumentoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/tipo', schema: terceiroTipoSchema, nome: 'terceiroTipoSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/titular-canal', schema: titularCanalSchema, nome: 'titularCanalSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id/encaminhamentos/:encId', schema: encaminhamentoAtualizarSchema, nome: 'encaminhamentoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id/encaminhamentos', schema: encaminhamentoCriarSchema, nome: 'encaminhamentoCriarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id/identidade', schema: titularIdentidadeSchema, nome: 'titularIdentidadeSchema' },

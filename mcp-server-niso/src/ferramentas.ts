@@ -296,6 +296,10 @@ export const TOOLS: Ferramenta[] = [
           type: "string",
           description: "Optional Annex A control ID to link the evidence to (e.g. ctrl-a51)",
         },
+        documentoId: {
+          type: "string",
+          description: "Optional ID of a VIGENTE document to link the evidence to. The server rejects a document that is missing, from another project, or not vigente.",
+        },
       },
       required: ["projectId", "fileName", "content"],
     },
@@ -484,7 +488,7 @@ export const TOOLS: Ferramenta[] = [
   {
     name: "niso_privacy_encarregado",
     description:
-      "n.privacy: o painel do encarregado: pedidos do titular, incidentes, tratamentos sem base, DPIA ou LIA, terceiros, documentos, evidências, cobertura LGPD, prazos legais não cadastrados e o 'o que fazer' em prioridades (alta, media). Comece por aqui. Só leitura.",
+      "n.privacy: o painel do encarregado: pedidos do titular, incidentes, tratamentos sem base, DPIA ou LIA, terceiros, documentos, evidências, cobertura LGPD, prazos legais não cadastrados, o canal do titular (`canal`: meios, portal ativo, página de divulgação, última conferência; registrar o canal é pela interface) e o 'o que fazer' em prioridades (alta, media). Comece por aqui. Só leitura.",
     inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
   },
   {
@@ -805,6 +809,7 @@ export async function executarFerramenta(
           content: z.string().min(1, "content não pode ser vazio"),
           contentType: z.enum(EVIDENCE_TEXT_TYPES).optional(),
           controlId: z.string().optional(),
+          documentoId: z.string().optional(),
         });
         const validated = schema.parse(args);
         fora(validated.projectId);
@@ -813,6 +818,7 @@ export async function executarFerramenta(
           {
             contentType: validated.contentType || "text/markdown",
             ...(validated.controlId ? { control_id: validated.controlId } : {}),
+            ...(validated.documentoId ? { documento_id: validated.documentoId } : {}),
           },
           validated.content,
           validated.fileName

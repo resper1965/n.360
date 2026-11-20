@@ -97,6 +97,12 @@ describe('Agente com paridade de consultor, preso ao projeto', () => {
     }
   });
 
+  it('avaliação humana da evidência (PATCH) é recusada ao agente, mesmo confirmada', async () => {
+    const r = await comoAgente('/api/v1/projects/p-a/evidence/ev-x', { method: 'PATCH', headers: { ...confirmado, ...json }, body: '{"evaluation_notes":"x"}' });
+    expect(r.status).toBe(403);
+    expect((await r.json<any>()).error).toContain('fora do alcance do agente');
+  });
+
   it('aceitar documento gerado (e concluir o item) é ato humano: recusado ao agente, mesmo confirmado', async () => {
     const r = await comoAgente('/api/v1/projects/p-a/approve-document', { method: 'POST', headers: { ...confirmado, ...json }, body: JSON.stringify({ itemId: 'p15_1', content: '# Política' }) });
     expect(r.status).toBe(403);

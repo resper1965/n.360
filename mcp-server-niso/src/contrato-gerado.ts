@@ -10,6 +10,7 @@
 
 export const ROTAS = {
   'PATCH /api/v1/projects/{id}/controls': { obrigatorios: [] },
+  'PATCH /api/v1/projects/{projectId}/evidence/{evidenceId}': { obrigatorios: [] },
   'PATCH /api/v1/projects/{projectId}/passos/{itemId}': { obrigatorios: [] },
   'POST /api/v1/admin/users': { obrigatorios: ['email', 'name', 'role'] },
   'POST /api/v1/assessments': { obrigatorios: [] },
@@ -267,6 +268,7 @@ export const ROTAS = {
   'PUT /api/v1/projects/{projectId}/security-policy': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/sso': { obrigatorios: ['client_id', 'client_secret', 'dominios', 'issuer'] },
   'PUT /api/v1/projects/{projectId}/terceiros/{parteId}/tipo': { obrigatorios: ['terceiro_tipo'] },
+  'PUT /api/v1/projects/{projectId}/titular-canal': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/titular-pedidos/{id}': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/titular-pedidos/{id}/encaminhamentos/{encId}': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/titular-pedidos/{id}/identidade': { obrigatorios: ['metodo'] },

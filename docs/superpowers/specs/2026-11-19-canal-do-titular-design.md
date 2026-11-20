@@ -165,3 +165,14 @@ Texto oficial da LGPD (arts. 18, §3º; 19; 41, §§1º e 2º) e das Res. CD/ANP
 a minha leitura, sem abrir o DOU nem o Planalto nesta spec. Quantos projetos em produção têm encarregado, portal ativo ou respostas em
 `p5_3`/`p23_1`. Onde as respostas dos passos `p5_3`/`p23_1` ficam gravadas (não li). O que `npm run openapi` e `npm run skills:gerar` mudam
 (não rodei). Nenhum teste foi executado.
+
+## Rulings da execução
+
+- `titular_canal` ganhou `id TEXT PRIMARY KEY` e `project_id ... UNIQUE` no lugar de `project_id` como chave: as varreduras de isolamento (`test/contrato-isolamento-org.test.ts`, `-topo`) pulam tabela sem `id`.
+- `podeGerirPortal` não foi exportado: `titularCanalApp` mora no mesmo arquivo.
+- Responsável de outro projeto: 400 (o mesmo de `titular_pedidos`); URL do app ou `/solicitacao`: 422 em qualquer host.
+- Trocar a página de divulgação apaga a conferência anterior; conferir sem página é 422.
+- O indicador "Canal do titular" do Painel saiu do PR2 para o PR3 (o dado `canal_titular` só existe com a visão do PR3).
+- O passo 1 leva a Solicitações (`tela: 'titular'`) com "Registrar o canal"; o id do passo continua `encarregado`.
+- A `0117` só vai a produção antes do código que a lê (deploy.yml recusa migration pendente); `resumoDoCanal` tolera a tabela ausente.
+- (Preencha na execução: o que `npm run openapi` mudou; a mediana do desempenho do painel depois do PR3.)

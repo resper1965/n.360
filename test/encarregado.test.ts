@@ -20,6 +20,7 @@ type Visao = {
   evidencias: { a_corrigir: number; vencem_em_7_dias: number };
   lgpd: { carregada: boolean; total?: number; cobertos?: number; parciais?: number; lacunas?: number };
   prazos_legais: { nao_definidos: string[] };
+  canal: { meios: string[]; portal_ativo: boolean; divulgado: boolean; conferido_em: string | null };
 };
 let consultor: Record<string, string>, cliente: Record<string, string>;
 const ver = async (h = consultor, projeto = 'e1') => json<Visao>(await chamar(h, `/api/v1/projects/${projeto}/encarregado`));
@@ -52,6 +53,7 @@ describe('projeto vazio', () => {
     // projeto vazio NÃO é projeto em dia: RoPA vazio e catálogo ausente viram prioridade, com a tela de destino
     expect(v.prioridades.map((p) => `${p.nivel}: ${p.texto} -> ${p.tela}`)).toEqual([
       'alta: Nenhum encarregado indicado (LGPD, art. 41) -> encarregado',
+      'alta: Canal do titular não registrado -> titular',
       'alta: Nenhum tratamento no RoPA (LGPD, art. 37) -> ropa',
       'media: Catálogo de requisitos LGPD não carregado -> requisitos',
       'media: 3 prazos legais ainda não cadastrados (os prazos ficam "não calculados") -> titular',
@@ -176,5 +178,43 @@ describe('projeto com pendências', () => {
     expect(v.pedidos_titular.abertos).toBe(0);
     expect(v.evidencias.a_corrigir).toBe(0);
     expect(v.tratamentos.total).toBe(0);
+  });
+});
+
+describe('canal do titular (0117)', () => {
+  const doCanal = async () => (await ver()).prioridades.filter((p) => p.texto.startsWith('Canal')) as unknown as Record<string, string>[];
+  it('sem meio: alta e Exigido, para Solicitações; com meio e sem página: média; página nunca conferida: média; conferida: nenhuma', async () => {
+    expect(await doCanal()).toEqual([expect.objectContaining({ nivel: 'alta', texto: 'Canal do titular não registrado', tela: 'titular',
+      grupo: 'semana', quando: 'Exigido', acao: 'Registrar o canal', aba: 'pedidos' })]);
+    await db().prepare(`INSERT INTO titular_canal (id, project_id, email) VALUES ('tc1', 'e1', 'privacidade@exemplo.com.br')`).run();
+    expect((await doCanal()).map((p) => `${p.nivel}: ${p.texto} -> ${p.tela}`)).toEqual(['media: Canal sem página de divulgação ou nunca conferido -> titular']);
+    await db().prepare(`UPDATE titular_canal SET divulgacao_url = 'https://exemplo.com.br/privacidade' WHERE id = 'tc1'`).run();
+    expect((await doCanal()).map((p) => p.nivel)).toEqual(['media']);
+    await db().prepare(`UPDATE titular_canal SET conferido_em = '2026-11-19' WHERE id = 'tc1'`).run();
+    expect(await doCanal()).toEqual([]);
+    expect((await ver()).canal).toEqual({ meios: ['email'], portal_ativo: false, divulgado: true, conferido_em: '2026-11-19' });
+  });
+  it('conferido mas sem página de divulgação: ainda média', async () => {
+    await db().prepare(`INSERT INTO titular_canal (id, project_id, email, conferido_em) VALUES ('tc4', 'e1', 'privacidade@exemplo.com.br', '2026-11-19')`).run();
+    expect((await doCanal()).map((p) => p.nivel)).toEqual(['media']);
+  });
+  it('só o portal ativo conta como meio (sem a alta), mas a página continua pedida', async () => {
+    await db().prepare(`INSERT INTO titular_portais (project_id, token_hash, ativo) VALUES ('e1', 'h-e1', 1)`).run();
+    const textos = (await ver()).prioridades.map((p) => p.texto);
+    expect(textos).not.toContain('Canal do titular não registrado');
+    expect(textos).toContain('Canal sem página de divulgação ou nunca conferido');
+  });
+  it('a visão não leva o endereço do canal, só o resumo; o outro projeto não conta', async () => {
+    await db().prepare(`INSERT INTO titular_canal (id, project_id, email, divulgacao_url) VALUES ('tc2', 'e2', 'outro@exemplo.com.br', 'https://outro.exemplo/p')`).run();
+    const v = await ver();
+    expect(v.canal.meios).toEqual([]);
+    expect(JSON.stringify(v)).not.toContain('outro@exemplo.com.br');
+  });
+  it('a visão do próprio projeto não leva e-mail, URL nem telefone do canal', async () => {
+    await db().prepare(`INSERT INTO titular_canal (id, project_id, email, telefone, formulario_url, divulgacao_url) VALUES ('tc3', 'e1', 'meu@exemplo.com.br', '11 4000-9999', 'https://exemplo.com.br/form', 'https://exemplo.com.br/priv')`).run();
+    const v = await ver();
+    expect(v.canal.meios).toEqual(['email', 'telefone', 'formulario']);
+    const t = JSON.stringify(v);
+    for (const x of ['meu@exemplo.com.br', '11 4000-9999', 'exemplo.com.br/form', 'exemplo.com.br/priv']) expect(t).not.toContain(x);
   });
 });

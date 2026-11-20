@@ -9,6 +9,7 @@ import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-ativida
 import { hojeEmSaoPaulo, diaMaisSP } from './hoje';
 import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 import { escopoRopa } from './escopo-itens';
+import { resumoDoCanal } from './titular-canal';
 
 /**
  * Núcleo do n.privacy, fatia 8: a visão do encarregado. É CONSULTA sobre as tabelas das fatias anteriores, nunca grava: o que está atrasado
@@ -42,12 +43,13 @@ const n = async (db: D1Database, sql: string, ...binds: unknown[]) => (await db.
 export async function visaoDoEncarregado(db: D1Database, projectId: string, { cliente = false } = {}) {
   const dia = hoje();
   const em7 = diaMaisSP(7);
-  const [pedidos, incidentes, terceiros, parametros, fontes, encarregados] = await Promise.all([
+  const [pedidos, incidentes, terceiros, parametros, fontes, encarregados, canal] = await Promise.all([
     listarPedidos(db, projectId), listarIncidentes(db, projectId), listarTerceiros(db, projectId), lerParametros(db),
     db.prepare(`SELECT count(*) AS n FROM requisitos WHERE fonte_id = 'lgpd'`).first<{ n: number }>(),
     db.prepare(`SELECT p.id, p.nome, p.email FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
                  WHERE v.project_id = ? AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto' AND p.status = 'ativa' ORDER BY p.nome`)
       .bind(projectId).all<{ id: string; nome: string; email: string | null }>().then((r) => r.results),
+    resumoDoCanal(db, projectId),
   ]);
 
   const pedidosAbertos = pedidos.filter((p) => ['recebido', 'em_andamento'].includes(p.status));
@@ -150,6 +152,12 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   const exigido = (contexto: string, acao: string, aba?: string, filtro?: string): Extra => ({ grupo: 'semana', quando: 'Exigido', contexto, acao, ...(aba ? { aba } : {}), ...(filtro ? { filtro } : {}) });
   const planejar = (contexto: string, acao: string, filtro?: string): Extra => ({ grupo: 'plano', quando: 'Planejar', contexto, acao, ...(filtro ? { filtro } : {}) });
   p('alta', encarregados.length ? 0 : 1, () => 'Nenhum encarregado indicado (LGPD, art. 41)', 'encarregado', exigido('A LGPD exige a indicação do encarregado', 'Indicar o encarregado'));
+  // Canal do titular (0117): decisão 3 da spec. Ao menos um meio (o portal ativo conta) é exigido; a página e a conferência, planejar.
+  const temMeio = canal.meios.length > 0 || canal.portal_ativo;
+  p('alta', temMeio ? 0 : 1, () => 'Canal do titular não registrado', 'titular',
+    exigido('Novo no passo 1 da trilha: registre o e-mail, o telefone ou o formulário pelo qual o titular fala com a empresa (LGPD, art. 41)', 'Registrar o canal', 'pedidos'));
+  p('media', temMeio && (!canal.divulgado || !canal.conferido_em) ? 1 : 0, () => 'Canal sem página de divulgação ou nunca conferido', 'titular',
+    planejar('Registre a página onde o canal e o encarregado estão publicados e confira-a (Res. CD/ANPD 18/2024, arts. 8 e 9)', 'Registrar a divulgação'));
   // Projeto vazio não é projeto em dia: sem inventário e sem catálogo, a lista vazia afirmaria conformidade que ninguém verificou.
   p('alta', tratamentos.total ? 0 : 1, () => 'Nenhum tratamento no RoPA (LGPD, art. 37)', 'ropa', exigido('Importe o programa que já existe ou cadastre a primeira atividade', 'Abrir os tratamentos'));
   p('alta', secao.pedidos_titular.atrasados, (q) => `${q} ${q === 1 ? 'pedido do titular atrasado' : 'pedidos do titular atrasados'}`, 'titular',
@@ -183,5 +191,5 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   p('media', secao.prazos_legais.nao_definidos.length, (q) => `${q} ${q === 1 ? 'prazo legal ainda não cadastrado' : 'prazos legais ainda não cadastrados'} (os prazos ficam "não calculados")`, 'titular',
     planejar('O administrador da plataforma cadastra os prazos com a fonte', 'Ver os pedidos'));
 
-  return { gerado_em: new Date().toISOString(), encarregados, prioridades, ...secao };
+  return { gerado_em: new Date().toISOString(), encarregados, canal, prioridades, ...secao };
 }
