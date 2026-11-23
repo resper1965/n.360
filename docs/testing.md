@@ -5,14 +5,15 @@ caiu, em que linha, e quanto do código está coberto.
 
 ## Suites
 
-Contagens de 2026-10-14, com o comando ao lado:
+A coluna Arquivos traz o comando que conta cada suíte; a contagem do dia fica só no `AGENTS.md` (seção Dívida conhecida),
+ao lado do mesmo comando.
 
 | Suite | Runtime | Config | Arquivos |
 |---|---|---|---|
-| Worker (backend) | runtime real do Cloudflare Workers (`@cloudflare/vitest-plugin`, antes `@cloudflare/vitest-pool-workers`) | `vitest.config.mts` | 254 (`ls test/*.test.ts \| wc -l`) |
-| Frontend (unit) | jsdom (DOM simulado) | `frontend/vitest.config.js` | 96 (`ls frontend/test/*.test.js \| wc -l`) |
-| Frontend (E2E) | Chromium real (Playwright), API mockada | `frontend/playwright.config.js` | 6 (`ls frontend/e2e/*.spec.js \| wc -l`) |
-| E2E legado de MFA | Python + navegador, fora do CI | `test/e2e/` | 1 (`mfa.py`) |
+| Worker (backend) | runtime real do Cloudflare Workers (`@cloudflare/vitest-plugin`, antes `@cloudflare/vitest-pool-workers`) | `vitest.config.mts` | `ls test/*.test.ts \| wc -l` |
+| Frontend (unit) | jsdom (DOM simulado) | `frontend/vitest.config.js` | `ls frontend/test/*.test.js \| wc -l` |
+| Frontend (E2E) | Chromium real (Playwright), API mockada | `frontend/playwright.config.js` | `ls frontend/e2e/*.spec.js \| wc -l` |
+| E2E legado de MFA | Python + navegador, fora do CI | `test/e2e/` | `mfa.py` |
 | MCP server | build (tsc) | `mcp-server-niso/` | — |
 
 A suíte roda no portão local, `scripts/ci/gate.sh` (chamado por `bash scripts/ci/ship.sh <PR>`): tipos, build e
