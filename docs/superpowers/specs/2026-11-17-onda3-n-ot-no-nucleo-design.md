@@ -2,8 +2,8 @@
 
 Data: 17/11/2026. Situação: **aprovada pelo dono em 17/11/2026**. Onda 3 da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md`. Base: levantamento somente leitura sobre a `main` com o PR #593 da remediação
-(`/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda3-levantamento.md`, com arquivo:linha e o comando de cada
-número). As specs e o modelo de ameaças do n.ot estão em `/home/user/ot2net/docs/superpowers/specs/` (P0-1 a P0-8 em
+(arquivo:linha e o comando de cada
+número; não versionado). As specs e o modelo de ameaças do n.ot estão no repositório OT2net, fora deste (P0-1 a P0-8 em
 `2026-10-30-n-ot-modulo-n360-design.md:156-163`).
 
 ## O pedido

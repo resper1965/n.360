@@ -69,3 +69,15 @@ aberto neles foi levado para [`../estado-2026-11-05.md`](../estado-2026-11-05.md
 | `specs/2026-09-29-receita-agentes-mcp-remoto-design.md`, `2026-09-30-agente-paridade-consultor-design.md` | Superadas por `docs/agente/` e pela spec "agente decide como consultor" |
 | `specs/2026-10-07-fatia-jornada-design.md` | Superada pela Bancada (trilha) e pelas políticas temáticas |
 | `estado-2026-10-20.md`, `plano-2026-10-fechamento.md`, `paridade-legado-2026-10-20.md`, `equalizacao-modulos-2026-10-20.md`, `avaliacao-2026-10-14.md` | Fotos datadas; os itens ainda abertos foram levados ao estado de 05/11 |
+
+## Planos de novembro/2026, arquivados em 2026-11-23
+
+Saíram de `docs/superpowers/plans/` com `git mv` depois de executados por inteiro. Status de cada spec no
+[`../superpowers/INDEX.md`](../superpowers/INDEX.md).
+
+| Documentos (em `planos/`) | Entregue em |
+|---|---|
+| [`2026-11-14-onda0-linguagem-e-visibilidade.md`](planos/2026-11-14-onda0-linguagem-e-visibilidade.md) | #589 |
+| [`2026-11-16-entrada-n360.md`](planos/2026-11-16-entrada-n360.md) | #590 |
+| [`2026-11-16-onda1-organizacao-direta.md`](planos/2026-11-16-onda1-organizacao-direta.md), [`2026-11-17-onda2-catalogo-de-requisitos.md`](planos/2026-11-17-onda2-catalogo-de-requisitos.md) | #592 |
+| [`2026-11-17-remediacao-gaps-ondas-1-2.md`](planos/2026-11-17-remediacao-gaps-ondas-1-2.md), [`2026-11-17-onda3-n-ot-no-nucleo.md`](planos/2026-11-17-onda3-n-ot-no-nucleo.md), [`2026-11-18-onda4-jornada-comum.md`](planos/2026-11-18-onda4-jornada-comum.md) | #593 |

@@ -1,7 +1,7 @@
 # Canal do titular no n.privacy
 
-Data: 19/11/2026. Situação: **rascunho para aprovação do dono** (nenhuma decisão respondida ainda). Base: leitura somente do worktree
-`/home/user/wt-csv` (`origin/main` `c0badf9` + um commit de docs); nada foi executado (sem vitest, tsc ou npm). Toda afirmação sobre o código
+Data: 19/11/2026. Situação: **aprovada em 19/11/2026; PR1 a PR3 construídos (#597, #599, #600; migration 0117); PR4 a executar** (plano `2026-11-20-lote3-e-canal-pr4.md`). Base: leitura somente
+de uma cópia de trabalho sobre `origin/main` `c0badf9` + um commit de docs; nada foi executado (sem vitest, tsc ou npm). Toda afirmação sobre o código
 traz arquivo:linha.
 
 ## O pedido

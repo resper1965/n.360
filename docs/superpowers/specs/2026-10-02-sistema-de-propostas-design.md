@@ -1,6 +1,6 @@
 # Sistema de propostas — design
 
-**Data:** 2026-10-02 · **Estado:** aprovado em conversa, aguardando revisão do spec
+**Data:** 2026-10-02 · **Estado:** construída (#247 a #253); área desligada por `COMERCIAL_ATIVO`
 **Substitui:** o fluxo comercial atual (leads → levantamento → proposta → "Aprovar"/"Converter")
 
 ## 1. Por que

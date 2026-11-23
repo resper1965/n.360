@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Worker (Hono) + D1, vitest (`@cloudflare/vitest-pool-workers` no backend, jsdom no frontend), SPA vanilla JS (Vite).
 
-**Fontes lidas:** ledgers `progress.md` e `task-*-report.md` das três pastas de `/home/user/n.360/.superpowers/sdd/` (entrada-n360, onda3, onda4; não existe pasta separada da remediação, o que ela fechou está nas seções "Rulings da execução" das specs), `codex-findings-report.md` da onda 4, e as seções "Rulings da execução", "Não conferido" e "ABERTO" das specs das ondas 1 a 4. Toda linha arquivo:linha abaixo foi conferida neste worktree (HEAD `6cc6f30`).
+**Fontes lidas:** ledgers `progress.md` e `task-*-report.md` das três pastas de `.superpowers/sdd/` (local, não versionado) (entrada-n360, onda3, onda4; não existe pasta separada da remediação, o que ela fechou está nas seções "Rulings da execução" das specs), `codex-findings-report.md` da onda 4, e as seções "Rulings da execução", "Não conferido" e "ABERTO" das specs das ondas 1 a 4. Toda linha arquivo:linha abaixo foi conferida neste worktree (HEAD `6cc6f30`).
 
 ## Global Constraints
 
@@ -113,7 +113,7 @@ O-01 a O-05 acima. Nenhuma trava os lotes; os lotes não tocam nelas.
 
 ## Preflight (antes do Lote 1 e ao retomar)
 
-- [ ] `cd /home/user/wt-csv && git status --short && git log --oneline -3`: HEAD contém `c0badf9`. (Há um arquivo não rastreado `PR` na raiz: não é deste plano, não o inclua em commit.)
+- [ ] Na cópia de trabalho do executor, `git status --short && git log --oneline -3`: HEAD contém `c0badf9`. (Há um arquivo não rastreado `PR` na raiz: não é deste plano, não o inclua em commit.)
 - [ ] `ls node_modules/.bin/vitest frontend/node_modules/.bin/vitest`; se faltar: `npm ci` e `cd frontend && npm ci`.
 - [ ] Reconferir cada arquivo:linha do task antes de editar (`grep -n`); o plano foi escrito sobre `6cc6f30`.
 

@@ -1,6 +1,6 @@
 # n.360: posicionamento, fluxo de uso e normalização (spec guarda-chuva)
 
-Data: 14/11/2026. Situação: **proposta, aguardando a revisão do dono**. As decisões da seção 3 foram tomadas pelo dono na conversa de
+Data: 14/11/2026. Situação: **aprovada pelo dono em 14/11/2026; ondas 0 a 4 construídas (#589 a #593)**. As decisões da seção 3 foram tomadas pelo dono na conversa de
 14/11/2026; o resto é desenho a aprovar. Esta spec não tem plano próprio: ela fixa o posicionamento, as decisões e a ordem das ondas.
 Cada onda ganha a sua spec e o seu plano.
 
