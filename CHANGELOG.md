@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: Painel (spec 2026-11-19, PR 1)
+- **Novo item "Painel" no menu do n.ot**, ao lado do Início: o mesmo painel do n.iso e do n.privacy, com a frase de saúde, a régua das cinco etapas e o "O que fazer agora" do n.ot. Endereço `/ot?ot=painel`. O Início do n.ot continua como está.
+- Quem não tem o n.ot no projeto e na conta não vê o item nem a tela.
+
 ### Pontos menores das ondas 1 a 4, lote 1 (segurança e integridade)
 - **Área comercial segue a organização ativa.** O `platform_admin` que age numa organização direta por `X-Org-Id` deixa de ser tratado como comercial dela: propostas, serviços, preços de assessment e contadores de leads respondem 403 ou vazio, como para a própria equipe da direta.
 - **Texto seguro da ação do desvio.** Título, descrição e responsável da ação criada a partir de um desvio do n.ot não podem citar o nome de ativo, zona ou site do projeto, mesmo com hífen, espaço ou pontuação diferentes ("RTU Principal" para o ativo "RTU-Principal").
