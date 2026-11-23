@@ -45,14 +45,13 @@ describe('?modulo=ot por papel', () => {
     expect(d.modulos.ot.por_site.map((s: any) => s.nome)).toEqual(['SE Norte Exemplo', 'SE Sul Exemplo']);
     expect(d.modulos.ot.por_site[0]).toMatchObject({ id: 's1', fase: 'em_operacao', proximo: 'Tratar os desvios abertos', desvios_abertos: 1, sonda: 'parada' });
     const g = await n360(gestor);
-    expect(g.modulos.ot.fazer).toBeUndefined();
-    expect(g.modulos.ot.por_site).toBeUndefined();
+    expect(Object.keys(g.modulos.ot).sort()).toEqual(['comecando', 'numeros', 'saude']);
   });
   it('consultor: o bloco da equipe; no Início do n.360 nenhum campo novo (oráculo do inventário)', async () => {
     const d = await ot(cons);
     expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'fazer', 'numeros', 'passos', 'por_site', 'saude']);
     const g = await n360(cons);
-    expect(g.modulos.ot.por_site).toBeUndefined();
+    expect(Object.keys(g.modulos.ot).sort()).toEqual(['cobertura', 'comecando', 'fazer', 'numeros', 'passos', 'riscos', 'saude', 'vencimentos']);
   });
   it('técnico: só os sites dele, sem "O que fazer" nem total do projeto (P0-4)', async () => {
     const d = await ot(tecnico);
@@ -67,8 +66,6 @@ describe('?modulo=ot por papel', () => {
     const d = await ot(leitor);
     expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'saude']);
     expect(JSON.stringify(d.modulos.ot)).not.toMatch(/desvio|SE Norte|sonda/i);
-    // a resposta HTTP inteira, não só o bloco: nenhuma contagem de desvio (nota d do PR1)
-    expect(JSON.stringify(d)).not.toMatch(/desvio/i);
   });
   it('leitor (client) no Início do n.360 (sem ?modulo): igual a hoje, frase e números', async () => {
     const g = await n360(leitor);
@@ -87,5 +84,48 @@ describe('?modulo=ot por papel', () => {
       expect(corpo).not.toMatch(/([0-9a-f]{2}:){5}[0-9a-f]{2}/i);
       for (const x of ['Sonda Norte', 'Ativo Secreto XYZ', 'ot1:', 'chave-sensor']) expect(corpo, x).not.toContain(x);
     }
+  });
+});
+
+// Fixture próprio: em proj-a um site está em levantamento, e a régua não chega a "Tratar". Aqui todos os sites estão em operação com
+// desvio aberto. Exceção registrada (Task 3): a régua (programa.etapas.ot) do leitor cita a etapa "Tratar", como no Início do n.360.
+describe('?modulo=ot: leitor com todos os sites em operação; admin direto Gestor ARCiber', () => {
+  let leitorB: H, adminDireto: H;
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO organizations (id, name, slug, tipo) VALUES ('org_dir', 'Direta Exemplo', 'direta-exemplo', 'direta')`),
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('proj-d', 'Direta Exemplo', 'ISO 27001', 'controller', 'Active', 'org_dir')`),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES
+        ('u-lb', 'lb@cliente.teste', 'x', 'Leitor B', 'client', 'proj-b', 'org_ness'), ('u-ad', 'ad@cliente.teste', 'x', 'Admin direto', 'consultoria_admin', NULL, 'org_dir')`),
+      env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('proj-d', 'Admin direto', 'ad@cliente.teste', 'tech', 'Gestor ARCiber')`),
+    ]);
+    await habilitarOt('proj-b', 'proj-d');
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase) VALUES ('sb1', 'proj-b', 'SE Oeste Exemplo', 'em_operacao'), ('sd1', 'proj-d', 'SE Direta Exemplo', 'em_operacao')`),
+      env.DB.prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, primeira_vez, ultima_vez) VALUES
+        ('db1', 'proj-b', 'sb1', 'fluxo', 'chave-sensor-b', '{}', '2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z'),
+        ('dd1', 'proj-d', 'sd1', 'fluxo', 'chave-sensor-d', '{}', '2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z')`),
+    ]);
+    // Revisão vencida: item só do Gestor (equipe também recebe "O que fazer"; este item prova o ramo Gestor ARCiber).
+    const req = await env.DB.prepare('SELECT id FROM ot_requisitos LIMIT 1').first<{ id: string }>();
+    await env.DB.prepare(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, proxima_revisao, atualizado_por) VALUES ('ad1', 'proj-d', ?, 'atende', '2026-01-01', 'u-ad')`).bind(req!.id).run();
+    await concederModulos(['u-lb', 'u-ad'], ['iso', 'ot']);
+    leitorB = await sessionFor({ id: 'u-lb', email: 'lb@cliente.teste', role: 'client', client_project_id: 'proj-b' });
+    adminDireto = await sessionFor({ id: 'u-ad', email: 'ad@cliente.teste', role: 'consultoria_admin', org_id: 'org_dir' });
+  });
+  it('leitor (client): modulos.ot é só {saude, comecando}, sem desvio, mesmo com todos os sites em operação e desvio aberto (decisão 3)', async () => {
+    const r = await chamar(leitorB, '/api/v1/projects/proj-b/painel?modulo=ot');
+    expect(r.status).toBe(200);
+    const d = await r.json() as any;
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'saude']);
+    expect(JSON.stringify(d.modulos.ot)).not.toMatch(/desvio|SE Oeste|sonda/i);
+    expect(JSON.stringify(d.programa.etapas.ot)).toMatch(/Tratar/); // o fixture chega à etapa Tratar (a exceção registrada)
+  });
+  it('admin direto designado Gestor ARCiber recebe "O que fazer" no ?modulo=ot (decisão 1)', async () => {
+    const r = await chamar(adminDireto, '/api/v1/projects/proj-d/painel?modulo=ot');
+    expect(r.status).toBe(200);
+    const d = await r.json() as any;
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'fazer', 'numeros', 'passos', 'por_site', 'saude']);
+    expect(d.modulos.ot.fazer.map((i: any) => i.texto)).toEqual(expect.arrayContaining(['1 desvio aberto', '1 requisito com revisão vencida']));
   });
 });
