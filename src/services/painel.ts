@@ -5,7 +5,7 @@ import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
-import { hojeEmSaoPaulo } from './hoje';
+import { hojeEmSaoPaulo, mesesAtras } from './hoje';
 import { SQL_EH_FORNECEDOR, listarTerceiros } from './terceiros';
 import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
 import { blocoOt, respostaDoOt } from './painel-ot';
@@ -37,11 +37,6 @@ export type Proximo = { dias: number; rotulo: string; tipo: string } | null;
 const DIA = 86_400_000;
 const hoje = () => hojeEmSaoPaulo();
 const somarDias = (d: string, n: number) => new Date(Date.parse(d) + n * DIA).toISOString().slice(0, 10);
-/** AAAA-MM do mês de `dia` recuado `n` meses (n >= 0). */
-const mesesAtras = (dia: string, n: number) => {
-  const t = Number(dia.slice(0, 4)) * 12 + Number(dia.slice(5, 7)) - 1 - n;
-  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
-};
 const diasAte = (d: string, de: string) => Math.round((Date.parse(d.slice(0, 10)) - Date.parse(de)) / DIA);
 const plural = (q: number, um: string, varios: string) => `${q} ${q === 1 ? um : varios}`;
 const ORDEM: Grupo[] = ['atraso', 'semana', 'plano'];
@@ -469,7 +464,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
   // Um ator só para o bloco e para a régua do n.ot; a rota já tirou o `ot` de agente e chave (P0-2) e de quem não o tem (P0-1).
   const atorOt = quem.id ? { id: quem.id, email: quem.email ?? '', role: quem.role ?? '', org_id: quem.org_id, client_project_id: quem.client_project_id, agente: quem.agente } : null;
-  const ot = modulos.includes('ot') && atorOt ? await blocoOt(db, projectId, atorOt, dia, new Date()) : null;
+  const ot = modulos.includes('ot') && atorOt ? await blocoOt(db, projectId, atorOt, dia, new Date(), !!quem.detalheOt) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
   const marcoBase = (marco.results[0] as { d: string | null } | undefined)?.d ?? null;
   // Decisão 8: a primeira base aprovada do n.ot é marco só para quem tem o ot (o bloco só existe para essa pessoa).

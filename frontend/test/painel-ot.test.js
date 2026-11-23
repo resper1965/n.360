@@ -9,6 +9,7 @@ vi.mock('../src/produto.js', async (original) => ({ ...(await original()), irPar
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import { renderPainel } from '../src/views/painel.js';
+import { graficoCobertura, graficoPedidos } from '../src/views/painel-graficos.js';
 
 const ETAPAS = [['comecar', 'Começar'], ['levantar', 'Levantar'], ['avaliar', 'Avaliar'], ['tratar', 'Tratar'], ['operar', 'Operar']]
     .map(([id, rotulo]) => ({ id, rotulo, feitos: 0, total: 2 }));
@@ -110,5 +111,125 @@ describe('Painel do n.ot: Gestor ARCiber e Por site (PR2)', () => {
         await abrir(painelOt('equipe', { ...EQUIPE, por_site: [] }));
         expect(el('pn-ot-sites').closest('section').textContent).toContain('O inventário do n.ot começa pelo site');
         expect(el('pn-ot-sites').closest('section').querySelector('table')).toBeNull();
+    });
+});
+
+const CONF = { resumo: { atende: 1, parcial: 1, nao_atende: 2, nao_se_aplica: 0, nao_avaliado: 21, revisar: 0, a_confirmar: 2 },
+    categorias: [{ tema: 'Governança de segurança da informação', feito: 1, andamento: 0, falta: 2, conta: 'c' }],
+    ativos: { arciber: 4, completos: 3, por_nivel: [{ nivel: 2, ativos: 3 }, { nivel: 3, ativos: 1 }] } };
+const DESV = { por_site: [{ tema: 'SE Norte', feito: 1, andamento: 0, falta: 1, conta: 'x' }], por_mes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3],
+    meses: ['2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'], fluxos_externos: { externos: 2, sem_vpn: 1 } };
+const VENC = [{ tipo: 'Obra', vencidos: 0, itens: [{ dias: 12, rotulo: 'SE Sul' }] }, { tipo: 'Ação de desvio', vencidos: 1, itens: [] }];
+
+describe('Painel do n.ot: quadros (PR3)', () => {
+    it('equipe: Conformidade (números, barras e ativos do ARCiber), Desvios e exposição e Vencimentos', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, conformidade: CONF, desvios: DESV, vencimentos: VENC }));
+        const conf = el('pn-ot-conf').closest('section');
+        expect(conf.textContent).toContain('Não atende');
+        expect(conf.textContent).toContain('3 de 4 ativos do ARCiber');
+        expect(conf.textContent).toContain('Nível Purdue 2');
+        expect(conf.querySelector('.pn-cob')).not.toBeNull();
+        const desv = el('pn-ot-desv').closest('section');
+        expect(desv.textContent).toContain('1 de 2 fluxos externos sem VPN');
+        expect(desv.textContent).toContain('Regularizado');
+        expect(desv.querySelector('.pn-spark')).not.toBeNull();
+        expect(desv.querySelector('svg[aria-label^="Desvios detectados por mês"]')).not.toBeNull();
+        expect(el('pn-venc').closest('section').textContent).toContain('SE Sul');
+        for (const s of [conf, desv, el('pn-venc').closest('section')]) expect(s.querySelectorAll('details.pn-equiv').length, s.id).toBeGreaterThan(0);
+    });
+    it('dado do servidor vai escapado nos quadros', async () => {
+        const x = '<img src=x onerror=alert(1)>';
+        await abrir(painelOt('equipe', { ...EQUIPE, conformidade: { ...CONF, categorias: [{ ...CONF.categorias[0], tema: x }] },
+            desvios: { ...DESV, por_site: [{ ...DESV.por_site[0], tema: x }] }, vencimentos: [{ tipo: x, vencidos: 0, itens: [{ dias: 3, rotulo: x }] }] }));
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('pn-ot-desv').closest('section').textContent).toContain(x);
+    });
+    it('leitor: só o resumo da Conformidade em números; nada de desvio, vencimento ou barra', async () => {
+        await abrir(painelOt('cliente', { conformidade: { resumo: CONF.resumo } }, EM_DIA));
+        const conf = el('pn-ot-conf').closest('section');
+        expect(conf.textContent).toContain('Atende');
+        expect(conf.querySelector('.pn-cob')).toBeNull();
+        for (const id of ['pn-ot-desv', 'pn-venc', 'pn-ot-sites']) expect(el(id), id).toBeNull();
+        expect(el('c').textContent).not.toMatch(/desvio/i);
+    });
+    it('quadro sem dado não aparece: sem `conformidade`, `desvios` e `vencimentos`, nenhum dos três', async () => {
+        await abrir(painelOt('cliente', {}, EM_DIA));
+        for (const id of ['pn-ot-conf', 'pn-ot-desv', 'pn-venc']) expect(el(id), id).toBeNull();
+    });
+    it('vazios com texto, nunca zero falso', async () => {
+        const vazio = { resumo: { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 0, revisar: 0, a_confirmar: 0 }, categorias: [], ativos: { arciber: 0, completos: 0, por_nivel: [] } };
+        await abrir(painelOt('equipe', { ...EQUIPE, conformidade: vazio, desvios: { por_site: [], por_mes: Array(12).fill(0), meses: DESV.meses, fluxos_externos: { externos: 0, sem_vpn: 0 } },
+            vencimentos: [{ tipo: 'Obra', vencidos: 0, itens: [] }] }));
+        expect(el('pn-ot-conf').closest('section').textContent).toContain('Catálogo da RO-CB.BR.01 ainda não carregado');
+        expect(el('pn-ot-conf').closest('section').querySelector('.pn-num')).toBeNull();
+        expect(el('pn-ot-desv').closest('section').textContent).toContain('Nenhum desvio');
+        expect(el('pn-ot-desv').closest('section').querySelector('.pn-spark')).toBeNull();
+        expect(el('pn-venc').closest('section').textContent).toContain('Nenhum prazo nos próximos 90 dias');
+    });
+});
+
+describe('Painel do n.ot: fornecedores e riscos (PR4)', () => {
+    const FORN = [{ papel: 'acesso_remoto', total: 2, vigentes: 0, pendentes: 1, vencidos: 1, sem_vpn: 1 },
+        { papel: 'integrador', total: 3, vigentes: 2, pendentes: 1, vencidos: 0, sem_vpn: 0 }];
+    it('equipe: tabela por papel e mapa de risco', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: FORN, riscos: [{ p: 4, i: 5, n: 2 }] }));
+        const f = el('pn-ot-forn').closest('section');
+        expect(f.textContent).toContain('Acesso remoto');
+        expect([...f.querySelectorAll('th')].map((t) => t.textContent.trim())).toContain('Em fluxo externo sem VPN');
+        expect(el('pn-ot-mapa').closest('section').querySelector('.pn-mapa')).not.toBeNull();
+        expect(el('pn-ot-mapa').closest('section').textContent).toContain('2 riscos');
+        expect(el('pn-ot-mapa').closest('section').textContent).toContain('Ver como tabela');
+    });
+    it('sem VPN só no acesso remoto: nos outros papéis, um traço', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: FORN, riscos: [] }));
+        const linhas = [...el('pn-ot-forn').closest('section').querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim()));
+        expect(linhas.find((l) => l[0] === 'Acesso remoto').at(-1)).toBe('1');
+        expect(linhas.find((l) => l[0] === 'Integrador').at(-1)).toBe('—');
+    });
+    it('vazios com texto', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: [], riscos: [{ p: 1, i: 1, n: 0 }] }));
+        expect(el('pn-ot-forn').closest('section').textContent).toContain('Nenhum fornecedor de OT');
+        expect(el('pn-ot-mapa').closest('section').textContent).toContain('Nenhum risco ligado ao n.ot');
+        expect(el('pn-ot-mapa').closest('section').querySelector('.pn-mapa')).toBeNull();
+    });
+    it('papel desconhecido vai escapado', async () => {
+        const x = '<img src=x onerror=alert(1)>';
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: [{ ...FORN[0], papel: x }], riscos: [] }));
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('pn-ot-forn').closest('section').textContent).toContain(x);
+    });
+    it('sem as chaves (leitor, técnico), os quadros não existem', async () => {
+        await abrir(painelOt('cliente', { conformidade: { resumo: { atende: 1, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 0, revisar: 0, a_confirmar: 0 } } }, EM_DIA));
+        expect(el('pn-ot-forn')).toBeNull();
+        expect(el('pn-ot-mapa')).toBeNull();
+    });
+    it('técnico (Por site sem fornecedores nem riscos): a tela não quebra e os quadros não existem', async () => {
+        await abrir(painelOt('equipe', { numeros: [['0 de 1', 'sites em operação']], por_site: SITES }));
+        expect(el('pn-ot-sites')).not.toBeNull();
+        expect(el('pn-ot-forn')).toBeNull();
+        expect(el('pn-ot-mapa')).toBeNull();
+    });
+});
+
+describe('gráficos com rótulos próprios (o padrão não muda)', () => {
+    it('sem rótulos, o padrão de sempre: Concluído/Em andamento/Falta e Pedidos recebidos', () => {
+        document.body.innerHTML = graficoCobertura([{ tema: 'T', feito: 1, andamento: 2, falta: 3, conta: 'x' }]);
+        expect(document.querySelector('.pn-cob-leg').textContent).toBe('ConcluídoEm andamentoFalta');
+        expect(document.querySelector('svg').getAttribute('aria-label')).toBe('T: 1 concluídos, 2 em andamento, 3 faltam, de 6');
+        expect([...document.querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Tema', 'Concluído', 'Em andamento', 'Falta', 'Como se conta']);
+        document.body.innerHTML = graficoPedidos([1, 2], ['2026-10', '2026-11']);
+        expect(document.querySelector('svg').getAttribute('aria-label')).toMatch(/^Pedidos recebidos por mês/);
+        expect([...document.querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Mês', 'Pedidos']);
+    });
+    it('graficoCobertura com três rótulos na legenda, no aria-label e na tabela', () => {
+        document.body.innerHTML = graficoCobertura([{ tema: 'SE <b>A</b>', feito: 1, andamento: 2, falta: 3, conta: 'x' }], ['Regularizado', 'Tratado ou aceito', 'Aberto']);
+        expect(document.querySelector('.pn-cob-leg').textContent).toContain('Tratado ou aceito');
+        expect(document.querySelector('svg').getAttribute('aria-label')).toBe('SE <b>A</b>: Regularizado 1, Tratado ou aceito 2, Aberto 3, de 6');
+        expect([...document.querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Tema', 'Regularizado', 'Tratado ou aceito', 'Aberto', 'Como se conta']);
+    });
+    it('graficoPedidos com a série e a coluna próprias', () => {
+        document.body.innerHTML = graficoPedidos([1, 2], ['2026-10', '2026-11'], 'Desvios detectados', 'Desvios');
+        expect(document.querySelector('svg').getAttribute('aria-label')).toMatch(/^Desvios detectados por mês/);
+        expect([...document.querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Mês', 'Desvios']);
     });
 });

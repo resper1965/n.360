@@ -8,7 +8,7 @@ import { PODE_QUESTIONARIO, registrarAvaliacao, type Avaliacao, type TipoTerceir
 import { escolherDestinatarios, pessoasDoProjeto } from './avisos-prazo';
 import { modulosDaPessoa, recusaDaPessoa } from '../modulos';
 import { emailLembreteHomologacao } from './emails';
-import { perguntasDoEnvio, perguntasDoProjeto, type TipoModelo, type TipoQuestionario } from './fornecedor-modelos';
+import { perguntasDoEnvio, idsDasPerguntasOt, perguntasDoProjeto, type TipoModelo, type TipoQuestionario } from './fornecedor-modelos';
 
 /**
  * F5: homologação de fornecedor por questionário. O questionário é do projeto (`homologacao_perguntas`); cada envio
@@ -117,7 +117,11 @@ export async function criarHomologacao(db: D1Database, projectId: string, ator: 
   if (parte.status !== 'ativa') return falha(409, 'Fornecedor inativo não recebe questionário: reative a organização antes');
   if (parte.tipo !== 'organizacao' || !ehQuestionario(parte.terceiro_tipo)) return falha(400, 'Este terceiro não recebe questionário: defina o tipo como médio, pequeno ou crítico');
   const tipo = parte.terceiro_tipo as TipoQuestionario; // ehQuestionario garantiu crítico, médio ou pequeno
-  const ativas: PerguntaCongelada[] = await perguntasDoEnvio(db, projectId, tipo);
+  // Decisão do dono (19/11): as perguntas de OT só vão ao fornecedor ligado ao n.ot. Quem não tem o n.ot pode notar que um questionário
+  // tem perguntas a mais (texto genérico, sem citar OT, site ou norma): pista fraca aceita pelo dono.
+  const ligadoAoOt = !!(await db.prepare('SELECT 1 FROM ot_fornecedores WHERE project_id = ? AND parte_id = ? LIMIT 1').bind(projectId, parte.id).first());
+  const deOt = ligadoAoOt ? new Set<string>() : new Set(await idsDasPerguntasOt(projectId));
+  const ativas: PerguntaCongelada[] = (await perguntasDoEnvio(db, projectId, tipo)).filter((p) => !deOt.has(p.id));
   if (!ativas.length) return falha(400, 'O questionário deste tipo não tem pergunta ativa');
   const token = genToken();
   const id = genId();
