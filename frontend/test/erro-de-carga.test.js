@@ -70,7 +70,7 @@ const TELAS = [
 
 describe('estado de erro nas telas', () => {
     it.each(TELAS)('%s: falha da carga mostra o erro com "Tentar de novo", sem vazio nem "Novo"', async (nome) => {
-        if (nome === 'renderApiKeys') S.user = { id: 'u0', role: 'platform_admin' };
+        if (nome === 'renderApiKeys') { S.user = { id: 'u0', role: 'platform_admin' }; S.apiKeysProjectId = 'p1'; } // a tela só carrega as chaves depois de escolher o projeto (P-13)
         const [c, h, a] = tela();
         await window[nome](c, h, a);
         confere(c, a);
