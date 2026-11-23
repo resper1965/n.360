@@ -44,7 +44,7 @@ export function etapasDoIso(cat: Catalogo, ctx: ContextoProjeto): ProgramaDoModu
 export const ETAPA_DO_PASSO_OT: Record<ProximoPasso, EtapaComum> = {
   comecar: 'comecar', revisar: 'levantar', aguardar_lote: 'levantar', pedir_base: 'avaliar', aguardar_base: 'avaliar', em_operacao: 'operar', revalidar: 'operar',
 };
-const TEXTO_OT: Record<ProximoPasso, string> = {
+export const TEXTO_OT: Record<ProximoPasso, string> = {
   comecar: 'Começar o levantamento do site', revisar: 'Revisar os achados do levantamento', aguardar_lote: 'Revisar o lote de aprovação',
   pedir_base: 'Pedir a aprovação da base', aguardar_base: 'Aprovar a base do site', em_operacao: 'Acompanhar a operação', revalidar: 'Revalidar os ativos',
 };
