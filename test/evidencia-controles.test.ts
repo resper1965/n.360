@@ -126,6 +126,22 @@ describe('ligar e desligar controles numa evidência', () => {
     expect(await principal('ev-1')).toBe('c-3');
   });
 
+  it('sem o n.iso (na pessoa), não liga nem desliga controle: 403, nada muda', async () => {
+    await chamar('POST', '/api/v1/evidence/ev-1/controles', { control_id: 'c-2' });
+    await env.DB.prepare(`DELETE FROM usuario_modulos WHERE user_id = 'u-cons' AND modulo = 'iso'`).run();
+    expect((await chamar('POST', '/api/v1/evidence/ev-1/controles', { control_id: 'A.5.3' })).status).toBe(403);
+    expect((await chamar('DELETE', '/api/v1/evidence/ev-1/controles/c-2')).status).toBe(403);
+    expect(await vinculos('ev-1')).toEqual(['c-1', 'c-2']);
+  });
+
+  it('evidência não conforme ligada a dois controles gera o achado nos dois', async () => {
+    await chamar('POST', '/api/v1/evidence/ev-1/controles', { control_id: 'c-2' });
+    await env.DB.prepare(`UPDATE evidence SET evaluation_status = 'non_conforming' WHERE id = 'ev-1'`).run();
+    const r = await (await chamar('GET', `/api/v1/projects/${P}/readiness-check`)).json<any>();
+    const invalida = (r.achados ?? []).filter((a: any) => a.requisito === 'Evidência válida').map((a: any) => a.referencia).sort();
+    expect(invalida).toEqual(['c-1', 'c-2']);
+  });
+
   it('a prontidão e o readiness contam o controle ligado pela segunda via como "com evidência"', async () => {
     await chamar('POST', '/api/v1/evidence/ev-1/controles', { control_id: 'c-2' });
     const r = await (await chamar('GET', `/api/v1/projects/${P}/readiness-check`)).json<any>();
