@@ -15,10 +15,11 @@ Contagens de 2026-10-14, com o comando ao lado:
 | E2E legado de MFA | Python + navegador, fora do CI | `test/e2e/` | 1 (`mfa.py`) |
 | MCP server | build (tsc) | `mcp-server-niso/` | — |
 
-O CI (`.github/workflows/ci.yml`) roda: `tsc --noEmit`, build do frontend, testes do frontend
-com cobertura, build do servidor MCP, testes do worker com cobertura (job `test`), o E2E em
-Chromium (job `e2e`) e `npm audit --audit-level=high` nos três pacotes (job `audit`,
-informativo: `continue-on-error`). O ruleset da `main` exige `test` e `e2e`.
+A suíte roda no portão local, `scripts/ci/gate.sh` (chamado por `bash scripts/ci/ship.sh <PR>`): tipos, build e
+testes do frontend, build do servidor MCP, testes do worker e o E2E em Chromium, uma suíte por vez; passando, ele
+grava no commit o status `gate/local`, o único que o ruleset da `main` (25554528) exige. O CI do Actions
+(`.github/workflows/ci.yml`: jobs `test`, `e2e` e `audit`) está `disabled_manually` (23/11/2026,
+`gh api repos/resper1965/n.360/actions/workflows`).
 
 ## Rodar local
 

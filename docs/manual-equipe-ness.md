@@ -3,8 +3,9 @@
 Para quem opera clientes pelo n.360: administradores da consultoria, consultores e comercial. Cada passo diz
 onde clicar e o que o sistema faz. O que não está aqui, não existe na tela: pergunte antes de prometer ao cliente.
 
-Endereço: https://n360.ness.com.br. O n.iso abre em `/iso` e o n.privacy em `/privacy`; quem tem um módulo só
-entra direto nele.
+Endereço: https://n360.ness.com.br. O Início é a lista dos projetos que a pessoa alcança; ninguém é redirecionado.
+Entrar num módulo é pelo botão "Abrir no n.x" da linha do projeto: o n.iso abre em `/iso`, o n.privacy em `/privacy`
+e o n.ot em `/ot`.
 
 ## 1. Quem é quem
 

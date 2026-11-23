@@ -10,7 +10,8 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
-  e **duas 0097** (`0097_orgaos_publicos.sql` e `0097_ot_sensor_rede.sql`), de PRs paralelos. O runner controla pelo NOME do arquivo (`d1_migrations.name`), então as duas
+  e **duas 0097** (`0097_orgaos_publicos.sql` e `0097_ot_sensor_rede.sql`) e **duas 0101** (`0101_incidente_analises.sql`
+  e `0101_ot_sensores.sql`), de PRs paralelos. O runner controla pelo NOME do arquivo (`d1_migrations.name`), então as duas
   valem e já estão aplicadas em produção (conferido em 05/11/2026: `npx wrangler d1 migrations list niso-db --remote` só listava a 0098
   como pendente); não renomeie (renomear faria o runner aplicar de novo).
   Antes de numerar a próxima, confira a `main` atual (`git ls-tree --name-only origin/main migrations/`).
@@ -716,7 +717,7 @@ A 0087 refez a tabela (DROP + RENAME) e o DROP apaga os gatilhos dela: o `etapa_
 
 ## 0091 — inventário do n.ot (2026-10-30)
 
-Cria `ot_sites`, `ot_zonas`, `ot_ativos`, `ot_fluxos` e `ot_site_acessos` (spec `2026-10-30-n-ot-modulo-n360-design`, §6). Aditiva e repetível (`IF NOT EXISTS`); não toca tabela existente. As referências entre tabelas `ot_*` são FK compostas com o `project_id`; o CHECK `ot_ativos_4_3_1` recusa ativo do ARCiber sem os campos do 4.3.1; IP/MAC só entram na forma `ot1:` (cifrados pelo servidor). Antes de as rotas servirem ativos em produção: `wrangler secret put OT_INVENTARIO_KEY` e `OT_INVENTARIO_HMAC_KEY` (sem eles, 503). Conferência depois: `SELECT name FROM sqlite_master WHERE name LIKE 'ot_%'`. Produção só com o "sim" do dono e `npm run db:backup` antes.
+Cria `ot_sites`, `ot_zonas`, `ot_ativos`, `ot_fluxos` e `ot_site_acessos` (spec `2026-10-30-n-ot-modulo-n360-design`, §6; a spec-mãe do n.ot e o modelo de ameaças não estão neste repositório: as regras P0 em vigor são as do `AGENTS.md` (a seção do n.ot e todo trecho que cita P0) e as dos testes que as travam). Aditiva e repetível (`IF NOT EXISTS`); não toca tabela existente. As referências entre tabelas `ot_*` são FK compostas com o `project_id`; o CHECK `ot_ativos_4_3_1` recusa ativo do ARCiber sem os campos do 4.3.1; IP/MAC só entram na forma `ot1:` (cifrados pelo servidor). Antes de as rotas servirem ativos em produção: `wrangler secret put OT_INVENTARIO_KEY` e `OT_INVENTARIO_HMAC_KEY` (sem eles, 503). Conferência depois: `SELECT name FROM sqlite_master WHERE name LIKE 'ot_%'`. Produção só com o "sim" do dono e `npm run db:backup` antes.
 
 ## 0092 — coleta do n.ot (2026-10-30)
 

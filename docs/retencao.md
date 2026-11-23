@@ -16,6 +16,22 @@ divergir porque os números estão num lugar só.
 | `rate_limits` | 7 dias após a janela fechar | Contador operacional. A margem existe para a purga **nunca** alcançar janela aberta: apagar a linha de quem está sendo limitado zeraria o contador, transformando limpeza em bypass. |
 | `auditor_tokens` vencidos | 90 dias após o vencimento | Credencial de acesso externo a dado de cliente. Token vencido já não autentica nada; some por retenção, não por segurança. A carência cobre o ciclo de uma auditoria — investigar um acesso do mês passado exige que a linha ainda exista. |
 
+### n.ot (modelo de ameaças P0-3)
+
+Estas purgas estão em `manutencaoDiaria` (`src/manutencao.ts`), com o prazo escrito na própria consulta, **fora** da
+tabela `RETENCAO`: a frase "os números estão num lugar só" acima vale para a tabela, não para elas. Quem mudar um prazo
+aqui muda a consulta lá, e vice-versa.
+
+| Tabela | Prazo | Por quê |
+| :--- | ---: | :--- |
+| `ot_lotes` não concluído (e os itens, pela FK) | 7 dias | Lote de coleta carrega IP/MAC cifrados; o que não foi aprovado não fica. |
+| `ot_achados` descartado | 30 dias (90 com `chave_sensor`) | O filtro de novidade da sonda depende do achado descartado por 90 dias. |
+| `ot_achados` rascunho de levantamento encerrado | 30 dias após o encerramento | Rascunho de levantamento aberto não expira: é trabalho em andamento. |
+| `ot_achados` `enviado` sem lote válido | volta a rascunho em 1 dia | Envio interrompido ou lote rejeitado/apagado: sem isto o achado ficaria órfão para sempre; depois segue a regra de 30 dias. |
+| `ot_achados` `enviado` de item recusado ou descartado no lote | volta a rascunho na manutenção seguinte | Rede de segurança: a recusa já devolve o achado na hora (`devolverRecusados`); a manutenção pega o que escapou, como lote vencido. |
+| `ot_sensor_envios` | 400 dias | Registro dos envios do sensor de rede. |
+| `ot_fluxos_pendentes` | 90 dias | Fluxo do sensor cuja ponta interna não apareceu no inventário (só hash), descartado para não ficar para sempre. |
+
 ## O que NÃO é apagado, e por quê
 
 Esta metade é a que importa numa auditoria de fornecedor.

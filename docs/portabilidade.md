@@ -30,6 +30,9 @@ veio deixa o resto parecer inexistente.
 | :--- | :--- |
 | Arquivos de evidência (R2) | Vão as chaves, os hashes e os tamanhos na tabela `evidence`; o conteúdo sai por download individual. Base64 multiplica o tamanho por 1,33 e um export de 500 MB estoura o limite de resposta do Worker. |
 | `api_keys` e `auditor_tokens` | Têm `project_id` e passariam pela descoberta automática. São **credenciais**, não dado do titular: um export que as carrega vira cópia viva de credenciais, guardada onde quer que o cliente ponha o arquivo. |
+| Toda tabela `ot_*` (inventário do n.ot) | Regra P0 do n.ot (P0-2, P0-4, P0-6): o inventário OT nunca sai pela portabilidade; sai só pela exportação do próprio módulo, com step-up, máscara e filtro de site. O prefixo cobre tabela `ot_*` futura (`tabelasExportaveis` em `src/portabilidade.ts`). Declarado em `nao_incluido`. |
+| Linhas `ot.%` de `audit_logs`, para quem não vê o n.ot | São o único rastro do n.ot no export; só saem para quem tem o módulo `ot` na pessoa e no projeto (`exportarProjeto`, 4º argumento `veOt`, padrão falso: falha fechada). |
+| Linhas de `avisos_prazo` com fonte `ot_*` | O título do aviso de prazo do n.ot leva nome de site (P0-2); essas linhas nunca saem. |
 
 ## Assinatura
 

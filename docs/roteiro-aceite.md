@@ -159,13 +159,13 @@ Antes: em Projetos, habilite o n.ot no projeto de teste e, em Usuários, marque 
 
 | # | Faça | Esperado |
 |---|---|---|
-| 11.1 | No início do n.360, abra o n.ot | Abas Catálogo RO-CB.BR.01, Inventário, Fluxos, Coleta, Levantamento, Saídas e Acessos e agente. Uma conta sem o n.ot não vê o item. |
-| 11.2 | Inventário: "Novo site", "Nova zona" e "Novo ativo" | Cada um aparece na lista. |
-| 11.3 | Coleta: "Entrada manual", "Adicionar ao lote" e "Enviar lote" | O lote fica para revisão. Quem o criou não consegue aprová-lo. |
+| 11.1 | No início do n.360, "Abrir no n.ot" na linha do projeto | Menu com Início, Sites, Assessment RO-CB.BR.01, Relatórios, Fornecedores e, para quem edita, Acessos e sondas. Uma conta sem o n.ot não vê o botão. |
+| 11.2 | Sites: "+ Novo site"; no site, Modo operação → Inventário: "+ Nova zona" e "Novo ativo" | Cada um aparece na lista. |
+| 11.3 | No site, Modo projeto → Revisão e aprovação: "Entrada manual", "Adicionar ao lote" e "Enviar lote" | O lote fica para revisão. Quem o criou não consegue aprová-lo. |
 | 11.4 | Com a segunda conta: "Revisar" e "Aprovar lote" | O ativo entra no inventário. |
-| 11.5 | Levantamento: "+ Novo levantamento" (entrevista), responda uma pergunta do roteiro e "Enviar ao lote" | O achado vira item de lote; nada entra no inventário sem aprovação. |
-| 11.6 | Saídas: "Exportar CSV" com uma justificativa | Pede o código do autenticador; com ele, baixa a planilha. |
-| 11.7 | Acessos e agente: "Nova sonda" | A credencial aparece uma vez só; a sonda fica na lista com a saúde da coleta. Revogue-a no fim. |
+| 11.5 | No site, Modo projeto → Levantamento: "+ Novo levantamento" (entrevista), responda uma pergunta do roteiro; em Revisão e aprovação, "Enviar para aprovação" | O achado vira item de lote; nada entra no inventário sem aprovação. |
+| 11.6 | Relatórios: "Exportar CSV" com uma justificativa | Pede o código do autenticador; com ele, baixa a planilha. |
+| 11.7 | Acessos e sondas: "Nova sonda" | A credencial aparece uma vez só; a sonda fica na lista com a saúde da coleta. Revogue-a no fim. |
 
 ## Resultado
 
