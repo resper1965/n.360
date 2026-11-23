@@ -1,13 +1,14 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState, formatarData } from '../ui.js';
+import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState, formatarData, renderDataTable } from '../ui.js';
 import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, semAcesso, DESCRICAO_DO_MODULO, orgDireta } from '../produto.js';
 import { montarLista } from '../lista.js';
 import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
 import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, ligarDicas } from './painel-graficos.js';
+import { FASE } from '../ot-comum.js';
 
-// Painel de entrada do n.360, do n.iso e do n.privacy (estudo docs/design/diagnostico-2026-10-14/dashboard-entrada.md, direção A).
+// Painel de entrada do n.360, do n.iso, do n.privacy e do n.ot (estudo docs/design/diagnostico-2026-10-14/dashboard-entrada.md, direção A).
 // Uma chamada por entrada (`GET /projects/:id/painel`, com `?modulo=` no módulo); a frase, a lista e a visão por papel vêm do
 // servidor, aqui só se desenha. Esqueleto no primeiro quadro; a resposta fica 60 s em `S.painel` e, vencida, a tela antiga
 // aparece esmaecida enquanto a nova chega (nada de piscar o esqueleto). Todo texto do servidor passa por escapeHTML.
@@ -146,7 +147,9 @@ function trilha(lista, projectId) {
         ${p.feito ? estado('ok', 'Feito') : TELAS_DO_PAINEL.has(p.tela) ? `<button type="button" class="btn btn-sm" data-action="painelAbrirProximo" data-args='${args(projectId, p.tela, null, null, null)}' aria-label="${e(`${p.acao}: ${p.rotulo}`)}">${e(p.acao)}</button>` : ''}</li>`).join('')}</ol>`;
 }
 
-const reguaDe = (m, d, projectId) => regua(m, d.programa && d.programa.etapas && d.programa.etapas[m], projectId, d.visao !== 'cliente');
+// A régua só se lê na visão de cliente; no n.ot, o Gestor ARCiber (o único cliente que recebe "fazer", decisão 1) também abre.
+const reguaDe = (m, d, projectId) => regua(m, d.programa && d.programa.etapas && d.programa.etapas[m], projectId,
+    d.visao !== 'cliente' || (m === 'ot' && Array.isArray(d.modulos && d.modulos.ot && d.modulos.ot.fazer)));
 
 function passos(lista) {
     const ps = Array.isArray(lista) ? lista : [];
@@ -199,10 +202,38 @@ function jornadaDoCliente(j) {
     };
 }
 
+const SONDA = { em_dia: 'Em dia', atrasada: 'Atrasada', parada: 'Parada' };
+const dataBr = (s) => (s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—');
+
+/** Uma linha por site permitido (P0-4): fase, próximo passo, desvios, sonda (só quando o servidor mandou: quem abre a sonda), revalidar e obra. */
+function quadroPorSite(linhas) {
+    if (!linhas.length) return quadro('pn-ot-sites', 'Por site', '<p class="pn-vazio-tx">Nenhum site neste painel. O inventário do n.ot começa pelo site, na aba Sites.</p>');
+    const comSonda = linhas.some((l) => 'sonda' in l);
+    const cab = ['Site', 'Fase', 'Próximo passo', 'Desvios abertos', ...(comSonda ? ['Sonda'] : []), 'Revalidar até', 'Obra até', 'Abrir'];
+    const corpo = linhas.map((l) => [e(l.nome), e(FASE[l.fase] || l.fase), e(l.proximo), e(l.desvios_abertos), ...(comSonda ? [e(SONDA[l.sonda] || '—')] : []),
+        e(dataBr(l.revalidar_em)), e(dataBr(l.obra_ate)),
+        `<button type="button" class="btn btn-sm" data-action="otTela" data-args='${args('site', l.id, null)}' aria-label="${e(`Abrir ${l.nome}`)}">Abrir</button>`]);
+    return quadro('pn-ot-sites', 'Por site', renderDataTable(cab, corpo));
+}
+
+/**
+ * Painel do n.ot (spec 2026-11-19-paineis-do-n-ot). O servidor decide o que cada papel recebe (`?modulo=ot`); aqui só se desenha o que
+ * veio. Quadro sem dado não aparece; nunca um zero que pareça "em dia".
+ */
+function telaDoOt(d, b) {
+    const decidir = Array.isArray(d.decisoes) && d.decisoes.length ? [quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes, '', false))] : [];
+    const fazer = Array.isArray(b.fazer) ? [b.comecando ? quadro('pn-passos-t', 'Primeiros passos', passos(b.passos)) : quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false))] : [];
+    const sites = Array.isArray(b.por_site) ? [quadroPorSite(b.por_site)] : [];
+    const numeros = Array.isArray(b.por_site) && !b.comecando ? [quadro('pn-ot-num', 'O programa em números', figuras(b, false))] : [];
+    const esquerda = [...decidir, ...fazer, ...sites];
+    return esquerda.length || numeros.length ? colunas(esquerda, numeros) : '';
+}
+
 /** Entrada de um módulo (n.iso ou n.privacy). */
 function telaDoModulo(d, m, proj) {
     const b = (d.modulos && d.modulos[m]) || {};
     const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}${reguaDe(m, d, proj.id)}`;
+    if (m === 'ot') return `${topo}${telaDoOt(d, b)}`;
     if (d.visao === 'cliente') {
         // Dentro do módulo não há "Abrir o módulo"; no n.iso o lado direito é a jornada (o próximo marco), não números.
         if (m === 'iso') {
@@ -429,6 +460,13 @@ function desenhar(c, a, entrada, proj, d) {
 
 function semModulo(c, entrada, proj) {
     const nome = NOME[entrada];
+    // n.ot no projeto e 403: falta a concessão à pessoa (P0-1, nunca automática), não o contrato nem o módulo no projeto.
+    if (entrada === 'ot' && modulosDe(proj).includes('ot')) {
+        c.innerHTML = renderEmptyState({ id: 'pn-sem-modulo', titulo: `Você ainda não tem acesso ao ${nome} neste projeto`,
+            texto: `Quem administra as contas da ${orgDireta() ? 'organização' : 'consultoria'} concede o ${nome} a cada pessoa, em Usuários.`,
+            acao: `<a class="btn" href="${e(enderecoDoProduto('n360'))}">Voltar ao início do n.360</a>` });
+        return;
+    }
     const acao = podeGerirModulos() ? `<button type="button" class="btn btn-primary" data-action="abrirProdutosDoProjeto" data-args='${args(proj.id)}'>Habilitar no projeto</button>` : '';
     c.innerHTML = renderEmptyState({ id: 'pn-sem-modulo', titulo: `O ${nome} não está habilitado neste projeto`,
         texto: ehEquipe() ? `${orgDireta() ? 'Quem administra a organização habilita' : 'A consultoria habilita'} o módulo no projeto; o que já está no cadastro (pessoas, sistemas, documentos) entra pronto.`
@@ -452,6 +490,8 @@ async function carregar(c, a, entrada, proj, chave, buscar, desenho) {
     const guardado = S.painel[chave];
     const eu = ++rodada;
     const tela = S.view;
+    const sub = S.otTela; // no /ot todas as subtelas são S.view 'ot': a resposta do Painel não se desenha sobre Sites
+    const outra = () => eu !== rodada || S.view !== tela || S.otTela !== sub;
     if (valido(guardado)) { desenho(guardado.dados); return; }
     if (guardado) {
         desenho(guardado.dados);
@@ -462,14 +502,14 @@ async function carregar(c, a, entrada, proj, chave, buscar, desenho) {
     }
     let dados;
     try { dados = await buscar(); } catch (err) {
-        if (eu !== rodada || S.view !== tela) return;
+        if (outra()) return;
         c.removeAttribute('aria-busy');
         if (err && err.status === 403 && entrada !== 'n360' && proj) { semModulo(c, entrada, proj); return; }
         console.error('Falha ao montar o painel', err);
         c.innerHTML = renderErrorState('Não foi possível montar o painel.', { erro: err });
         return;
     }
-    if (eu !== rodada || S.view !== tela) return;
+    if (outra()) return;
     c.removeAttribute('aria-busy');
     if (!dados || typeof dados !== 'object' || Array.isArray(dados)) {
         c.innerHTML = renderErrorState('Não foi possível montar o painel.');

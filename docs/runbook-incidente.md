@@ -41,7 +41,7 @@ O n.iso não tem plantão formal. Isto é o que existe de fato:
 
 | Sinal | Quem vê | Onde |
 | :--- | :--- | :--- |
-| Deploy falhou | o build da `main` no Workers Builds falha e o `/health` não muda de SHA | painel da Cloudflare (Workers Builds); o `ship.sh` espera o SHA e avisa |
+| Deploy falhou | o workflow `deploy.yml` da `main` falha e o `/health` não muda de SHA | GitHub Actions (`gh run list --workflow deploy.yml`); o `ship.sh` espera o SHA e avisa. Se o Workers Builds da Cloudflare também publica a `main`: não confirmado |
 | Backup | não há backup diário automático (o `db-backup.yml` está desligado) | Time Travel do D1 e o `npm run db:backup` manual antes de migration |
 | Produção fora do ar (Worker, domínio, certificado) | e-mail do monitor externo | serviço de uptime gratuito, a cada 5 min (passo a passo abaixo) |
 | D1, KV ou R2 sem resposta com o Worker no ar | e-mail para `ALERTA_EMAIL` (um na queda, um na volta) | sonda interna do Worker, cron de 15 min (`src/services/sonda.ts`) |

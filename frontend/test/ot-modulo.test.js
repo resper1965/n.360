@@ -31,7 +31,7 @@ describe('casca do n.ot', () => {
     it('no /ot o menu tem só os itens do n.ot; a marca é n.ot em minúsculas, com o ponto em accent', () => {
         montarApp();
         aplicarCasca('ot');
-        expect(visiveis()).toEqual(['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos']);
+        expect(visiveis()).toEqual(['nav-ot-inicio', 'nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos']);
         expect(document.title).toMatch(/^n\.ot \| ness\./);
         expect(el('sidebar-logo-mark').textContent).toBe('n.ot');
         expect(el('sidebar-logo-mark').innerHTML).toContain('var(--accent)');
@@ -51,21 +51,26 @@ describe('itens do n.ot: só dentro do /ot, com projeto E pessoa com o módulo',
         S.user = { role: 'consultor', modulos: ['ot'] };
         atualizarItemOt();
         expect(el('nav-ot-inicio').hidden).toBe(true);
+        expect(el('nav-ot-painel').hidden).toBe(true);
         ir('/ot');
         atualizarItemOt();
         expect(el('nav-ot-inicio').hidden).toBe(false);
+        expect(el('nav-ot-painel').hidden).toBe(false);
         S.user = { role: 'consultor', modulos: ['iso'] };
         atualizarItemOt();
         expect(el('nav-ot-inicio').hidden).toBe(true);
+        expect(el('nav-ot-painel').hidden).toBe(true);
         // projeto SEM o n.ot e pessoa COM o n.ot: continua escondido (modulosVisiveis cruza projeto e pessoa)
         S.activeProject = { id: 'c', modulos: ['iso', 'privacy'] };
         S.user = { role: 'consultor', modulos: ['ot'] };
         atualizarItemOt();
         expect(el('nav-ot-inicio').hidden).toBe(true);
+        expect(el('nav-ot-painel').hidden).toBe(true);
         S.activeProject = null;
         S.user = { role: 'consultor', modulos: ['ot'] };
         atualizarItemOt();
         expect(el('nav-ot-inicio').hidden).toBe(true);
+        expect(el('nav-ot-painel').hidden).toBe(true);
     });
     it('o hub leva a tela ot ao módulo dela; /ot?tela=ot abre a tela e ?tela=ot noutro módulo não', () => {
         expect(TELAS_DOS_MODULOS).toContain('ot');
@@ -132,7 +137,7 @@ describe('concessão do n.ot é sempre explícita (P0-1)', () => {
 
 describe('casca por subtela', () => {
     const B = '/api/v1/projects/p9/ot';
-    const NAV = ['inicio', 'sites', 'assessment', 'relatorios', 'acessos'].map((t) => `<div id="nav-ot-${t}"></div>`).join('');
+    const NAV = ['inicio', 'painel', 'sites', 'assessment', 'relatorios', 'acessos'].map((t) => `<div id="nav-ot-${t}"></div>`).join('');
     const abrir = () => { document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`; return window.renderOt(el('c'), el('h'), el('a')); };
     const SITES = { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] };
     beforeEach(() => {
@@ -141,6 +146,45 @@ describe('casca por subtela', () => {
         window.render = vi.fn();
     });
 
+    it('?ot=painel desenha o Painel do n.ot pelo /painel?modulo=ot e marca o item do menu', async () => {
+        const SAUDE = { tom: 'plano', rotulo: 'Começando', frase: 'f', apoio: '' };
+        const f = servir({ 'GET /api/v1/projects/p9/painel': { gerado_em: '2026-11-20T10:00:00Z', visao: 'equipe', modulos_pedidos: ['ot'], empresa: null, encarregados: [],
+            programa: { estado: 'comecando', desde: null, rotulo: 'Começando', etapas: {} }, saude: SAUDE,
+            modulos: { ot: { saude: SAUDE, numeros: [], comecando: true, fazer: [], passos: [] } } } });
+        S.painel = {};
+        document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`;
+        await window.otTela('painel'); await window.renderOt(el('c'), el('h'), el('a'));
+        expect(el('h').textContent).toBe('Painel');
+        expect(el('nav-ot-painel').classList.contains('active')).toBe(true);
+        expect(location.search).toBe('?ot=painel');
+        expect(f.mock.calls.some(([u]) => String(u).includes('/painel?modulo=ot'))).toBe(true);
+    });
+    it('link direto /ot?ot=painel sem projeto (S.projects vazio): "sem projeto" e nenhuma chamada ao /painel', async () => {
+        const f = servir({});
+        S.activeProject = null; S.projects = []; S.otProjeto = null; S.painel = {}; ir('/ot?ot=painel');
+        await abrir();
+        expect(f.mock.calls.filter(([u]) => String(u).includes('/painel'))).toEqual([]);
+        expect(el('c').querySelector('.pn')).toBeNull();
+    });
+    it('a resposta do Painel que chega depois de trocar para Sites não é desenhada por cima', async () => {
+        const SAUDE = { tom: 'plano', rotulo: 'Começando', frase: 'f', apoio: '' };
+        const PAINEL = { gerado_em: '2026-11-20T10:00:00Z', visao: 'equipe', modulos_pedidos: ['ot'], empresa: null, encarregados: [],
+            programa: { estado: 'comecando', desde: null, rotulo: 'Começando', etapas: {} }, saude: SAUDE,
+            modulos: { ot: { saude: SAUDE, numeros: [], comecando: true, fazer: [], passos: [] } } };
+        let soltar;
+        const segura = new Promise((r) => { soltar = r; });
+        const f = servir({ [`GET ${B}/sites`]: SITES, 'GET /api/v1/projects/p9/painel': PAINEL });
+        const real = f.getMockImplementation();
+        f.mockImplementation(async (url, o) => { if (String(url).includes('/painel')) await segura; return real(url, o); });
+        S.painel = {}; S.view = 'ot';
+        document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`;
+        S.otTela = 'painel';
+        const painel = window.renderOt(el('c'), el('h'), el('a'));
+        await window.otTela('sites'); await window.renderOt(el('c'), el('h'), el('a'));
+        soltar(); await painel;
+        expect(el('h').textContent).toBe('Sites');
+        expect(el('c').querySelector('.pn')).toBeNull();
+    });
     it('sem parâmetro desenha o Início; ?ot=relatorios desenha Relatórios; o endereço acompanha', async () => {
         servir({ [`GET ${B}/sites`]: SITES });
         await abrir();
