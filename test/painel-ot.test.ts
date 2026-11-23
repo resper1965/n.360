@@ -64,8 +64,27 @@ describe('blocoOt', () => {
       '1 lote aguardando revisão', '1 base aguardando aprovação', '1 obra vence em até 7 dias', '1 aceite de desvio vence em até 7 dias']));
   });
 
-  it('consultoria_admin segue a tela: sondas (edita), sem lote nem desvio (a tela o tira de quem aprova)', async () => {
-    expect(await textos(consultoriaAdmin)).toEqual(['2 sondas paradas']);
+  it('consultoria_admin não designado nem admin direto: sem sonda (não abre a rota de sonda), sem lote nem desvio', async () => {
+    expect(await textos(consultoriaAdmin)).toEqual([]);
+  });
+
+  it('platform_admin não vê sonda parada: o número segue podeVerCompleto, como a rota de sonda', async () => {
+    const plat = { id: 'u-p', email: 'p@ness.lat', role: 'platform_admin' };
+    const b = await blocoOt(env.DB, 'proj-a', plat, DIA, AGORA);
+    expect(b.itens.map((i) => i.texto).join(' ')).not.toContain('sonda');
+    expect(b.porSite.every((s) => !('sonda' in s))).toBe(true);
+  });
+
+  it('papel e linhas por site: Gestor e técnico; o técnico só o site dele e sem sonda', async () => {
+    const g = await blocoOt(env.DB, 'proj-a', gestor, DIA, AGORA);
+    expect(g.papel).toBe('gestor');
+    expect(g.porSite.map((s) => s.nome)).toEqual(['SE Leste', 'SE Norte', 'SE Sul']);
+    expect(g.porSite.find((s) => s.id === 's1')).toMatchObject({ fase: 'em_operacao', proximo: 'Tratar os desvios abertos', desvios_abertos: 1, sonda: 'parada' });
+    const t = await blocoOt(env.DB, 'proj-a', tecnico, DIA, AGORA);
+    expect(t.papel).toBe('tecnico');
+    expect(t.porSite.map((s) => s.id)).toEqual(['s1']);
+    expect('sonda' in t.porSite[0]).toBe(false);
+    expect((await blocoOt(env.DB, 'proj-a', consultor, DIA, AGORA)).papel).toBe('equipe');
   });
 
   it('desvio aberto em site com obra ativa (obra_ate) não entra no item, como na tela; o número do topo segue contando', async () => {
