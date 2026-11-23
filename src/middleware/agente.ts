@@ -119,6 +119,7 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/approve-document$/, 'aceitar documento e concluir item do checklist é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/pedidos\/[^/]+\/(aprovar|recusar)$/, 'aprovar ou recusar pedido é ato do destinatário, com a senha dele', ['POST']],
   [/^\/api\/v1\/pedidos\/lote$/, 'aprovar em lote é ato humano, com a senha de quem aprova', ['POST']],
+  [/^\/api\/v1\/projects\/[^/]+\/pedidos\/[^/]+\/reenviar$/, 'reenviar o link de ciência é pela interface', ['POST']],
   [/^\/api\/v1\/parametros-legais(\/|$)/, 'prazo legal é parâmetro revisado pelo jurídico, edição do administrador da plataforma; o agente só lê', ['PUT', 'DELETE']],
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
   // Mesclar duplicata move vínculos e inativa um cadastro: ato do consultor, pela interface, com a prévia na tela.

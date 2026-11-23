@@ -84,6 +84,13 @@ const POLITICA_E_DOCUMENTO = { error: 'A política agora é um documento: peça 
 export const pedidosApp = new Hono<Ctx>();
 export const projectPedidosApp = new Hono<Ctx>();
 
+/**
+ * `criado_por` do pedido: o e-mail de quem pede. O agente pede como o consultor que o concedeu (`agente_conta`): assim a
+ * segregação ("quem pediu não decide") vale para o consultor e o e-mail sai com o reply-to dele. A trilha guarda o rótulo
+ * "agente de <consultor>" (`user.email`).
+ */
+const quemPede = (user: { email: string; agente_conta?: string }) => user.agente_conta ?? user.email;
+
 /** 403 com o motivo, se o usuário não pede neste projeto; `null` se pode. */
 async function recusaPedir(c: any): Promise<Response | null> {
   const motivo = await podePedir(c.env.DB, c.get('user'), c.req.param('projectId') ?? '');
@@ -114,7 +121,7 @@ projectPedidosApp.post('/', async (c) => {
 
     const criado = await criarPedido(c.env.DB, {
       projectId, tipo: b.tipo, refId, papel: b.papel_exigido,
-      destinatarios: b.destinatarios, criadoPor: user.email,
+      destinatarios: b.destinatarios, criadoPor: quemPede(user),
     });
     if (!criado) return c.json({ error: 'Documento não encontrado neste projeto' }, 404);
     await logAudit(c.env.DB, 'pedido.criado', user.email,
@@ -430,7 +437,7 @@ projectPedidosApp.post('/ciencia', async (c) => {
 
     const criado = await criarPedido(c.env.DB, {
       projectId, tipo: b.tipo, refId: b.ref_id, papel: 'ciente',
-      destinatarios: b.destinatarios, criadoPor: user.email, comLink: true,
+      destinatarios: b.destinatarios, criadoPor: quemPede(user), comLink: true,
     });
     if (!criado) return c.json({ error: 'Documento não encontrado neste projeto' }, 404);
     const p = await c.env.DB.prepare('SELECT titulo FROM pedidos WHERE id = ?').bind(criado.id).first<{ titulo: string }>();

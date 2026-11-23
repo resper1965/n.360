@@ -10,7 +10,7 @@ export const MOTIVO_MAX = 500;
 export const FERRAMENTAS_DE_DECISAO = [
   'niso_publicar_documento', 'niso_revisar_documento', 'niso_decidir_passo', 'niso_avaliar_fornecedor', 'niso_situacao_atividade',
   'niso_concluir_acao', 'niso_encerrar_incidente', 'niso_registrar_revogacao', 'niso_importar_programa', 'niso_padronizar_nomes',
-  'niso_editar_catalogo', 'niso_excluir_requisito',
+  'niso_editar_catalogo', 'niso_excluir_requisito', 'niso_pedir_aprovacao',
 ] as const;
 export type FerramentaDecisao = (typeof FERRAMENTAS_DE_DECISAO)[number];
 
@@ -62,6 +62,9 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_editar_catalogo', acao: 'editar_item', metodo: 'PUT', caminho: `${P}/catalogos/{tipo}/{itemId}`, corpo: true },
   { ferramenta: 'niso_excluir_requisito', acao: 'excluir', metodo: 'PUT', caminho: `${P}/requisitos/{requisitoId}/exclusao`, corpo: true },
   { ferramenta: 'niso_excluir_requisito', acao: 'reincluir', metodo: 'DELETE', caminho: `${P}/requisitos/{requisitoId}/exclusao` },
+  // Pedir aprovação ou ciência é do consultor; aprovar segue do destinatário, com a senha dele (FORA_DO_AGENTE). Ler a fila é niso_ler.
+  { ferramenta: 'niso_pedir_aprovacao', acao: 'pedir', metodo: 'POST', caminho: `${P}/pedidos`, corpo: true },
+  { ferramenta: 'niso_pedir_aprovacao', acao: 'pedir_ciencia_por_link', metodo: 'POST', caminho: `${P}/pedidos/ciencia`, corpo: true },
 ];
 
 export const parametrosDe = (modelo: string): string[] => [...modelo.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
