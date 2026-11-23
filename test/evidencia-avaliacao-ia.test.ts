@@ -60,7 +60,8 @@ describe('avaliação por IA em campo separado', () => {
     expect(String(ev!.avaliacao_ia)).not.toContain('NÃO CONFORME');
   });
 
-  it('religar o controle limpa avaliacao_ia (não sobra veredito do controle antigo)', async () => {
+  // Tarefa 3: trocar o controle não zera avaliação nem aprovação (valem para o conteúdo); a avaliação da IA fica, rotulada como da IA.
+  it('religar o controle mantém avaliacao_ia e a nota humana', async () => {
     await avaliar('ev-1', '# Veredito: PARCIAL');
     expect(String((await evidencia('ev-1'))!.avaliacao_ia)).toContain('PARCIAL');
     const res = await worker.fetch(new Request('http://localhost/api/v1/evidence/ev-1', {
@@ -68,8 +69,9 @@ describe('avaliação por IA em campo separado', () => {
     }), { ...env, AI: { run: async () => ({ response: '' }) } } as any);
     expect(res.status).toBe(200);
     const ev = await evidencia('ev-1');
-    expect(ev!.avaliacao_ia).toBeNull();
-    expect(ev!.evaluation_status).toBe('pending');
+    expect(String(ev!.avaliacao_ia)).toContain('PARCIAL');
+    expect(ev!.evaluation_status).toBe('partial');
+    expect(ev!.evaluation_notes).toBe('nota humana da triagem');
   });
 
   it('GET de evidências devolve avaliacao_ia', async () => {
