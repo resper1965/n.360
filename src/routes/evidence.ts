@@ -256,7 +256,7 @@ evidenceApp.post('/:id/controles', async (c) => {
     const ligou = await ligarControle(c.env.DB, ev, controlId, quem);
     if (ligou) await logAudit(c.env.DB, 'evidence.controle_ligado', quem, `Evidência ${id} ligada ao controle ${controlId}.`, '', '', ev.project_id);
     return c.json({ ok: true, control_id: controlId, ligado: ligou }, ligou ? 201 : 200);
-  } catch (e: any) {
+  } catch (e) {
     return erro500(c, 'Erro ao ligar a evidência ao controle', e);
   }
 });
@@ -273,7 +273,7 @@ evidenceApp.delete('/:id/controles/:controlId', async (c) => {
     const quem = c.get('user')?.email ?? 'system';
     await logAudit(c.env.DB, 'evidence.controle_desligado', quem, `Evidência ${id} desligada do controle ${controlId}.`, '', '', ev.project_id);
     return c.json({ ok: true, control_id: controlId });
-  } catch (e: any) {
+  } catch (e) {
     return erro500(c, 'Erro ao desligar a evidência do controle', e);
   }
 });
