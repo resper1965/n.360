@@ -130,3 +130,57 @@ describe('custo', () => {
     }
   });
 });
+
+// Casos de borda (revisão): sites s4/s5 novos, lidos só por quadrosOt com a lista de sites explícita (não mexem nos casos acima).
+describe('casos de borda', () => {
+  const q = (sites: string[]) => quadrosOt(env.DB, 'proj-a', hojeEmSaoPaulo(), { sites: JSON.stringify(sites),
+    lista: sites.map((id) => ({ id, nome: id, fase: 'em_operacao', obra_ate: null })), revalidar: new Map(), credenciais: [], gestor: false, veSondas: false, soResumo: false });
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase, status) VALUES ('s4', 'proj-a', 'SE Leste Exemplo', 'em_operacao', 'ativo'),
+        ('s5', 'proj-a', 'SE Oeste Exemplo', 'em_operacao', 'ativo')`),
+      env.DB.prepare(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES ('z4', 'proj-a', 's4', 'Z4', 2), ('z4b', 'proj-a', 's4', 'Z4b', 1), ('z5', 'proj-a', 's5', 'Z5', 2)`),
+      env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_zona_id, destino_zona_id, externo, via_vpn) VALUES
+        ('f45', 'proj-a', 's4', 'z4', 'z5', 0, 0), ('f4ext', 'proj-a', 's4', 'z4', NULL, 1, 0), ('f4vpn', 'proj-a', 's4', 'z4', NULL, 1, 1),
+        ('f4int', 'proj-a', 's4', 'z4', 'z4b', 0, 0)`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('fx', 'proj-a', 'organizacao', 'Fornecedora X', NULL),
+        ('fi', 'proj-a', 'organizacao', 'Fornecedora I', NULL), ('fa1', 'proj-a', 'organizacao', 'Fornecedora A1', NULL),
+        ('fa2', 'proj-a', 'organizacao', 'Fornecedora A2', NULL), ('fre', 'proj-a', 'organizacao', 'Fornecedora Re', 'medio'),
+        ('fve', 'proj-a', 'organizacao', 'Fornecedora Ve', NULL)`),
+      env.DB.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate, tipo_avaliado, created_at) VALUES
+        ('av-re', 'proj-a', 'fre', 'questionario', 'aprovado', ?1, 'pequeno', '2026-06-01 00:00:00'),
+        ('av-ve', 'proj-a', 'fve', 'questionario', 'aprovado', '2020-01-01', NULL, '2019-06-01 00:00:00')`).bind(diaMaisSP(200)),
+      env.DB.prepare(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, ot_fluxo_id, criado_por) VALUES
+        ('o5', 'proj-a', 'fx', 'acesso_remoto', NULL, 'f45', 'u-g'), ('o6', 'proj-a', 'fi', 'integrador', NULL, 'f4ext', 'u-g'),
+        ('o7', 'proj-a', 'fa1', 'acesso_remoto', NULL, 'f4vpn', 'u-g'), ('o8', 'proj-a', 'fa2', 'acesso_remoto', NULL, 'f4int', 'u-g'),
+        ('o9', 'proj-a', 'fre', 'fabricante', 's4', NULL, 'u-g'), ('o10', 'proj-a', 'fve', 'fabricante', 's4', NULL, 'u-g')`),
+      env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, status) VALUES ('at4r', 'proj-a', 's4', 'R', 'removido'),
+        ('at4a', 'proj-a', 's4', 'A', 'ativo'), ('at4b', 'proj-a', 's4', 'B', 'ativo')`),
+      env.DB.prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, primeira_vez, ultima_vez) VALUES
+        ('dv4', 'proj-a', 's4', 'fluxo', 'k-dv4', '2026-06-01T12:00:00Z', '2026-06-01T12:00:00Z')`),
+      env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, probability, impact) VALUES ('rk5', 'proj-a', 'a', 't', 3, 3),
+        ('rk6', 'proj-a', 'a', 't', 1, 2), ('rk7', 'proj-a', 'a', 't', 2, 4)`),
+      env.DB.prepare(`INSERT INTO ot_referencias (id, project_id, risk_id, ot_site_id, ot_ativo_id, ot_desvio_id, criado_por) VALUES
+        ('rf5', 'proj-a', 'rk5', 's4', NULL, 'dv4', 'u-g'), ('rf6', 'proj-a', 'rk6', NULL, 'at4r', NULL, 'u-g'),
+        ('rf7a', 'proj-a', 'rk7', NULL, 'at4a', NULL, 'u-g'), ('rf7b', 'proj-a', 'rk7', NULL, 'at4b', NULL, 'u-g')`),
+    ]);
+  });
+  it('P0-4 FLUXO_VISIVEL: fornecedor só de um fluxo do s4 com a ponta no s5 não conta para quem vê só o s4; conta com os dois', async () => {
+    const so4 = (await q(['s4'])).completo!.fornecedores.find((p) => p.papel === 'acesso_remoto')!;
+    const ambos = (await q(['s4', 's5'])).completo!.fornecedores.find((p) => p.papel === 'acesso_remoto')!;
+    expect(so4.total).toBe(2); // fa1 e fa2; fx (f45, ponta z5 no s5) fora
+    expect(ambos.total).toBe(3);
+  });
+  it('situação (reavaliar -> pendentes, vencida -> vencidos) e sem_vpn só de acesso_remoto em fluxo externo sem VPN', async () => {
+    expect((await q(['s4'])).completo!.fornecedores).toEqual([
+      { papel: 'integrador', total: 1, vigentes: 0, pendentes: 1, vencidos: 0, sem_vpn: 0 }, // fi em fluxo externo sem VPN, mas não é acesso remoto
+      { papel: 'fabricante', total: 2, vigentes: 0, pendentes: 1, vencidos: 1, sem_vpn: 0 }, // fre reavaliar (medio x pequeno), fve vencida
+      { papel: 'acesso_remoto', total: 2, vigentes: 0, pendentes: 2, vencidos: 0, sem_vpn: 0 }, // fa1 com VPN, fa2 interno
+    ]);
+  });
+  it('riscos: ligado por desvio conta; ativo removido em site ativo não; o mesmo risco em dois ativos conta uma vez', async () => {
+    const r = (await q(['s4'])).completo!.riscos;
+    expect(r).toHaveLength(2);
+    expect(r).toEqual(expect.arrayContaining([{ p: 3, i: 3, n: 1 }, { p: 2, i: 4, n: 1 }]));
+  });
+});

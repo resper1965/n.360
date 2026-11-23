@@ -158,7 +158,8 @@ export async function quadrosOt(db: D1Database, projectId: string, dia: string, 
     for (const f of doPapel) situacao.set(f.parte_id, situacaoDe(f.resultado ? { resultado: f.resultado, valido_ate: f.valido_ate ?? '', tipo_avaliado: f.tipo_avaliado } : null, dia, f.terceiro_tipo));
     const s = [...situacao.values()];
     return { papel, total: situacao.size, vigentes: s.filter((k) => k === 'vigente').length, pendentes: s.filter((k) => k === 'pendente' || k === 'reavaliar').length,
-      vencidos: s.filter((k) => k === 'vencida' || k === 'reprovada').length, sem_vpn: new Set(doPapel.filter((f) => f.sem_vpn).map((f) => f.parte_id)).size };
+      vencidos: s.filter((k) => k === 'vencida' || k === 'reprovada').length, // sem VPN só é exposição para quem acessa de fora (spec: "quais de acesso_remoto estão em fluxo externo sem VPN")
+      sem_vpn: papel === 'acesso_remoto' ? new Set(doPapel.filter((f) => f.sem_vpn).map((f) => f.parte_id)).size : 0 };
   }).filter((p) => p.total > 0);
 
   return {
