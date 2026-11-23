@@ -1,11 +1,13 @@
-// Quadros do Painel do n.ot (spec 2026-11-19-paineis-do-n-ot, PR3): Conformidade RO-CB, Desvios e exposição, Vencimentos de 90 dias.
+// Quadros do Painel do n.ot (spec 2026-11-19-paineis-do-n-ot, PR3): Conformidade RO-CB, Desvios e exposição, Vencimentos de 90 dias; PR4: Fornecedores de OT por papel e mapa de risco (contagens).
 // Só no `?modulo=ot` (o Início do n.360 não paga nem recebe). Orçamento de D1: UM db.batch de consultas agrupadas + o de
 // `conformidadePorSite`; nenhuma consulta por site. Tudo sobre `sites` (= sitesPermitidos, P0-4). Nunca IP, MAC, nome de ativo ou de
 // sonda (P0-6): rótulo de vencimento é nome de site ou código de requisito; o título da ação (texto livre) não sai.
 import { conformidadePorSite, ITENS_TECNICOS } from './ot-conformidade';
 import { resumoDoAssessment, situacaoNaOrganizacao, type ItemDoResumo } from './ot-avaliacao';
 import { SQL_COMPLETO_4_3_1 } from './ot-indicadores';
-import { TETO_LEITURA_OT } from './ot-inventario';
+import { FLUXO_VISIVEL, TETO_LEITURA_OT } from './ot-inventario';
+import { SQL_EH_FORNECEDOR, situacaoDe, type Avaliacao, type Situacao, type TipoTerceiro } from './terceiros';
+import type { PapelOt } from './ot-fornecedores';
 import { diaEmSaoPaulo, mesesAtras } from './hoje';
 import type { LinhaVencimento, Proximo, Tema } from './painel';
 
@@ -53,7 +55,7 @@ export async function quadrosOt(db: D1Database, projectId: string, dia: string, 
           WHERE l.project_id = ?1 AND l.requisito_id = r.id AND e.valido_ate IS NOT NULL AND e.valido_ate < ?2) AS evidencia_vencida
       FROM ot_requisitos r LEFT JOIN ot_avaliacoes a ON a.requisito_id = r.id AND a.project_id = ?1
       WHERE r.framework = 'ONS-RO-CB.BR.01' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, dia);
-  const [politica, desvSit, desvMes, ativos, niveis, aceites, acoes] = await db.batch(x.soResumo ? [consultaPolitica] : [consultaPolitica,
+  const [politica, desvSit, desvMes, ativos, niveis, aceites, acoes, fornecedores, riscos] = await db.batch(x.soResumo ? [consultaPolitica] : [consultaPolitica,
     db.prepare(`SELECT site_id, situacao, count(*) AS n FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} GROUP BY site_id, situacao`).bind(projectId, x.sites),
     // primeira_vez é instante UTC; o mês é o de São Paulo (como funil.ts e avisos-prazo.ts)
     db.prepare(`SELECT strftime('%Y-%m', primeira_vez, '-3 hours') AS mes, count(*) AS n FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE}
@@ -70,6 +72,31 @@ export async function quadrosOt(db: D1Database, projectId: string, dia: string, 
         JOIN corrective_actions c ON c.id = r.acao_id AND c.project_id = r.project_id
       WHERE r.project_id = ?1 AND r.ot_desvio_id IS NOT NULL AND r.ot_site_id IN (SELECT value FROM json_each(?2))
         AND COALESCE(c.status, 'Open') <> 'Closed' AND c.due_date IS NOT NULL LIMIT ${TETO_LEITURA_OT}`).bind(projectId, x.sites),
+    // Fornecedores de OT: o escopo de lerFornecedores (ot-fornecedores.ts) e a avaliação mais recente (a de listarTerceiros). Só contagem sai.
+    db.prepare(`SELECT o.parte_id, o.papel, p.terceiro_tipo, av.resultado, av.valido_ate, av.tipo_avaliado,
+        coalesce(fx.externo = 1 AND fx.via_vpn = 0, 0) AS sem_vpn
+      FROM ot_fornecedores o
+      JOIN partes p ON p.id = o.parte_id AND p.project_id = o.project_id AND ${SQL_EH_FORNECEDOR}
+      LEFT JOIN ot_sites s ON s.id = o.ot_site_id AND s.status = 'ativo'
+      LEFT JOIN ot_fluxos fx ON fx.id = o.ot_fluxo_id
+      LEFT JOIN avaliacoes_terceiro av ON av.rowid = (SELECT a2.rowid FROM avaliacoes_terceiro a2 WHERE a2.parte_id = o.parte_id AND a2.project_id = o.project_id
+        ORDER BY a2.created_at DESC, a2.rowid DESC LIMIT 1)
+      WHERE o.project_id = ?
+        AND (o.ot_site_id IS NULL OR s.id IS NOT NULL)
+        AND (o.ot_fluxo_id IS NULL OR EXISTS (SELECT 1 FROM ot_fluxos f WHERE f.id = o.ot_fluxo_id AND ${FLUXO_VISIVEL}))
+        AND COALESCE(s.id, fx.site_id) IN (SELECT value FROM json_each(?))
+      LIMIT ${TETO_LEITURA_OT}`).bind(projectId, projectId, x.sites, x.sites, x.sites, x.sites),
+    // Riscos do núcleo ligados ao n.ot: o escopo de lerReferencias (ot-referencias.ts); site ou ativo removido esconde. Sem título (P0-6).
+    db.prepare(`SELECT k.probability AS p, k.impact AS i, count(*) AS n FROM risks k
+      WHERE k.project_id = ? AND k.id IN (SELECT r.risk_id FROM ot_referencias r
+          LEFT JOIN ot_sites s ON s.id = r.ot_site_id
+          LEFT JOIN ot_ativos a ON a.id = r.ot_ativo_id
+          LEFT JOIN ot_sites sa ON sa.id = a.site_id
+          LEFT JOIN ot_desvios d ON d.id = r.ot_desvio_id
+        WHERE r.project_id = ? AND r.risk_id IS NOT NULL
+          AND (r.ot_site_id IS NULL OR s.status = 'ativo') AND (r.ot_ativo_id IS NULL OR (a.status = 'ativo' AND sa.status = 'ativo'))
+          AND COALESCE(s.id, a.site_id, d.site_id) IN (SELECT value FROM json_each(?)))
+      GROUP BY k.probability, k.impact`).bind(projectId, projectId, x.sites),
   ]);
   const tecnicos = await conformidadePorSite(db, projectId, x.lista.map((s) => s.id));
 
@@ -121,6 +148,20 @@ export async function quadrosOt(db: D1Database, projectId: string, dia: string, 
   const tipos = ['Obra', ...(x.gestor ? ['Aceite de desvio'] : []), 'Revalidação dos ativos', 'Revisão do assessment', ...(x.veSondas ? ['Credencial de sonda'] : []), 'Ação de desvio'];
   const v = vencimentosDe(tipos, datadas, dia);
 
+  // Fornecedores por papel: a situação é a de situacaoDe (como a carteira); uma parte conta uma vez por papel.
+  type LinhaFornecedor = { parte_id: string; papel: PapelOt; terceiro_tipo: TipoTerceiro | null; resultado: Avaliacao['resultado'] | null;
+    valido_ate: string | null; tipo_avaliado: string | null; sem_vpn: number };
+  const forn = fornecedores.results as LinhaFornecedor[];
+  const porPapel = (['integrador', 'fabricante', 'acesso_remoto'] as const).map((papel) => {
+    const doPapel = forn.filter((f) => f.papel === papel);
+    const situacao = new Map<string, Situacao>();
+    for (const f of doPapel) situacao.set(f.parte_id, situacaoDe(f.resultado ? { resultado: f.resultado, valido_ate: f.valido_ate ?? '', tipo_avaliado: f.tipo_avaliado } : null, dia, f.terceiro_tipo));
+    const s = [...situacao.values()];
+    return { papel, total: situacao.size, vigentes: s.filter((k) => k === 'vigente').length, pendentes: s.filter((k) => k === 'pendente' || k === 'reavaliar').length,
+      vencidos: s.filter((k) => k === 'vencida' || k === 'reprovada').length, // sem VPN só é exposição para quem acessa de fora (spec: "quais de acesso_remoto estão em fluxo externo sem VPN")
+      sem_vpn: papel === 'acesso_remoto' ? new Set(doPapel.filter((f) => f.sem_vpn).map((f) => f.parte_id)).size : 0 };
+  }).filter((p) => p.total > 0);
+
   return {
     proximo: v.proximo, resumo,
     completo: {
@@ -128,6 +169,7 @@ export async function quadrosOt(db: D1Database, projectId: string, dia: string, 
         ativos: { arciber: Number(a.arciber), completos: Number(a.completos), por_nivel: niveis.results as { nivel: number; ativos: number }[] } },
       desvios: { por_site: porSiteDesv, por_mes: meses.map((m) => porMes.get(m) ?? 0), meses, fluxos_externos: fluxos },
       vencimentos: v.linhas,
+      fornecedores: porPapel, riscos: riscos.results as { p: number; i: number; n: number }[],
     },
   };
 }

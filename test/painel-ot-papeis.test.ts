@@ -49,7 +49,7 @@ describe('?modulo=ot por papel', () => {
   });
   it('consultor: o bloco da equipe; no Início do n.360 nenhum campo novo (oráculo do inventário)', async () => {
     const d = await ot(cons);
-    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'desvios', 'fazer', 'numeros', 'passos', 'por_site', 'saude', 'vencimentos']); // quadros do PR3 (painel-ot-quadros)
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'desvios', 'fazer', 'fornecedores', 'numeros', 'passos', 'por_site', 'riscos', 'saude', 'vencimentos']); // quadros do PR3 e do PR4 (painel-ot-quadros)
     const g = await n360(cons);
     expect(Object.keys(g.modulos.ot).sort()).toEqual(['cobertura', 'comecando', 'fazer', 'numeros', 'passos', 'riscos', 'saude', 'vencimentos']);
   });
@@ -127,7 +127,7 @@ describe('?modulo=ot: leitor com todos os sites em operação; admin direto Gest
     const r = await chamar(adminDireto, '/api/v1/projects/proj-d/painel?modulo=ot');
     expect(r.status).toBe(200);
     const d = await r.json() as any;
-    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'desvios', 'fazer', 'numeros', 'passos', 'por_site', 'saude', 'vencimentos']); // quadros do PR3 (painel-ot-quadros)
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'desvios', 'fazer', 'fornecedores', 'numeros', 'passos', 'por_site', 'riscos', 'saude', 'vencimentos']); // quadros do PR3 e do PR4 (painel-ot-quadros)
     expect(d.modulos.ot.fazer.map((i: any) => i.texto)).toEqual(expect.arrayContaining(['1 desvio aberto', '1 requisito com revisão vencida']));
   });
 });
