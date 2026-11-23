@@ -78,7 +78,9 @@ test('platform_admin: abre a tela, cria a chave (exibida uma vez) e revoga', asy
 
   await expect(page.locator('#header-title')).toHaveText('Chaves de API');
   const novaChave = page.getByRole('button', { name: 'Nova chave', exact: true });
-  await expect(novaChave).toBeVisible();
+  await expect(novaChave).toBeDisabled(); // sem projeto escolhido, nada de chave (P-13)
+  await page.selectOption('#apikeys-projeto', 'proj-e2e');
+  await expect(novaChave).toBeEnabled();
 
   // Cria uma chave de auditor.
   await novaChave.click();
