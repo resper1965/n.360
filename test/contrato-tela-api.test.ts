@@ -156,8 +156,10 @@ describe('contrato tela↔API', () => {
       'frontend/public/auditor.js: fetch(caminho',
       'frontend/public/homologacao.js: fetch(caminho',
       'frontend/public/proposta.js: fetch(API + acao',
-      // aceite-risco.js: aceitarRisco(api, caminho) recebe o literal de quem chama (grc.js `/api/v1/risks/${id}`, aba-riscos.js url(ctx, '/riscos/:id')).
-      "frontend/src/aceite-risco.js: api('PUT', caminho",
+      // aceite-risco.js: aceitarRisco/revogarAceiteRisco(api, caminho) recebem o literal de quem chama (grc.js `/api/v1/risks/${id}`,
+      // aba-riscos.js url(ctx, '/riscos/:id')) e acrescentam /aceite e /aceite/revogar.
+      "frontend/src/aceite-risco.js: api('POST', `${caminho}/aceite/revogar`",
+      "frontend/src/aceite-risco.js: api('POST', `${caminho}/aceite`",
       'frontend/src/api.js: fetch(API_BASE + p',
       // baixarArquivo(`/api/v1/...`) (F4): CSV e Word; o literal está em cada chamada e o token vai no cabeçalho.
       'frontend/src/api.js: fetch(API_BASE + p',
