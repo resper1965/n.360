@@ -216,6 +216,40 @@ function quadroPorSite(linhas) {
     return quadro('pn-ot-sites', 'Por site', renderDataTable(cab, corpo));
 }
 
+const RESUMO_ROCB = [['atende', 'Atende'], ['parcial', 'Parcial'], ['nao_atende', 'Não atende'], ['nao_se_aplica', 'Não se aplica'], ['nao_avaliado', 'Não avaliado']];
+
+/** Conformidade RO-CB.BR.01: os contadores do assessment; para a equipe, as barras por categoria e os ativos do ARCiber (decisão 5). O leitor só recebe `resumo`. */
+function quadroConformidade(c) {
+    const r = c.resumo || {};
+    const total = RESUMO_ROCB.reduce((t, [k]) => t + (Number(r[k]) || 0), 0);
+    if (!total) return quadro('pn-ot-conf', 'Conformidade RO-CB.BR.01', '<p class="pn-vazio-tx">Catálogo da RO-CB.BR.01 ainda não carregado.</p>');
+    const numeros = `<dl class="pn-fig">${RESUMO_ROCB.map(([k, rot]) => `<div><dt>${e(rot)}</dt><dd class="pn-num">${e(r[k] ?? 0)}</dd></div>`).join('')}</dl>
+        <p class="pn-meta">${e(`${r.a_confirmar ?? 0} a confirmar pelo Gestor ARCiber; ${r.revisar ?? 0} a revisar. Item técnico vem do inventário, que nunca afirma "atende".`)}</p>`;
+    const barras = Array.isArray(c.categorias) && c.categorias.length ? graficoCobertura(c.categorias) : '';
+    const a = c.ativos;
+    const ativos = a ? `<p class="pn-tx">${e(a.arciber ? `${a.completos} de ${a.arciber} ativos do ARCiber com os 6 campos do 4.3.1` : 'Nenhum ativo do ARCiber no inventário.')}</p>
+        ${Array.isArray(a.por_nivel) && a.por_nivel.length ? `<dl class="pn-fig">${a.por_nivel.map((n) => `<div><dt>${e(`Nível Purdue ${n.nivel}`)}</dt><dd class="pn-num">${e(n.ativos)}</dd></div>`).join('')}</dl>` : ''}` : '';
+    return quadro('pn-ot-conf', 'Conformidade RO-CB.BR.01', `${numeros}${barras}${ativos}`);
+}
+
+/** Desvios e exposição: estado de hoje por site, detectados por mês (primeira detecção, data de São Paulo) e fluxos externos sem VPN (4.1.3). */
+function quadroDesvios(x) {
+    const sites = Array.isArray(x.por_site) ? x.por_site : [];
+    const meses = Array.isArray(x.por_mes) ? x.por_mes : [];
+    const detectados = meses.reduce((t, n) => t + (Number(n) || 0), 0);
+    const f = x.fluxos_externos || { externos: 0, sem_vpn: 0 };
+    const fluxos = `<p class="pn-tx">${e(f.externos ? `${f.sem_vpn} de ${f.externos} fluxos externos sem VPN (4.1.3)` : 'Nenhum fluxo externo registrado no inventário.')}</p>`;
+    if (!sites.length && !detectados) return quadro('pn-ot-desv', 'Desvios e exposição', `<p class="pn-vazio-tx">Nenhum desvio. Desvio aparece quando a sonda vê o que a base aprovada não tem.</p>${fluxos}`);
+    return quadro('pn-ot-desv', 'Desvios e exposição', `${graficoCobertura(sites, ['Regularizado', 'Tratado ou aceito', 'Aberto'])}
+        ${detectados ? graficoPedidos(meses, x.meses, 'Desvios detectados', 'Desvios') : ''}${fluxos}`);
+}
+
+/** Vencimentos de 90 dias do n.ot: o rótulo é site ou requisito (o servidor nunca manda ativo nem sonda). */
+function quadroVencimentosOt(linhas) {
+    const algum = linhas.some((l) => Number(l.vencidos) > 0 || (Array.isArray(l.itens) && l.itens.length));
+    return quadro('pn-venc', 'Próximos vencimentos, 90 dias', algum ? graficoVencimentos(linhas) : '<p class="pn-vazio-tx">Nenhum prazo nos próximos 90 dias.</p>');
+}
+
 /**
  * Painel do n.ot (spec 2026-11-19-paineis-do-n-ot). O servidor decide o que cada papel recebe (`?modulo=ot`); aqui só se desenha o que
  * veio. Quadro sem dado não aparece; nunca um zero que pareça "em dia".
@@ -225,8 +259,12 @@ function telaDoOt(d, b) {
     const fazer = Array.isArray(b.fazer) ? [b.comecando ? quadro('pn-passos-t', 'Primeiros passos', passos(b.passos)) : quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false))] : [];
     const sites = Array.isArray(b.por_site) ? [quadroPorSite(b.por_site)] : [];
     const numeros = Array.isArray(b.por_site) && !b.comecando ? [quadro('pn-ot-num', 'O programa em números', figuras(b, false))] : [];
-    const esquerda = [...decidir, ...fazer, ...sites];
-    return esquerda.length || numeros.length ? colunas(esquerda, numeros) : '';
+    const venc = Array.isArray(b.vencimentos) ? [quadroVencimentosOt(b.vencimentos)] : [];
+    const conf = b.conformidade ? [quadroConformidade(b.conformidade)] : [];
+    const desv = b.desvios ? [quadroDesvios(b.desvios)] : [];
+    const esquerda = [...decidir, ...fazer, ...sites, ...venc];
+    const direita = [...numeros, ...conf, ...desv];
+    return esquerda.length || direita.length ? colunas(esquerda, direita) : '';
 }
 
 /** Entrada de um módulo (n.iso ou n.privacy). */
