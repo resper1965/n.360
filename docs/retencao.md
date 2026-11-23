@@ -3,9 +3,11 @@
 > Item 4.5 do [`enterprise-grade-plan.md`](arquivo/enterprise-grade-plan.md). O que é apagado, quando, e — mais
 > importante para uma auditoria — **o que não é, e por quê**.
 
-A política não vive só aqui. A tabela `RETENCAO` em `src/manutencao.ts` é o que
-o cron de fato executa; este documento explica cada prazo. Os dois não podem
-divergir porque os números estão num lugar só.
+A política não vive só aqui. O que o cron de fato executa está em `manutencaoDiaria` (`src/manutencao.ts`), em três
+lugares: a tabela `RETENCAO` (`notifications` e `avisos_prazo`), as constantes `PURGA_RATE_LIMIT_SEG` e `MAIOR_JANELA_SEG`
+(`rate_limits`) e `CARENCIA_TOKEN_AUDITOR_DIAS` (`auditor_tokens`), e o prazo escrito na própria consulta (as purgas do
+n.ot, abaixo). Este documento explica cada prazo. Nada no código o compara com este texto: quem muda um prazo lá muda a
+linha aqui, e vice-versa.
 
 ## O que é apagado automaticamente
 
@@ -19,8 +21,7 @@ divergir porque os números estão num lugar só.
 ### n.ot (modelo de ameaças P0-3)
 
 Estas purgas estão em `manutencaoDiaria` (`src/manutencao.ts`), com o prazo escrito na própria consulta, **fora** da
-tabela `RETENCAO`: a frase "os números estão num lugar só" acima vale para a tabela, não para elas. Quem mudar um prazo
-aqui muda a consulta lá, e vice-versa.
+tabela `RETENCAO`. Quem mudar um prazo aqui muda a consulta lá, e vice-versa.
 
 | Tabela | Prazo | Por quê |
 | :--- | ---: | :--- |

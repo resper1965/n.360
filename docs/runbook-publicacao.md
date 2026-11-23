@@ -213,4 +213,4 @@ Nada disto está em código: é configuração do GitHub, do dono.
    a sonda interna mandar e-mail. Sem ela, só log.
 9. **Orçamento**: em *Settings → Billing → Spending limits*, definir limite de gasto de Actions (zero = para na
    franquia; o plano B da seção 3 cobre o deploy até o mês virar).
-10. Depois de privado, rever a seção "Portões de revisão" do `AGENTS.md`.
+10. Depois de privado, rever a seção "Portoes de revisao" do `AGENTS.md`.

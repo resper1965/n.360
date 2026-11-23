@@ -17,7 +17,7 @@ configuradas continuam respondendo no lugar, sem redirecionar: `/api/*`, `/scim/
 
 ### Nomes
 
-No texto e na marca, **n.360**, **n.iso** e **n.privacy**; `n360` só no endereço. O repositório se
+No texto e na marca, **n.360**, **n.iso**, **n.privacy** e **n.ot**; `n360` só no endereço. O repositório se
 chama `resper1965/n.360` (renomeado em 2026-10-13; o endereço antigo `resper1965/n.iso` redireciona).
 `niso` sobrou como identificador técnico mantido de propósito, e nunca aparece como nome de produto:
 o Worker `niso`, o D1 `niso-db`, o pacote `mcp-server-niso`, o cabeçalho `X-nISO-Signature` e as
@@ -116,20 +116,16 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
   lista fechada `FORA_DO_AGENTE` (`src/middleware/agente.ts`) recusa conta, acesso, credenciais,
   área comercial, publicação de documento, importação de programa e os rascunhos de IA da tela.
   Detalhe em [`docs/agente/`](docs/agente/README.md).
-- **Skills do agente** (seis em 2026-10-14: `ls agent-skills`): `prontidao-certificacao` (pré-avaliação
-  para Stage 1 e 2), `maturidade-lgpd` (achados de maturidade do programa de privacidade),
-  `atendimento-titular`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`, servidas
-  pelo próprio MCP (`niso_skill`); roteiro de cada uma em [`docs/agente/README.md`](docs/agente/README.md).
-- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 38 ferramentas em 2026-11-05:
-  `grep -oE 'name: "niso_[a-z_0-9]+"' mcp-server-niso/src/*.ts | sort -u | wc -l`), com filtro por
+- **Skills do agente** (`ls agent-skills`; a lista de hoje está no `AGENTS.md`), como `prontidao-certificacao`
+  (pré-avaliação para Stage 1 e 2) e `maturidade-lgpd` (achados de maturidade do programa de privacidade),
+  servidas pelo próprio MCP (`niso_skill`); roteiro de cada uma em [`docs/agente/README.md`](docs/agente/README.md).
+- **MCP local** (`mcp-server-niso/`, stdio com chave de API; quantas ferramentas, com o comando, no `AGENTS.md`), com filtro por
   papel. Ver [`mcp-server-niso/README.md`](mcp-server-niso/README.md).
 
 ## Arquitetura
 
 - **Runtime:** Hono no Cloudflare Workers; um Worker serve API, páginas públicas e o frontend.
-- **Banco:** D1 (SQLite), 138 tabelas
-  (2026-11-09: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`).
-  Trilha de auditoria append-only por trigger.
+- **Banco:** D1 (SQLite), `schema.sql` (quantas tabelas, com o comando, no `AGENTS.md`). Trilha de auditoria append-only por trigger.
 - **KV:** sessões, tokens e rate limit (`SESSIONS`); estado do OAuth do MCP (`OAUTH_KV`).
 - **R2:** evidências, documentos e arquivos de importação (`STORAGE`); trilha arquivada (`TRILHA`).
 - **IA:** Workers AI via AI Gateway (`git grep -hoE "@cf/[a-z0-9/._-]+" -- src`). Sem embedding.
@@ -140,8 +136,8 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 | Caminho | O que vive aqui |
 |---|---|
 | `src/index.ts` | Composition root: cabeçalhos, CORS, redirecionamento dos domínios antigos, autenticação, rotas. |
-| `src/routes/` | 66 arquivos de rota (2026-11-05: `ls src/routes/*.ts \| grep -vc '\.test\.ts$'`). |
-| `src/services/` | 88 arquivos de regra de negócio (2026-11-05: `ls src/services/*.ts \| wc -l`). |
+| `src/routes/` | Um arquivo de rota por domínio. |
+| `src/services/` | Regra de negócio. |
 | `src/agents/` | Agentes de IA (`ls src/agents`): política, evidência, avaliação, adequação de controle, fases, prontidão, importação, privacidade, seção de política. |
 | `src/modulos.ts`, `src/middleware/` | Faixas e módulos; autenticação, acesso por projeto, principal do agente. |
 | `src/schemas/` | Schemas Zod de todo corpo de escrita. |
@@ -150,11 +146,14 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 | `frontend/public/` | Páginas públicas copiadas como estão: `politicas.html`, `auditor.html`, `homologacao.html`, `solicitacao.html`, `proposta.html`, `_headers`. |
 | `mcp-server-niso/` | Servidor MCP local. |
 | `agent-skills/` | Fonte das skills do agente (`npm run skills:gerar`). |
-| `migrations/` | 119 arquivos (2026-11-23: `ls migrations/*.sql \| wc -l`), última 0118 (`ls migrations/*.sql \| tail -1`); estado e particularidades em [`migrations/README.md`](migrations/README.md). |
-| `test/` | 424 arquivos de teste do backend (2026-11-05: `ls test/*.test.ts \| wc -l`). |
-| `frontend/test/`, `frontend/e2e/` | 178 testes em jsdom (2026-11-05: `ls frontend/test/*.test.js \| wc -l`) e 15 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
+| `migrations/` | Migrations numeradas do D1; estado e particularidades em [`migrations/README.md`](migrations/README.md). |
+| `test/` | Testes do backend, no runtime do Workers com D1 real. |
+| `frontend/test/`, `frontend/e2e/` | Testes em jsdom e specs em Chromium. |
 | `docs/` | Runbook, specs, diagnóstico de design e decisões ([índice](docs/README.md)). |
 | `scripts/`, `ops/`, `backups/` | Geradores, SQL de reconciliação conferido por teste, runbook de backup. |
+
+Quantos arquivos há em cada pasta (rotas, services, migrations, testes) e quantas tabelas tem o `schema.sql`: o número
+fica só no `AGENTS.md` (seções Stack e Dívida conhecida), ao lado do comando que o recalcula.
 
 ### Duas fontes de cabeçalho de segurança
 
