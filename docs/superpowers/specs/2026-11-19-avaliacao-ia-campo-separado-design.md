@@ -1,6 +1,6 @@
 # Avaliação por IA em campo separado — design
 
-**Data:** 2026-11-19 · **Estado:** aguardando aprovação do dono
+**Data:** 2026-11-19 · **Estado:** construída (#596; migration 0118)
 **Escopo:** evidências (n.iso). Item 3 da consulta de um cliente.
 
 ## 1. Por que

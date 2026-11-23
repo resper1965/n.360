@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Worker (Hono) + D1, vitest (`@cloudflare/vitest-pool-workers`), SPA vanilla JS.
 
-**Spec:** `docs/superpowers/specs/2026-11-17-onda3-n-ot-no-nucleo-design.md` (aprovada em 17/11/2026). Levantamento (arquivo:linha e comandos): `/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda3-levantamento.md`. Specs e modelo de ameaças do n.ot: `/home/user/ot2net/docs/superpowers/specs/` (P0-1 a P0-8 em `2026-10-30-n-ot-modulo-n360-design.md:156-163`).
+**Spec:** `docs/superpowers/specs/2026-11-17-onda3-n-ot-no-nucleo-design.md` (aprovada em 17/11/2026). Levantamento (arquivo:linha e comandos): somente leitura, não versionado. Specs e modelo de ameaças do n.ot: repositório OT2net, fora deste (P0-1 a P0-8 em `2026-10-30-n-ot-modulo-n360-design.md:156-163`).
 
 ## Global Constraints
 
@@ -30,7 +30,7 @@
 
 - `src/services/ot-visibilidade.ts` (novo): `podeVerOt(db, user, projectId)`.
 - `src/routes/projects.ts` (`audit-trail`), `src/portabilidade.ts` (+ chamadores): filtro `ot.%`.
-- `migrations/0115_ot_referencias.sql`, `schema.sql`; `src/services/ot-referencias.ts` (novo); rotas em `src/routes/ot.ts` (ou `src/routes/ot-referencias.ts` montado sob `otApp`).
+- `migrations/0115_ot_referencias.sql`, `schema.sql`; `src/services/ot-referencias.ts` (novo); rotas em `src/routes/ot.ts` (foi onde ficaram; `src/routes/ot-referencias.ts` não foi criado).
 - `src/services/ot-desvio-acao.ts` (novo) + rota `POST /ot/desvios/:id/acao`; guarda em `src/routes/capa.ts` (`PUT /:id`).
 - `migrations/0116_ot_fornecedores.sql`, `src/services/ot-fornecedores.ts` (novo) + rotas sob `/ot/`.
 - Frontend: `frontend/src/views/ot-desvios.js`, blocos "n.ot" nos detalhes de risco/ação/incidente, tela de fornecedores do n.ot.
@@ -165,7 +165,7 @@ export async function apagarReferencia(db: D1Database, projectId: string, id: st
 ### Task 3: Rotas `/ot/referencias` e testes de isolamento
 
 **Files:**
-- Modify: `src/routes/ot.ts` (ou novo `src/routes/ot-referencias.ts` montado dentro de `otApp`), `src/modulos.ts` só se criar segmento novo (não deve: tudo sob `ot/`)
+- Modify: `src/routes/ot.ts` (as rotas ficaram nele; `src/routes/ot-referencias.ts` não foi criado), `src/modulos.ts` só se criar segmento novo (não deve: tudo sob `ot/`)
 - Test: `test/ot-referencias.test.ts`, `test/contrato-isolamento-org.test.ts` (varredura automática por `app.routes`)
 
 **Interfaces:**

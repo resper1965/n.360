@@ -1,8 +1,8 @@
 # Painéis do n.ot
 
-Data: 19/11/2026. Situação: **rascunho para aprovação do dono**. Base: leitura somente do worktree `/home/user/wt-csv` (origin/main `c0badf9`
-mais o commit de docs `6cc6f30`); nada foi rodado (sem vitest, tsc nem npm). Referência de ideias: OT2net em `/home/user/ot2net` (HEAD
-`87ee6b9`), só leitura. O caminho `/home/ot2net` **não existe**; o projeto está em `/home/user/ot2net`.
+Data: 19/11/2026. Situação: **aprovada (recomendações adotadas), não construída**; plano `2026-11-20-paineis-do-n-ot.md` (#604), a executar. Base: leitura
+somente de uma cópia de trabalho sobre origin/main `c0badf9` mais o commit de docs `6cc6f30`; nada foi rodado (sem vitest, tsc nem npm).
+Referência de ideias: repositório OT2net (HEAD `87ee6b9`, fora deste), só leitura.
 
 ## O pedido
 

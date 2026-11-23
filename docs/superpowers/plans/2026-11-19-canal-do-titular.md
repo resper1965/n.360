@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Worker (Hono) + D1, zod 4, vitest (`@cloudflare/vitest-pool-workers` no backend, jsdom no frontend), SPA vanilla JS (Vite).
 
-**Spec:** `docs/superpowers/specs/2026-11-19-canal-do-titular-design.md` (aprovada pelo dono em 19/11/2026 com "siga"; todas as recomendações adotadas: decisões 1 a 8 pela coluna "Recomendação minha"). Toda referência arquivo:linha deste plano foi reconferida no worktree `/home/user/wt-csv` (`origin/main` `c0badf9` + commits de docs). Divergências entre a spec e o código estão em "Self-Review", item "Spec x código".
+**Spec:** `docs/superpowers/specs/2026-11-19-canal-do-titular-design.md` (aprovada pelo dono em 19/11/2026 com "siga"; todas as recomendações adotadas: decisões 1 a 8 pela coluna "Recomendação minha"). Toda referência arquivo:linha deste plano foi reconferida numa cópia de trabalho sobre `origin/main` `c0badf9` + commits de docs. Divergências entre a spec e o código estão em "Self-Review", item "Spec x código".
 
 ## Global Constraints
 
@@ -34,7 +34,7 @@
 
 ## Preflight (antes do Task 1 e ao retomar)
 
-- [ ] Cópia de trabalho do executor (não use `/home/user/n.360` enquanto houver portão rodando nela): `git status --short && git log --oneline -3`; árvore limpa; `git merge-base --is-ancestor c0badf9 HEAD` responde 0. Branch por PR: `git switch -c canal-titular-pr1 origin/main` (depois `-pr2`, `-pr3`, `-pr4`, cada uma da `origin/main` com o PR anterior mergeado).
+- [ ] Cópia de trabalho do executor (não use a cópia principal enquanto houver portão rodando nela): `git status --short && git log --oneline -3`; árvore limpa; `git merge-base --is-ancestor c0badf9 HEAD` responde 0. Branch por PR: `git switch -c canal-titular-pr1 origin/main` (depois `-pr2`, `-pr3`, `-pr4`, cada uma da `origin/main` com o PR anterior mergeado).
 - [ ] `ls migrations | tail -3`: a última é `0116_ot_fornecedores.sql` e `README.md`. Se já existir `0117_*` na `main`, pare e renumere com o dono (nunca renomeie migration aplicada).
 - [ ] **Retomar (o contêiner pode reiniciar e matar o agente):** o estado está no git. `git log --oneline c0badf9..HEAD` lista os tasks feitos pelo assunto do commit (os assuntos estão no último passo de cada task). Comece pelo primeiro task cujo commit não aparece. Mudança não commitada: `git diff --stat`; se é do task em curso, continue dela; se não é, descarte só os caminhos daquele task (`git checkout -- <caminho>`), nunca `git checkout .`.
 - [ ] **Higiene de commit:** `git add` só com os caminhos listados em **Files** do task; nunca `git add -A`/`git add .`; antes de commitar, `git diff --cached --stat` mostra só esses caminhos.

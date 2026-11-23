@@ -1,6 +1,6 @@
 # Acesso de stakeholders e ciência de documentos — desenho
 
-Data: 2026-10-04. Estado: partes 1 a 3 aprovadas pelo dono do produto; partes 4 e 5 são **proposta padrão**, a revisar.
+Data: 2026-10-04. Estado: **construída** (#254 a #258; migrations 0041 a 0043).
 
 ## Problema
 

@@ -1,8 +1,8 @@
 # Onda 4: jornada comum
 
-Data: 18/11/2026. Situação: **rascunho para aprovação do dono** (decisões 1 a 4 já respondidas em 18/11/2026). Onda 4 da spec guarda-chuva
+Data: 18/11/2026. Situação: **aprovada e construída (#593)**. Onda 4 da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md`. Base: levantamento somente leitura sobre o HEAD `41ab4fc`
-(`/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda4-levantamento.md`, com arquivo:linha e o comando de cada número).
+(arquivo:linha e o comando de cada número; não versionado).
 
 ## O pedido
 

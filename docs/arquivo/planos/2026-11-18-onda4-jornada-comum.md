@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Worker (Hono) + D1, vitest (`@cloudflare/vitest-pool-workers` no backend, jsdom no frontend), SPA vanilla JS (Vite).
 
-**Spec:** `docs/superpowers/specs/2026-11-18-onda4-jornada-comum-design.md` (aprovada pelo dono com "Siga"; decisões 1 a 9 finais). Levantamento (arquivo:linha e comandos, sobre o HEAD `41ab4fc`): `/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda4-levantamento.md`. Toda referência arquivo:linha deste plano foi reconferida no HEAD `c4c7039`.
+**Spec:** `docs/superpowers/specs/2026-11-18-onda4-jornada-comum-design.md` (aprovada pelo dono com "Siga"; decisões 1 a 9 finais). Levantamento (arquivo:linha e comandos, sobre o HEAD `41ab4fc`): somente leitura, não versionado. Toda referência arquivo:linha deste plano foi reconferida no HEAD `c4c7039`.
 
 ## Global Constraints
 
@@ -35,7 +35,7 @@
 
 ## Preflight (antes do Task 1 e ao retomar)
 
-- [ ] `cd /home/user/n.360 && git status --short && git log --oneline -3`: árvore limpa; HEAD contém `c4c7039` (`git merge-base --is-ancestor c4c7039 HEAD`).
+- [ ] Na cópia de trabalho do executor, `git status --short && git log --oneline -3`: árvore limpa; HEAD contém `c4c7039` (`git merge-base --is-ancestor c4c7039 HEAD`).
 - [ ] **Retomar (o contêiner pode reiniciar e matar o agente):** o estado está no git. `git log --oneline c4c7039..HEAD` lista os tasks feitos pelo assunto do commit de cada um (os assuntos estão no último passo de cada task). Comece pelo primeiro task cujo commit não aparece. Se houver mudança não commitada, `git diff --stat` e decida: o diff é do task em curso (continue dele) ou lixo (descarte só os caminhos daquele task).
 - [ ] **Higiene de commit (lição da onda 3):** `git add` só com os caminhos listados em **Files** do task; nunca `git add -A`/`git add .`; antes de commitar, `git diff --cached --stat` mostra só esses caminhos. Nunca inclua arquivo de outro agente.
 - [ ] **Suíte do backend inteira não termina no contêiner da nuvem em 10 min (lição da onda 3):** rode só os arquivos listados no passo de verificação do task (já incluem os de isolamento afetados). A suíte inteira é do `gate.sh`, na entrega do PR.

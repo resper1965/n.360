@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Worker (Hono) + D1, vitest (`@cloudflare/vitest-pool-workers`), SPA vanilla JS.
 
-**Spec:** `docs/superpowers/specs/2026-11-16-onda1-organizacao-direta-design.md` (aprovada em 16/11/2026). Levantamento: `/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda1-levantamento.md`.
+**Spec:** `docs/superpowers/specs/2026-11-16-onda1-organizacao-direta-design.md` (aprovada em 16/11/2026). Levantamento: somente leitura, não versionado.
 
 ## Global Constraints
 

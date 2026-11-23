@@ -1,6 +1,6 @@
 # Onda 0: uma língua nos três módulos e o n.ot à vista
 
-Data: 14/11/2026. Situação: **proposta, aguardando a revisão do dono**. Primeira onda da spec guarda-chuva
+Data: 14/11/2026. Situação: **construída (#589)**; aprovada pelo dono em 14/11/2026. Primeira onda da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md` (aprovada pelo dono em 14/11/2026). Sem migration.
 
 ## Problema

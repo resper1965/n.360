@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Worker (Hono) + D1, vitest (`@cloudflare/vitest-pool-workers`), SPA vanilla JS.
 
-**Spec:** `docs/superpowers/specs/2026-11-17-onda2-catalogo-de-requisitos-design.md` (aprovada em 17/11/2026). Levantamento (arquivo:linha e comandos): `/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda2-levantamento.md`.
+**Spec:** `docs/superpowers/specs/2026-11-17-onda2-catalogo-de-requisitos-design.md` (aprovada em 17/11/2026). Levantamento (arquivo:linha e comandos): somente leitura, não versionado.
 
 ## Global Constraints
 
@@ -137,7 +137,7 @@ export function situacaoDoItemTecnico(s: 'nao_atende' | 'evidencia_no_inventario
 
 **Files:**
 - Modify: o que o levantamento indicar entre `src/services/project-setup.ts:40-50` (`stmtControles`), `src/routes/projects.ts:390-391,1070,1102`, `src/services/fechar-venda.ts:118-119`
-- Create: `scripts/ops/sonda-onda2.sql` (ou o diretório de sondas que o repositório já usa; `ls scripts`)
+- Create: `scripts/sonda-onda2.sql` (onde ficou; `scripts/ops/` não existe)
 - Test: `test/onda2-numeros.test.ts` (novo bloco) ou `test/requisitos-ligacao.test.ts`
 
 **Interfaces:**

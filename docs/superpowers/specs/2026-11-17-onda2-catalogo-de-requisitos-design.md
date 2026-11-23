@@ -2,7 +2,7 @@
 
 Data: 17/11/2026. Situação: **aprovada pelo dono em 17/11/2026**. Onda 2 da spec guarda-chuva
 `2026-11-14-n360-posicionamento-e-fluxo-design.md`. Base: levantamento somente leitura sobre o HEAD `4a5d4ec`
-(`/tmp/claude-0/-home-user/0c1d5499-e055-503d-a651-849433c76e01/scratchpad/onda2-levantamento.md`, com arquivo:linha e o comando de cada número).
+(arquivo:linha e o comando de cada número; não versionado).
 
 ## O pedido
 
