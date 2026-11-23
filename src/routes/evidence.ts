@@ -209,13 +209,13 @@ evidenceApp.put('/:id', async (c) => {
 
     if (temControle) {
       // Troca o controle PRINCIPAL (N:N, 0119): liga o novo e só então desliga o antigo, para o principal não pular para
-      // outro vínculo no meio. Avaliação e assinaturas ficam: valem para o conteúdo (hash), não para o vínculo.
+      // outro vínculo no meio. Assinaturas, situação e nota humana ficam (valem para o conteúdo); a avaliação da IA, feita contra o controle antigo, zera.
       const mudou = novoControle !== (ev.control_id ?? null);
       if (mudou) {
         const quem = c.get('user')?.email ?? 'system';
         if (novoControle) {
           await ligarControle(c.env.DB, ev, novoControle, quem);
-          await c.env.DB.prepare(`UPDATE evidence SET control_id = ?, updated_at = datetime('now') WHERE id = ?`).bind(novoControle, id).run();
+          await c.env.DB.prepare(`UPDATE evidence SET control_id = ?, avaliacao_ia = NULL, evaluation_score = NULL, updated_at = datetime('now') WHERE id = ?`).bind(novoControle, id).run();
         }
         // Sem controle novo, o principal passa ao vínculo mais antigo que sobrar (ou a NULL).
         if (ev.control_id) await desligarControle(c.env.DB, id, ev.control_id);
