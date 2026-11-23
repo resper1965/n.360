@@ -61,8 +61,8 @@ describe('Central de Evidências', () => {
         expect(visiveis(linhas[0])[0].getAttribute('aria-label')).toBe('Revisar (Líder SGSI): politica.pdf');
         const menu = (tr) => [...tr.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim());
         // "Definir validade" (spec 3C, C4): o projeto do teste é só do n.iso
-        expect(menu(linhas[0])).toEqual(['Assinar CEO', 'Baixar', 'Avaliar com IA', 'Definir validade']);
-        expect(menu(linhas[2])).toEqual(['Avaliar com IA', 'Definir validade']);
+        expect(menu(linhas[0])).toEqual(['Assinar CEO', 'Baixar', 'Avaliar com IA', 'Ver avaliação', 'Definir validade']);
+        expect(menu(linhas[2])).toEqual(['Avaliar com IA', 'Ver avaliação', 'Definir validade']);
         expect(c.querySelectorAll('.btn-primary')).toHaveLength(0);
     });
 
