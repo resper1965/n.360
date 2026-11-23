@@ -21,6 +21,7 @@ import { lerEmpresa } from '../services/empresas';
 import { situacaoDaAtividade, situacaoGravada, transicionar } from '../services/ropa-abas/situacao';
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 import { textosDaColeta, mesmosNomes } from '../services/ropa-abas/derivada';
+import { edicaoCitaNomeOt } from '../services/ot-desvio-acao';
 
 /**
  * A escrita mudou o conteúdo congelado do tratamento: a aprovação direta antiga (assinaturas na linha, `status = 'Approved'`) cai e
@@ -437,6 +438,8 @@ projectRopaApp.put('/:recordId/acoes/:acaoId', async (c) => {
     const v = await validateBody(c, acaoAtividadeAtualizarSchema);
     if (!v.success) return v.response;
     if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
+    const nomeOt = await edicaoCitaNomeOt(c.env.DB, c.req.param('projectId'), c.req.param('acaoId'), c.get('user'), v.data);
+    if (nomeOt) return c.json({ error: nomeOt }, 400);
     const projectId = c.req.param('projectId')!;
     const r = await atualizarAcao(c.env.DB, projectId, c.req.param('recordId'), c.req.param('acaoId'), v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);
