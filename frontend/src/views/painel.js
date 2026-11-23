@@ -7,7 +7,7 @@ import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
 import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, ligarDicas } from './painel-graficos.js';
 
-// Painel de entrada do n.360, do n.iso e do n.privacy (estudo docs/design/diagnostico-2026-10-14/dashboard-entrada.md, direção A).
+// Painel de entrada do n.360, do n.iso, do n.privacy e do n.ot (estudo docs/design/diagnostico-2026-10-14/dashboard-entrada.md, direção A).
 // Uma chamada por entrada (`GET /projects/:id/painel`, com `?modulo=` no módulo); a frase, a lista e a visão por papel vêm do
 // servidor, aqui só se desenha. Esqueleto no primeiro quadro; a resposta fica 60 s em `S.painel` e, vencida, a tela antiga
 // aparece esmaecida enquanto a nova chega (nada de piscar o esqueleto). Todo texto do servidor passa por escapeHTML.
@@ -199,10 +199,23 @@ function jornadaDoCliente(j) {
     };
 }
 
+/**
+ * Painel do n.ot (spec 2026-11-19-paineis-do-n-ot). O servidor decide o que cada papel recebe (`?modulo=ot`); aqui só se desenha o que
+ * veio. Quadro sem dado não aparece; nunca um zero que pareça "em dia".
+ */
+function telaDoOt(d, b) {
+    const decidir = Array.isArray(d.decisoes) && d.decisoes.length ? [quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes, '', false))] : [];
+    const fazer = Array.isArray(b.fazer) ? [b.comecando ? quadro('pn-passos-t', 'Primeiros passos', passos(b.passos)) : quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false))] : [];
+    const numeros = Array.isArray(b.fazer) && !b.comecando ? [quadro('pn-ot-num', 'O programa em números', figuras(b, false))] : [];
+    const esquerda = [...decidir, ...fazer];
+    return esquerda.length || numeros.length ? colunas(esquerda, numeros) : '';
+}
+
 /** Entrada de um módulo (n.iso ou n.privacy). */
 function telaDoModulo(d, m, proj) {
     const b = (d.modulos && d.modulos[m]) || {};
     const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}${reguaDe(m, d, proj.id)}`;
+    if (m === 'ot') return `${topo}${telaDoOt(d, b)}`;
     if (d.visao === 'cliente') {
         // Dentro do módulo não há "Abrir o módulo"; no n.iso o lado direito é a jornada (o próximo marco), não números.
         if (m === 'iso') {
