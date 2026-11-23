@@ -119,6 +119,23 @@ describe('ligar e desligar controles numa evidência', () => {
     expect(t!.n).toBe(2);
   });
 
+  it('trocar o controle principal zera só a avaliação da IA; nota humana, situação e assinatura ficam; a ordem é a de ligação', async () => {
+    await env.DB.prepare(`UPDATE evidence SET avaliacao_ia = 'PARCIAL (IA)', evaluation_score = 60, evaluation_status = 'partial',
+      evaluation_notes = 'nota da revisora', ciso_approved_by = 'Lia Lider', ciso_approved_at = '2026-11-01' WHERE id = 'ev-1'`).run();
+    const avaliacao = () => env.DB.prepare('SELECT avaliacao_ia, evaluation_score, evaluation_status, evaluation_notes, ciso_approved_by FROM evidence WHERE id = ?').bind('ev-1').first();
+    // Ligar controles secundários (no mesmo segundo, c-3 antes de c-2) não troca o principal: nada muda.
+    await chamar('POST', '/api/v1/evidence/ev-1/controles', { control_id: 'c-3' });
+    await chamar('POST', '/api/v1/evidence/ev-1/controles', { control_id: 'c-2' });
+    expect(await avaliacao()).toMatchObject({ avaliacao_ia: 'PARCIAL (IA)', evaluation_score: 60 });
+    // Desligar o principal promove o vínculo mais antigo (c-3, não c-2 pela ordem do id) e zera a avaliação da IA.
+    expect((await chamar('DELETE', '/api/v1/evidence/ev-1/controles/c-1')).status).toBe(200);
+    expect(await principal('ev-1')).toBe('c-3');
+    expect(await avaliacao()).toEqual({ avaliacao_ia: null, evaluation_score: null, evaluation_status: 'partial', evaluation_notes: 'nota da revisora', ciso_approved_by: 'Lia Lider' });
+    const r = await (await chamar('GET', `/api/v1/projects/${P}/evidence`)).json<any>();
+    const linha = (r.evidence ?? r.results ?? r).find((e: { id: string }) => e.id === 'ev-1');
+    expect(linha.control_ids).toEqual(['c-3', 'c-2']);
+  });
+
   it('o PUT antigo (control_id) troca só o controle principal e mantém os outros vínculos', async () => {
     await chamar('POST', '/api/v1/evidence/ev-1/controles', { control_id: 'c-2' });
     expect((await chamar('PUT', '/api/v1/evidence/ev-1', { control_id: 'c-3' })).status).toBe(200);
