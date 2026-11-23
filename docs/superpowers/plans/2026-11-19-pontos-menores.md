@@ -96,7 +96,7 @@ Legenda. **Classe:** SEG (segurança/P0), INT (integridade de dado), UX, TESTE (
 | D-17 | onda 4 T14 | 201 de equipe omite `client_project_id` | **drop.** Cosmético; o teste fixou o comportamento observado (`users.ts:265`). |
 | D-18 | onda 4 T16 | Linhas de cliente restantes ainda enviam `POST /users` após fechar o assistente | **drop.** É a intenção da pessoa; nada é escrito na tela. |
 | D-19 | onda 4 T7 | Mediana do teste de desempenho do painel não registrada | **drop.** O teste é um limite (< 300 ms), verde. |
-| O-01 | onda 3 T8 | As 4 perguntas de OT entram em TODO questionário de fornecedor do projeto (`tipo` NULL) | **dono.** Decisão de produto (restringir a fornecedores de OT?). |
+| O-01 | onda 3 T8 | As 4 perguntas de OT entram em TODO questionário de fornecedor do projeto (`tipo` NULL) | **Decidido pelo dono em 19/11/2026: restringir ao fornecedor ligado ao n.ot.** Feito em PR próprio (`criarHomologacao` filtra pelas `ot_fornecedores`). |
 | O-02 | onda 2 (e) | Ids grossos de 27701:2025 (`A.1.1`...) sem linha no catálogo | **dono.** Conteúdo normativo. |
 | O-03 | onda 2 | ISO 42001 e CIS v8.1 (material e licença) | **dono.** |
 | O-04 | onda 2 (d) | `LIMITE_PREVIA` = 100 só é seguro no plano pago do D1; plano da conta não conferido | **dono.** Conferir o plano; se gratuito, `LIMITE_PREVIA = 20` (`requisitos.ts:403`). |

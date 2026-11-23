@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Fornecedores: as perguntas de OT só vão ao fornecedor ligado ao n.ot
+- **Muda para quem já usa:** as 4 perguntas de OT (acesso remoto, contas de integração, correções de segurança, incidentes) entram só no questionário de fornecedor ligado a um site ou fluxo do n.ot. Os demais fornecedores recebem o questionário do modelo como antes. Decisão do dono em 19/11/2026.
+- Quem não tem o n.ot pode notar que um questionário tem perguntas a mais; o texto delas é genérico e não cita OT, site nem norma (pista fraca aceita pelo dono). Questionário já enviado não muda.
+
 ### n.ot: Painel (spec 2026-11-19, PR 1)
 - **Novo item "Painel" no menu do n.ot**, ao lado do Início: o mesmo painel do n.iso e do n.privacy, com a frase de saúde, a régua das cinco etapas e o "O que fazer agora" do n.ot. Endereço `/ot?ot=painel`. O Início do n.ot continua como está.
 - Quem não tem o n.ot no projeto e na conta não vê o item nem a tela.
@@ -56,7 +60,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Botão "Criar ação corretiva" no desvio:** o desvio vira ação do n.iso (exige o n.iso no projeto; título escrito pela pessoa, sem IP/MAC nem nome de ativo, zona ou site) e passa a `tratado` com a nota "Ação corretiva aberta". Idempotente; o vínculo não se remove.
 - **Quem criou a ação a partir do desvio não a conclui**, nem pela ação do incidente.
 - **Fornecedor de OT:** uma organização fornecedora ativa do cadastro de terceiros pode ser ligada a site e/ou fluxo do n.ot como integrador, fabricante ou acesso remoto (tabela satélite `ot_fornecedores`, migração 0116; rotas `/ot/fornecedores`; tela "Fornecedores" do n.ot). Juntar duas partes move esses vínculos, e a prévia da junção não os mostra.
-- **Perguntas de OT:** 4 perguntas genéricas podem ser criadas no questionário do projeto (exige o n.privacy). Como não têm tipo, aparecem em todo questionário de fornecedor do projeto; decisão do dono em aberto.
+- **Perguntas de OT:** 4 perguntas genéricas podem ser criadas no questionário do projeto (exige o n.privacy). Como não têm tipo, apareciam em todo questionário de fornecedor do projeto; o dono decidiu limitar ao fornecedor de OT (ver a entrada "Fornecedores: as perguntas de OT só vão ao fornecedor ligado ao n.ot").
 - As migrações 0115 e 0116 foram aplicadas em produção em 18/11/2026 (workflow `db-migrate.yml`, com backup antes).
 
 ### Remediação dos gaps das ondas 1 e 2 (2026-11-17)
