@@ -1,14 +1,15 @@
 /**
  * Evidência ligada a vários controles (migration 0119): o vínculo é `evidencia_controles`. `evidence.control_id` fica como o
  * PRIMEIRO vínculo, para quem ainda lê o campo (leitura compatível): ligar o primeiro controle o preenche, e desligar o controle
- * que está nele passa o campo ao vínculo mais antigo que sobrou (ou a NULL). Ligar e desligar não mexem em avaliação nem em
- * assinatura: a aprovação vale para o conteúdo da evidência (hash), não para o vínculo.
+ * que está nele passa o campo ao vínculo mais antigo que sobrou (ou a NULL). Ligar e desligar não mexem em assinatura nem na
+ * avaliação humana: a aprovação vale para o conteúdo da evidência (hash), não para o vínculo. Só a avaliação da IA
+ * (`avaliacao_ia`, `evaluation_score`) é zerada quando o controle principal muda, porque foi feita contra ele.
  */
 
 /** Os controles de cada evidência do projeto, em ordem de vínculo. */
 export async function controlesDasEvidencias(db: D1Database, projectId: string): Promise<Map<string, string[]>> {
   const { results } = await db.prepare(
-    'SELECT evidence_id, control_id FROM evidencia_controles WHERE project_id = ? ORDER BY created_at, control_id',
+    'SELECT evidence_id, control_id FROM evidencia_controles WHERE project_id = ? ORDER BY rowid',
   ).bind(projectId).all<{ evidence_id: string; control_id: string }>();
   const mapa = new Map<string, string[]>();
   for (const r of results) (mapa.get(r.evidence_id) ?? mapa.set(r.evidence_id, []).get(r.evidence_id)!).push(r.control_id);
@@ -22,11 +23,16 @@ export async function comControles<T extends { id: string }>(db: D1Database, pro
   return linhas.map((l) => ({ ...l, control_ids: mapa.get(l.id) ?? [] }));
 }
 
-/** Repõe `evidence.control_id` no vínculo mais antigo, mantendo-o se ainda está ligado. */
-const sincronizarPrincipal = (db: D1Database, evidenceId: string) => db.prepare(
-  `UPDATE evidence SET control_id = CASE
+/** O controle principal depois do vínculo mudar: o atual se ainda está ligado, senão o vínculo mais antigo (ordem de inserção). */
+const NOVO_PRINCIPAL = `CASE
        WHEN control_id IS NOT NULL AND EXISTS (SELECT 1 FROM evidencia_controles WHERE evidence_id = evidence.id AND control_id = evidence.control_id) THEN control_id
-       ELSE (SELECT control_id FROM evidencia_controles WHERE evidence_id = evidence.id ORDER BY created_at, control_id LIMIT 1) END,
+       ELSE (SELECT control_id FROM evidencia_controles WHERE evidence_id = evidence.id ORDER BY rowid LIMIT 1) END`;
+
+/** Repõe `evidence.control_id`; se ele muda, zera só a avaliação da IA (o lado direito do SET lê os valores antigos). */
+const sincronizarPrincipal = (db: D1Database, evidenceId: string) => db.prepare(
+  `UPDATE evidence SET control_id = ${NOVO_PRINCIPAL},
+     avaliacao_ia = CASE WHEN (${NOVO_PRINCIPAL}) IS control_id THEN avaliacao_ia ELSE NULL END,
+     evaluation_score = CASE WHEN (${NOVO_PRINCIPAL}) IS control_id THEN evaluation_score ELSE NULL END,
      updated_at = datetime('now')
    WHERE id = ?`,
 ).bind(evidenceId);
