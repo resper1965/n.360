@@ -56,6 +56,33 @@ describe('aprovação da evidência e o vínculo com controles', () => {
     expect(await aprovacao()).toEqual(ASSINADA);
   });
 
+  it('conteúdo mudou no meio da ligação: a trilha registra o estado de depois, não a aprovação que caiu', async () => {
+    // O batch da ligação roda depois de o conteúdo ter sido trocado (hash novo, assinaturas apagadas), como numa corrida.
+    // Dispara só no batch que grava o vínculo (o middleware de autenticação também usa batch, antes da rota ler a evidência).
+    let armada = false, usada = false;
+    const db = new Proxy(env.DB, {
+      get(alvo, prop) {
+        if (prop === 'prepare') return (sql: string) => { if (sql.includes('INTO evidencia_controles')) armada = true; return alvo.prepare(sql); };
+        if (prop === 'batch') {
+          return async (stmts: D1PreparedStatement[]) => {
+            if (armada && !usada) {
+              usada = true;
+              await alvo.prepare(`UPDATE evidence SET file_hash = 'hash-novo', ciso_approved_by = NULL, ceo_approved_by = NULL WHERE id = 'ev-ap'`).run();
+            }
+            return alvo.batch(stmts);
+          };
+        }
+        const v = (alvo as any)[prop];
+        return typeof v === 'function' ? v.bind(alvo) : v;
+      },
+    });
+    const r = await worker.fetch(new Request('http://localhost/api/v1/evidence/ev-ap/controles', {
+      method: 'POST', headers: { ...cons, 'Content-Type': 'application/json' }, body: JSON.stringify({ control_id: 'c-2' }),
+    }), { ...workerEnv(), DB: db } as any);
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect((await trilha('evidence.controle_ligado'))!.details).toBe('Evidência ev-ap ligada ao controle c-2.');
+  });
+
   it('mudar o conteúdo (hash novo) ZERA a aprovação', async () => {
     const r = await chamar('PUT', '/api/v1/evidence/ev-ap/content', { content: 'texto alterado depois da aprovação' });
     expect(r.status, await r.clone().text()).toBe(200);

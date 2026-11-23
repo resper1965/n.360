@@ -219,7 +219,7 @@ evidenceApp.put('/:id', async (c) => {
         }
         // Sem controle novo, o principal passa ao vínculo mais antigo que sobrar (ou a NULL).
         if (ev.control_id) await desligarControle(c.env.DB, id, ev.control_id);
-        await logAudit(c.env.DB, 'evidence.relinked', quem, `Evidência ${id} re-associada: controle ${ev.control_id ?? '(nenhum)'} -> ${novoControle ?? '(nenhum)'}.${aprovacaoMantida(ev)}`, '', '', ev.project_id);
+        await logAudit(c.env.DB, 'evidence.relinked', quem, `Evidência ${id} re-associada: controle ${ev.control_id ?? '(nenhum)'} -> ${novoControle ?? '(nenhum)'}.${await aprovacaoAgora(c.env.DB, id, ev)}`, '', '', ev.project_id);
       }
       resp.control_id = novoControle;
       resp.relinked = mudou;
@@ -239,6 +239,9 @@ evidenceApp.put('/:id', async (c) => {
  * zera. A trilha da mudança de vínculo diz que a aprovação ficou e de qual hash ela é.
  */
 type Aprovacoes = { file_hash: string | null; ciso_approved_by: string | null; ceo_approved_by: string | null };
+/** O estado de aprovação lido de novo, logo depois de mudar o vínculo: a trilha não registra uma assinatura ou um hash que mudou no meio. */
+const aprovacaoAgora = async (db: D1Database, id: string, antes: Aprovacoes) =>
+  aprovacaoMantida((await db.prepare('SELECT file_hash, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<Aprovacoes>()) ?? antes);
 const aprovacaoMantida = (ev: Aprovacoes) => {
   const quem = [ev.ciso_approved_by ? `Líder SGSI (${ev.ciso_approved_by})` : '', ev.ceo_approved_by ? `Direção (${ev.ceo_approved_by})` : ''].filter(Boolean).join(' e ');
   return quem ? ` Aprovação mantida: ${quem}, conteúdo ${ev.file_hash ?? '-'}.` : '';
@@ -262,7 +265,7 @@ evidenceApp.post('/:id/controles', async (c) => {
     if (!controlId) return c.json({ error: 'Controle não encontrado neste projeto' }, 400);
     const quem = c.get('user')?.email ?? 'system';
     const ligou = await ligarControle(c.env.DB, ev, controlId, quem);
-    if (ligou) await logAudit(c.env.DB, 'evidence.controle_ligado', quem, `Evidência ${id} ligada ao controle ${controlId}.${aprovacaoMantida(ev)}`, '', '', ev.project_id);
+    if (ligou) await logAudit(c.env.DB, 'evidence.controle_ligado', quem, `Evidência ${id} ligada ao controle ${controlId}.${await aprovacaoAgora(c.env.DB, id, ev)}`, '', '', ev.project_id);
     return c.json({ ok: true, control_id: controlId, ligado: ligou }, ligou ? 201 : 200);
   } catch (e) {
     return erro500(c, 'Erro ao ligar a evidência ao controle', e);
@@ -282,7 +285,7 @@ evidenceApp.delete('/:id/controles/:controlId', async (c) => {
     const desligou = await desligarControle(c.env.DB, id, controlId);
     if (!desligou) return c.json({ error: 'A evidência não está ligada a este controle' }, 404);
     const quem = c.get('user')?.email ?? 'system';
-    await logAudit(c.env.DB, 'evidence.controle_desligado', quem, `Evidência ${id} desligada do controle ${controlId}.${aprovacaoMantida(ev)}`, '', '', ev.project_id);
+    await logAudit(c.env.DB, 'evidence.controle_desligado', quem, `Evidência ${id} desligada do controle ${controlId}.${await aprovacaoAgora(c.env.DB, id, ev)}`, '', '', ev.project_id);
     return c.json({ ok: true, control_id: controlId });
   } catch (e) {
     return erro500(c, 'Erro ao desligar a evidência do controle', e);
