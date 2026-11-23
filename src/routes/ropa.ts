@@ -3,7 +3,8 @@ import { SQL_FONTES_DO_OT } from '../modulos';
 import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, podeRevogarAprovacao, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
-import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
+import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema, riscoAceiteSchema, riscoRevogarAceiteSchema } from '../schemas';
+import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, RECUSA_STATUS_ACEITO, type RiscoBase } from '../services/aceite-risco';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
 import { lerImpacto, salvarImpacto } from '../services/impacto';
 import { lerCiclo, salvarCiclo, cicloEmTexto, etapasDe, type EtapaLida } from '../services/ciclo';
@@ -373,7 +374,7 @@ const ATO_HUMANO = { risco: 'aceitar risco é ato humano, pela interface' };
 
 projectRopaApp.get('/:recordId/riscos', async (c) => {
   const r = await listarRiscos(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
-  return r ? c.json({ riscos: r }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+  return r ? c.json({ riscos: await comAceite(c.env.DB, c.get('user'), c.req.param('projectId')!, r as unknown as RiscoBase[]) }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
 });
 
 projectRopaApp.post('/:recordId/riscos', async (c) => {
@@ -381,6 +382,8 @@ projectRopaApp.post('/:recordId/riscos', async (c) => {
     const v = await validateBody(c, riscoAtividadeCriarSchema);
     if (!v.success) return v.response;
     if (c.get('user')?.agente === true && v.data.status === 'Accepted') return c.json({ error: `Forbidden: ${ATO_HUMANO.risco}` }, 403);
+    // Risco não nasce aceito: o aceite do residual é um ato à parte, com senha (services/aceite-risco.ts).
+    if (v.data.status === 'Accepted') return c.json({ error: RECUSA_STATUS_ACEITO }, 403);
     const projectId = c.req.param('projectId')!;
     const ator = c.get('user')?.email || 'system';
     const r = await criarRisco(c.env.DB, projectId, c.req.param('recordId'), ator, v.data);
@@ -397,12 +400,47 @@ projectRopaApp.put('/:recordId/riscos/:riscoId', async (c) => {
     if (c.get('user')?.agente === true && v.data.status === 'Accepted') return c.json({ error: `Forbidden: ${ATO_HUMANO.risco}` }, 403);
     const projectId = c.req.param('projectId')!;
     const ator = c.get('user')?.email || 'system';
-    const r = await atualizarRisco(c.env.DB, projectId, c.req.param('recordId'), c.req.param('riscoId'), ator, v.data);
+    const riscoId = c.req.param('riscoId');
+    const gravado = await c.env.DB.prepare('SELECT status FROM risks WHERE id = ? AND ropa_id = ? AND project_id = ?')
+      .bind(riscoId, c.req.param('recordId'), projectId).first<{ status: string | null }>();
+    const recusaStatus = gravado ? await recusaDoStatus(c.env.DB, riscoId, gravado.status, v.data.status) : null;
+    if (recusaStatus) return c.json({ error: recusaStatus }, v.data.status === 'Accepted' ? 403 : 409);
+    const r = await atualizarRisco(c.env.DB, projectId, c.req.param('recordId'), riscoId, ator, v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);
+    // Mudou o que foi aceito: o aceite com senha cai e o pedido de aceite aberto acompanha o conteúdo novo.
+    await conferirAceite(c.env.DB, riscoId, ator);
+    await conferirPedidosDoDocumento(c, 'risco', riscoId, projectId);
     // Trilha com os nomes dos campos, nunca os valores.
     await logAudit(c.env.DB, 'ropa.risco', ator, `ROPA ${c.req.param('recordId')}: risco ${c.req.param('riscoId')} alterado (${Object.keys(v.data).join(', ')})`, '', '', projectId);
     return c.json({ ok: true, risk_level: r.risk_level });
   } catch (e) { return erro500(c, 'Falha ao atualizar o risco da atividade', e); }
+});
+
+// Aceite do risco residual da atividade: o mesmo ato do n.iso (services/aceite-risco.ts), para quem só tem o n.privacy.
+const riscoDaAtividade = (db: D1Database, projectId: string, ropaId: string, riscoId: string) =>
+  db.prepare('SELECT 1 FROM risks WHERE id = ? AND ropa_id = ? AND project_id = ?').bind(riscoId, ropaId, projectId).first();
+
+projectRopaApp.post('/:recordId/riscos/:riscoId/aceite', async (c) => {
+  try {
+    if (!(await riscoDaAtividade(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.req.param('riscoId')))) return c.json({ error: 'Risco da atividade não encontrado' }, 404);
+    const v = await validateBody(c, riscoAceiteSchema);
+    if (!v.success) return v.response;
+    const r = await aceitarRisco(c.env.DB, c.get('user'), c.req.param('riscoId'), {
+      senha: v.data.senha, justificativa: v.data.justificativa || null, hashVisto: v.data.hash_visto,
+      ip: c.req.header('CF-Connecting-IP') || null, ua: c.req.header('User-Agent') || null,
+    });
+    return c.json(r.corpo, r.status as 200);
+  } catch (e) { return erro500(c, 'Falha ao aceitar o risco da atividade', e); }
+});
+
+projectRopaApp.post('/:recordId/riscos/:riscoId/aceite/revogar', async (c) => {
+  try {
+    if (!(await riscoDaAtividade(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.req.param('riscoId')))) return c.json({ error: 'Risco da atividade não encontrado' }, 404);
+    const v = await validateBody(c, riscoRevogarAceiteSchema);
+    if (!v.success) return v.response;
+    const r = await revogarAceite(c.env.DB, c.get('user'), c.req.param('riscoId'), v.data.motivo, c.req.header('CF-Connecting-IP') || null);
+    return c.json(r.corpo, r.status as 200);
+  } catch (e) { return erro500(c, 'Falha ao revogar o aceite do risco da atividade', e); }
 });
 
 projectRopaApp.delete('/:recordId/riscos/:riscoId', async (c) => {

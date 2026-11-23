@@ -17,8 +17,9 @@ import {
   genId, genToken, sha256Hex, requireProjectAccess, ehConsultor, autoridadeDeAssinatura, recusaDeAssinatura,
   RECUSA_PLATAFORMA, type PapelAssinatura,
 } from '../helpers';
+import { stmtsDoAceite } from './aceite-risco';
 
-export type TipoPedido = 'dpia' | 'politica' | 'documento' | 'excecao' | 'tratamento';
+export type TipoPedido = 'dpia' | 'politica' | 'documento' | 'excecao' | 'tratamento' | 'risco';
 export type Canal = 'conta' | 'link' | 'portal';
 /** Validade do link pessoal da ciência; reenviar emite outro. */
 export const DIAS_LINK = 30;
@@ -102,6 +103,31 @@ export const COLUNAS_DPIA = [
 
 type Documento = { titulo: string; conteudo: Record<string, unknown> };
 
+/**
+ * Aceite do risco residual (migration 0120): o que se aceita é este estado do risco. O pedido de aceite e o aceite direto, com
+ * senha, congelam e conferem as MESMAS colunas; mudar qualquer uma invalida o aceite (services/aceite-risco.ts) e substitui o
+ * pedido aberto. O controle entra pelo título, como a pessoa o lê.
+ */
+export const COLUNAS_RISCO = [
+  'ativo', 'ameaca', 'impacto', 'probabilidade', 'nivel', 'impacto_residual', 'probabilidade_residual', 'nivel_residual', 'estrategia', 'plano', 'controle',
+] as const;
+const sqlDoRisco = (onde: string) =>
+  '(SELECT r.id AS id, r.project_id AS project_id, r.asset AS ativo, r.threat AS ameaca, r.impact AS impacto, r.probability AS probabilidade, ' +
+  'r.risk_level AS nivel, r.residual_impact AS impacto_residual, r.residual_probability AS probabilidade_residual, r.residual_level AS nivel_residual, ' +
+  'r.treatment AS estrategia, r.treatment_plan AS plano, CASE WHEN r.control_id IS NULL THEN NULL ELSE COALESCE(cc.title, r.control_id) END AS controle ' +
+  `FROM risks r LEFT JOIN compliance_controls cc ON cc.id = r.control_id AND cc.project_id = r.project_id${onde})`;
+/** Só risco com residual avaliado e ainda não aceito nem encerrado pode ser aceito (e ter pedido de aceite aberto). */
+export const SQL_RISCO_ACEITAVEL = sqlDoRisco(" WHERE COALESCE(r.status, 'Open') NOT IN ('Accepted', 'Closed') AND r.residual_level IS NOT NULL");
+const SQL_RISCO_QUALQUER = sqlDoRisco('');
+const tituloDoRisco = (r: Record<string, unknown>, id: string) => `Aceite do risco residual: ${String(r.ameaca || id).slice(0, 60)} (${String(r.ativo || '').slice(0, 40)})`;
+
+/** O estado congelável do risco, aceito ou não (para conferir um aceite vigente). `null` se o risco não é do projeto. */
+export async function conteudoDoRisco(db: D1Database, riskId: string, projectId: string): Promise<Documento | null> {
+  const row = await db.prepare(`SELECT ${COLUNAS_RISCO.join(', ')} FROM ${SQL_RISCO_QUALQUER} WHERE id = ? AND project_id = ?`)
+    .bind(riskId, projectId).first<Record<string, unknown>>();
+  return row ? { titulo: tituloDoRisco(row, riskId), conteudo: Object.fromEntries(COLUNAS_RISCO.map((c) => [c, row[c] ?? null])) } : null;
+}
+
 /** Onde mora cada tipo e quais colunas são CONTEÚDO (entram no hash e na conferência do batch). */
 const DOCUMENTOS: Record<TipoPedido, { tabela: string; colunas: readonly string[]; listas?: readonly string[]; soSeMarcado?: readonly string[]; titulo: (r: Record<string, unknown>, refId: string) => string }> = {
   dpia: { tabela: 'dpia_assessments', colunas: COLUNAS_DPIA, titulo: (r, id) => `DPIA: ${String(r.processing_name || r.system_name || id)}` },
@@ -141,6 +167,8 @@ const DOCUMENTOS: Record<TipoPedido, { tabela: string; colunas: readonly string[
     soSeMarcado: ['dados_sensiveis', 'criancas_adolescentes'],
     titulo: (r, id) => `Tratamento: ${String(r.finalidade || id).slice(0, 80)}`,
   },
+  // ref_id = risks.id (migration 0120). O pedido existe só para risco aceitável: aceito por outro caminho, o pedido aberto é cancelado.
+  risco: { tabela: SQL_RISCO_ACEITAVEL, colunas: COLUNAS_RISCO, titulo: tituloDoRisco },
 };
 
 /** Conteúdo atual do documento (do projeto informado), ou `null` se não existe nele. */
@@ -281,7 +309,7 @@ export async function substituirPedidosDoDocumento(
  * ligados ao `conteudo_json` do pedido (`binds`). É a conferência do hash feita DENTRO do `batch`:
  * fecha a janela entre conferir em JS e gravar.
  */
-function intacto(tipo: TipoPedido, prefixo: string, conteudoJson: string): { sql: string; binds: string[] } {
+export function intacto(tipo: TipoPedido, prefixo: string, conteudoJson: string): { sql: string; binds: string[] } {
   const { colunas } = DOCUMENTOS[tipo];
   return {
     sql: colunas.map((c) => `${prefixo}${c} IS json_extract(?, '$.${c}')`).join(' AND '),
@@ -355,7 +383,7 @@ export async function assinaturaPolitica(
  */
 export async function registrarDecisao(db: D1Database, a: {
   pedido: PedidoRow; destId: string; status: 'aprovado' | 'ciente' | 'recusado'; ip: string | null; ua: string | null;
-  mfa: boolean; nome: string; motivo: string | null; assinar?: { papel: PapelAssinatura };
+  mfa: boolean; nome: string; motivo: string | null; assinar?: { papel: PapelAssinatura }; email?: string;
   canal?: Canal; tokenHash?: string;
 }): Promise<boolean> {
   const { pedido: p } = a;
@@ -374,7 +402,14 @@ export async function registrarDecisao(db: D1Database, a: {
   ];
   // Documento e exceção: a prova da aprovação é a linha do destinatário (hash, IP, user-agent, MFA); não há coluna de assinatura a escrever.
   // Sem esta condição, cairia em `assinaturaDpia` e assinaria um DPIA de mesmo id.
-  if (a.assinar && p.tipo !== 'documento' && p.tipo !== 'excecao' && p.tipo !== 'tratamento') {
+  // Risco: aprovar o pedido É o aceite do risco residual, gravado no mesmo batch e só se a prova acabou de ser gravada.
+  if (a.assinar && p.tipo === 'risco') {
+    stmts.push(...stmtsDoAceite(db, {
+      projectId: p.project_id, riskId: p.ref_id, email: a.email ?? '', nome: a.nome, papel: a.assinar.papel, em: decididoEm,
+      conteudoJson: p.conteudo_json, hash: p.hash, justificativa: null, pedidoId: p.id, ip: a.ip, ua: a.ua,
+      guarda: { destId: a.destId, status: a.status, decididoEm },
+    }));
+  } else if (a.assinar && p.tipo !== 'documento' && p.tipo !== 'excecao' && p.tipo !== 'tratamento') {
     const guarda = { destId: a.destId, status: a.status, decididoEm, conteudoJson: p.conteudo_json };
     // Cada tipo assina pela MESMA função: DPIA (a da aprovação direta em platform.ts) e política (pedidos antigos; a rota direta saiu).
     const st = p.tipo === 'politica'

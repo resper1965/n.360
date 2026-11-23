@@ -292,9 +292,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **136 tabelas** (2026-11-12: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **141 tabelas** (2026-11-23: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0118** em 119 arquivos (2026-11-23: `ls migrations/*.sql | tail -1`, `ls migrations/*.sql | wc -l`; ha tres 0002, de antes da numeracao estavel, e duas 0096, duas 0097 e duas 0101, de PRs paralelos: `ls migrations | cut -c1-4 | sort | uniq -d`). Procedimento
+  numeradas em `migrations/`, ultima a **0120** em 120 arquivos (2026-11-23: `ls migrations/*.sql | tail -1`, `ls migrations/*.sql | wc -l`; ha tres 0002, de antes da numeracao estavel, e duas 0096, duas 0097 e duas 0101, de PRs paralelos: `ls migrations | cut -c1-4 | sort | uniq -d`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -816,7 +816,16 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `src/services/riscos-atividade.ts`, usado por `/risks` e pelas sub-rotas da atividade); o corpo nunca define quem nem quando; mudar
   impacto, probabilidade ou residual de risco aceito o devolve a `Open` sem o aceite (`aceiteCaiu`, trilha `risk.aceite_invalidado`); sair de `Accepted` por `status` tambem limpa `accepted_by`, `accepted_at` e `aceite_manual` e grava `risk.aceite_invalidado`; botao
   "Aceitar risco" nos dois modulos (`frontend/src/aceite-risco.js`); a migration 0082 levou o aceite digitado antigo a `Accepted` com
-  `risks.aceite_manual = 1` ("Aceite registrado a mao"). (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
+  `risks.aceite_manual = 1` ("Aceite registrado a mao"). **Revisto em 23/11/2026 (aceite do risco residual, ISO 27001 6.1.3 e, migration 0120):**
+  `Accepted` nao se grava mais pelo PUT/POST do risco (403, as duas portas); o aceite e `POST /risks/:id/aceite` (ou
+  `/projects/:id/ropa/:rid/riscos/:riskId/aceite`), um risco por vez, com a senha e o `hash_visto`, so de quem tem a alcada do nivel residual
+  (`risco_alcadas`, Direcao por padrao; muda o `org_admin` do proprio projeto em `PUT /projects/:id/risco-alcadas`), ou aprovando o pedido
+  `tipo = 'risco'` em Minhas aprovacoes (fora do lote). A prova e `risco_aceites` (estado congelado `COLUNAS_RISCO` + hash, aceitante, alcada,
+  UTC, justificativa, pedido; gatilho `risco_aceite_imutavel`). Mudar o que foi aceito (notas, residual, estrategia, plano, controle) invalida
+  sozinho (`conferirAceite`) e devolve o risco ao status de antes; aceite com senha nao sai por status (409): so quem aceitou revoga, com
+  motivo. Lista com `aceite` (situacao aceito/pendente/revogado, quem, quando, `pode_aceitar`), CSV e pacote de auditoria (`risk_acceptances`)
+  com o aceite; servico `src/services/aceite-risco.ts`, teste `test/risco-aceite-residual.test.ts`. O aceite antigo (sem linha em
+  `risco_aceites`) segue como estava. (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
   `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`; o documento versionado so vale VIGENTE, `SQL_VERSIONADO_VALE`, como o em arquivo so publicado); o indice de confianca (calculado na leitura na lista do n.iso e na ficha), a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
   `dpa_url` ficam so como historico ("DPA declarado, sem documento", sem os 10 pontos); ligar e desligar documento do terceiro
   (`/terceiros/:parteId/documentos*`) e faixa `nucleo` (`SUBROTAS_NUCLEO` em `src/modulos.ts`) e recalcula o indice.

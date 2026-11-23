@@ -1274,10 +1274,15 @@ projectsApp.get('/:id/audit-pack', async (c) => {
     if (!project) return c.json({ error: 'Project not found' }, 404);
 
     const veOt = await podeVerOt(c.env.DB, c.get('user'), projectId);
-    const [phases, controls, evidence, logs] = await Promise.all([
+    const [phases, controls, evidence, riscos, aceitesDeRisco, logs] = await Promise.all([
       c.env.DB.prepare('SELECT * FROM project_phases WHERE project_id = ? ORDER BY phase_number ASC').bind(projectId).all(),
       c.env.DB.prepare('SELECT * FROM compliance_controls WHERE project_id = ?').bind(projectId).all(),
       c.env.DB.prepare('SELECT * FROM evidence WHERE project_id = ?').bind(projectId).all(),
+      // Riscos e a prova de cada aceite do residual (ISO/IEC 27001, 6.1.3 e), sem IP nem navegador.
+      c.env.DB.prepare(`SELECT id, asset, threat, impact, probability, risk_level, residual_impact, residual_probability, residual_level, treatment, treatment_plan,
+          control_id, owner, status, accepted_by, accepted_at, aceite_manual FROM risks WHERE project_id = ?`).bind(projectId).all(),
+      c.env.DB.prepare(`SELECT id, risk_id, aceito_por, aceito_nome, papel, aceito_em, nivel_residual, estrategia, controles_json, conteudo_json, hash, justificativa,
+          pedido_id, situacao, encerrado_em, encerrado_por, motivo FROM risco_aceites WHERE project_id = ? ORDER BY aceito_em`).bind(projectId).all(),
       c.env.DB.prepare(`SELECT * FROM audit_logs WHERE (project_id = ? OR (project_id IS NULL AND details LIKE ?))${veOt ? '' : SEM_ACAO_OT} ORDER BY created_at DESC LIMIT 100`).bind(projectId, `%${projectId}%`).all()
     ]);
 
@@ -1288,6 +1293,8 @@ projectsApp.get('/:id/audit-pack', async (c) => {
         phases: phases.results || [],
         controls: semRastros(controls.results),
         evidence: semRastros(evidence.results),
+        risks: riscos.results || [],
+        risk_acceptances: aceitesDeRisco.results || [],
         audit_trail: semIpENavegador(c.get('user'), logs.results as Record<string, unknown>[]),
         generated_at: new Date().toISOString()
       }

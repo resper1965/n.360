@@ -6,7 +6,7 @@ import { navigate } from '../router.js';
 import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
-import { podeAceitar, linhaDeAceite, aceitarRisco } from '../aceite-risco.js';
+import { podeAceitar, podeRevogar, podePedirAceite, linhaDeAceite, colunaDeAceite, aceitarRisco, revogarAceiteRisco, pedirAceiteRisco, SITUACOES_ACEITE } from '../aceite-risco.js';
 import { montarLista, colunasDe } from '../lista.js';
 import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 
@@ -189,13 +189,14 @@ window.__grcCloseExecAudit = function (id) {
             id: 'riscos',
             // Todas as linhas (as opções dos filtros vêm da lista inteira); a célula da matriz entra por `filtrarPor`.
             linhas: risks,
-            colunas: colunasDe(['Ameaça', 'Ativo', 'Nível', 'Residual', 'Tratamento', 'Status', 'Responsável', ''], (r) => [
+            colunas: colunasDe(['Ameaça', 'Ativo', 'Nível', 'Residual', 'Tratamento', 'Status', 'Aceite', 'Responsável', ''], (r) => [
                 `<strong>${escapeHTML(r.threat)}</strong>`,
                 escapeHTML(r.asset || '—'),
                 `<span class="fw-600">${r.risk_score || (r.impact * r.probability)}</span> ${escapeHTML(rotuloDe('', r.risk_level) || 'Sem nível')}`,
                 escapeHTML(rotuloDe('', r.residual_level) || '—'),
                 escapeHTML(rotuloDe('', r.treatment) || 'Não definido'),
-                escapeHTML(rotuloDe('', r.status) || '—') + (linhaDeAceite(r) ? `<div class="t-xs t-dim">${linhaDeAceite(r)}</div>` : ''),
+                escapeHTML(rotuloDe('', r.status) || '—'),
+                colunaDeAceite(r),
                 escapeHTML(r.owner_parte_nome || r.owner || 'Sem dono'),
                 `<button class="btn btn-ghost btn-sm" data-action="openRiskDetailsModal" data-args='${escapeHTML(JSON.stringify([r.id]))}'>Abrir</button>`,
             ]),
@@ -204,6 +205,7 @@ window.__grcCloseExecAudit = function (id) {
                 { chave: 'nivel', rotulo: 'Nível', valor: (r) => r.risk_level },
                 { chave: 'status', rotulo: 'Status', valor: (r) => r.status },
                 { chave: 'tratamento', rotulo: 'Tratamento', valor: (r) => r.treatment },
+                { chave: 'aceite', rotulo: 'Aceite', valor: (r) => r.aceite?.situacao || 'pendente', opcoes: SITUACOES_ACEITE },
             ],
             exportar: { caminho: `/api/v1/projects/${proj.id}/export/risks`, rotulo: 'Exportar riscos' },
             vazio: VAZIO_RISCOS,
@@ -456,28 +458,35 @@ window.__grcCloseExecAudit = function (id) {
                             <span class="badge badge-implemented py-1 px-2 t-sm">${escapeHTML(r.control_standard)}</span>
                         </div>
                     </div>` : ''}
-                    ${linhaDeAceite(r) ? `
                     <div class="col-span-2">
-                        <div class="rotulo-campo">Aceite do risco</div>
-                        <div class="t-base fw-500 t-texto">${linhaDeAceite(r)}</div>
-                    </div>` : ''}
+                        <div class="rotulo-campo">Aceite do risco residual</div>
+                        <div class="t-base fw-500 t-texto">${colunaDeAceite(r)}</div>
+                        ${r.aceite?.justificativa ? `<div class="t-sm t-dim">Justificativa: ${escapeHTML(r.aceite.justificativa)}</div>` : ''}
+                        ${r.aceite?.situacao === 'revogado' && r.aceite.revogado ? `<div class="t-sm t-dim">Motivo: ${escapeHTML(r.aceite.revogado.motivo || '')}</div>` : ''}
+                    </div>
                 </div>
                 ${vinculoOtHTML(S.activeProject && S.activeProject.id)}
             </div>
             <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
-                ${canCrud && podeAceitar(r) ? `<button class="btn" data-action="aceitarRiscoIso" data-args='["${id}"]'>Aceitar risco</button>` : ''}
+                ${podePedirAceite(r, S.user) ? `<button class="btn" data-action="pedirAceiteRiscoIso" data-args='["${id}"]'>Pedir aceite</button>` : ''}
+                ${podeRevogar(r) ? `<button class="btn" data-action="revogarAceiteRiscoIso" data-args='["${id}"]'>Revogar aceite</button>` : ''}
+                ${podeAceitar(r) ? `<button class="btn" data-action="aceitarRiscoIso" data-args='["${id}"]'>Aceitar risco residual</button>` : ''}
                 ${canCrud ? `<button class="btn btn-primary" data-action="openEditRiskModal" data-args='["${id}"]'>Editar Risco</button>` : ''}
             </div>
         `);
         montarVinculoOt('risk', id, S.activeProject && S.activeProject.id);
     };
 
-    window.aceitarRiscoIso = async function(id) {
-        try { if (!(await aceitarRisco(api, `/api/v1/risks/${id}`))) return; }
-        catch (e) { showToast((e && e.message) || 'Não foi possível aceitar o risco', 'error'); return; }
-        showToast('Risco aceito.', 'success');
-        forceCloseModal(); render();
+    const depoisDoAceite = async (msg) => { showToast(msg, 'success'); render(); };
+    window.aceitarRiscoIso = function(id) {
+        const r = S.risks.find(x => x.id === id);
+        if (r) aceitarRisco(api, `/api/v1/risks/${id}`, r, depoisDoAceite);
+    };
+    window.revogarAceiteRiscoIso = function(id) { revogarAceiteRisco(api, `/api/v1/risks/${id}`, depoisDoAceite); };
+    window.pedirAceiteRiscoIso = function(id) {
+        const r = S.risks.find(x => x.id === id);
+        if (r && S.activeProject) pedirAceiteRisco(S.activeProject.id, r);
     };
 
     async function renderVendors(c, h, a) {

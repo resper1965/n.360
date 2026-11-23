@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0118** (`ls migrations/*.sql | tail -1`). São 119 arquivos
+- Última migration no repositório: **0120** (`ls migrations/*.sql | tail -1`). São 120 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -48,6 +48,10 @@ cliente. O arquivo fica porque `d1_migrations` guarda o nome.
 ---
 
 Seções por número, da mais nova para a mais antiga (as anteriores à 0035 não têm seção). Migration nova entra no topo.
+
+## 0120 — aceite do risco residual (2026-11-23)
+
+Cria `risco_aceites` (a prova de cada aceite: estado congelado do risco e hash, aceitante, alçada, data UTC, justificativa, pedido, IP e navegador, situação vigente/invalidado/revogado e o encerramento), com índice único parcial de um aceite vigente por risco e dois gatilhos (`risco_aceite_do_projeto` e `risco_aceite_imutavel`), e `risco_alcadas` (papel por nível do residual). Reconstrói `pedidos` e `pedido_destinatarios` no molde da 0051 e da 0055 para o CHECK de `pedidos.tipo` aceitar `risco`; os dados são copiados como estão e os dois gatilhos de prova e os sete índices são recriados. Nenhum risco existente muda: os aceites antigos (status `Accepted` sem linha em `risco_aceites`) aparecem como "registro anterior, sem senha". **Antes de aplicar**: `npm run db:backup`, as conferências e contagens do cabeçalho da migration (se `PRAGMA table_info` de `pedidos` ou `pedido_destinatarios` divergir do `schema.sql`, pare). **Depois**: as mesmas contagens e a lista de gatilhos do cabeçalho. **Status: NÃO aplicada.** Se a 0119 (evidência N:N, PR paralelo) entrar primeiro, a ordem não importa: as duas são independentes.
 
 ## 0118 — avaliação por IA em campo próprio (2026-11-20)
 
