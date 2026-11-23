@@ -18,6 +18,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Status da ação corretiva.** `PUT /capa/:id` só aceita `Open`, `In Progress` e `Closed` (400 para o resto); "closed" já não contorna a recusa de fechar a ação que a própria pessoa criou do desvio.
 - **Transferência de projeto para organização direta.** A conferência "sem conta de cliente" passa a valer dentro da própria gravação: uma conta de cliente criada no meio da transferência a interrompe (409), sem mover nada.
 
+### n.iso: evidência ligada a documento, exclusão sem erro e avaliação pela API (#594)
+- `PUT /evidence/:id` passa a gravar `documento_id` (antes vinha no corpo e era ignorado): liga a evidência ao documento vigente do mesmo projeto, ou solta com `null`, sem mexer em avaliação nem assinatura; todos os alvos são conferidos antes de qualquer escrita, então um 400 não grava nada pela metade.
+- `DELETE /evidence/:id` deixa de responder 500 quando um item de checklist aponta para a evidência: o vínculo do item é solto e a evidência é apagada na mesma transação, e a trilha diz quais itens foram desvinculados.
+- `PATCH /projects/:id/evidence/:evidenceId` grava as notas e o status da avaliação humana (`pending`, `partial` ou `non_conforming`; nunca `conforming`, que é a assinatura). Evidência assinada mantém o status (409); o agente MCP não alcança esta rota (`FORA_DO_AGENTE`).
+
 ### n.iso: a avaliação da IA deixa de apagar a nota humana (migração 0118)
 - "Avaliar evidência" pela IA (`niso_evaluate_evidence`) grava o veredito no campo novo `avaliacao_ia`; a nota da pessoa (`evaluation_notes`) não é mais sobrescrita, nem ao reavaliar. O GET da evidência e a rastreabilidade devolvem o novo campo; invalidar a evidência limpa a avaliação da IA.
 - A migração 0118 (aditiva) foi aplicada em produção em 20/11/2026 (coluna `avaliacao_ia` conferida no banco). Em ambientes que ainda não a aplicaram, o deploy recusa publicar.
