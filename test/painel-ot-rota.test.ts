@@ -47,8 +47,8 @@ describe('painel com o n.ot', () => {
     expect(d.programa.estado).not.toBe('comecando');
   });
 
-  it('cliente recebe só a frase e os números', async () => {
-    const d = await (await chamar(gestor, '/api/v1/projects/proj-a/painel?modulo=ot')).json() as any;
+  it('cliente recebe só a frase e os números no Início do n.360 (sem ?modulo); o Painel do n.ot é testado em painel-ot-papeis', async () => {
+    const d = await (await chamar(gestor, '/api/v1/projects/proj-a/painel')).json() as any;
     expect(d.modulos.ot.numeros).toEqual([['1 de 1', 'sites em operação'], ['1', 'desvios abertos']]);
     expect(d.modulos.ot.fazer).toBeUndefined();
   });

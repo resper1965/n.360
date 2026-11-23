@@ -15,6 +15,7 @@ import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
 import { itemVisivel, enderecoDoProduto, modulosVisiveis } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
+import { renderPainel } from './painel.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
 // site (N2), coleta (N3, ot-coleta.js) e saídas (N4, ot-saidas.js), sobre as rotas de src/routes/ot.ts e ot-saidas.ts. Todo texto é
@@ -29,8 +30,9 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const TITULOS = { inicio: 'n.ot · Início', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores do n.ot', acessos: 'Acessos e sondas' };
-const MONTAR = { inicio: montarInicio, sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, acessos: (c, a, p) => montarAcessos(c, a, p) };
+const TITULOS = { inicio: 'n.ot · Início', painel: 'Painel', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores do n.ot', acessos: 'Acessos e sondas' };
+// O Painel do n.ot é o mesmo painel do n.iso e do n.privacy (views/painel.js), pelo `?modulo=ot`; o título fica o desta casca.
+const MONTAR = { inicio: montarInicio, painel: (c, a) => renderPainel(c, null, a, 'ot'), sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, acessos: (c, a, p) => montarAcessos(c, a, p) };
 
 async function renderOt(c, h, a) {
     a.innerHTML = '';
@@ -68,7 +70,7 @@ async function renderOt(c, h, a) {
     if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'inicio';
     const tela = S.otTela;
     escreverEndereco({ tela, site: S.otSite, modo: S.otModo || 'projeto' });
-    for (const t of ['inicio', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
+    for (const t of ['inicio', 'painel', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
     h.textContent = TITULOS[tela];
     c.innerHTML = '<div class="loading"></div>';
     if (tela === 'site') {
