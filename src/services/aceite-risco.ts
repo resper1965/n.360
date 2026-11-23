@@ -13,7 +13,7 @@
  * Risco aceito antes da 0120 (status `Accepted` sem linha aqui) segue como está: aparece aceito, sem senha registrada.
  */
 import { genId, logAudit, verifyPassword, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, type PapelAssinatura } from '../helpers';
-import { conteudoDoRisco, hashConteudo, intacto, SQL_RISCO_ACEITAVEL } from './pedidos';
+import { conteudoDoRisco, conteudosDosRiscos, hashConteudo, intacto, SQL_RISCO_ACEITAVEL } from './pedidos';
 
 export const NIVEIS_RISCO = ['Low', 'Medium', 'High', 'Critical'] as const;
 export type NivelRisco = (typeof NIVEIS_RISCO)[number];
@@ -197,12 +197,15 @@ export async function comAceite<T extends RiscoBase & { accepted_by?: string | n
     ultimosAceites(db, projectId), alcadasDoProjeto(db, projectId), autoridadeDeAssinatura(db, projectId, user),
   ]);
   const email = (user.email ?? '').toLowerCase();
+  const recusas = new Map(riscos.map((r) => [r.id, recusaDoAceite(user, r, alcadas, autoridade)]));
+  // O hash só vai para quem pode aceitar; uma consulta para o projeto inteiro, não uma por risco.
+  const conteudos = [...recusas.values()].some((x) => x === null) ? await conteudosDosRiscos(db, projectId) : new Map<string, Record<string, unknown>>();
   return Promise.all(riscos.map(async (r) => {
     const u = ultimos.get(r.id);
     const situacao = situacaoDoAceite(r.status, u);
     const vigente = u?.situacao === 'vigente' ? u : undefined;
-    const recusa = recusaDoAceite(user, r, alcadas, autoridade);
-    const doc = !recusa ? await conteudoDoRisco(db, r.id, projectId) : null;
+    const recusa = recusas.get(r.id) ?? null;
+    const conteudo = !recusa ? conteudos.get(r.id) : undefined;
     return {
       ...r,
       aceite: {
@@ -216,7 +219,7 @@ export async function comAceite<T extends RiscoBase & { accepted_by?: string | n
         revogado: situacao === 'revogado' ? { por: u!.encerrado_por, em: u!.encerrado_em, motivo: u!.motivo } : null,
         alcada: r.residual_level ? alcadas[r.residual_level as NivelRisco] ?? 'ceo' : null,
         pode_aceitar: !recusa,
-        hash: doc ? await hashConteudo(doc.conteudo) : null,
+        hash: conteudo ? await hashConteudo(conteudo) : null,
         pode_revogar: !!vigente && vigente.aceito_por === email && user.agente !== true,
       },
     };

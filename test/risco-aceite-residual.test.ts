@@ -183,6 +183,15 @@ describe('pedido de aceite em "Minhas aprovações"', () => {
     expect(prova).toMatchObject({ pedido_id: id, aceito_por: 'ceo@cliente.com', papel: 'ceo', situacao: 'vigente' });
   });
 
+  it('a alçada mudou depois do pedido: o papel antigo não aprova', async () => {
+    const { id } = await (await pedir()).json<any>();
+    await chamar(admin, 'PUT', `/api/v1/projects/${P}/risco-alcadas`, { alcadas: { Low: 'ciso' } });
+    const r = await chamar(ceo, 'POST', `/api/v1/pedidos/${id}/aprovar`, { senha: SENHA });
+    expect(r.status).toBe(409);
+    expect((await r.json<any>()).error).toContain('alçada');
+    expect((await risco('rk-1')).status).toBe('Mitigated');
+  });
+
   it('o papel do pedido é a alçada do nível residual; sem residual não há pedido', async () => {
     const r = await pedir('ciso');
     expect(r.status).toBe(400);

@@ -247,6 +247,14 @@ export async function decidirPedido(
   const { pedido, dest } = meu;
   // Aceite de risco é um ato por risco: nunca em lote.
   if (a.emLote && pedido.tipo === 'risco') return { status: 409, corpo: { error: 'Aceite de risco é um por vez: abra o pedido e decida.' } };
+  // A alçada pode ter mudado depois do pedido: aprovar com o papel antigo seria aceitar sem a alçada de agora.
+  if (pedido.tipo === 'risco' && decisao === 'aprovar') {
+    const r = await db.prepare('SELECT residual_level FROM risks WHERE id = ? AND project_id = ?').bind(pedido.ref_id, pedido.project_id).first<{ residual_level: NivelRisco | null }>();
+    const alcada = r?.residual_level ? (await alcadasDoProjeto(db, pedido.project_id))[r.residual_level] ?? 'ceo' : null;
+    if (alcada && alcada !== pedido.papel_exigido) {
+      return { status: 409, corpo: { error: 'A alçada de aceite deste nível de risco mudou depois do pedido. Peça o aceite de novo, a quem tem a alçada agora.' } };
+    }
+  }
   // Segregação de funções (spec onda 1): quem pediu não decide o que pediu. `criado_por` é o e-mail de quem criou.
   if (pedido.criado_por.toLowerCase() === (user.email ?? '').toLowerCase()) {
     return { status: 403, corpo: { error: 'Quem pediu a aprovação não a decide. Peça a outra pessoa.' } };

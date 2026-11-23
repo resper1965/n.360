@@ -121,6 +121,12 @@ export const SQL_RISCO_ACEITAVEL = sqlDoRisco(" WHERE COALESCE(r.status, 'Open')
 const SQL_RISCO_QUALQUER = sqlDoRisco('');
 const tituloDoRisco = (r: Record<string, unknown>, id: string) => `Aceite do risco residual: ${String(r.ameaca || id).slice(0, 60)} (${String(r.ativo || '').slice(0, 40)})`;
 
+/** O estado congelável de todos os riscos do projeto, numa consulta (a lista calcula o hash de cada um sem ida por risco). */
+export async function conteudosDosRiscos(db: D1Database, projectId: string): Promise<Map<string, Record<string, unknown>>> {
+  const { results } = await db.prepare(`SELECT id, ${COLUNAS_RISCO.join(', ')} FROM ${SQL_RISCO_QUALQUER} WHERE project_id = ?`).bind(projectId).all<Record<string, unknown>>();
+  return new Map(results.map((row) => [String(row.id), Object.fromEntries(COLUNAS_RISCO.map((c) => [c, row[c] ?? null]))]));
+}
+
 /** O estado congelável do risco, aceito ou não (para conferir um aceite vigente). `null` se o risco não é do projeto. */
 export async function conteudoDoRisco(db: D1Database, riskId: string, projectId: string): Promise<Documento | null> {
   const row = await db.prepare(`SELECT ${COLUNAS_RISCO.join(', ')} FROM ${SQL_RISCO_QUALQUER} WHERE id = ? AND project_id = ?`)
