@@ -14,19 +14,24 @@ export function tabelaEquivalente(cabecalho, linhas) {
         <tbody>${linhas.map((l) => `<tr>${l.map((c, i) => `<td${i ? ' class="n"' : ''}>${e(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></details>`;
 }
 
-/** Cobertura por tema: uma barra 100% por tema, na mesma escala, com o absoluto escrito ao lado ("29 de 38"). */
-export function graficoCobertura(temas) {
+/**
+ * Cobertura por tema: uma barra 100% por tema, na mesma escala, com o absoluto escrito ao lado ("29 de 38"). `partes` troca os três
+ * rótulos (Concluído, Em andamento, Falta) quando a contagem é outra (ex.: desvios regularizados, tratados, abertos).
+ */
+export function graficoCobertura(temas, partes = null) {
     const lista = Array.isArray(temas) ? temas : [];
-    const leg = '<div class="pn-cob-leg" aria-hidden="true"><span><i class="pn-sw pn-f"></i>Concluído</span><span><i class="pn-sw pn-a"></i>Em andamento</span><span><i class="pn-sw pn-x"></i>Falta</span></div>';
+    const [rf, ra, rx] = partes || ['Concluído', 'Em andamento', 'Falta'];
+    const leg = `<div class="pn-cob-leg" aria-hidden="true"><span><i class="pn-sw pn-f"></i>${e(rf)}</span><span><i class="pn-sw pn-a"></i>${e(ra)}</span><span><i class="pn-sw pn-x"></i>${e(rx)}</span></div>`;
     const linhas = lista.map((t) => {
         const f = Number(t.feito) || 0, a = Number(t.andamento) || 0, x = Number(t.falta) || 0, tot = f + a + x;
-        const resumo = tot ? `${t.tema}: ${f} concluídos, ${a} em andamento, ${x} faltam, de ${tot}` : `${t.tema}: nenhum registro`;
+        const resumo = !tot ? `${t.tema}: nenhum registro`
+            : partes ? `${t.tema}: ${rf} ${f}, ${ra} ${a}, ${rx} ${x}, de ${tot}` : `${t.tema}: ${f} concluídos, ${a} em andamento, ${x} faltam, de ${tot}`;
         // Vão de 0,6 unidade entre as partes (cerca de 2px a 300px de largura).
         let pos = 0;
-        const partes = [[f, 'pn-f'], [a, 'pn-a'], [x, 'pn-x']].filter(([v]) => v > 0);
+        const fatias = [[f, 'pn-f'], [a, 'pn-a'], [x, 'pn-x']].filter(([v]) => v > 0);
         const vao = 0.6;
-        const util = 100 - vao * (partes.length - 1);
-        const rects = partes.map(([v, cls]) => {
+        const util = 100 - vao * (fatias.length - 1);
+        const rects = fatias.map(([v, cls]) => {
             const w = (v / tot) * util;
             const r = `<rect class="${cls}" x="${pos.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="10"></rect>`;
             pos += w + vao;
@@ -37,7 +42,7 @@ export function graficoCobertura(temas) {
                 <rect class="pn-trilho" x="0" y="0" width="100" height="10"></rect>${rects}</svg>
             <div class="pn-cob-v">${tot ? `${f} de ${tot}` : 'nenhum'}</div>`;
     }).join('');
-    return `${leg}<div class="pn-cob">${linhas}</div>${tabelaEquivalente(['Tema', 'Concluído', 'Em andamento', 'Falta', 'Como se conta'], lista.map((t) => [t.tema, t.feito, t.andamento, t.falta, t.conta]))}`;
+    return `${leg}<div class="pn-cob">${linhas}</div>${tabelaEquivalente(['Tema', rf, ra, rx, 'Como se conta'], lista.map((t) => [t.tema, t.feito, t.andamento, t.falta, t.conta]))}`;
 }
 
 const NIVEIS = [['critico', 'Crítico'], ['alto', 'Alto'], ['medio', 'Médio'], ['baixo', 'Baixo']];
@@ -100,8 +105,8 @@ export function graficoVencimentos(linhas) {
 const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const rotuloMes = (aaaamm, i, n) => (i === n - 1 ? 'Este mês' : /^\d{4}-\d{2}$/.test(aaaamm || '') ? `${MES[Number(aaaamm.slice(5)) - 1]}/${aaaamm.slice(2, 4)}` : `Há ${n - 1 - i} meses`);
 
-/** Pedidos do titular recebidos por mês, 12 meses, com a média: a única série no tempo do painel. */
-export function graficoPedidos(valores, meses = []) {
+/** Uma série por mês, 12 meses, com a média (pedidos do titular no n.privacy; desvios detectados no n.ot). */
+export function graficoPedidos(valores, meses = [], serie = 'Pedidos recebidos', coluna = 'Pedidos') {
     const v = (Array.isArray(valores) ? valores : []).map((n) => Math.max(0, Number(n) || 0));
     if (v.length < 2) return '';
     const w = 168, h = 40, max = Math.max(1, ...v);
@@ -110,13 +115,13 @@ export function graficoPedidos(valores, meses = []) {
     const media = v.reduce((a, b) => a + b, 0) / v.length;
     const ult = v[v.length - 1];
     const mediaTxt = media.toFixed(1).replace('.', ',');
-    const resumo = `Pedidos recebidos por mês nos últimos 12 meses: de ${Math.min(...v)} a ${Math.max(...v)}; ${ult} neste mês; média de ${mediaTxt}`;
-    return `<div class="pn-spark"><svg width="${w}" height="${h}" role="img" tabindex="0" aria-label="${resumo}" data-dica="${resumo}">
+    const resumo = `${serie} por mês nos últimos 12 meses: de ${Math.min(...v)} a ${Math.max(...v)}; ${ult} neste mês; média de ${mediaTxt}`;
+    return `<div class="pn-spark"><svg width="${w}" height="${h}" role="img" tabindex="0" aria-label="${e(resumo)}" data-dica="${e(resumo)}">
             <line class="pn-spark-media" x1="0" x2="${w}" y1="${y(media).toFixed(1)}" y2="${y(media).toFixed(1)}"></line>
             <polyline class="pn-spark-linha" points="${v.map((n, i) => `${x(i).toFixed(1)},${y(n).toFixed(1)}`).join(' ')}"></polyline>
             <rect class="pn-spark-ult" x="${(x(v.length - 1) - 4).toFixed(1)}" y="${(y(ult) - 4).toFixed(1)}" width="8" height="8"></rect></svg>
         <div><div class="pn-spark-n">${ult} <span class="pn-meta">neste mês</span></div><div class="pn-meta">média de ${mediaTxt} por mês em 12 meses</div></div></div>
-        ${tabelaEquivalente(['Mês', 'Pedidos'], v.map((n, i) => [rotuloMes(meses[i], i, v.length), n]))}`;
+        ${tabelaEquivalente(['Mês', coluna], v.map((n, i) => [rotuloMes(meses[i], i, v.length), n]))}`;
 }
 
 /**
