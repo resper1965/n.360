@@ -17,7 +17,8 @@ let consId = '';
 
 beforeAll(async () => {
   await applySchema(); await seedTwoProjects(); await habilitarOt('proj-a');
-  const credencialVence = new Date(Date.now() + 20 * 86_400_000).toISOString();
+  // 02:00Z é ainda o dia anterior em São Paulo: a credencial vence em 24 dias, não em 25
+  const credencialVence = `${diaMaisSP(25)}T02:00:00.000Z`;
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES
       ('u-g', 'g@cliente.teste', 'x', 'Gestor', 'org_admin', 'proj-a'), ('u-t', 't@cliente.teste', 'x', 'Tecnico', 'org_user', 'proj-a'),
@@ -37,12 +38,19 @@ beforeAll(async () => {
       ('d1', 'proj-a', 's1', 'fluxo', 'chave-sensor-1', '{}', ?1, ?1, 'aberto', NULL),
       ('d2', 'proj-a', 's1', 'fluxo', 'chave-sensor-2', '{}', '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z', 'regularizado', NULL),
       ('d3', 'proj-a', 's2', 'fluxo', 'chave-sensor-3', '{}', ?1, ?1, 'aceito', ?2),
-      ('d4', 'proj-a', 's2', 'fluxo', 'chave-sensor-4', '{}', ?1, ?1, 'tratado', NULL)`).bind(`${HOJE}T00:00:00Z`, `${diaMaisSP(20)}T12:00:00Z`),
+      ('d4', 'proj-a', 's2', 'fluxo', 'chave-sensor-4', '{}', ?1, ?1, 'tratado', NULL),
+      ('d5', 'proj-a', 's1', 'fluxo', 'chave-sensor-5', '{}', ?3, ?3, 'regularizado', NULL)`)
+      // d5: dia 1º às 01:00Z ainda é o último dia do mês anterior em São Paulo, e conta nele
+      .bind(`${HOJE}T12:00:00Z`, `${diaMaisSP(20)}T12:00:00Z`, `${HOJE.slice(0, 7)}-01T01:00:00Z`),
     env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, title, due_date, status) VALUES ('ca1', 'proj-a', 'Fechar o acesso remoto', ?, 'Open')`).bind(diaMaisSP(40)),
     env.DB.prepare(`INSERT INTO ot_referencias (id, project_id, acao_id, ot_site_id, ot_desvio_id, criado_por) VALUES ('r1', 'proj-a', 'ca1', 's2', 'd4', 'u-g')`),
     env.DB.prepare(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, justificativa, proxima_revisao, atualizado_por) VALUES
       ('a1', 'proj-a', 'ons-ro-cb-br-01-rev00-4.2.2', 'atende', NULL, ?, 'u-g'),
       ('a2', 'proj-a', 'ons-ro-cb-br-01-rev00-4.1.4', 'parcial', 'em curso', NULL, 'u-g')`).bind(diaMaisSP(10)),
+    env.DB.prepare(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, justificativa, proxima_revisao, atualizado_por) VALUES
+      ('a3', 'proj-a', 'ons-ro-cb-br-01-rev00-4.3.2', 'atende', NULL, NULL, 'u-g')`),
+    env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by, valido_ate) VALUES ('ev1', 'proj-a', 'politica.pdf', 'k', 'h', 'u-g', '2020-01-01')`),
+    env.DB.prepare(`INSERT INTO ot_requisito_evidencias (evidencia_id, requisito_id, project_id) VALUES ('ev1', 'ons-ro-cb-br-01-rev00-4.3.2', 'proj-a')`),
     env.DB.prepare(`INSERT INTO ot_sensores (id, project_id, site_id, nome, faixa_origem, criado_por) VALUES ('sn1', 'proj-a', 's1', 'Sonda Norte', '10.0.0.0/8', 'u-g')`),
     env.DB.prepare(`INSERT INTO ot_sensor_credenciais (id, sensor_id, project_id, chave_hash, expira_em) VALUES ('kc1', 'sn1', 'proj-a', 'hash', ?)`).bind(credencialVence),
   ]);
@@ -52,7 +60,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES ('z9', 'proj-a', 's9', 'Campo', 1)`),
     env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, zona_id, nome) VALUES ('at9', 'proj-a', 's9', 'z9', 'Ativo Removido')`),
     env.DB.prepare(`INSERT INTO ot_desvios (id, project_id, site_id, tipo, chave_sensor, dados, primeira_vez, ultima_vez, situacao, aceito_ate) VALUES
-      ('d9', 'proj-a', 's9', 'fluxo', 'chave-sensor-9', '{}', ?1, ?1, 'aceito', ?2)`).bind(`${HOJE}T00:00:00Z`, `${diaMaisSP(15)}T12:00:00Z`),
+      ('d9', 'proj-a', 's9', 'fluxo', 'chave-sensor-9', '{}', ?1, ?1, 'aceito', ?2)`).bind(`${HOJE}T12:00:00Z`, `${diaMaisSP(15)}T12:00:00Z`),
     env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, title, due_date, status) VALUES ('ca9', 'proj-a', 'Acao removida', ?, 'Open')`).bind(diaMaisSP(5)),
     env.DB.prepare(`INSERT INTO ot_referencias (id, project_id, acao_id, ot_site_id, ot_desvio_id, criado_por) VALUES ('r9', 'proj-a', 'ca9', 's9', 'd9', 'u-g')`),
   ]);
@@ -71,6 +79,7 @@ describe('cada número bate com a tela de origem', () => {
   it('Conformidade: o resumo é o do GET /ot/assessment da mesma pessoa', async () => {
     for (const h of [cons, gestor]) {
       const a = await json(h, '/api/v1/projects/proj-a/ot/assessment');
+      expect(a.resumo.revisar).toBeGreaterThan(0); // evidência vencida no 4.3.2
       expect((await ot(h)).modulos.ot.conformidade.resumo).toEqual(a.resumo);
     }
   });
@@ -91,18 +100,19 @@ describe('cada número bate com a tela de origem', () => {
   });
   it('Desvios: estado de hoje por site e detectados por mês (12 meses)', async () => {
     const d = (await ot(cons)).modulos.ot.desvios;
-    expect(d.por_site.map((t: any) => [t.tema, t.feito, t.andamento, t.falta])).toEqual([['SE Norte Exemplo', 1, 0, 1], ['SE Sul Exemplo', 0, 2, 0]]);
+    expect(d.por_site.map((t: any) => [t.tema, t.feito, t.andamento, t.falta])).toEqual([['SE Norte Exemplo', 2, 0, 1], ['SE Sul Exemplo', 0, 2, 0]]);
     expect(d.meses).toHaveLength(12);
     expect(d.meses[11]).toBe(HOJE.slice(0, 7));
     expect(d.por_mes[11]).toBe(3);
-    expect(d.por_mes.reduce((t: number, n: number) => t + n, 0)).toBe(3); // d2 é de 2020, fora da janela
+    expect(d.por_mes[10]).toBe(1); // d5, mês anterior em São Paulo
+    expect(d.por_mes.reduce((t: number, n: number) => t + n, 0)).toBe(4); // d2 é de 2020, fora da janela
   });
 });
 
 describe('só os sites permitidos (P0-4)', () => {
   it('site removido: nenhum desvio, ativo, nível, aceite ou ação dele em quadro algum', async () => {
     const o = (await ot(gestor)).modulos.ot;
-    expect(o.desvios.por_mes.reduce((t: number, n: number) => t + n, 0)).toBe(3);
+    expect(o.desvios.por_mes.reduce((t: number, n: number) => t + n, 0)).toBe(4);
     expect(o.conformidade.ativos.por_nivel.map((n: any) => n.nivel)).not.toContain(1);
     const rot = o.vencimentos.flatMap((l: any) => l.itens.map((i: any) => i.rotulo));
     expect(rot).not.toContain('');
@@ -122,6 +132,7 @@ describe('Vencimentos de 90 dias por papel', () => {
     expect(rotulos(v, 'Revalidação dos ativos')).toEqual(['SE Norte Exemplo']);
     expect(rotulos(v, 'Revisão do assessment')).toEqual(['Item 4.2.2']);
     expect(rotulos(v, 'Credencial de sonda')).toEqual(['SE Norte Exemplo']);
+    expect(v.find((l: any) => l.tipo === 'Credencial de sonda').itens[0].dias).toBe(24); // dia de São Paulo, não de UTC
     expect(rotulos(v, 'Ação de desvio')).toEqual(['SE Sul Exemplo']);
   });
   it('Gestor: também o aceite de desvio', async () => {
@@ -143,6 +154,22 @@ describe('quem vê o quê (P0)', () => {
     const o = (await ot(leitor)).modulos.ot;
     expect(Object.keys(o).sort()).toEqual(['comecando', 'conformidade', 'saude']);
     expect(Object.keys(o.conformidade)).toEqual(['resumo']);
+  });
+  it('leitor: a frase de saúde não cita vencimento do n.ot (site, obra, desvio); a do módulo igual à do Início do n.360', async () => {
+    await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, fase, obra_ate) VALUES ('s8', 'proj-a', 'SE Leste Exemplo', 'em_obra', ?)`).bind(diaMaisSP(3)).run();
+    try {
+      const d = await ot(leitor);
+      const g = await json(leitor, '/api/v1/projects/proj-a/painel');
+      for (const t of [JSON.stringify(d.saude), JSON.stringify(d.modulos.ot)]) for (const x of ['SE Leste', 'SE Norte', 'SE Sul', 'obra', 'desvio', 'Item 4.']) expect(t, x).not.toContain(x);
+      expect(d.modulos.ot.saude).toEqual(g.modulos.ot.saude);
+      // controle: o vencimento existe (a equipe o recebe no quadro)
+      expect(JSON.stringify((await ot(cons)).modulos.ot.vencimentos)).toContain('SE Leste Exemplo');
+    } finally { await env.DB.prepare(`DELETE FROM ot_sites WHERE id = 's8'`).run(); }
+  });
+  it('leitor: não consulta desvios, ações, ativos nem níveis (só o resumo da Conformidade)', async () => {
+    const c = contando();
+    await blocoOt(c.DB as any, 'proj-a', { id: 'u-l', email: 'l@cliente.teste', role: 'client', client_project_id: 'proj-a' }, HOJE, new Date(), true);
+    expect(c.sqls.filter((q) => /ot_referencias|primeira_vez|nivel_purdue AS nivel|AS completos|aceito_ate IS NOT NULL/.test(q))).toEqual([]);
   });
   it('técnico: nada da organização (sem conformidade, desvios nem vencimentos)', async () => {
     const o = (await ot(tecnico)).modulos.ot;

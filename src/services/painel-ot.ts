@@ -107,7 +107,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const credenciais = sondasLidas.flatMap((s) => { const v = cs.filter((k) => k.sensor_id === s.id).map((k) => k.expira_em).sort(); return v.length ? [{ site_id: s.site_id, expira_em: v[v.length - 1] }] : []; });
   // Quadros (PR3): só no ?modulo=ot e não para o técnico (são da organização); um db.batch + o de conformidadePorSite, nunca por site.
   const quadros = detalhe && papel !== 'tecnico'
-    ? await quadrosOt(db, projectId, dia, { sites, lista, revalidar: new Map(lista.map((s) => [s.id, mRev.get(s.id)?.em ?? null])), credenciais, gestor, veSondas })
+    ? await quadrosOt(db, projectId, dia, { sites, lista, revalidar: new Map(lista.map((s) => [s.id, mRev.get(s.id)?.em ?? null])), credenciais, gestor, veSondas, soResumo: papel === 'leitor' })
     : null;
   const comecando = lista.length === 0;
   return {
@@ -130,8 +130,8 @@ export type BlocoOt = Awaited<ReturnType<typeof blocoOt>>;
 export function respostaDoOt(b: BlocoOt, saude: Saude) {
   const q = b.quadros;
   // Leitor (decisão 3): a frase e o resumo da RO-CB em números; nada de desvio, site, sonda ou item por item.
-  if (b.papel === 'leitor') return { saude, comecando: b.comecando, ...(q ? { conformidade: { resumo: q.conformidade.resumo } } : {}) };
+  if (b.papel === 'leitor') return { saude, comecando: b.comecando, ...(q ? { conformidade: { resumo: q.resumo } } : {}) };
   const base = { saude, numeros: b.numeros, comecando: b.comecando, por_site: b.porSite };
   if (b.papel === 'tecnico') return base;
-  return { ...base, fazer: b.itens, passos: b.passos, ...(q ? { conformidade: q.conformidade, desvios: q.desvios, vencimentos: q.vencimentos } : {}) };
+  return { ...base, fazer: b.itens, passos: b.passos, ...(q?.completo ?? {}) };
 }
