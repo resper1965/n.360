@@ -148,18 +148,65 @@ describe('revogação', () => {
   it('só quem aceitou revoga, com motivo; o risco volta ao status anterior e a lista mostra "revogado"', async () => {
     await aceitar(ceo, 'rk-1');
     expect((await doRisco(lider, 'rk-1')).aceite.pode_revogar).toBe(false);
-    expect((await chamar(lider, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Não fui eu que aceitei' })).status).toBe(403);
-    expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', {})).status).toBe(400);
+    expect((await chamar(lider, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Não fui eu que aceitei', senha: SENHA })).status).toBe(403);
+    expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { senha: SENHA })).status).toBe(400);
+    expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Auditoria apontou falha no backup' })).status).toBe(400);
+    expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Auditoria apontou falha no backup', senha: 'errada' })).status).toBe(401);
+    expect((await risco('rk-1')).status).toBe('Accepted');
     expect((await doRisco(ceo, 'rk-1')).aceite.pode_revogar).toBe(true);
-    const r = await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Auditoria apontou falha no backup' });
+    const r = await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Auditoria apontou falha no backup', senha: SENHA });
     expect(r.status, await r.clone().text()).toBe(200);
     expect((await risco('rk-1')).status).toBe('Mitigated');
     const linha = await doRisco(cons, 'rk-1');
     expect(linha.aceite).toMatchObject({ situacao: 'revogado', revogado: { por: 'ceo@cliente.com', motivo: 'Auditoria apontou falha no backup' } });
     expect((await trilha('risk.aceite_revogado', 'rk-1')).justification).toBe('Auditoria apontou falha no backup');
+    // A prova fica: risco que já teve aceite não se exclui, pelas duas portas.
+    expect((await chamar(cons, 'DELETE', '/api/v1/risks/rk-1')).status).toBe(409);
+    expect((await aceites('rk-1'))).toHaveLength(1);
     // Pode ser aceito de novo depois.
     expect((await aceitar(ceo, 'rk-1')).status).toBe(200);
     expect((await aceites('rk-1')).map((a: any) => a.situacao)).toEqual(['revogado', 'vigente']);
+  });
+});
+
+describe('quem aceitou é a conta, não o e-mail', () => {
+  it('o e-mail da conta muda; quem aceitou ainda revoga, e outra conta com o e-mail antigo não', async () => {
+    await aceitar(ceo, 'rk-1');
+    await env.DB.prepare(`UPDATE users SET email = 'carla@cliente.com' WHERE id = 'u-ceo'`).run();
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) SELECT 'u-outra', 'ceo@cliente.com', password_hash, 'Outra', 'org_user', ?, 'org_ness' FROM users WHERE id = 'u-ceo'`).bind(P).run();
+    const outra = await sessionFor({ id: 'u-outra', email: 'ceo@cliente.com', name: 'Outra', role: 'org_user', client_project_id: P });
+    expect((await chamar(outra, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Não fui eu', senha: SENHA })).status).toBe(403);
+    const carla = await sessionFor({ id: 'u-ceo', email: 'carla@cliente.com', name: 'Carla Ceo', role: 'org_user', client_project_id: P });
+    expect((await chamar(carla, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Revisão do backup', senha: SENHA })).status).toBe(200);
+  });
+});
+
+describe('alçada mudada no meio do aceite', () => {
+  it('a alçada muda entre a leitura e a gravação (durante a senha): o aceite não grava', async () => {
+    const hash = (await doRisco(ceo, 'rk-1')).aceite.hash;
+    let armada = false, usada = false;
+    const db = new Proxy(env.DB, {
+      get(alvo, prop) {
+        if (prop === 'prepare') return (sql: string) => { if (sql.includes('INSERT INTO risco_aceites')) armada = true; return alvo.prepare(sql); };
+        if (prop === 'batch') {
+          return async (stmts: D1PreparedStatement[]) => {
+            if (armada && !usada) {
+              usada = true;
+              await alvo.prepare(`INSERT INTO risco_alcadas (project_id, nivel, papel, atualizado_por) VALUES (?, 'Low', 'ciso', 'adm@cliente.com')`).bind(P).run();
+            }
+            return alvo.batch(stmts);
+          };
+        }
+        const v = (alvo as any)[prop];
+        return typeof v === 'function' ? v.bind(alvo) : v;
+      },
+    });
+    const r = await worker.fetch(new Request('http://localhost/api/v1/risks/rk-1/aceite', {
+      method: 'POST', headers: { ...ceo, 'Content-Type': 'application/json' }, body: JSON.stringify({ senha: SENHA, hash_visto: hash }),
+    }), { ...workerEnv(), DB: db } as any);
+    expect(r.status).toBe(409);
+    expect(await aceites('rk-1')).toEqual([]);
+    expect((await risco('rk-1')).status).toBe('Mitigated');
   });
 });
 
@@ -197,6 +244,10 @@ describe('pedido de aceite em "Minhas aprovações"', () => {
     expect(r.status).toBe(400);
     expect((await r.json<any>()).alcada).toBe('ceo');
     expect((await pedir('ciente')).status).toBe(400);
+    // Uma pessoa só: o primeiro "aprovar" fecha o risco, um segundo destinatário ficaria pendente para sempre.
+    const dois = await chamar(cons, 'POST', `/api/v1/projects/${P}/pedidos`,
+      { tipo: 'risco', ref_id: 'rk-1', papel_exigido: 'ceo', destinatarios: [{ email: 'ceo@cliente.com' }, { email: 'outro@cliente.com' }] });
+    expect(dois.status).toBe(400);
     expect((await pedir('ceo', 'rk-sem')).status).toBe(400);
   });
 
@@ -214,6 +265,15 @@ describe('pedido de aceite em "Minhas aprovações"', () => {
     expect((await risco('rk-1')).status).toBe('Mitigated');
     // A rota de aceite é de um risco só: corpo com lista é recusado.
     expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite', { senha: SENHA, hash_visto: '0'.repeat(64), riscos: ['rk-1', 'rk-2'] })).status).toBe(400);
+  });
+
+  it('o residual muda para um nível de outra alçada: o pedido aberto é cancelado, não substituído', async () => {
+    await chamar(admin, 'PUT', `/api/v1/projects/${P}/risco-alcadas`, { alcadas: { Medium: 'ciso' } });
+    const { id } = await (await pedir()).json<any>();
+    await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { residual_impact: 3, residual_probability: 3 });
+    const p = await env.DB.prepare('SELECT status, substituido_por FROM pedidos WHERE id = ?').bind(id).first<any>();
+    expect(p).toEqual({ status: 'cancelado', substituido_por: null });
+    expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM pedidos WHERE tipo = 'risco' AND ref_id = 'rk-1' AND status = 'aberto'`).first<any>()).n).toBe(0);
   });
 
   it('o risco muda com o pedido aberto: o pedido é substituído pelo conteúdo novo', async () => {

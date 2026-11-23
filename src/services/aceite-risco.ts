@@ -21,13 +21,17 @@ export type Alcadas = Record<NivelRisco, PapelAssinatura>;
 export type SituacaoAceite = 'aceito' | 'pendente' | 'revogado';
 
 export const RECUSA_STATUS_ACEITO = 'O aceite do risco residual é feito pela ação "Aceitar risco residual", com a senha de quem tem a alçada.';
+export const RECUSA_EXCLUIR_COM_ACEITE = 'Este risco tem aceite registrado (vigente, invalidado ou revogado): a prova do aceite não se apaga, então o risco não se exclui. Encerre o risco pelo status.';
+/** O risco já teve aceite com senha? A prova fica: o risco não se exclui (a cascata apagaria risco_aceites). */
+export const temAceiteRegistrado = async (db: D1Database, riskId: string) =>
+  !!(await db.prepare('SELECT 1 FROM risco_aceites WHERE risk_id = ? LIMIT 1').bind(riskId).first());
 export const RECUSA_SAIR_DO_ACEITE = 'Este risco tem aceite registrado com senha: quem aceitou o revoga, com motivo. O status não muda por aqui.';
 
 type Usuario = { id?: string; email?: string; role?: string; agente?: boolean };
 type Resultado = { status: number; corpo: Record<string, unknown> };
 export type RiscoBase = { id: string; project_id: string; status: string | null; residual_level: string | null };
 export type AceiteRow = {
-  id: string; risk_id: string; aceito_por: string; aceito_nome: string | null; papel: PapelAssinatura; aceito_em: string; nivel_residual: string;
+  id: string; risk_id: string; aceito_por: string; aceito_user_id: string | null; aceito_nome: string | null; papel: PapelAssinatura; aceito_em: string; nivel_residual: string;
   estrategia: string | null; controles_json: string; conteudo_json: string; hash: string; justificativa: string | null; pedido_id: string | null;
   status_anterior: string | null; situacao: 'vigente' | 'invalidado' | 'revogado'; encerrado_em: string | null; encerrado_por: string | null; motivo: string | null;
 };
@@ -57,7 +61,7 @@ export function recusaDoAceite(
  * se a decisão do destinatário foi gravada no mesmo batch. Pedido de aceite aberto do mesmo risco é cancelado.
  */
 export function stmtsDoAceite(db: D1Database, a: {
-  projectId: string; riskId: string; email: string; nome: string; papel: PapelAssinatura; em: string; conteudoJson: string; hash: string;
+  projectId: string; riskId: string; email: string; userId: string | null; nome: string; papel: PapelAssinatura; em: string; conteudoJson: string; hash: string;
   justificativa: string | null; pedidoId: string | null; ip: string | null; ua: string | null;
   guarda?: { destId: string; status: string; decididoEm: string };
 }): D1PreparedStatement[] {
@@ -65,15 +69,17 @@ export function stmtsDoAceite(db: D1Database, a: {
   const ok = intacto('risco', 'd.', a.conteudoJson);
   const guarda = a.guarda ? ' AND EXISTS (SELECT 1 FROM pedido_destinatarios WHERE id = ? AND status = ? AND decidido_em = ?)' : '';
   return [
-    db.prepare(`INSERT INTO risco_aceites (id, project_id, risk_id, aceito_por, aceito_nome, papel, aceito_em, nivel_residual, estrategia, controles_json,
+    // A alçada é conferida de novo AQUI, no mesmo statement: mudada entre a leitura e o batch (durante a senha), o aceite não grava.
+    db.prepare(`INSERT INTO risco_aceites (id, project_id, risk_id, aceito_por, aceito_user_id, aceito_nome, papel, aceito_em, nivel_residual, estrategia, controles_json,
         conteudo_json, hash, justificativa, pedido_id, ip, user_agent, status_anterior)
-      SELECT ?, r.project_id, r.id, ?, ?, ?, ?, r.residual_level, r.treatment, CASE WHEN r.control_id IS NULL THEN '[]' ELSE json_array(r.control_id) END,
+      SELECT ?, r.project_id, r.id, ?, ?, ?, ?, ?, r.residual_level, r.treatment, CASE WHEN r.control_id IS NULL THEN '[]' ELSE json_array(r.control_id) END,
         ?, ?, ?, ?, ?, ?, COALESCE(r.status, 'Open')
         FROM risks r
        WHERE r.id = ? AND r.project_id = ?
+         AND COALESCE((SELECT al.papel FROM risco_alcadas al WHERE al.project_id = r.project_id AND al.nivel = r.residual_level), 'ceo') = ?
          AND EXISTS (SELECT 1 FROM ${SQL_RISCO_ACEITAVEL} d WHERE d.id = r.id AND ${ok.sql})${guarda}`)
-      .bind(id, a.email.toLowerCase(), a.nome, a.papel, a.em, a.conteudoJson, a.hash, a.justificativa, a.pedidoId, a.ip, a.ua,
-        a.riskId, a.projectId, ...ok.binds, ...(a.guarda ? [a.guarda.destId, a.guarda.status, a.guarda.decididoEm] : [])),
+      .bind(id, a.email.toLowerCase(), a.userId, a.nome, a.papel, a.em, a.conteudoJson, a.hash, a.justificativa, a.pedidoId, a.ip, a.ua,
+        a.riskId, a.projectId, a.papel, ...ok.binds, ...(a.guarda ? [a.guarda.destId, a.guarda.status, a.guarda.decididoEm] : [])),
     db.prepare(`UPDATE risks SET status = 'Accepted', accepted_by = ?, accepted_at = ?, aceite_manual = 0, updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND EXISTS (SELECT 1 FROM risco_aceites WHERE id = ? AND situacao = 'vigente')`).bind(a.nome, a.em, a.riskId, id),
     db.prepare(`UPDATE pedidos SET status = 'cancelado' WHERE tipo = 'risco' AND ref_id = ? AND status = 'aberto' AND id IS NOT ?
@@ -104,23 +110,29 @@ export async function aceitarRisco(db: D1Database, user: Usuario, riskId: string
   const nome = autoridade.nome || conta.name || user.email || '';
   const em = new Date().toISOString();
   const [ins] = await db.batch(stmtsDoAceite(db, {
-    projectId: risco.project_id, riskId, email: user.email ?? '', nome, papel, em, conteudoJson: JSON.stringify(doc.conteudo), hash,
+    projectId: risco.project_id, riskId, email: user.email ?? '', userId: user.id ?? null, nome, papel, em, conteudoJson: JSON.stringify(doc.conteudo), hash,
     justificativa: a.justificativa, pedidoId: null, ip: a.ip, ua: a.ua,
   }));
-  if (!ins.meta?.changes) return { status: 409, corpo: { error: 'O risco mudou ou já foi aceito; recarregue' } };
+  if (!ins.meta?.changes) return { status: 409, corpo: { error: 'O risco, a alçada ou o aceite mudaram enquanto você confirmava; recarregue' } };
   await logAudit(db, 'risk.aceite_residual', user.email ?? '',
     `Risco ${riskId}: risco residual ${risco.residual_level} aceito por ${nome} (${papel === 'ceo' ? 'Direção' : 'Líder SGSI'}); estado ${hash}`,
     a.justificativa ?? '', a.ip ?? '', risco.project_id);
   return { status: 200, corpo: { ok: true, aceito_por: nome, aceito_em: em, papel, hash } };
 }
 
-/** Só quem aceitou revoga o próprio aceite, com motivo. O risco volta ao status de antes do aceite. */
-export async function revogarAceite(db: D1Database, user: Usuario, riskId: string, motivo: string, ip: string | null): Promise<Resultado> {
+/** Quem aceitou: a conta (id), e o e-mail só para aceite gravado sem o id. O e-mail da conta pode mudar; o id não. */
+const foiQuemAceitou = (a: Pick<AceiteRow, 'aceito_user_id' | 'aceito_por'>, user: Usuario) =>
+  a.aceito_user_id ? a.aceito_user_id === user.id : a.aceito_por === (user.email ?? '').toLowerCase();
+
+/** Só quem aceitou revoga o próprio aceite, com a senha e um motivo. O risco volta ao status de antes do aceite. */
+export async function revogarAceite(db: D1Database, user: Usuario, riskId: string, motivo: string, senha: string, ip: string | null): Promise<Resultado> {
   if (user.agente === true) return { status: 403, corpo: { error: 'Revogar aceite é ato de quem aceitou: o agente não revoga.' } };
   const row = await db.prepare(`SELECT a.*, r.project_id AS projeto FROM risco_aceites a JOIN risks r ON r.id = a.risk_id
       WHERE a.risk_id = ? AND a.situacao = 'vigente'`).bind(riskId).first<AceiteRow & { projeto: string }>();
   if (!row) return { status: 404, corpo: { error: 'Este risco não tem aceite vigente registrado com senha' } };
-  if (row.aceito_por !== (user.email ?? '').toLowerCase()) return { status: 403, corpo: { error: 'Só quem aceitou o risco revoga o próprio aceite.' } };
+  if (!foiQuemAceitou(row, user)) return { status: 403, corpo: { error: 'Só quem aceitou o risco revoga o próprio aceite.' } };
+  const conta = await db.prepare('SELECT password_hash FROM users WHERE id = ?').bind(user.id ?? '').first<{ password_hash: string }>();
+  if (!conta || !(await verifyPassword(senha, conta.password_hash))) return { status: 401, corpo: { error: 'Senha incorreta' } };
   const em = new Date().toISOString();
   const [up] = await db.batch([
     db.prepare(`UPDATE risco_aceites SET situacao = 'revogado', encerrado_em = ?, encerrado_por = ?, motivo = ? WHERE id = ? AND situacao = 'vigente'`)
@@ -196,7 +208,6 @@ export async function comAceite<T extends RiscoBase & { accepted_by?: string | n
   const [ultimos, alcadas, autoridade] = await Promise.all([
     ultimosAceites(db, projectId), alcadasDoProjeto(db, projectId), autoridadeDeAssinatura(db, projectId, user),
   ]);
-  const email = (user.email ?? '').toLowerCase();
   const recusas = new Map(riscos.map((r) => [r.id, recusaDoAceite(user, r, alcadas, autoridade)]));
   // O hash só vai para quem pode aceitar; uma consulta para o projeto inteiro, não uma por risco.
   const conteudos = [...recusas.values()].some((x) => x === null) ? await conteudosDosRiscos(db, projectId) : new Map<string, Record<string, unknown>>();
@@ -220,7 +231,7 @@ export async function comAceite<T extends RiscoBase & { accepted_by?: string | n
         alcada: r.residual_level ? alcadas[r.residual_level as NivelRisco] ?? 'ceo' : null,
         pode_aceitar: !recusa,
         hash: conteudo ? await hashConteudo(conteudo) : null,
-        pode_revogar: !!vigente && vigente.aceito_por === email && user.agente !== true,
+        pode_revogar: !!vigente && foiQuemAceitou(vigente, user) && user.agente !== true,
       },
     };
   }));

@@ -4,7 +4,7 @@ import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, podeRevogarAprovacao, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema, riscoAceiteSchema, riscoRevogarAceiteSchema } from '../schemas';
-import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, RECUSA_STATUS_ACEITO, type RiscoBase } from '../services/aceite-risco';
+import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, RECUSA_STATUS_ACEITO, RECUSA_EXCLUIR_COM_ACEITE, temAceiteRegistrado, type RiscoBase } from '../services/aceite-risco';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
 import { lerImpacto, salvarImpacto } from '../services/impacto';
 import { lerCiclo, salvarCiclo, cicloEmTexto, etapasDe, type EtapaLida } from '../services/ciclo';
@@ -438,7 +438,7 @@ projectRopaApp.post('/:recordId/riscos/:riscoId/aceite/revogar', async (c) => {
     if (!(await riscoDaAtividade(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.req.param('riscoId')))) return c.json({ error: 'Risco da atividade não encontrado' }, 404);
     const v = await validateBody(c, riscoRevogarAceiteSchema);
     if (!v.success) return v.response;
-    const r = await revogarAceite(c.env.DB, c.get('user'), c.req.param('riscoId'), v.data.motivo, c.req.header('CF-Connecting-IP') || null);
+    const r = await revogarAceite(c.env.DB, c.get('user'), c.req.param('riscoId'), v.data.motivo, v.data.senha, c.req.header('CF-Connecting-IP') || null);
     return c.json(r.corpo, r.status as 200);
   } catch (e) { return erro500(c, 'Falha ao revogar o aceite do risco da atividade', e); }
 });
@@ -446,6 +446,7 @@ projectRopaApp.post('/:recordId/riscos/:riscoId/aceite/revogar', async (c) => {
 projectRopaApp.delete('/:recordId/riscos/:riscoId', async (c) => {
   try {
     const projectId = c.req.param('projectId')!;
+    if (await temAceiteRegistrado(c.env.DB, c.req.param('riscoId'))) return c.json({ error: RECUSA_EXCLUIR_COM_ACEITE }, 409);
     const ok = await apagarRisco(c.env.DB, projectId, c.req.param('recordId'), c.req.param('riscoId'));
     if (!ok) return c.json({ error: 'Risco da atividade não encontrado' }, 404);
     await logAudit(c.env.DB, 'ropa.risco', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: risco ${c.req.param('riscoId')} apagado (ações ligadas mantidas)`, '', '', projectId);

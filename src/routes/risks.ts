@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { genId, logAudit, requireResourceAccess, erro500, ForbiddenError, refForaDoProjeto, podeMexerEmAssinaturaDe } from '../helpers';
 import { validateBody, createRiskSchema, riskUpdateSchema, riscoAceiteSchema, riscoRevogarAceiteSchema, riscoAlcadasSchema } from '../schemas';
-import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, alcadasDoProjeto, NIVEIS_RISCO, RECUSA_STATUS_ACEITO, type RiscoBase } from '../services/aceite-risco';
+import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, alcadasDoProjeto, NIVEIS_RISCO, RECUSA_STATUS_ACEITO, RECUSA_EXCLUIR_COM_ACEITE, temAceiteRegistrado, type RiscoBase } from '../services/aceite-risco';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { escopoRopa } from '../services/escopo-itens';
 import { riskLevel, residualLevel, carimboDeAceite, aceiteCaiu } from '../services/riscos-atividade';
@@ -189,6 +189,7 @@ risks.delete('/api/v1/risks/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
+    if (await temAceiteRegistrado(c.env.DB, id)) return c.json({ error: RECUSA_EXCLUIR_COM_ACEITE }, 409);
     // A ação corretiva sobrevive ao risco (o FK é CASCADE): solta antes, como apagarRisco.
     await c.env.DB.batch([
       c.env.DB.prepare('UPDATE corrective_actions SET risk_id = NULL WHERE risk_id = ?').bind(id),
@@ -226,7 +227,7 @@ risks.post('/api/v1/risks/:id/aceite/revogar', async (c) => {
     await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
     const v = await validateBody(c, riscoRevogarAceiteSchema);
     if (!v.success) return v.response;
-    const r = await revogarAceite(c.env.DB, c.get('user'), id, v.data.motivo, c.req.header('CF-Connecting-IP') || null);
+    const r = await revogarAceite(c.env.DB, c.get('user'), id, v.data.motivo, v.data.senha, c.req.header('CF-Connecting-IP') || null);
     return c.json(r.corpo, r.status as 200);
   } catch (e) {
     if (e instanceof ForbiddenError) return c.json({ ok: false, error: e.message }, 403);

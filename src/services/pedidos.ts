@@ -17,7 +17,7 @@ import {
   genId, genToken, sha256Hex, requireProjectAccess, ehConsultor, autoridadeDeAssinatura, recusaDeAssinatura,
   RECUSA_PLATAFORMA, type PapelAssinatura,
 } from '../helpers';
-import { stmtsDoAceite } from './aceite-risco';
+import { stmtsDoAceite, alcadasDoProjeto, type NivelRisco } from './aceite-risco';
 
 export type TipoPedido = 'dpia' | 'politica' | 'documento' | 'excecao' | 'tratamento' | 'risco';
 export type Canal = 'conta' | 'link' | 'portal';
@@ -268,8 +268,12 @@ export async function conferirVigencia(db: D1Database, p: PedidoRow): Promise<Vi
   }
   const hash = await hashConteudo(doc.conteudo);
   if (hash === p.hash) return { vigente: true };
+  // Pedido de aceite de risco cujo nível residual passou a ser de outra alçada: o substituto iria ao papel e às pessoas antigas e nunca
+  // poderia ser decidido. Cancela; quem pede envia um pedido novo, à alçada de agora.
+  const nivel = p.tipo === 'risco' ? (doc.conteudo.nivel_residual as NivelRisco | null) : null;
+  const mudouAlcada = p.tipo === 'risco' && (!nivel || ((await alcadasDoProjeto(db, p.project_id))[nivel] ?? 'ceo') !== p.papel_exigido);
   // Pedido `politica` é histórico: o texto agora é do documento. Mudou a nota do controle, cancela; não nasce pedido novo nem e-mail.
-  if (p.tipo === 'politica') {
+  if (p.tipo === 'politica' || mudouAlcada) {
     await db.prepare(`UPDATE pedidos SET status = 'cancelado' WHERE id = ? AND status = 'aberto'`).bind(p.id).run();
     return { vigente: false, status: 'cancelado' };
   }
@@ -389,7 +393,7 @@ export async function assinaturaPolitica(
  */
 export async function registrarDecisao(db: D1Database, a: {
   pedido: PedidoRow; destId: string; status: 'aprovado' | 'ciente' | 'recusado'; ip: string | null; ua: string | null;
-  mfa: boolean; nome: string; motivo: string | null; assinar?: { papel: PapelAssinatura }; email?: string;
+  mfa: boolean; nome: string; motivo: string | null; assinar?: { papel: PapelAssinatura }; email?: string; userId?: string;
   canal?: Canal; tokenHash?: string;
 }): Promise<boolean> {
   const { pedido: p } = a;
@@ -411,7 +415,7 @@ export async function registrarDecisao(db: D1Database, a: {
   // Risco: aprovar o pedido É o aceite do risco residual, gravado no mesmo batch e só se a prova acabou de ser gravada.
   if (a.assinar && p.tipo === 'risco') {
     stmts.push(...stmtsDoAceite(db, {
-      projectId: p.project_id, riskId: p.ref_id, email: a.email ?? '', nome: a.nome, papel: a.assinar.papel, em: decididoEm,
+      projectId: p.project_id, riskId: p.ref_id, email: a.email ?? '', userId: a.userId ?? null, nome: a.nome, papel: a.assinar.papel, em: decididoEm,
       conteudoJson: p.conteudo_json, hash: p.hash, justificativa: null, pedidoId: p.id, ip: a.ip, ua: a.ua,
       guarda: { destId: a.destId, status: a.status, decididoEm },
     }));

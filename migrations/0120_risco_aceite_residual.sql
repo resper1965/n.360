@@ -14,7 +14,7 @@
 -- batem com o schema.sql (13 e 16 colunas), e anote `SELECT COUNT(*) FROM pedidos` e `SELECT COUNT(*) FROM pedido_destinatarios`.
 -- DEPOIS: as duas contagens iguais às de antes; `SELECT name FROM sqlite_master WHERE name IN ('pedido_prova_imutavel',
 -- 'pedido_dest_prova_imutavel', 'risco_aceite_imutavel', 'risco_aceite_do_projeto')` devolve 4 linhas; `PRAGMA table_info(risco_aceites)`
--- lista 22 colunas.
+-- lista 23 colunas.
 
 -- Aceite do risco residual (ISO/IEC 27001, 6.1.3 e). Um ato por linha, nunca apagado nem reescrito: o que se aceitou (o estado
 -- congelado do risco e o hash dele), quem aceitou, com qual alçada, quando (UTC) e por qual canal (direto, com senha, ou pedido).
@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS risco_aceites (
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     risk_id TEXT NOT NULL REFERENCES risks(id) ON DELETE CASCADE,
     aceito_por TEXT NOT NULL,
+    aceito_user_id TEXT,
     aceito_nome TEXT,
     papel TEXT NOT NULL CHECK (papel IN ('ceo', 'ciso')),
     aceito_em TEXT NOT NULL,
@@ -60,7 +61,7 @@ CREATE TRIGGER IF NOT EXISTS risco_aceite_imutavel
 BEFORE UPDATE ON risco_aceites
 WHEN OLD.situacao <> 'vigente' OR NEW.situacao = 'vigente'
   OR NEW.id IS NOT OLD.id OR NEW.project_id IS NOT OLD.project_id OR NEW.risk_id IS NOT OLD.risk_id
-  OR NEW.aceito_por IS NOT OLD.aceito_por OR NEW.aceito_nome IS NOT OLD.aceito_nome OR NEW.papel IS NOT OLD.papel
+  OR NEW.aceito_por IS NOT OLD.aceito_por OR NEW.aceito_user_id IS NOT OLD.aceito_user_id OR NEW.aceito_nome IS NOT OLD.aceito_nome OR NEW.papel IS NOT OLD.papel
   OR NEW.aceito_em IS NOT OLD.aceito_em OR NEW.nivel_residual IS NOT OLD.nivel_residual OR NEW.estrategia IS NOT OLD.estrategia
   OR NEW.controles_json IS NOT OLD.controles_json OR NEW.conteudo_json IS NOT OLD.conteudo_json OR NEW.hash IS NOT OLD.hash
   OR NEW.justificativa IS NOT OLD.justificativa OR NEW.pedido_id IS NOT OLD.pedido_id OR NEW.ip IS NOT OLD.ip

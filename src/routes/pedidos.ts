@@ -114,6 +114,10 @@ projectPedidosApp.post('/', async (c) => {
       if (risco.status === 'Accepted' || risco.status === 'Closed') return c.json({ error: 'Este risco já está aceito ou encerrado.' }, 409);
       if (!risco.residual_level) return c.json({ error: 'Avalie o risco residual (impacto e probabilidade residuais) antes de pedir o aceite.' }, 400);
       const alcada = (await alcadasDoProjeto(c.env.DB, projectId))[risco.residual_level] ?? 'ceo';
+      // Um destinatário: o primeiro "aprovar" é o aceite e fecha o risco; um segundo destinatário ficaria pendente para sempre.
+      if (new Set(b.destinatarios.map((d) => d.email.trim().toLowerCase())).size !== 1) {
+        return c.json({ error: 'O pedido de aceite de risco vai a uma pessoa só: quem tem a alçada e vai aceitar.' }, 400);
+      }
       if (b.papel_exigido !== alcada) {
         return c.json({ error: `O aceite de risco residual ${risco.residual_level} é da ${alcada === 'ceo' ? 'Direção (CEO)' : 'Liderança do SGSI'}: peça com esse papel.`, alcada }, 400);
       }
@@ -289,7 +293,7 @@ export async function decidirPedido(
   const ua = c.req.header('User-Agent') || null;
   const motivo = decisao === 'recusar' ? a.motivo ?? null : null;
   const pegou = await registrarDecisao(db, {
-    pedido, destId: dest.id, status: novoStatus, ip, ua, mfa: dbUser.totp_enabled === 1, nome, motivo, assinar, email: user.email,
+    pedido, destId: dest.id, status: novoStatus, ip, ua, mfa: dbUser.totp_enabled === 1, nome, motivo, assinar, email: user.email, userId: user.id,
   });
   if (!pegou) {
     // Algo mudou entre a conferência e a gravação (documento, pedido ou outra decisão): nada foi

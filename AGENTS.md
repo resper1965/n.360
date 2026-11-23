@@ -822,8 +822,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`risco_alcadas`, Direcao por padrao; muda o `org_admin` do proprio projeto em `PUT /projects/:id/risco-alcadas`), ou aprovando o pedido
   `tipo = 'risco'` em Minhas aprovacoes (fora do lote). A prova e `risco_aceites` (estado congelado `COLUNAS_RISCO` + hash, aceitante, alcada,
   UTC, justificativa, pedido; gatilho `risco_aceite_imutavel`). Mudar o que foi aceito (notas, residual, estrategia, plano, controle) invalida
-  sozinho (`conferirAceite`) e devolve o risco ao status de antes; aceite com senha nao sai por status (409): so quem aceitou revoga, com
-  motivo. Lista com `aceite` (situacao aceito/pendente/revogado, quem, quando, `pode_aceitar`), CSV e pacote de auditoria (`risk_acceptances`)
+  sozinho (`conferirAceite`) e devolve o risco ao status de antes; aceite com senha nao sai por status (409): so quem aceitou (a conta,
+  `aceito_user_id`) revoga, com a senha e um motivo. A alcada e conferida de novo dentro do INSERT; o pedido de aceite vai a uma pessoa so e e
+  cancelado (nao substituido) se o residual passar a outra alcada; risco que ja teve aceite nao se exclui (409), para a prova nao cair na cascata. Lista com `aceite` (situacao aceito/pendente/revogado, quem, quando, `pode_aceitar`), CSV e pacote de auditoria (`risk_acceptances`)
   com o aceite; servico `src/services/aceite-risco.ts`, teste `test/risco-aceite-residual.test.ts`. O aceite antigo (sem linha em
   `risco_aceites`) segue como estava. (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
   `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`; o documento versionado so vale VIGENTE, `SQL_VERSIONADO_VALE`, como o em arquivo so publicado); o indice de confianca (calculado na leitura na lista do n.iso e na ficha), a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/

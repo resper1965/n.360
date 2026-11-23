@@ -30,6 +30,9 @@ export function linhaDeAceite(r) {
 /** O texto da coluna "Aceite" da lista: quem e quando, ou a situação. */
 export const colunaDeAceite = (r) => linhaDeAceite(r) || '<span class="t-dim">Aceite pendente</span>';
 
+// Tudo o que entra no hash do aceite aparece na janela antes da senha (COLUNAS_RISCO em src/services/pedidos.ts).
+const campo = (rotulo, valor) => `<div><dt class="rotulo-campo">${escapeHTML(rotulo)}</dt><dd>${escapeHTML(String(valor))}</dd></div>`;
+
 // Guarda do modal aberto: o caminho do risco e o que fazer depois (recarregar a tela de quem chamou).
 let ABERTO = null;
 
@@ -40,11 +43,13 @@ export function aceitarRisco(api, caminho, r, aoConcluir) {
         <div class="modal-header"><span class="modal-title">Aceitar risco residual</span></div>
         <form id="ar-form" data-action-submit="confirmarAceiteRisco" data-prevent novalidate>
             <p class="mb-3">${escapeHTML(r.threat || '')} (${escapeHTML(r.asset || '')})</p>
-            <dl class="grid-2 gap-2 mb-3">
-                <div><dt class="rotulo-campo">Nível residual</dt><dd>${escapeHTML(rotuloDe('', r.residual_level) || '—')}</dd></div>
-                <div><dt class="rotulo-campo">Estratégia de tratamento</dt><dd>${escapeHTML(rotuloDe('', r.treatment) || '—')}</dd></div>
-                <div><dt class="rotulo-campo">Controle vinculado</dt><dd>${escapeHTML(r.control_title || r.control_id || 'Nenhum')}</dd></div>
-                <div><dt class="rotulo-campo">Alçada</dt><dd>${escapeHTML(PAPEL[r.aceite?.alcada] || '—')}</dd></div>
+            <dl class="grid-2 gap-2 mb-3" id="ar-estado">
+                ${campo('Nível do risco', `${rotuloDe('', r.risk_level) || '—'} (impacto ${r.impact ?? '—'}, probabilidade ${r.probability ?? '—'})`)}
+                ${campo('Nível residual', `${rotuloDe('', r.residual_level) || '—'} (impacto ${r.residual_impact ?? '—'}, probabilidade ${r.residual_probability ?? '—'})`)}
+                ${campo('Estratégia de tratamento', rotuloDe('', r.treatment) || '—')}
+                ${campo('Controle vinculado', r.control_title || r.control_id || 'Nenhum')}
+                ${campo('Plano de tratamento', r.treatment_plan || '—')}
+                ${campo('Alçada', PAPEL[r.aceite?.alcada] || '—')}
             </dl>
             <p class="t-dim mb-3">O aceite fica registrado em seu nome, com data e hora, e congela este estado. Se o nível residual, a estratégia ou o controle mudarem, o aceite cai e o risco volta a aceite pendente.</p>
             <div class="form-group">
@@ -88,6 +93,10 @@ export function revogarAceiteRisco(api, caminho, aoConcluir) {
                 <label class="form-label" for="rv-motivo">Motivo</label>
                 <textarea class="form-input" id="rv-motivo" rows="3" maxlength="2000" required aria-required="true"></textarea>
             </div>
+            <div class="form-group">
+                <label class="form-label" for="rv-senha">Sua senha, para registrar a revogação</label>
+                <input class="form-input" id="rv-senha" type="password" autocomplete="current-password">
+            </div>
             <p class="login-error" id="rv-erro" role="alert" aria-live="polite"></p>
             <div class="acoes-rodape">
                 <button type="button" class="btn btn-secondary" data-action="forceCloseModal">Cancelar</button>
@@ -102,8 +111,10 @@ window.confirmarRevogarAceite = async function () {
     const erro = el('rv-erro');
     erro.textContent = '';
     if (motivo.length < 5) { erro.textContent = 'Informe o motivo da revogação'; el('rv-motivo').focus(); return; }
+    const senha = el('rv-senha').value;
+    if (!senha) { erro.textContent = 'Informe a sua senha'; el('rv-senha').focus(); return; }
     const { api, caminho, aoConcluir } = ABERTO || {};
-    try { await api('POST', `${caminho}/aceite/revogar`, { motivo }); } catch (e) { erro.textContent = e.message; return; }
+    try { await api('POST', `${caminho}/aceite/revogar`, { motivo, senha }); } catch (e) { erro.textContent = e.message; return; }
     forceCloseModal();
     if (typeof aoConcluir === 'function') await aoConcluir('Aceite revogado.');
 };

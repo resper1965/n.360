@@ -60,6 +60,9 @@ describe('n.iso: aceite do risco residual', () => {
         expect(b.classList.contains('btn-primary')).toBe(false);
         b.click();
         expect(document.getElementById('modal-content').textContent).toContain('Direção (CEO)');
+        // Tudo o que entra no hash aparece antes da senha: notas inerentes e residuais e o plano.
+        const estado = document.getElementById('ar-estado').textContent;
+        for (const t of ['impacto 3, probabilidade 3', 'Plano de tratamento']) expect(estado).toContain(t);
         await enviar('ar-form', { 'ar-senha': '', 'ar-just': '' });
         expect(document.getElementById('ar-erro').textContent).toBe('Informe a sua senha');
         await enviar('ar-form', { 'ar-senha': 'segredo', 'ar-just': 'Residual baixo' });
@@ -80,11 +83,13 @@ describe('n.iso: aceite do risco residual', () => {
         expect(document.getElementById('modal-content').textContent).toContain('Aceito por Carla Ceo em 20/11/2026');
         expect(botao('Aceitar risco residual')).toBeUndefined();
         botao('Revogar aceite').click();
-        await enviar('rv-form', { 'rv-motivo': '' });
+        await enviar('rv-form', { 'rv-motivo': '', 'rv-senha': '' });
         expect(document.getElementById('rv-erro').textContent).toBe('Informe o motivo da revogação');
-        await enviar('rv-form', { 'rv-motivo': 'Falha no backup' });
+        await enviar('rv-form', { 'rv-motivo': 'Falha no backup', 'rv-senha': '' });
+        expect(document.getElementById('rv-erro').textContent).toBe('Informe a sua senha');
+        await enviar('rv-form', { 'rv-motivo': 'Falha no backup', 'rv-senha': 'segredo' });
         await esperar(() => reqs.some((r) => r.k.startsWith('POST')));
-        expect(reqs.filter((r) => r.k.startsWith('POST'))).toEqual([{ k: 'POST /api/v1/risks/k1/aceite/revogar', corpo: { motivo: 'Falha no backup' } }]);
+        expect(reqs.filter((r) => r.k.startsWith('POST'))).toEqual([{ k: 'POST /api/v1/risks/k1/aceite/revogar', corpo: { motivo: 'Falha no backup', senha: 'segredo' } }]);
     });
 
     it('aceite antigo diz que foi registrado à mão; revogado mostra quem revogou', () => {

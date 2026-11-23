@@ -240,8 +240,9 @@ export const riscoAceiteSchema = z.object({
   justificativa: z.string().trim().max(2000).nullable().optional(),
 }).strict();
 
-// Revogar o próprio aceite: motivo obrigatório.
+// Revogar o próprio aceite: a senha de quem aceitou e o motivo, obrigatórios.
 export const riscoRevogarAceiteSchema = z.object({
+  senha: z.string().min(1).max(200),
   motivo: z.string().trim().min(5).max(2000),
 }).strict();
 
