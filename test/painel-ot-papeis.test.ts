@@ -49,7 +49,7 @@ describe('?modulo=ot por papel', () => {
   });
   it('consultor: o bloco da equipe; no Início do n.360 nenhum campo novo (oráculo do inventário)', async () => {
     const d = await ot(cons);
-    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'fazer', 'numeros', 'passos', 'por_site', 'saude']);
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'desvios', 'fazer', 'fornecedores', 'numeros', 'passos', 'por_site', 'riscos', 'saude', 'vencimentos']); // quadros do PR3 e do PR4 (painel-ot-quadros)
     const g = await n360(cons);
     expect(Object.keys(g.modulos.ot).sort()).toEqual(['cobertura', 'comecando', 'fazer', 'numeros', 'passos', 'riscos', 'saude', 'vencimentos']);
   });
@@ -64,7 +64,8 @@ describe('?modulo=ot por papel', () => {
   });
   it('leitor (client): só a frase; nada de desvio, site, sonda ou "O que fazer" (decisão 3)', async () => {
     const d = await ot(leitor);
-    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'saude']);
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'saude']);
+    expect(Object.keys(d.modulos.ot.conformidade)).toEqual(['resumo']); // PR3: só o resumo da RO-CB em números
     expect(JSON.stringify(d.modulos.ot)).not.toMatch(/desvio|SE Norte|sonda/i);
   });
   it('leitor (client) no Início do n.360 (sem ?modulo): igual a hoje, frase e números', async () => {
@@ -113,11 +114,12 @@ describe('?modulo=ot: leitor com todos os sites em operação; admin direto Gest
     leitorB = await sessionFor({ id: 'u-lb', email: 'lb@cliente.teste', role: 'client', client_project_id: 'proj-b' });
     adminDireto = await sessionFor({ id: 'u-ad', email: 'ad@cliente.teste', role: 'consultoria_admin', org_id: 'org_dir' });
   });
-  it('leitor (client): modulos.ot é só {saude, comecando}, sem desvio, mesmo com todos os sites em operação e desvio aberto (decisão 3)', async () => {
+  it('leitor (client): modulos.ot é só {saude, comecando, conformidade.resumo}, sem desvio, mesmo com todos os sites em operação e desvio aberto (decisão 3)', async () => {
     const r = await chamar(leitorB, '/api/v1/projects/proj-b/painel?modulo=ot');
     expect(r.status).toBe(200);
     const d = await r.json() as any;
-    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'saude']);
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'saude']);
+    expect(Object.keys(d.modulos.ot.conformidade)).toEqual(['resumo']); // PR3: só o resumo da RO-CB em números
     expect(JSON.stringify(d.modulos.ot)).not.toMatch(/desvio|SE Oeste|sonda/i);
     expect(JSON.stringify(d.programa.etapas.ot)).toMatch(/Tratar/); // o fixture chega à etapa Tratar (a exceção registrada)
   });
@@ -125,7 +127,7 @@ describe('?modulo=ot: leitor com todos os sites em operação; admin direto Gest
     const r = await chamar(adminDireto, '/api/v1/projects/proj-d/painel?modulo=ot');
     expect(r.status).toBe(200);
     const d = await r.json() as any;
-    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'fazer', 'numeros', 'passos', 'por_site', 'saude']);
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'conformidade', 'desvios', 'fazer', 'fornecedores', 'numeros', 'passos', 'por_site', 'riscos', 'saude', 'vencimentos']); // quadros do PR3 e do PR4 (painel-ot-quadros)
     expect(d.modulos.ot.fazer.map((i: any) => i.texto)).toEqual(expect.arrayContaining(['1 desvio aberto', '1 requisito com revisão vencida']));
   });
 });
