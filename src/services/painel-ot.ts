@@ -5,6 +5,7 @@ import { proximoPassoDe, sitesComZonas411, type Fase } from './ot-fase';
 import { TEXTO_OT, type SiteNoPrograma } from './programa';
 import { situacaoSensor, type Cred } from './ot-sensor';
 import type { ItemFazer, Passo, Proximo, Saude } from './painel';
+import { quadrosOt } from './painel-ot-quadros';
 
 /**
  * Bloco do n.ot no painel de entrada (onda 0, spec 2026-11-14-onda0). Só contagem de pendência e nome de site: nunca IP, MAC,
@@ -23,7 +24,7 @@ const plural = (q: number, um: string, varios: string) => `${q} ${q === 1 ? um :
 const exemplos = (nomes: string[]) => nomes.slice(0, 3).join(', ') + (nomes.length > 3 ? ` e mais ${nomes.length - 3}` : '');
 const PIOR_SONDA: EstadoSonda[] = ['parada', 'atrasada', 'em_dia'];
 
-export async function blocoOt(db: D1Database, projectId: string, ator: AtorPainelOt, dia: string, agora: Date) {
+export async function blocoOt(db: D1Database, projectId: string, ator: AtorPainelOt, dia: string, agora: Date, detalhe = false) {
   const sites = await sitesPermitidos(db, ator, projectId);
   const em7 = new Date(Date.parse(dia) + 7 * DIA_MS).toISOString().slice(0, 10);
   // Mesmo critério da tela do módulo (ot-inicio.js, pendenciasDoPapel). Gestor: org_admin do projeto ou o admin direto designado Gestor ARCiber. Aprova: org_admin, consultor e admin direto; a tela tira o consultoria_admin
@@ -102,9 +103,15 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
       proximo: p.proximo_passo === 'em_operacao' && p.desvios_abertos > 0 ? 'Tratar os desvios abertos' : TEXTO_OT[p.proximo_passo],
       desvios_abertos: p.desvios_abertos, revalidar_em: mRev.get(s.id)?.em ?? null, obra_ate: s.obra_ate, ...(veSondas ? { sonda: sondaDo(s.id) } : {}) };
   });
+  // A credencial válida que vence por último, por sonda dos sites permitidos (a de `vencendo` em ot-sensor.ts).
+  const credenciais = sondasLidas.flatMap((s) => { const v = cs.filter((k) => k.sensor_id === s.id).map((k) => k.expira_em).sort(); return v.length ? [{ site_id: s.site_id, expira_em: v[v.length - 1] }] : []; });
+  // Quadros (PR3): só no ?modulo=ot e não para o técnico (são da organização); um db.batch + o de conformidadePorSite, nunca por site.
+  const quadros = detalhe && papel !== 'tecnico'
+    ? await quadrosOt(db, projectId, dia, { sites, lista, revalidar: new Map(lista.map((s) => [s.id, mRev.get(s.id)?.em ?? null])), credenciais, gestor, veSondas })
+    : null;
   const comecando = lista.length === 0;
   return {
-    comecando, papel, itens, sitesPrograma, porSite, proximo: null as Proximo,
+    comecando, papel, itens, sitesPrograma, porSite, proximo: (quadros?.proximo ?? null) as Proximo, quadros,
     // Marco do programa (onda 4, decisão 8): a primeira base aprovada entre os sites DESTA pessoa (P0-4). O painel não o devolve.
     marco: lista.map((s) => s.base_aprovada_em).filter((d): d is string => !!d).sort()[0] ?? null,
     numeros: [[`${lista.filter((s) => s.fase === 'em_operacao').length} de ${lista.length}`, 'sites em operação'], [String(c.desvios), 'desvios abertos']] as [string, string][],
@@ -121,8 +128,10 @@ export type BlocoOt = Awaited<ReturnType<typeof blocoOt>>;
  * números deles (P0-4); leitor: a frase (nada de desvio, site ou sonda).
  */
 export function respostaDoOt(b: BlocoOt, saude: Saude) {
-  if (b.papel === 'leitor') return { saude, comecando: b.comecando };
+  const q = b.quadros;
+  // Leitor (decisão 3): a frase e o resumo da RO-CB em números; nada de desvio, site, sonda ou item por item.
+  if (b.papel === 'leitor') return { saude, comecando: b.comecando, ...(q ? { conformidade: { resumo: q.conformidade.resumo } } : {}) };
   const base = { saude, numeros: b.numeros, comecando: b.comecando, por_site: b.porSite };
   if (b.papel === 'tecnico') return base;
-  return { ...base, fazer: b.itens, passos: b.passos };
+  return { ...base, fazer: b.itens, passos: b.passos, ...(q ? { conformidade: q.conformidade, desvios: q.desvios, vencimentos: q.vencimentos } : {}) };
 }
