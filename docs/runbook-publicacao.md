@@ -4,9 +4,21 @@ Como o código sai da `main` para `https://n360.ness.com.br`, o que fazer quando
 roda, e o que muda quando o repositório ficar privado. Incidente em produção é o
 [`runbook-incidente.md`](runbook-incidente.md); restauração de banco, o [`backups/README.md`](../backups/README.md).
 
-## 0. Portão local e deploy pelo Workers Builds (vigente desde 16/10/2026)
+## 0. O que vale hoje (conferido em 23/11/2026 pela API do GitHub)
 
-**Desde 16/10/2026 o portão de PR é LOCAL.** O build de branch do Workers Builds levava ~14 min por PR (e de novo a cada merge, pela
+- O repositório é **público** (`gh api repos/resper1965/n.360 --jq .visibility`).
+- O deploy da `main` é o workflow **Deploy** (`.github/workflows/deploy.yml`, ativo), disparado pelo merge; ele **recusa publicar com
+  migration pendente**. Passo a passo na seção 1.
+- Migration: workflow manual **Apply DB migrations** (`.github/workflows/db-migrate.yml`; digitar `APLICAR`; faz o backup antes) ou pelo
+  terminal, com `npm run db:backup` antes. Seção 2.
+- O ruleset vivo é o **25554528** ("main protegida", `gh api repos/resper1965/n.360/rulesets/25554528`): exige PR, branch em dia e só o
+  status **`gate/local`**, gravado pelo portão local abaixo; bloqueia deleção e force-push.
+- Workflows ativos (`gh api repos/resper1965/n.360/actions/workflows`): Deploy, Apply DB migrations, Sonda externa e Dependabot. Os
+  demais (`ci.yml`, `codeql.yml`, `slo.yml`, `db-backup.yml`, `schema-drift.yml`, `conferencia-dados.yml`) estão `disabled_manually`.
+- **Workers Builds da Cloudflare: não confirmado.** Nem este repositório nem a API do GitHub dizem se o Worker `niso` ainda está ligado
+  ao Workers Builds e se ele também publica a `main`. Confira no painel da Cloudflare antes de afirmar qualquer uma das duas coisas.
+
+**Portão local (desde 16/10/2026).** O build de branch do Workers Builds levava ~14 min por PR (e de novo a cada merge, pela
 regra de branch em dia), falhava sem log legível pela linha de comando e nunca rodava o E2E. Agora:
 
 - `bash scripts/ci/ship.sh <numero-do-pr>` faz tudo: atualiza o PR com a `main`, roda `scripts/ci/gate.sh` num worktree temporário no
@@ -16,16 +28,17 @@ regra de branch em dia), falhava sem log legível pela linha de comando e nunca 
   (`gh api .../statuses/<sha>`). O log inteiro fica em `$TEMP/gate-<sha>.log`. `GATE_SEM_STATUS=1` roda sem marcar o commit.
 - O ruleset exige PR, branch em dia e o status **`gate/local`** (no lugar do check do Workers Builds). O status vale o que vale quem tem
   o token do GitHub: num repositório de uma pessoa só é o mesmo nível de confiança de antes, com o E2E a mais.
-- Na Cloudflare, os **builds de branch ficam desligados** (Settings > Builds > Branch control). Só a `main` builda: `publicar.sh` (tipos,
-  build do frontend, recusa com migration pendente) e o deploy, em 2 a 3 min.
-- Migration pendente: aplique antes do merge (backup + `wrangler d1 migrations apply`), como na seção abaixo.
+- Migration pendente: backup antes, sempre; depois o terminal antes do merge ou o *Apply DB migrations* depois dele (seção 2).
 
-O que segue descreve o Workers Builds como estava de 15 a 16/10/2026; a coluna "PR" da tabela deixou de valer.
+### Histórico: Workers Builds de 15 a 16/10/2026
 
-O repositório ficou privado em 15/10/2026 e o dono decidiu não pagar minutos do GitHub Actions. O portão de PR e o
-deploy passaram para o **Workers Builds** da Cloudflare, ligado ao Worker `niso`. As seções 1 e 2 abaixo descrevem
-o fluxo antigo pelo Actions; os workflows ficaram desabilitados (`gh workflow disable`), não apagados, e podem
-voltar se o repositório voltar a ser público ou se o Actions passar a ser pago.
+O que segue descreve o arranjo de 15 e 16/10/2026 e **não** é o estado conferido de hoje (acima). Em 16/10 a coluna "PR" da tabela
+deixou de valer e os builds de branch foram desligados na Cloudflare (Settings > Builds > Branch control); se a `main` ainda builda e
+publica por lá é o "não confirmado" acima.
+
+Em 15/10/2026 o repositório ficou privado (hoje é público) e o dono decidiu não pagar minutos do GitHub Actions. O portão de PR e o
+deploy passaram para o **Workers Builds** da Cloudflare, ligado ao Worker `niso`. Os workflows foram desabilitados
+(`gh workflow disable`), não apagados; hoje Deploy e Apply DB migrations estão ativos de novo e as seções 1 e 2 descrevem o que vale.
 
 | Momento | O que roda | Onde está |
 |---|---|---|
@@ -33,14 +46,14 @@ voltar se o repositório voltar a ser público ou se o Actions passar a ser pago
 | Mesmo push, depois do build | preview command que **não publica nada**: `echo "Verificação concluída; esta build não publica Preview"` | configuração do Worker |
 | Merge na `main` | build command `bash scripts/ci/build.sh`, que chama `publicar.sh` (`tsc`, build do frontend, **recusa com migration pendente**) e deploy command `npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA` | [`scripts/ci/publicar.sh`](../scripts/ci/publicar.sh) |
 
-O Workers Builds publica o resultado de cada build como **check run** no commit do GitHub. O ruleset "main protegida"
-exige esse check (no lugar de `test` e `e2e`), PR e branch em dia com a base.
+O Workers Builds publica o resultado de cada build como **check run** no commit do GitHub. Naquele arranjo o ruleset "main protegida"
+exigia esse check (no lugar de `test` e `e2e`); hoje exige só `gate/local` (seção 0).
 
 **Por que o preview command não publica.** O padrão do Workers Builds é `npx wrangler preview`, que cria uma Preview
 do Worker. As Previews do `niso` usariam os bindings configurados (D1, KV, R2) e serviriam código de branch sobre
 dado real. O portão de PR só precisa dos testes, que rodam no build command.
 
-**Migration.** O workflow *Apply DB migrations* também deixou de rodar. A ordem passa a ser: backup
+**Migration.** Naquele arranjo o workflow *Apply DB migrations* também deixou de rodar (hoje está ativo, seção 2). A ordem era: backup
 (`npx wrangler d1 export niso-db --remote --output <arquivo fora do repositório>`), aplicar
 (`npx wrangler d1 migrations apply niso-db --remote`), conferir com `PRAGMA table_info`, e só então mergear. Se a
 build da `main` falhar por migration pendente, aplicar e usar *Retry build* no painel.
@@ -72,11 +85,11 @@ acima continua obrigatório.
 O Workers Builds usa **um só build command** para a `main` e para as outras branches; por isso
 [`scripts/ci/build.sh`](../scripts/ci/build.sh) escolhe o script pela variável `WORKERS_CI_BRANCH`.
 
-## 1. Publicação normal (pelo Actions; suspensa desde 15/10/2026)
+## 1. Publicação normal (pelo Actions)
 
-1. PR para a `main`. O CI (`.github/workflows/ci.yml`) roda **só em `pull_request`**: `tsc`, a suíte do Worker e a
-   do frontend com cobertura, o build, o E2E em Chromium e o `npm audit` (informativo). Push novo no PR cancela a
-   execução anterior. O ruleset exige os checks **`test`** e **`e2e`** verdes, com a branch em dia com a base.
+1. PR para a `main` e portão local: `bash scripts/ci/ship.sh <PR>` roda o `scripts/ci/gate.sh` e grava o status **`gate/local`**,
+   que é o único que o ruleset exige (seção 0), com a branch em dia com a base. O CI do Actions (`.github/workflows/ci.yml`:
+   `tsc`, suítes com cobertura, build, E2E e `npm audit`, só em `pull_request`) está `disabled_manually`.
 2. Squash-merge na `main` dispara o **Deploy** (`deploy.yml`): `npm ci`, `tsc --noEmit`, build do frontend,
    **recusa se houver migration pendente**, `wrangler deploy --var VERSAO_SHA:<sha>`. A suíte **não** roda de
    novo aqui: ela já passou no PR, sobre a mesma árvore (branch em dia + squash).
@@ -185,8 +198,8 @@ Nada disto está em código: é configuração do GitHub, do dono.
 
 1. **Plano**: conta com rulesets em repositório privado (GitHub Pro para conta pessoal, ou Team para organização).
    Sem ele o ruleset "main protegida" deixa de valer e a `main` aceita push direto.
-2. **Ruleset**: depois de mudar a visibilidade, conferir `gh api repos/resper1965/n.360/rulesets/20312002`. Continuar
-   exigindo **`test` e `e2e`**, PR, branch em dia, sem deleção nem force-push. **Não** exigir `CodeQL`.
+2. **Ruleset**: depois de mudar a visibilidade, conferir `gh api repos/resper1965/n.360/rulesets/25554528`. Continuar
+   exigindo **`gate/local`**, PR, branch em dia, sem deleção nem force-push. **Não** exigir `CodeQL`.
 3. **CodeQL**: nada a fazer no workflow (ele se pula). Se o *default setup* de code scanning estiver ligado em
    *Settings → Code security*, desligar.
 4. **Secret scanning e push protection**: ligar em *Settings → Code security* se o plano oferecer em privado.

@@ -73,10 +73,12 @@ SSO, agente nem sessão aberta. Apagar de verdade é `DELETE /api/v1/users/:id?d
 O CAMINHO decide a casca (`frontend/src/produto.js`); o servidor entrega o mesmo `login.html`
 para todos.
 
-**Início do n.360 (`/`).** Um cartão por módulo habilitado e o grupo **Conta e acessos**:
+**Início do n.360 (`/`).** A lista dos projetos que a pessoa alcança, uma linha por projeto com
+"Ver situação" e "Abrir no n.x" (que leva a `/iso`, `/privacy` ou `/ot`), e o grupo **Conta e acessos**:
 Projetos (com o cartão Produtos), Usuários, Organizações, Segurança do projeto (SSO, SCIM e
 política; só a equipe), Chaves de API e Conectar agente. Nos módulos, o rodapé "Conta e acessos
-(n.360)" leva de volta para lá. Quem tem um módulo só entra direto nele.
+(n.360)" leva de volta para lá. Ninguém é redirecionado: o Início não escolhe projeto e entrar num
+módulo é só pelo clique em "Abrir no n.x".
 
 **n.iso (`/iso`).** Dashboard; Comercial (Leads, Levantamentos, Propostas, Catálogo,
 Configuração comercial); Implementação (Jornada, com a aba Prontidão; SoA; Governança); Operação (Partes
@@ -90,9 +92,9 @@ Requisitos LGPD/ANPD); LIA e consentimentos ficam no tratamento e no titular; **
 de titulares, incidentes e consentimentos, e uma pessoa da equipe revisa item a item antes de
 gravar).
 
-**n.ot (`/ot`).** Uma tela em abas: catálogo da rotina, inventário (sites, zonas, ativos),
-fluxos, coleta em lotes, levantamento (entrevista, visita, documento, sensor de rede), saídas e
-acessos e agente. IP e MAC cifrados e mascarados por papel; revelar e exportar pedem o segundo fator.
+**n.ot (`/ot`).** Uma tela com subtelas no menu: Início, Sites e Site (Modo projeto: Levantamento,
+Revisão e aprovação, Base; Modo operação: Saúde da coleta, Desvios, Inventário), Assessment
+RO-CB.BR.01, Relatórios, Fornecedores e Acessos e sondas (só quem edita). IP e MAC cifrados e mascarados por papel; revelar e exportar pedem o segundo fator.
 
 **Compartilhado pelo n.iso e pelo n.privacy.** Partes, Documentos, Evidências, Treinamento, Governança, ROPA e
 DPIA, Assistente e a trilha de auditoria.
@@ -148,7 +150,7 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 | `frontend/public/` | Páginas públicas copiadas como estão: `politicas.html`, `auditor.html`, `homologacao.html`, `solicitacao.html`, `proposta.html`, `_headers`. |
 | `mcp-server-niso/` | Servidor MCP local. |
 | `agent-skills/` | Fonte das skills do agente (`npm run skills:gerar`). |
-| `migrations/` | 98 arquivos (2026-11-05: `ls migrations/*.sql \| wc -l`), última 0098 (`ls migrations/*.sql \| tail -1`). |
+| `migrations/` | 119 arquivos (2026-11-23: `ls migrations/*.sql \| wc -l`), última 0118 (`ls migrations/*.sql \| tail -1`); estado e particularidades em [`migrations/README.md`](migrations/README.md). |
 | `test/` | 424 arquivos de teste do backend (2026-11-05: `ls test/*.test.ts \| wc -l`). |
 | `frontend/test/`, `frontend/e2e/` | 178 testes em jsdom (2026-11-05: `ls frontend/test/*.test.js \| wc -l`) e 15 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
 | `docs/` | Runbook, specs, diagnóstico de design e decisões ([índice](docs/README.md)). |
@@ -191,7 +193,7 @@ Catracas que só deixam o número andar para um lado:
 |---|---|
 | `test/any-catraca.test.ts` | `any` em `src/` não sobe (e, se descer, o `TETO` desce junto) |
 | `test/colunas-catraca.test.ts` | Coluna escrita pelo código (INSERT/UPDATE) existe no schema aplicado num D1 real |
-| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px` (o 10px é legado tolerado; o sistema é quadrado, ver [`design.md`](design.md)), `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
+| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`, `0px` ou `var(--radius)` (o sistema é quadrado, ver [`design.md`](design.md)), `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
 | `test/sem-dado-de-cliente.test.ts` | Nome, e-mail ou identificador de cliente real no repositório |
 | `vitest.config.mts` (cobertura) | Piso de cobertura do backend |
 
@@ -202,22 +204,24 @@ particularidades (0011 neutralizada, buraco 0031–0033) e o estado em produçã
 
 ## Publicar
 
-Desde 16/10/2026 o portão é **local** e o deploy é do **Workers Builds** da Cloudflare; os workflows do
-GitHub Actions estão desligados (`disabled_manually`), salvo a sonda externa (manual) e o Dependabot.
-Passo a passo em [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md), seção 0.
+O repositório é **público**. O portão de PR é **local** (desde 16/10/2026) e o deploy da `main` é o workflow
+`deploy.yml` do GitHub Actions. Ativos no Actions (`gh api repos/resper1965/n.360/actions/workflows`, 23/11/2026):
+Deploy, Apply DB migrations, Sonda externa e Dependabot; os demais estão `disabled_manually`. Se o Workers Builds
+da Cloudflare também publica: **não confirmado**. Passo a passo em [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md), seção 0.
 
 1. Branch a partir da `main`, PR.
 2. `bash scripts/ci/ship.sh <PR>`: atualiza o PR com a `main`, roda `scripts/ci/gate.sh` (tipos, build e
    testes do frontend, build do MCP, testes do backend e E2E), grava o status `gate/local`, faz o squash-merge
-   e espera o `/health` mostrar o SHA. O ruleset exige PR, branch em dia e esse status.
-3. Com migration nova, **antes do merge** e só com o "sim" do dono:
+   e espera o `/health` mostrar o SHA. O ruleset (25554528) exige PR, branch em dia e só esse status.
+3. Com migration nova, só com o "sim" do dono e sempre com backup antes: pelo terminal, **antes do merge**,
 
    ```bash
    npm run db:backup
    npx wrangler d1 migrations apply niso-db --remote
    ```
 
-   O build da `main` (`scripts/ci/publicar.sh`) **recusa publicar com migration pendente**.
+   ou, depois do merge, pelo workflow manual *Apply DB migrations* (`db-migrate.yml`; digitar `APLICAR`; faz o
+   backup antes) e em seguida o *Deploy*. O `deploy.yml` **recusa publicar com migration pendente**.
 4. Conferir o que está no ar: `curl -s https://n360.ness.com.br/health` devolve o SHA do commit
    publicado (`version`) e o `app_url`.
 
@@ -231,7 +235,8 @@ Bindings em `wrangler.jsonc` (`grep '"binding"' wrangler.jsonc`): `DB`, `SESSION
 `STORAGE`, `TRILHA`, `AI`, `ANALYTICS`, `CF_VERSION_METADATA`, `ASSETS`.
 
 Variáveis públicas, versionadas: `ENVIRONMENT`, `APP_URL`, `EXPORT_PUBLIC_KEY`,
-`TURNSTILE_SITE_KEY`; opcionais `CF_ACCOUNT_ID` e `AI_GATEWAY_ID`.
+`TURNSTILE_SITE_KEY`, `COMERCIAL_ATIVO` (só `"true"` liga a área comercial; hoje `"false"`) e `ALERTA_EMAIL`
+(destino dos alertas da sonda interna; sem ela, só o log); opcionais `CF_ACCOUNT_ID` e `AI_GATEWAY_ID`.
 
 Segredos (`npx wrangler secret put <NOME>`; só o nome aqui, nunca o valor):
 
@@ -242,6 +247,8 @@ Segredos (`npx wrangler secret put <NOME>`; só o nome aqui, nunca o valor):
 | `SETUP_KEY` | A rota de criação do primeiro usuário fica desligada. |
 | `RESEND_API_KEY` | E-mail não sai. |
 | `EXPORT_SIGNING_KEY` | Export de portabilidade sai sem assinatura. |
+| `OT_INVENTARIO_KEY` e `OT_INVENTARIO_HMAC_KEY` | As rotas de ativos do n.ot respondem 503 (cifra e HMAC do IP/MAC do inventário, `src/services/ot-cifra.ts`). Trocar a de HMAC quebra o dedupe. |
+| `CF_ANALYTICS_TOKEN` | O SLO não é medido (`src/services/slo.ts`): só o log, sem e-mail. Token só de leitura de Analytics. |
 
 ## Documentação
 

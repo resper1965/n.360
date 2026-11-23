@@ -10,6 +10,9 @@ Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
 `CHANGELOG.md` — nao acrescente narrativa de entrega aqui, ela envelhece e
 passa a mentir para o proximo agente.
 
+Convencao de escrita: AGENTS.md sem acentos, exceto em literal de codigo, de API ou de banco, que fica igual ao
+codigo (mensagem de erro, nota gravada no banco, texto comparado num `WHERE` ou numa sonda).
+
 ## Regra numero um: nao afirme sem evidencia
 
 Em 2026-08-03, tres resumos diferentes afirmaram que PRs estavam mergeados e
@@ -47,7 +50,7 @@ Entao:
   Codigo atual devolve o envelope completo:
 
   ```json
-  {"error":"Payload invalido","details":[
+  {"error":"Payload inválido","details":[
     {"path":"email","message":"Invalid input: expected string, received undefined"},
     {"path":"password","message":"Invalid input: expected string, received undefined"}]}
   ```
@@ -81,20 +84,24 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   sob `/api/v1/projects/:projectId/ot/…`: catalogo RO-CB.BR.01 Rev.00 (`GET …/ot/requisitos`), inventario (sites, zonas, ativos,
   fluxos, acesso por site), coleta em lotes, revelar e conformidade em `src/routes/ot.ts`; indicadores, exportacao e IA em
   `src/routes/ot-saidas.ts`.
+  A spec-mae do n.ot (`2026-10-30-n-ot-modulo-n360-design`) e o modelo de ameacas (P0-1 a P0-8) nao estao neste repositorio; as
+  regras P0 em vigor sao as deste bullet e as dos testes que as travam (`grep -ln "P0-[0-9]" test/*.test.ts`).
   Duas regras do modelo de ameacas que nao podem regredir: **P0-1, o `ot` nunca e concedido automaticamente** (o gatilho
   `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
   ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
   nem agente MCP** (`otApp` responde 403 a `apikey:` e a `agente`; `/projects/:id/ot` esta em `FORA_DO_AGENTE`). Frontend:
-  casca `/ot` com uma tela (`views/ot.js`) em abas: catalogo, inventario (sites, zonas, ativos), fluxos, coleta (`views/ot-coleta.js`),
-  saidas (`views/ot-saidas.js`) e acesso por site (so quem edita); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
+  casca `/ot` com uma tela (`views/ot.js`) e subtelas no endereco (`?ot=`, `TELAS_OT` em `frontend/src/ot-navegacao.js`; menu `SO_OT`
+  em `produto.js`): Inicio (`views/ot-inicio.js`), Sites e Site (`views/ot-site.js`; o site tem Modo projeto, com Levantamento, Revisao
+  e aprovacao e Base, e Modo operacao, com Saude da coleta, Desvios e Inventario), Assessment (`views/ot-assessment.js`), Relatorios
+  (`views/ot-saidas.js`), Fornecedores (`views/ot-fornecedores.js`) e Acessos e sondas (`montarAcessos` em `views/ot.js`, so quem edita:
+  `atualizarItemOt`); a coleta em lote (`views/ot-coleta.js`) abre dentro de Revisao e aprovacao (`views/ot-revisao.js`); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
   a API recusaria. IP/MAC aparecem como a API devolve e ficam so na memoria da tela; "Revelar" (platform_admin, ativo mascarado) pede o
   motivo e mostra o valor num modal que some em 30 s. **P1-1 (step-up):** revelar e exportar (`POST …/ot/exportacao`, com
   `justificativa` no corpo) exigem o carimbo `totp_em` da sessao, gravado por `/auth/mfa/verify`, dos ultimos 10 min (403
   `codigo: totp_necessario`, mesmo com SSO), justificativa sem IP/MAC em `audit_logs.justification`, teto por hora em `rate_limits`
   (revelar 20/pessoa e 60/projeto; exportar 5/pessoa e 15/projeto; 429 `teto_por_hora`) e aviso ao Gestor ARCiber titular e suplente
   (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo (de novo se errado, sem
-  perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) abre o n.ot na aba Saidas
-  (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). No hub o n.ot abre pelo botao "Abrir no n.ot" da linha do projeto no Inicio, que so aparece quando a carteira ou o painel trazem o modulo; `nav-ot` segue em `SO_OT` so para `produtoDaTela`; os itens do menu do n.ot so aparecem no `/ot`, com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) leva ao n.ot; trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). No hub o n.ot abre pelo botao "Abrir no n.ot" da linha do projeto no Inicio, que so aparece quando a carteira ou o painel trazem o modulo; `nav-ot` segue em `SO_OT` so para `produtoDaTela`; os itens do menu do n.ot so aparecem no `/ot`, com projeto **e** pessoa com o modulo (`atualizarItemOt`);
   o painel e a carteira trazem o n.ot so a quem tem o modulo e nao e papel de cliente na carteira (`src/services/painel-ot.ts`: contagem e nome de site, nunca IP, MAC nem nome de ativo; chave de API e agente nunca recebem). Avisos de prazo do n.ot: fontes `ot_aceite` e `ot_obra` (so o Gestor ARCiber, D-7 e D0) e `ot_revisao`, todas com o modulo no projeto (`src/services/avisos-prazo.ts`); a exportacao de portabilidade omite as linhas `ot_*` de `avisos_prazo`.
   Coleta (N3, migration 0092): `POST …/ot/lotes/manual` (JSON; a planilha entra pelo de-para do levantamento, o multipart `POST …/ot/lotes` saiu na E3) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
   no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
@@ -123,7 +130,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   Fase do site e base (migracao 0110, `src/services/ot-fase.ts`, `GET /ot/sites/:id/situacao`, `POST /ot/sites/:id/base/{pedir,aprovar,devolver}`, `frontend/src/views/ot-base.js`): `ot_sites.fase` (`em_levantamento`, `base_em_aprovacao`, `em_operacao`, `em_obra`) mais `base_pedida_em/por` e `base_aprovada_em/por`. A equipe pede; so o Gestor ARCiber (`ehGestorArciber`) aprova (corpo `{declaracao:true}`, condicoes no WHERE do UPDATE) ou devolve com motivo. `detectarDesvios` so roda em site `em_operacao`. O tecnico (`org_user`) escreve so o que esta em `ESCRITAS_DO_TECNICO` (`src/services/ot-inventario.ts`), nos sites concedidos. "Trazer dados" substituiu o multipart `POST /ot/lotes`. O cabecalho do site (regua e Proximo passo) leva o unico `.btn-primary`; com lote ou levantamento aberto, o primario e o da tela de dentro.
   Obra (migracao 0111, `ot_sites.obra_*`; `abrirObra`/`renovarObra`/`vencerObras` em `src/services/ot-fase.ts`, `POST /ot/sites/:id/obra/{abrir,renovar}`): so o Gestor ARCiber abre (`{justificativa, ate}`, ate 90 dias) e renova UMA vez; `pedirBase` vale tambem a partir de `em_obra` e `aprovarBase` limpa a obra. REGRA: em `em_obra`, ou em `base_em_aprovacao` com `obra_ate`, `detectarDesvios` roda `silencioso` (grava, sem webhook); os abertos saem num unico webhook ao fechar (`decidirBase`) ou vencer (`encerrarObrasVencidas` no `CRON_AVISOS`, que tambem grava `ot.site.obra_vencida` e avisa o Gestor). Obra valida ate o fim do dia `obra_ate` (dia de SP).
   Assessment da RO-CB.BR.01 (migracao 0112, `ot_avaliacoes` e `ot_requisito_evidencias`; `src/services/ot-avaliacao.ts`, rotas `/ot/assessment*` e `GET /ot/relatorio/conformidade` em `src/routes/ot.ts`, `frontend/src/views/ot-assessment.js` e `ot-relatorio.js`, guia `docs/n-ot-assessment.md`): item tecnico vem do inventario (pior caso dos sites que contam) e nao se edita; item de politica e autoavaliado por quem edita o n.ot. REGRA: so o Gestor ARCiber (`ehGestorArciber`) confirma; editar tira a confirmacao; justificativa obrigatoria salvo em `atende` (CHECK na tabela); confirmar vale so para a versao vista (o corpo leva o `updated_at` lido; mudou, 409); desligar evidencia tira a confirmacao, ligar nao; ao confirmar, `proxima_revisao` fica a data que o consultor gravou e, so se vazia, vira hoje (SP) + 12 meses; a data gravada e dia real e >= hoje (SP). No relatorio, IP e MAC sao mascarados na justificativa e no nome do arquivo de evidencia (este tambem na tela); nao cite nome de ativo (a tela avisa). O relatorio grava `ot.relatorio.conformidade` na trilha. O 5.1.1 (excecoes) fica fora deste ciclo.
-  O n.ot aponta para o nucleo (onda 3, spec `docs/superpowers/specs/2026-11-17-onda3-n-ot-no-nucleo-design.md`; so o que existe): (1) `podeVerOt(db, user, projectId)` (`src/services/ot-visibilidade.ts`, ASYNC: sempre `await`) = pessoa com o modulo `ot` na pessoa E no projeto; agente e chave de API nunca; falha fechada. `GET /projects/:id/audit-trail`, `GET /projects/:id/audit-pack`, `GET .../export/audit-log` (CSV) e `exportarProjeto` (`src/portabilidade.ts`, 4o argumento `veOt`, padrao falso) omitem as linhas de `audit_logs` com `action LIKE 'ot.%'` (`SEM_ACAO_OT`) de quem nao tem o n.ot; teste `test/ot-trilha-oculta.test.ts`. (2) `ot_referencias` (migration 0115, aplicada em producao em 18/11/2026; `src/services/ot-referencias.ts`) e um SATELITE `ot_*` (fora da exportacao): liga risco, acao corretiva ou incidente a site, ativo ou desvio do n.ot; so as rotas `GET/POST /ot/referencias` e `DELETE /ot/referencias/:id` o leem ou escrevem, nenhuma leitura do nucleo passa por ele (unica excecao: a leitura pontual que so RECUSA, no item 4); teste `test/ot-referencias.test.ts`. (3) `POST /ot/desvios/:id/acao` (`src/services/ot-desvio-acao.ts`): exige o n.iso no projeto (409 sem ele), titulo escrito pela pessoa e validado (sem IP/MAC e sem o nome de ativo, zona ou site do projeto, comparado sem acento, caixa, espaco nem pontuacao, no titulo, na descricao e no responsavel: `citaNomeOt`), idempotente por `UNIQUE(ot_desvio_id)` (um batch: acao, referencia e desvio `tratado` com a nota "Acao corretiva aberta"); o vinculo nascido do desvio nao se remove (`DELETE` da referencia responde 409); agente e chave recusados; teste `test/ot-desvio-acao.test.ts`. (4) REGRA: quem criou a acao a partir do desvio nao a conclui (`criadorDaAcaoDoDesvio`, 403 ao passar para `Closed` em `PUT /capa/:id` e em `PUT` da acao do incidente em `src/routes/titular.ts`; o criador e `ot_referencias.criado_por`). Frontend: botao "Criar acao corretiva" em `views/ot-desvios.js` e bloco "Vinculo com o n.ot" (`frontend/src/ot-vinculo.js`) nos detalhes de risco, acao e incidente, so para quem tem o modulo `ot` na pessoa e no projeto. (5) FORNECEDOR DE OT: `ot_fornecedores` (migration 0116, aplicada em producao em 18/11/2026; satelite `ot_*`, fora da exportacao) liga uma `parte` fornecedora ativa a site e/ou fluxo do n.ot com o papel integrador, fabricante ou acesso_remoto; servico `src/services/ot-fornecedores.ts`, rotas `GET/POST/DELETE /ot/fornecedores` e `POST /ot/fornecedores/:id/perguntas-padrao`. A leitura reusa `FLUXO_VISIVEL` (site e as duas pontas do fluxo) e esconde parte inativa; o `UNIQUE` comum nao barra duplicata com NULL, entao ha indice unico com `COALESCE(...,'')` e o `INSERT ... WHERE NOT EXISTS` devolve o existente (200). `mesclar.ts` move os vinculos com a flag `oculto`: a previa da juncao nunca mostra vinculos do OT (nem a contagem). As 4 perguntas genericas (`src/data/ot-perguntas-fornecedor.ts`) entram como perguntas do PROJETO (`origem` 'projeto', `tipo` NULL); a rota exige o modulo `privacy` (pessoa e projeto). Tela `frontend/src/views/ot-fornecedores.js`. ABERTO para o dono: como `tipo` e NULL, essas 4 perguntas entram em TODO questionario de fornecedor do projeto.
+  O n.ot aponta para o nucleo (onda 3, spec `docs/superpowers/specs/2026-11-17-onda3-n-ot-no-nucleo-design.md`; so o que existe): (1) `podeVerOt(db, user, projectId)` (`src/services/ot-visibilidade.ts`, ASYNC: sempre `await`) = pessoa com o modulo `ot` na pessoa E no projeto; agente e chave de API nunca; falha fechada. `GET /projects/:id/audit-trail`, `GET /projects/:id/audit-pack`, `GET .../export/audit-log` (CSV) e `exportarProjeto` (`src/portabilidade.ts`, 4o argumento `veOt`, padrao falso) omitem as linhas de `audit_logs` com `action LIKE 'ot.%'` (`SEM_ACAO_OT`) de quem nao tem o n.ot; teste `test/ot-trilha-oculta.test.ts`. (2) `ot_referencias` (migration 0115, aplicada em producao em 18/11/2026; `src/services/ot-referencias.ts`) e um SATELITE `ot_*` (fora da exportacao): liga risco, acao corretiva ou incidente a site, ativo ou desvio do n.ot; so as rotas `GET/POST /ot/referencias` e `DELETE /ot/referencias/:id` o leem ou escrevem, nenhuma leitura do nucleo passa por ele (unica excecao: a leitura pontual que so RECUSA, no item 4); teste `test/ot-referencias.test.ts`. (3) `POST /ot/desvios/:id/acao` (`src/services/ot-desvio-acao.ts`): exige o n.iso no projeto (409 sem ele), titulo escrito pela pessoa e validado (sem IP/MAC e sem o nome de ativo, zona ou site do projeto, comparado sem acento, caixa, espaco nem pontuacao, no titulo, na descricao e no responsavel: `citaNomeOt`), idempotente por `UNIQUE(ot_desvio_id)` (um batch: acao, referencia e desvio `tratado` com a nota "Ação corretiva aberta"); o vinculo nascido do desvio nao se remove (`DELETE` da referencia responde 409); agente e chave recusados; teste `test/ot-desvio-acao.test.ts`. (4) REGRA: quem criou a acao a partir do desvio nao a conclui (`criadorDaAcaoDoDesvio`, 403 ao passar para `Closed` em `PUT /capa/:id` e em `PUT` da acao do incidente em `src/routes/titular.ts`; o criador e `ot_referencias.criado_por`). Frontend: botao "Criar acao corretiva" em `views/ot-desvios.js` e bloco "Vinculo com o n.ot" (`frontend/src/ot-vinculo.js`) nos detalhes de risco, acao e incidente, so para quem tem o modulo `ot` na pessoa e no projeto. (5) FORNECEDOR DE OT: `ot_fornecedores` (migration 0116, aplicada em producao em 18/11/2026; satelite `ot_*`, fora da exportacao) liga uma `parte` fornecedora ativa a site e/ou fluxo do n.ot com o papel integrador, fabricante ou acesso_remoto; servico `src/services/ot-fornecedores.ts`, rotas `GET/POST/DELETE /ot/fornecedores` e `POST /ot/fornecedores/:id/perguntas-padrao`. A leitura reusa `FLUXO_VISIVEL` (site e as duas pontas do fluxo) e esconde parte inativa; o `UNIQUE` comum nao barra duplicata com NULL, entao ha indice unico com `COALESCE(...,'')` e o `INSERT ... WHERE NOT EXISTS` devolve o existente (200). `mesclar.ts` move os vinculos com a flag `oculto`: a previa da juncao nunca mostra vinculos do OT (nem a contagem). As 4 perguntas genericas (`src/data/ot-perguntas-fornecedor.ts`) entram como perguntas do PROJETO (`origem` 'projeto', `tipo` NULL); a rota exige o modulo `privacy` (pessoa e projeto). Tela `frontend/src/views/ot-fornecedores.js`. ABERTO para o dono: como `tipo` e NULL, essas 4 perguntas entram em TODO questionario de fornecedor do projeto.
 - **Organizacao direta (spec `2026-11-16-onda1-organizacao-direta-design`, migration 0113):** `organizations.tipo` e `'consultoria'` ou
   `'direta'`, definido na criacao (so `platform_admin`) e imutavel. E lido SO do banco, da organizacao da SESSAO (`org_id`), nunca do
   `X-Org-Id`: `tipoDaOrg` e `adminDireto(db, user, projectId)` em `src/services/organizacao.ts`; `gestorArciberDireto` em
@@ -286,7 +293,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
 - **Schema**: `schema.sql` — **136 tabelas** (2026-11-12: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0112** (`ls migrations/*.sql | tail -1`; ha duas 0096, duas 0097 e duas 0101, de PRs paralelos). Procedimento
+  numeradas em `migrations/`, ultima a **0118** em 119 arquivos (2026-11-23: `ls migrations/*.sql | tail -1`, `ls migrations/*.sql | wc -l`; ha tres 0002, de antes da numeracao estavel, e duas 0096, duas 0097 e duas 0101, de PRs paralelos: `ls migrations | cut -c1-4 | sort | uniq -d`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -306,7 +313,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`politica-escrita.ts` saiu), e o **agente (MCP) grava rascunho** (`niso_criar_politica`, `niso_gerar_secao`) e publica pela ferramenta `niso_publicar_documento`, com confirmacao, motivo e o hash do rascunho
   (a rota decide por `c.get('user')?.agente === true`; publicar e `POST .../versoes/:n/publicar?hash=`; a tela manda o hash
   do rascunho que mostrou e rascunho regravado depois da 409; descartar o rascunho tambem e decisao); `PUT /controls/:id` recusa ao agente mudar `description` fora da justificativa de N/A. `POST .../documentos/importar` copia para ca so o que tem sinal de politica (versao, aprovacao
-  ou pedido); `description` preenchida nao basta (em producao e texto de catalogo em quase todo controle). Com historico em `policy_versions`, o `description` do controle NAO entra como versao (e nota do controle); so entra quando nao ha historico. **Politica tematica (spec `docs/superpowers/specs/2026-10-23-politicas-tematicas-design.md`):** a cobertura e `documento_requisitos` x `compliance_controls.requisito_id`; `GET /projects/:id/documentos/cobertura` (`src/services/cobertura-politicas.ts`) conta controle aplicavel coberto por politica VIGENTE; a tela Documentos mostra o indicador, os controles sem politica e a coluna Controles, e a de Controles mostra 'Coberto por'. 'Gestao de politicas' saiu do menu e a tela por controle saiu com as suas rotas (geracao, lote, modelos, leitura e relatorio da politica do controle, versoes, restauracao e `POST/PUT /controls/:id/approve`: respondem 404, lista em `test/politicas-retirada.test.ts`); `generate-document`, `approve-document` e `checklist/:itemId/generate` ficam. **Geracao (PR2):** catalogo `src/data/temas-politica.ts` (16 temas, `grep -c "codigo: 'POL-" src/data/temas-politica.ts`, sugestao de controles; PSI com esqueleto proprio); `POST /projects/:id/politicas` cria o documento em rascunho com o esqueleto `## N. Titulo` e liga os requisitos (tema ja existente: 409, reconhecido pelo codigo no inicio do titulo); `POST .../documentos/:id/secoes/:n/gerar` gera UMA secao (`PoliticaSecaoAgent`, contexto de `contextoDaPolitica` em `src/services/contexto-politica.ts`, sem e-mail nem dado de titular), detecta corte (`ModelRunResult.cortada`; uma continuacao, depois o aviso 'Secao incompleta') e confere antes de gravar (`conferirSecao`, 422 sem gravar). Sempre rascunho; regra `ia` do limite de taxa. Tela: pagina `politica` (`frontend/src/views/politica.js`; os controles cobertos se editam ali, com rascunho) e 'Nova politica' em Documentos.
+  ou pedido); `description` preenchida nao basta (em producao e texto de catalogo em quase todo controle). Com historico em `policy_versions`, o `description` do controle NAO entra como versao (e nota do controle); so entra quando nao ha historico. **Politica tematica (spec `docs/superpowers/specs/2026-10-23-politicas-tematicas-design.md`):** a cobertura e `documento_requisitos` x `compliance_controls.requisito_id`; `GET /projects/:id/documentos/cobertura` (`src/services/cobertura-politicas.ts`) conta controle aplicavel coberto por politica VIGENTE; a tela Documentos mostra o indicador, os controles sem politica e a coluna Controles, e a de Controles mostra 'Coberto por'. 'Gestao de politicas' saiu do menu e a tela por controle saiu com as suas rotas (geracao, lote, modelos, leitura e relatorio da politica do controle, versoes, restauracao e `POST/PUT /controls/:id/approve`: respondem 404, lista em `test/politicas-retirada.test.ts`); `generate-document`, `approve-document` e `checklist/:itemId/generate` ficam. **Geracao (PR2):** catalogo `src/data/temas-politica.ts` (16 temas, `grep -c "codigo: 'POL-" src/data/temas-politica.ts`, sugestao de controles; PSI com esqueleto proprio); `POST /projects/:id/politicas` cria o documento em rascunho com o esqueleto `## N. Titulo` e liga os requisitos (tema ja existente: 409, reconhecido pelo codigo no inicio do titulo); `POST .../documentos/:id/secoes/:n/gerar` gera UMA secao (`PoliticaSecaoAgent`, contexto de `contextoDaPolitica` em `src/services/contexto-politica.ts`, sem e-mail nem dado de titular), detecta corte (`ModelRunResult.cortada`; uma continuacao, depois o aviso 'Seção incompleta') e confere antes de gravar (`conferirSecao`, 422 sem gravar). Sempre rascunho; regra `ia` do limite de taxa. Tela: pagina `politica` (`frontend/src/views/politica.js`; os controles cobertos se editam ali, com rascunho) e 'Nova politica' em Documentos.
   **Organizar (PR3, sem migration):** `src/routes/politicas.ts`, faixa `nucleo`, so a equipe (`ehEquipeNess`), cada ato com `logAudit`, nada automatico. `GET /projects/:id/politicas/organizar` lista o que ha para arrumar (`sem_cobertura` traz `requisito_id`); `POST .../politicas/organizar/incorporar` liga o requisito do controle ao documento tematico e marca a origem `obsoleto` (o texto nao e copiado; nenhuma versao e apagada); `POST .../documentos/:id/promover` zera `origem_control_id` e faz do documento por controle uma politica propria. Tela `organizar-politicas`, em "Mais" de Documentos. `POST .../documentos/importar` pode recriar documento por controle, que reaparece em Organizar.
   **Ciencia por versao (3.3, migration 0051)**: `pedidos.tipo = 'documento'` tem `ref_id = documentos.id` e congela a versao
   VIGENTE (`titulo`, `texto`, `numero`; `DOCUMENTOS.documento` em `src/services/pedidos.ts` e um subselect). Publicar versao
@@ -581,7 +588,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `FAIXA_DA_TABELA`) devolvem 403 se o projeto nao tem o produto, inclusive para o `platform_admin`. Projeto sem nenhum modulo e
   inexistente (passa, e a rota da o 404 dela). **Rota nova de projeto precisa de faixa:** `test/modulos-produto.test.ts` reprova.
   **Acesso por PESSOA (n.360, fatia 3, migration 0066; spec `docs/superpowers/specs/2026-10-12-n360-modulos-por-pessoa-design.md`):** rota de
-  faixa `iso`/`privacy` so passa se o projeto tem o modulo **E** a pessoa tem (`usuario_modulos`; 403 "Voce nao tem acesso ao n.X");
+  faixa `iso`/`privacy` so passa se o projeto tem o modulo **E** a pessoa tem (`usuario_modulos`; 403 "Você não tem acesso ao n.X");
   faixa `nucleo` nao exige modulo da pessoa. `modulosDaPessoa` (`src/modulos.ts`): `platform_admin` tem todos sem linha, chave de API
   vale os modulos do projeto da chave, agente MCP os do consultor que concedeu; a consulta e por requisicao (a mudanca vale na hora).
   `GET /auth/me` devolve `modulos`; o frontend cruza com os do projeto (`modulosVisiveis`, `produto.js`). Quem concede e quem ja gere a
@@ -1027,44 +1034,53 @@ base so nessas skills sem conferir contra a norma publicada.
 
 ## Portões de revisão — o que existe e o que não existe
 
-O repositório está **público** (`gh api repos/resper1965/n.360 --jq .visibility`, 2026-10-14) e
-**vai ficar privado** (decisão do dono). O código já está pronto para isso desde 2026-10-13; a parte
+O repositorio esta **publico** (`gh api repos/resper1965/n.360 --jq .visibility`, conferido em 2026-11-23). Voltar a privado
+depende do plano `docs/superpowers/plans/2026-11-19-saida-do-github-actions.md` (para aprovacao do dono). O código já está pronto para isso desde 2026-10-13; a parte
 de configuração do GitHub é do dono e está no checklist de
 [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md) (seção 5). Em privado, minuto de Actions é
 cobrado, code scanning exige GitHub Advanced Security e ruleset exige plano pago.
 
-- **CodeQL** (`.github/workflows/codeql.yml`) roda enquanto o repositório for público; em privado o
+- **CodeQL** (`.github/workflows/codeql.yml`): hoje `disabled_manually` (`gh api repos/resper1965/n.360/actions/workflows`,
+  2026-11-23). Quando ligado, roda enquanto o repositório for público; em privado o
   job se pula sozinho (`if: github.event.repository.private == false`) em vez de falhar no upload,
   como em 2026-08. No lugar dele: `npm audit` no CI (informativo), Dependabot e secret scanning.
   Última execução: `gh api "repos/resper1965/n.360/actions/workflows/codeql.yml/runs?per_page=1"`.
 - **Codex** revisa o diff, atrelado à assinatura e não à visibilidade do repo.
-- **A suíte roda uma vez, no PR.** O `ci.yml` dispara só em `pull_request` (com cancelamento da
+- **A suíte roda uma vez, no PR**, hoje no portao local (`scripts/ci/gate.sh`, abaixo): o `ci.yml` esta `disabled_manually`
+  (2026-11-23). Quando ligado, o `ci.yml` dispara só em `pull_request` (com cancelamento da
   execução superada); o push na `main` não roda CI. `test/workflows-economia.test.ts` reprova a
   volta do `push`, de `paths`/`paths-ignore` e do `schedule` no `uptime.yml`.
 - **Vigilância de produção** (`docs/runbook-incidente.md`, seção 1): monitor externo gratuito (ação
   do dono), sonda interna do Worker a cada 15 min (`src/services/sonda.ts`, e-mail para
-  `ALERTA_EMAIL`) e `slo.yml` a cada 6 h. O `uptime.yml` ficou só manual.
+  `ALERTA_EMAIL`) e o SLO medido no Worker a cada 6 h (`src/services/slo.ts`, cron `CRON_SLO`); o `slo.yml` esta
+  `disabled_manually` (2026-11-23). O `uptime.yml` ficou só manual.
 
 ### Protecao da `main` e deploy — ja configurados
 
-**Desde 16/10/2026 o portao de PR e LOCAL**: `bash scripts/ci/ship.sh <PR>` atualiza o PR com a main, roda `scripts/ci/gate.sh` (tipos,
-build e testes do frontend, build do MCP, testes do backend e E2E, uma suite por vez, `--retry=1`), grava o status `gate/local` no commit,
-mergeia e espera o `/health` com o SHA. O ruleset exige PR, branch em dia e esse status; os builds de branch da Cloudflare ficam desligados
-e so a `main` builda e publica (`publicar.sh`). Detalhe em `docs/runbook-publicacao.md`, secao 0. O que segue descreve o arranjo de
-15/10/2026.
+**O que vale hoje (conferido em 2026-11-23 pela API do GitHub):** repositorio publico; portao de PR LOCAL desde 16/10/2026:
+`bash scripts/ci/ship.sh <PR>` atualiza o PR com a main, roda `scripts/ci/gate.sh` (tipos, build e testes do frontend, build do MCP,
+testes do backend e E2E, uma suite por vez, `--retry=1`), grava o status `gate/local` no commit, mergeia e espera o `/health` com o
+SHA. O ruleset vivo e o **25554528** e exige so esse status (mais PR e branch em dia). Deploy da `main`: workflow `deploy.yml`
+(Actions, ativo), que recusa publicar com migration pendente. Migration: workflow manual `db-migrate.yml` (digitar `APLICAR`; faz
+backup antes) ou pelo terminal, com `npm run db:backup` antes. Workflows ativos: Deploy, Apply DB migrations, Sonda externa e
+Dependabot; os outros estao `disabled_manually` (`gh api repos/resper1965/n.360/actions/workflows`). **Workers Builds da Cloudflare:
+nao confirmado** (se o Worker ainda esta ligado a ele e se ele tambem publica a `main`; confira no painel da Cloudflare antes de
+afirmar). Detalhe em `docs/runbook-publicacao.md`, secao 0. O paragrafo seguinte e historico (15/10/2026).
 
-**Desde 15/10/2026 o repositorio e privado e o portao de PR e o deploy rodam no Workers Builds da Cloudflare**, nao no
-GitHub Actions (o dono nao paga minutos do Actions; os workflows estao desabilitados, nao apagados). Build command
+**Historico, 15/10/2026 (nao vale como descrito): o repositorio ficou privado e o portao de PR e o deploy passaram para o Workers
+Builds da Cloudflare**, nao o GitHub Actions (o dono nao pagava minutos do Actions; os workflows foram desabilitados, nao apagados).
+Hoje o repositorio e publico e Deploy e Apply DB migrations estao ativos (acima). Build command
 `bash scripts/ci/build.sh` (na `main` chama `scripts/ci/publicar.sh`: tsc, build, recusa migration pendente; nas outras
 branches chama `scripts/ci/verificar.sh`: a suite inteira e o E2E), deploy command
-`npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA`, preview command que nao publica nada. O ruleset exige o
-check run do Workers Builds. Migration: backup e `wrangler d1 migrations apply` pelo terminal ANTES do merge. Passo a
-passo e configuracao do painel em `docs/runbook-publicacao.md`, secao 0. O texto abaixo descreve o fluxo pelo Actions.
+`npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA`, preview command que nao publica nada. O ruleset exigia o
+check run do Workers Builds (hoje exige `gate/local`). Migration: backup e `wrangler d1 migrations apply` pelo terminal ANTES do merge. Passo a
+passo e configuracao do painel em `docs/runbook-publicacao.md`, secao 0. O texto abaixo descreve o fluxo pelo Actions, que e o
+que publica hoje.
 
-- **Ruleset "main protegida"**: exige PR, exige os checks **`test` e `e2e`**
-  (`gh api repos/resper1965/n.360/rulesets/20312002`), exige branch atualizado com a base,
-  bloqueia delecao e force-push. `bypass_actors` vazio — em rulesets, admin do repo **nao**
-  tem bypass automatico.
+- **Ruleset "main protegida"** (id **25554528**, `gh api repos/resper1965/n.360/rulesets/25554528`, 2026-11-23): exige PR,
+  exige o status **`gate/local`** (gravado pelo `gate.sh`, via `ship.sh`, depois do portao local), exige branch atualizado
+  com a base (`strict`), bloqueia delecao e force-push. O antigo `rulesets/20312002` (que exigia `test` e `e2e`) responde
+  404. `bypass_actors` hoje: `RepositoryRole` 5 (admin do repositorio), `bypass_mode` `always`.
 - Nao exija check que pode deixar de existir (o `CodeQL`, se o repo ficar privado): um check
   obrigatorio inexistente trava todo merge para sempre.
 - **Deploy e automatico** desde 2026-08-03: merge na `main` dispara
@@ -1083,7 +1099,7 @@ passo e configuracao do painel em `docs/runbook-publicacao.md`, secao 0. O texto
   `db-migrate.yml` só roda na `main`, onde a migration nova ainda não existe antes do merge. Ordem
   possível: (a) aplicar pelo terminal (`npx wrangler d1 migrations apply niso-db --remote`, depois do
   `npm run db:backup`) e só então mergear; ou (b) mergear (o deploy recusa, de propósito, e abre
-  issue), rodar *Apply DB migrations* e depois *Deploy*.
+  issue), rodar *Apply DB migrations* (digitar `APLICAR`; o workflow faz o backup antes) e depois *Deploy*.
 - **Actions presas por SHA** (`test/workflows-actions-sha.test.ts` reprova action solta); o
   Dependabot `github-actions` abre o PR de atualização com o SHA novo.
 - `wrangler secret put` grava no **Worker**, nao no Actions. Sao lugares
