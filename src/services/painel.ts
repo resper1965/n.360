@@ -8,7 +8,7 @@ import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
 import { hojeEmSaoPaulo } from './hoje';
 import { SQL_EH_FORNECEDOR, listarTerceiros } from './terceiros';
 import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
-import { blocoOt } from './painel-ot';
+import { blocoOt, respostaDoOt } from './painel-ot';
 import { etapasDoPrograma, primeiroMarco } from './programa';
 import { SEM_ACAO_OT } from './ot-visibilidade';
 import { TETO_LEITURA_OT } from './ot-inventario';
@@ -439,8 +439,9 @@ export const SQL_MARCO_DO_PROGRAMA = `SELECT min(d) AS d FROM (
 const SQL_ESPERA_A_PESSOA = `p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente'
   AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3))) AND lower(p.criado_por) <> lower(?3)`;
 
-/** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu. */
-export type QuemPede = { id?: string; email?: string; cliente: boolean; agente?: boolean; role?: string; client_project_id?: string | null; org_id?: string | null };
+/** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu.
+ *  `detalheOt`: o pedido é `?modulo=ot` (Painel do n.ot): só ele recebe a resposta do n.ot por papel e os quadros. */
+export type QuemPede = { id?: string; email?: string; cliente: boolean; agente?: boolean; role?: string; client_project_id?: string | null; org_id?: string | null; detalheOt?: boolean };
 
 export async function painelDoProjeto(db: D1Database, projectId: string, modulos: Modulo[], quem: QuemPede) {
   const dia = hoje();
@@ -487,6 +488,8 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     const b = blocos[m];
     if (!b) continue;
     const saude = saudeDoProjeto({ itens: b.itens, comecando: b.comecando, decisoes: decisoes.length, cliente: quem.cliente, proximo: b.proximo });
+    // ?modulo=ot (spec 2026-11-19): a resposta do n.ot por papel; o Gestor ARCiber recebe "O que fazer" mesmo na visão de cliente (decisão 1).
+    if (m === 'ot' && ot && quem.detalheOt) { modulosResp.ot = respostaDoOt(ot, saude); continue; }
     // O cliente vê a frase e os números da linha do módulo; a lista, a cobertura, o mapa e os vencimentos são da consultoria.
     modulosResp[m] = quem.cliente
       ? { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' && iso ? { selos: iso.selos } : {}), ...(m === 'iso' ? { jornada: jornadaDoCliente(fases.results as Fase[]) } : {}) }

@@ -68,6 +68,14 @@ describe('blocoOt', () => {
     expect(await textos(consultoriaAdmin)).toEqual([]);
   });
 
+  it('consultoria_admin designado no projeto vê "2 sondas paradas" (abre a rota de sonda, podeVerCompleto)', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT OR IGNORE INTO users (id, email, password_hash, name, role) VALUES ('u-cad', 'cad@ness.lat', 'x', 'Admin designado', 'consultoria_admin')`),
+      env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('proj-a', 'Admin', 'cad@ness.lat', 'consultor', 'Consultor')`),
+    ]);
+    expect(await textos({ id: 'u-cad', email: 'cad@ness.lat', role: 'consultoria_admin' })).toContain('2 sondas paradas');
+  });
+
   it('platform_admin não vê sonda parada: o número segue podeVerCompleto, como a rota de sonda', async () => {
     const plat = { id: 'u-p', email: 'p@ness.lat', role: 'platform_admin' };
     const b = await blocoOt(env.DB, 'proj-a', plat, DIA, AGORA);
