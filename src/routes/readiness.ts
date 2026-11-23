@@ -51,7 +51,7 @@ readinessApp.get('/', async (c) => {
       `SELECT c.id, c.title FROM compliance_controls c
        WHERE c.project_id = ?
          AND (c.ciso_approved_by IS NOT NULL OR c.ceo_approved_by IS NOT NULL)
-         AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.control_id = c.id)`
+         AND NOT EXISTS (SELECT 1 FROM evidencia_controles ec WHERE ec.control_id = c.id)`
     ).bind(projectId).all();
     for (const r of (aprovadoSemEvid.results ?? []) as any[]) {
       achados.push({
@@ -66,7 +66,7 @@ readinessApp.get('/', async (c) => {
       `SELECT c.id, c.title, c.status FROM compliance_controls c
        WHERE c.project_id = ?
          AND (${sqlClasseControle('c.status')}) = 'feito'
-         AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.control_id = c.id)`
+         AND NOT EXISTS (SELECT 1 FROM evidencia_controles ec WHERE ec.control_id = c.id)`
     ).bind(projectId).all();
     for (const r of (implSemEvid.results ?? []) as any[]) {
       achados.push({
@@ -131,7 +131,7 @@ readinessApp.get('/', async (c) => {
       try {
         const controles = await c.env.DB.prepare(
           `SELECT c.id, c.title, c.status, c.maturity,
-                  (SELECT COUNT(*) FROM evidence e WHERE e.control_id = c.id) AS n_evid
+                  (SELECT COUNT(*) FROM evidencia_controles ec WHERE ec.control_id = c.id) AS n_evid
            FROM compliance_controls c WHERE c.project_id = ? LIMIT 200`
         ).bind(projectId).all();
         const ropa = await c.env.DB.prepare(
