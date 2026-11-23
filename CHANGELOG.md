@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Pontos menores das ondas 1 a 4 (lote 3, telas e documentação)
+- **Chaves de API** (só `platform_admin`) abre sem projeto escolhido: "Nova chave" fica desabilitada até a pessoa escolher o projeto, para a chave não nascer no projeto errado.
+- **Trilha de implantação do n.privacy:** o passo por fazer cuja tela não abre pelo Painel mostra "Falta" em vez de ficar sem nada, e a trilha vazia não desenha mais a caixa.
+- **Fornecedores do n.ot:** o botão agora diz "Gerar perguntas de OT para o projeto" (a ação sempre foi do projeto, não de um fornecedor).
+- Testes novos fixam o botão "Criar o primeiro projeto" (habilita só com as organizações carregadas) e o teto de módulos do convite (cliente: o do projeto; equipe: o da organização).
+
 ### Fornecedores: as perguntas de OT só vão ao fornecedor ligado ao n.ot
 - **Muda para quem já usa:** as 4 perguntas de OT (acesso remoto, contas de integração, correções de segurança, incidentes) entram só no questionário de fornecedor ligado a um site ou fluxo do n.ot. Os demais fornecedores recebem o questionário do modelo como antes. Decisão do dono em 19/11/2026.
 - Quem não tem o n.ot pode notar que um questionário tem perguntas a mais; o texto delas é genérico e não cita OT, site nem norma (pista fraca aceita pelo dono). Questionário já enviado não muda.
