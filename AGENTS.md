@@ -11,7 +11,8 @@ Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
 passa a mentir para o proximo agente.
 
 Convencao de escrita: AGENTS.md sem acentos, exceto em literal de codigo, de API ou de banco, que fica igual ao
-codigo (mensagem de erro, nota gravada no banco, texto comparado num `WHERE` ou numa sonda).
+codigo (mensagem de erro, nota gravada no banco, texto comparado num `WHERE` ou numa sonda). Linhas antigas ainda acentuadas fora
+dessa excecao serao normalizadas num PR proprio; ao editar uma delas, tire os acentos.
 
 ## Regra numero um: nao afirme sem evidencia
 
@@ -85,7 +86,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   fluxos, acesso por site), coleta em lotes, revelar e conformidade em `src/routes/ot.ts`; indicadores, exportacao e IA em
   `src/routes/ot-saidas.ts`.
   A spec-mae do n.ot (`2026-10-30-n-ot-modulo-n360-design`) e o modelo de ameacas (P0-1 a P0-8) nao estao neste repositorio; as
-  regras P0 em vigor sao as deste bullet e as dos testes que as travam (`grep -ln "P0-[0-9]" test/*.test.ts`).
+  regras P0 em vigor sao as deste arquivo (este bullet e todo trecho que cita P0) e as dos testes que as travam (`grep -ln "P0-[0-9]" test/*.test.ts`).
   Duas regras do modelo de ameacas que nao podem regredir: **P0-1, o `ot` nunca e concedido automaticamente** (o gatilho
   `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
   ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
@@ -799,7 +800,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Sem alternancia de tema.** Um tema so, o escuro da marca.
 - **Backup do D1 = Time Travel (decisao do dono, 05/11/2026), ate haver volume de dados.** Sem backup diario automatico (o `db-backup.yml`
   segue desligado); a recuperacao e o Time Travel do D1 (`npx wrangler d1 time-travel info niso-db`, restauracao por
-  `wrangler d1 time-travel restore`), e o `npm run db:backup` manual continua obrigatorio antes de toda migration. Rever quando o volume crescer.
+  `wrangler d1 time-travel restore`), e o backup continua obrigatorio antes de toda migration: o `npm run db:backup` pelo terminal ou o do workflow
+  `db-migrate.yml`, que roda o mesmo `wrangler d1 export` e guarda o arquivo como artifact (um dos dois basta). Rever quando o volume crescer.
 - **Sem framework no frontend.** Vanilla e decisao, nao divida.
 - **Responsividade fora de escopo** ate segunda ordem.
 - **Equalizacao n.iso x n.privacy (20/10/2026, `docs/arquivo/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e
@@ -1074,13 +1076,16 @@ Hoje o repositorio e publico e Deploy e Apply DB migrations estao ativos (acima)
 branches chama `scripts/ci/verificar.sh`: a suite inteira e o E2E), deploy command
 `npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA`, preview command que nao publica nada. O ruleset exigia o
 check run do Workers Builds (hoje exige `gate/local`). Migration: backup e `wrangler d1 migrations apply` pelo terminal ANTES do merge. Passo a
-passo e configuracao do painel em `docs/runbook-publicacao.md`, secao 0. O texto abaixo descreve o fluxo pelo Actions, que e o
-que publica hoje.
+passo e configuracao do painel em `docs/runbook-publicacao.md`, secao 0.
+
+O texto abaixo descreve o fluxo pelo Actions, que e o que publica hoje.
 
 - **Ruleset "main protegida"** (id **25554528**, `gh api repos/resper1965/n.360/rulesets/25554528`, 2026-11-23): exige PR,
   exige o status **`gate/local`** (gravado pelo `gate.sh`, via `ship.sh`, depois do portao local), exige branch atualizado
   com a base (`strict`), bloqueia delecao e force-push. O antigo `rulesets/20312002` (que exigia `test` e `e2e`) responde
-  404. `bypass_actors` hoje: `RepositoryRole` 5 (admin do repositorio), `bypass_mode` `always`.
+  404. `bypass_actors` hoje: `RepositoryRole` 5 (admin do repositorio), `bypass_mode` `always`. **Nao use esse bypass:**
+  so mergeie com o status `gate/local` verde no SHA do head do PR (nada de `gh pr merge --admin` nem de merge sem o
+  status); excecao so com o "sim" explicito do dono para aquele PR.
 - Nao exija check que pode deixar de existir (o `CodeQL`, se o repo ficar privado): um check
   obrigatorio inexistente trava todo merge para sempre.
 - **Deploy e automatico** desde 2026-08-03: merge na `main` dispara

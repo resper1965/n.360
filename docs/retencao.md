@@ -28,6 +28,7 @@ aqui muda a consulta lá, e vice-versa.
 | `ot_achados` descartado | 30 dias (90 com `chave_sensor`) | O filtro de novidade da sonda depende do achado descartado por 90 dias. |
 | `ot_achados` rascunho de levantamento encerrado | 30 dias após o encerramento | Rascunho de levantamento aberto não expira: é trabalho em andamento. |
 | `ot_achados` `enviado` sem lote válido | volta a rascunho em 1 dia | Envio interrompido ou lote rejeitado/apagado: sem isto o achado ficaria órfão para sempre; depois segue a regra de 30 dias. |
+| `ot_achados` `enviado` de item recusado ou descartado no lote | volta a rascunho na manutenção seguinte | Rede de segurança: a recusa já devolve o achado na hora (`devolverRecusados`); a manutenção pega o que escapou, como lote vencido. |
 | `ot_sensor_envios` | 400 dias | Registro dos envios do sensor de rede. |
 | `ot_fluxos_pendentes` | 90 dias | Fluxo do sensor cuja ponta interna não apareceu no inventário (só hash), descartado para não ficar para sempre. |
 
