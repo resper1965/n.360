@@ -35901,6 +35901,18 @@
                           "nome"
                         ],
                         "additionalProperties": false
+                      },
+                      "canal_titular": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "email"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "additionalProperties": false
