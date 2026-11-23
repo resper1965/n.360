@@ -18,7 +18,9 @@ const ATENCAO = { tom: 'semana', rotulo: 'Atenção', frase: '1 desvio aberto.',
 const FAZER = [{ grupo: 'semana', quando: 'Nesta semana', texto: '1 desvio aberto', contexto: 'O sensor viu o que não está na base aprovada', acao: 'Ver os desvios', tela: 'ot', aba: 'sites', modulo: 'ot' }];
 const painelOt = (visao, bloco, saude = ATENCAO) => ({ gerado_em: '2026-11-20T10:00:00Z', visao, modulos_pedidos: ['ot'], empresa: null, encarregados: [],
     programa: { estado: 'implantacao', desde: null, rotulo: 'Em implantação', etapas: { ot: OT } }, saude, modulos: { ot: { saude, comecando: false, ...bloco } } });
-const EQUIPE = { numeros: [['0 de 2', 'sites em operação'], ['1', 'desvios abertos']], fazer: FAZER, cobertura: [], vencimentos: [], riscos: [], passos: [] };
+const SITES = [{ id: 's1', nome: 'SE <b>Norte</b>', fase: 'em_operacao', proximo: 'Tratar os desvios abertos', desvios_abertos: 1, revalidar_em: '2027-01-10', obra_ate: null, sonda: 'parada' },
+    { id: 's2', nome: 'SE Sul', fase: 'em_levantamento', proximo: 'Começar o levantamento do site', desvios_abertos: 0, revalidar_em: null, obra_ate: null, sonda: null }];
+const EQUIPE = { numeros: [['0 de 2', 'sites em operação'], ['1', 'desvios abertos']], fazer: FAZER, passos: [], por_site: [] };
 const el = (id) => document.getElementById(id);
 const montar = () => { document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>'; };
 const abrir = async (corpo) => { const f = servir({ 'GET /api/v1/projects/p9/painel': corpo }); montar(); await renderPainel(el('c'), el('h'), el('a'), 'ot'); return f; };
@@ -60,10 +62,53 @@ describe('Painel do n.ot: cliente', () => {
         expect(el('pn-ot-num')).toBeNull();
         expect(el('c').textContent).not.toMatch(/desvio/i);
     });
-    it('403 do servidor: a tela "não habilitado", sem quebrar', async () => {
+    it('403 do servidor com o n.ot fora do projeto: a tela "não habilitado", sem quebrar', async () => {
+        S.activeProject = { id: 'p9', client_name: 'Exemplo', modulos: ['iso'] }; S.projects = [S.activeProject];
         vi.stubGlobal('fetch', vi.fn(async () => resposta({ error: 'Forbidden' }, 403)));
         montar();
         await renderPainel(el('c'), el('h'), el('a'), 'ot');
         expect(el('c').textContent).toContain('O n.ot não está habilitado neste projeto');
+    });
+    it('403 com o n.ot no projeto: falta a concessão do n.ot à pessoa, sem "contratar" nem "Habilitar no projeto"', async () => {
+        S.user = { id: 'u2', role: 'consultoria_admin', modulos: [] };
+        vi.stubGlobal('fetch', vi.fn(async () => resposta({ error: 'Forbidden' }, 403)));
+        montar();
+        await renderPainel(el('c'), el('h'), el('a'), 'ot');
+        const t = el('c').textContent;
+        expect(t).toContain('Você ainda não tem acesso ao n.ot neste projeto');
+        expect(t).toContain('concede');
+        expect(t).not.toMatch(/contratar|não está habilitado/);
+        expect(el('c').querySelector('[data-action="abrirProdutosDoProjeto"]')).toBeNull();
+    });
+});
+
+describe('Painel do n.ot: Gestor ARCiber e Por site (PR2)', () => {
+    it('Gestor (visão de cliente com "fazer") ganha "Abrir" na régua, "O que fazer" e Por site com Sonda', async () => {
+        await abrir(painelOt('cliente', { numeros: [['1 de 2', 'sites em operação']], fazer: FAZER, passos: [], por_site: SITES }));
+        expect(el('c').querySelector('.pn-regua-prox button')).not.toBeNull();
+        expect(el('pn-fazer')).not.toBeNull();
+        const t = el('pn-ot-sites').closest('section');
+        expect([...t.querySelectorAll('th')].map((th) => th.textContent.trim())).toContain('Sonda');
+        expect(t.textContent).toContain('SE <b>Norte</b>');
+        expect(t.querySelector('b')).toBeNull();
+        expect(t.textContent).toContain('Parada');
+        expect(t.textContent).toContain('10/01/2027');
+        const b = t.querySelector('button[data-action="otTela"]');
+        expect(JSON.parse(b.dataset.args)).toEqual(['site', 's1', null]);
+        expect(b.getAttribute('aria-label')).toBe('Abrir SE <b>Norte</b>');
+    });
+    it('técnico (Por site sem "sonda", sem "fazer"): sem "Abrir" na régua, sem coluna Sonda, sem "O que fazer"', async () => {
+        const semSonda = SITES.slice(0, 1).map(({ sonda, ...s }) => s);
+        await abrir(painelOt('cliente', { numeros: [['1 de 1', 'sites em operação']], por_site: semSonda }, EM_DIA));
+        expect(el('c').querySelector('.pn-regua-prox button')).toBeNull();
+        expect(el('pn-fazer')).toBeNull();
+        const t = el('pn-ot-sites').closest('section');
+        expect([...t.querySelectorAll('th')].map((th) => th.textContent.trim())).not.toContain('Sonda');
+        expect(el('pn-ot-num')).not.toBeNull();
+    });
+    it('Por site vazio diz o que fazer, sem tabela zerada', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, por_site: [] }));
+        expect(el('pn-ot-sites').closest('section').textContent).toContain('O inventário do n.ot começa pelo site');
+        expect(el('pn-ot-sites').closest('section').querySelector('table')).toBeNull();
     });
 });
