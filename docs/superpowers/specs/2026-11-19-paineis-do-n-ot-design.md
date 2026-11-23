@@ -102,6 +102,8 @@ para o Início do n.360 (os campos novos só saem com `?modulo=ot`).
 **Visão por papel no `?modulo=ot` (proposta):** Gestor ARCiber, consultor e admin direto: tudo. Técnico: topo (régua só dos sites dele) e
 Por site; os itens dele (rascunhos, lote recusado) entram em "O que fazer". Cliente leitor: frase, régua sem "Abrir" e o resumo de
 Conformidade em números (sem item por item).
+Exceção registrada (PR 2): o leitor recebe só a frase, sem número de desvio, mas a régua dele continua citando a etapa "Tratar"
+(próximo passo "Tratar os desvios abertos" e os feitos dela), como no Início do n.360.
 
 ## A régua do n.ot no Painel do n.ot
 

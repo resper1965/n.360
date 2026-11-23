@@ -159,6 +159,32 @@ describe('casca por subtela', () => {
         expect(location.search).toBe('?ot=painel');
         expect(f.mock.calls.some(([u]) => String(u).includes('/painel?modulo=ot'))).toBe(true);
     });
+    it('link direto /ot?ot=painel sem projeto (S.projects vazio): "sem projeto" e nenhuma chamada ao /painel', async () => {
+        const f = servir({});
+        S.activeProject = null; S.projects = []; S.otProjeto = null; S.painel = {}; ir('/ot?ot=painel');
+        await abrir();
+        expect(f.mock.calls.filter(([u]) => String(u).includes('/painel'))).toEqual([]);
+        expect(el('c').querySelector('.pn')).toBeNull();
+    });
+    it('a resposta do Painel que chega depois de trocar para Sites não é desenhada por cima', async () => {
+        const SAUDE = { tom: 'plano', rotulo: 'Começando', frase: 'f', apoio: '' };
+        const PAINEL = { gerado_em: '2026-11-20T10:00:00Z', visao: 'equipe', modulos_pedidos: ['ot'], empresa: null, encarregados: [],
+            programa: { estado: 'comecando', desde: null, rotulo: 'Começando', etapas: {} }, saude: SAUDE,
+            modulos: { ot: { saude: SAUDE, numeros: [], comecando: true, fazer: [], passos: [] } } };
+        let soltar;
+        const segura = new Promise((r) => { soltar = r; });
+        const f = servir({ [`GET ${B}/sites`]: SITES, 'GET /api/v1/projects/p9/painel': PAINEL });
+        const real = f.getMockImplementation();
+        f.mockImplementation(async (url, o) => { if (String(url).includes('/painel')) await segura; return real(url, o); });
+        S.painel = {}; S.view = 'ot';
+        document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`;
+        S.otTela = 'painel';
+        const painel = window.renderOt(el('c'), el('h'), el('a'));
+        await window.otTela('sites'); await window.renderOt(el('c'), el('h'), el('a'));
+        soltar(); await painel;
+        expect(el('h').textContent).toBe('Sites');
+        expect(el('c').querySelector('.pn')).toBeNull();
+    });
     it('sem parâmetro desenha o Início; ?ot=relatorios desenha Relatórios; o endereço acompanha', async () => {
         servir({ [`GET ${B}/sites`]: SITES });
         await abrir();
