@@ -91,7 +91,9 @@ readinessApp.get('/', async (c) => {
 
     // R4 (ALTO): evidência NÃO CONFORME na avaliação — não sustenta o controle.
     const evidRejeitada = await c.env.DB.prepare(
-      `SELECT e.id, e.file_name, e.control_id FROM evidence e
+      // Um achado por controle ligado (N:N, 0119); evidência sem vínculo sai com o próprio id.
+      `SELECT e.id, e.file_name, ec.control_id FROM evidence e
+         LEFT JOIN evidencia_controles ec ON ec.evidence_id = e.id
        WHERE e.project_id = ? AND e.evaluation_status = 'non_conforming'`
     ).bind(projectId).all();
     for (const r of (evidRejeitada.results ?? []) as any[]) {

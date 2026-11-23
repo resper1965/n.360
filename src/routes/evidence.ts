@@ -7,6 +7,7 @@ import { EvidenceAgent } from '../agents/evidence';
 import { listPaged } from '../helpers';
 import { validateBody, evidenceContentSchema, evidenciaVincularSchema, evidenciaTextoSchema, evidenciaAssinarSchema, evidenciaAvaliacaoSchema, evidenciaControleSchema } from '../schemas';
 import { comControles, ligarControle, desligarControle } from '../services/evidencia-controles';
+import { recusaDoModulo } from '../modulos';
 
 /**
  * Confere que o documento existe, é do MESMO projeto e está `vigente`. Devolve a
@@ -251,6 +252,9 @@ evidenceApp.post('/:id/controles', async (c) => {
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
     const ev = await c.env.DB.prepare('SELECT id, project_id, file_hash, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string } & Aprovacoes>();
     if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
+    // A evidência é do núcleo, o controle é do n.iso: ligar e desligar exigem o n.iso no projeto e na pessoa (como as rotas de controle).
+    const semIso = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, 'iso');
+    if (semIso) return c.json({ error: semIso }, 403);
     const v = await validateBody(c, evidenciaControleSchema);
     if (!v.success) return v.response;
     // Mesma resposta para controle inexistente e de outro projeto. Aceita o id da linha ou o código ("A.5.1").
@@ -271,6 +275,9 @@ evidenceApp.delete('/:id/controles/:controlId', async (c) => {
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
     const ev = await c.env.DB.prepare('SELECT id, project_id, file_hash, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string } & Aprovacoes>();
     if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
+    // A evidência é do núcleo, o controle é do n.iso: ligar e desligar exigem o n.iso no projeto e na pessoa (como as rotas de controle).
+    const semIso = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, 'iso');
+    if (semIso) return c.json({ error: semIso }, 403);
     const controlId = c.req.param('controlId');
     const desligou = await desligarControle(c.env.DB, id, controlId);
     if (!desligou) return c.json({ error: 'A evidência não está ligada a este controle' }, 404);
