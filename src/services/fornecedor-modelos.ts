@@ -176,15 +176,22 @@ export function somarMeses(dia: string, n: number): string {
 }
 
 /**
- * Perguntas de fornecedor de OT como perguntas PRÓPRIAS do projeto (`origem = 'projeto'`, `tipo` nulo: valem para todo questionário). Idempotente:
+ * Perguntas de fornecedor de OT como perguntas PRÓPRIAS do projeto (`origem = 'projeto'`, `tipo` nulo); no envio só entram para o fornecedor
+ * ligado ao n.ot (`criarHomologacao`). Idempotente:
  * ids determinísticos por projeto + INSERT OR IGNORE. Devolve quantas linhas nasceram agora (0 na repetição).
  */
+/** Os ids determinísticos das perguntas de OT no projeto (os mesmos que `semearPerguntasOt` grava). */
+export async function idsDasPerguntasOt(projectId: string): Promise<string[]> {
+  return Promise.all(PERGUNTAS_OT_FORNECEDOR.map(async (_, i) => `hp-pd-${await hash24(`${projectId}:ot-fornecedor:${i + 1}`)}`));
+}
+
 export async function semearPerguntasOt(db: D1Database, projectId: string): Promise<number> {
   const base = (await db.prepare(`SELECT COALESCE(MAX(ordem), 0) AS o FROM homologacao_perguntas WHERE project_id = ? AND origem = 'projeto'`).bind(projectId).first<number>('o')) ?? 0;
+  const ids = await idsDasPerguntasOt(projectId);
   const stmts: D1PreparedStatement[] = [];
   for (const [i, p] of PERGUNTAS_OT_FORNECEDOR.entries()) {
     stmts.push(db.prepare(`INSERT OR IGNORE INTO homologacao_perguntas (id, project_id, tema, texto, ordem, tipo) VALUES (?, ?, ?, ?, ?, NULL)`)
-      .bind(`hp-pd-${await hash24(`${projectId}:ot-fornecedor:${i + 1}`)}`, projectId, p.tema, p.texto, base + (i + 1) * 10));
+      .bind(ids[i], projectId, p.tema, p.texto, base + (i + 1) * 10));
   }
   return (await db.batch(stmts)).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
 }

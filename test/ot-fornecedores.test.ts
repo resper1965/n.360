@@ -213,6 +213,26 @@ describe('perguntas de OT na avaliação do fornecedor (decisão 7)', () => {
     for (const x of ['n.ot', 'Segredo', 'integrador', 'site1', 'RO-CB', 'ISO', 'NIST', 'IEC']) expect(tx, x).not.toContain(x);
     expect((await env.DB.prepare(`SELECT DISTINCT origem, tipo FROM homologacao_perguntas`).all()).results).toEqual([{ origem: 'projeto', tipo: null }]);
   });
+
+  it('as perguntas de OT só entram no questionário do fornecedor ligado ao n.ot (decisão do dono, 19/11)', async () => {
+    const { criarHomologacao, lerHomologacao } = await import('../src/services/homologacao');
+    await run(`INSERT OR IGNORE INTO organizations (id, name, slug, status) VALUES ('org_ness', 'ness.', 'ness', 'Active')`); // o modelo de questionário é da organização do projeto
+    await run(`UPDATE partes SET terceiro_tipo = 'medio' WHERE id = 'forn1'`);
+    await run(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('forn-comum', 'proj-a', 'organizacao', 'Papelaria Comum', 'medio')`);
+    const { PERGUNTAS_OT_FORNECEDOR } = await import('../src/data/ot-perguntas-fornecedor');
+    const temas = async (parte: string) => { // o texto, não o tema: o modelo padrão também tem um tema "Incidentes"
+      const h = await criarHomologacao(env.DB, A, 'x@x', { parte_id: parte, dias: 10 });
+      if (!h.ok) throw new Error(JSON.stringify(h));
+      return (await lerHomologacao(env.DB, A, h.id))!.perguntas.map((p: { texto: string }) => p.texto);
+    };
+    const OT = PERGUNTAS_OT_FORNECEDOR.map((p) => p.texto);
+    const comum = await temas('forn-comum');
+    for (const t of OT) expect(comum, t).not.toContain(t);
+    expect(comum.length).toBeGreaterThan(0); // o questionário do modelo segue inteiro
+    const ligado = await temas('forn1');
+    for (const t of OT) expect(ligado, t).toContain(t);
+    expect(ligado.length).toBe(comum.length + OT.length);
+  });
 });
 
 describe('fornecedor de OT: fluxo visível, parte ativa, mescla e corrida (fix round 1)', () => {

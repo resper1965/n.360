@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import { conformidadeOt, conformidadePorSite, ITENS_TECNICOS } from '../src/services/ot-conformidade';
+import { resumoDoAssessment, situacaoNaOrganizacao } from '../src/services/ot-avaliacao';
 import { applySchema, execSql, resetData, seedTwoProjects } from './helpers/d1';
 import mig from '../migrations/0112_ot_assessment.sql?raw';
 import req from '../migrations/0090_ot_requisitos.sql?raw';
@@ -268,5 +269,21 @@ describe('ot-avaliacao: assessment', () => {
     for (const i of j.itens.filter((x: any) => x.tipo === 'tecnico')) expect(i.por_site.map((s: any) => s.site_nome)).toEqual(['SE Sul']);
     expect(((await (await chamar(tecnico, 'GET', `${U}/assessment`)).json()) as any).restrito).toBe(true);
     expect(((await (await chamar(cons, 'GET', `${U}/assessment`)).json()) as any).restrito).toBe(false);
+  });
+});
+
+describe('resumo do assessment (puro): a tela e o Painel do n.ot contam igual', () => {
+  it('técnico só conta "não atende" ou "não avaliado"; política conta a situação, o a confirmar e o a revisar', () => {
+    expect(resumoDoAssessment([
+      { tipo: 'tecnico', situacao_org: 'evidencia_no_inventario' }, { tipo: 'tecnico', situacao_org: 'nao_atende' }, { tipo: 'excecao' },
+      { tipo: 'politica', avaliacao: { situacao: 'atende', confirmado: true }, revisar: false },
+      { tipo: 'politica', avaliacao: { situacao: 'parcial', confirmado: false }, revisar: true },
+      { tipo: 'politica', avaliacao: null, revisar: false },
+    ])).toEqual({ atende: 1, parcial: 1, nao_atende: 1, nao_se_aplica: 0, nao_avaliado: 3, revisar: 1, a_confirmar: 1 });
+  });
+  it('organização: pior caso entre os sites que contam; levantamento não conta; nenhum site que conte = não avaliado', () => {
+    expect(situacaoNaOrganizacao([{ fase: 'em_levantamento', situacao: 'nao_atende' }, { fase: 'em_operacao', situacao: 'evidencia_no_inventario' }])).toBe('evidencia_no_inventario');
+    expect(situacaoNaOrganizacao([{ fase: 'em_obra', situacao: 'sem_evidencia' }, { fase: 'base_em_aprovacao', situacao: 'nao_atende' }])).toBe('nao_atende');
+    expect(situacaoNaOrganizacao([{ fase: 'em_levantamento', situacao: 'nao_atende' }])).toBe('nao_avaliado');
   });
 });

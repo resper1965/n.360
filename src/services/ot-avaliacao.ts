@@ -26,6 +26,30 @@ export interface DadosAvaliacao { situacao: 'atende' | 'parcial' | 'nao_atende' 
 const PIOR = ['nao_atende', 'sem_evidencia', 'evidencia_no_inventario'] as const;
 const CONTAM = ['em_operacao', 'em_obra', 'base_em_aprovacao'];
 
+/** Situação de um item técnico na organização: o pior caso entre os sites que contam (operação, obra, base em aprovação). */
+export function situacaoNaOrganizacao(porSite: { fase: string; situacao: string }[]): (typeof PIOR)[number] | 'nao_avaliado' {
+  const contam = porSite.filter((s) => CONTAM.includes(s.fase));
+  return contam.length ? PIOR.find((p) => contam.some((s) => s.situacao === p))! : 'nao_avaliado';
+}
+
+export type ItemDoResumo = { tipo: 'tecnico'; situacao_org: string } | { tipo: 'excecao' }
+  | { tipo: 'politica'; avaliacao: { situacao: DadosAvaliacao['situacao']; confirmado: boolean } | null; revisar: boolean };
+
+/** Os sete contadores do assessment, puros: `GET /ot/assessment` e o Painel do n.ot (painel-ot-quadros.ts) contam com esta função. */
+export function resumoDoAssessment(itens: ItemDoResumo[]) {
+  const resumo = { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 0, revisar: 0, a_confirmar: 0 };
+  for (const i of itens) {
+    if (i.tipo === 'tecnico') resumo[i.situacao_org === 'nao_atende' ? 'nao_atende' : 'nao_avaliado']++; // o inventário nunca afirma "atende"
+    else if (i.tipo === 'excecao') resumo.nao_avaliado++;
+    else {
+      resumo[i.avaliacao?.situacao ?? 'nao_avaliado']++;
+      if (i.revisar) resumo.revisar++;
+      if (i.avaliacao && !i.avaliacao.confirmado) resumo.a_confirmar++;
+    }
+  }
+  return resumo;
+}
+
 type LinhaAvaliacao = { requisito_id: string; situacao: DadosAvaliacao['situacao']; justificativa: string | null; responsavel_id: string | null; responsavel_nome: string | null;
   proxima_revisao: string | null; atualizado_por: string | null; confirmado_por: string | null; confirmado_por_nome: string | null; confirmado_em: string | null; updated_at: string };
 
@@ -74,8 +98,7 @@ export async function montarAssessment(db: D1Database, projectId: string, sites:
       const base = { codigo: r.codigo, titulo: r.titulo, categoria: r.categoria, prazo: r.prazo_meses ? prazoEm(r.prazo_meses) : null };
       if (tecnico(r.codigo)) {
         const por_site = siteRows.map((s) => ({ site_id: s.id, site_nome: s.nome, fase: s.fase, ...(porSite[s.id][r.codigo] as ItemTecnico) }));
-        const contam = por_site.filter((s) => CONTAM.includes(s.fase));
-        const situacao_org = contam.length ? PIOR.find((p) => contam.some((s) => s.situacao === p))! : 'nao_avaliado';
+        const situacao_org = situacaoNaOrganizacao(por_site);
         return { ...base, tipo: 'tecnico' as const, por_site, situacao_org };
       }
       if (r.codigo === EXCECAO) return { ...base, tipo: 'excecao' as const, situacao: 'nao_avaliado', evidencia: 'Não avaliado neste ciclo' };
@@ -93,16 +116,7 @@ export async function montarAssessment(db: D1Database, projectId: string, sites:
       };
     });
 
-  const resumo = { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 0, revisar: 0, a_confirmar: 0 };
-  for (const i of itens) {
-    if (i.tipo === 'tecnico') resumo[i.situacao_org === 'nao_atende' ? 'nao_atende' : 'nao_avaliado']++; // o inventário nunca afirma "atende"
-    else if (i.tipo === 'excecao') resumo.nao_avaliado++;
-    else {
-      resumo[i.avaliacao?.situacao ?? 'nao_avaliado']++;
-      if (i.revisar) resumo.revisar++;
-      if (i.avaliacao && !i.avaliacao.confirmado) resumo.a_confirmar++;
-    }
-  }
+  const resumo = resumoDoAssessment(itens);
   // restrito: a pessoa vê menos sites que o projeto tem (técnico), e a "situação na organização" é só a dos sites dela
   return { itens, resumo, restrito: sites.length < ((total.results[0] as { n: number })?.n ?? 0) };
 }
