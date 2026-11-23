@@ -2039,7 +2039,7 @@ window.abrirControlesEvidencia = async function(projectId, evidenceId) {
     const lista = Array.isArray(controles) ? controles : [];
     openModal(`
         <div class="modal-header"><span class="modal-title">Controles da evidência</span></div>
-        <p class="t-dim mb-3">${escapeHTML(ev.file_name || '')}: marque cada controle que esta evidência sustenta.</p>
+        <p class="t-dim mb-3">${escapeHTML(ev.file_name || '')}: marque cada controle que esta evidência sustenta. Ligar ou desligar não muda a avaliação nem as assinaturas: elas valem para o conteúdo da evidência, e só um conteúdo novo as zera.</p>
         ${lista.length ? lista.map(ctl => `<label class="opcao-check"><input type="checkbox" data-action-change="alternarControleEvidencia" data-args='${escapeHTML(JSON.stringify([evidenceId, ctl.id]))}' data-arg-el ${ligados.has(ctl.id) ? 'checked' : ''}> ${escapeHTML(ctl.title || ctl.id)}</label>`).join('')
             : window.renderEmptyState({ titulo: 'Este projeto ainda não tem controles.', compacto: true })}
     `);
