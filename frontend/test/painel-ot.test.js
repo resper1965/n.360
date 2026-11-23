@@ -168,6 +168,49 @@ describe('Painel do n.ot: quadros (PR3)', () => {
     });
 });
 
+describe('Painel do n.ot: fornecedores e riscos (PR4)', () => {
+    const FORN = [{ papel: 'acesso_remoto', total: 2, vigentes: 0, pendentes: 1, vencidos: 1, sem_vpn: 1 },
+        { papel: 'integrador', total: 3, vigentes: 2, pendentes: 1, vencidos: 0, sem_vpn: 0 }];
+    it('equipe: tabela por papel e mapa de risco', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: FORN, riscos: [{ p: 4, i: 5, n: 2 }] }));
+        const f = el('pn-ot-forn').closest('section');
+        expect(f.textContent).toContain('Acesso remoto');
+        expect([...f.querySelectorAll('th')].map((t) => t.textContent.trim())).toContain('Em fluxo externo sem VPN');
+        expect(el('pn-ot-mapa').closest('section').querySelector('.pn-mapa')).not.toBeNull();
+        expect(el('pn-ot-mapa').closest('section').textContent).toContain('2 riscos');
+        expect(el('pn-ot-mapa').closest('section').textContent).toContain('Ver como tabela');
+    });
+    it('sem VPN só no acesso remoto: nos outros papéis, um traço', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: FORN, riscos: [] }));
+        const linhas = [...el('pn-ot-forn').closest('section').querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim()));
+        expect(linhas.find((l) => l[0] === 'Acesso remoto').at(-1)).toBe('1');
+        expect(linhas.find((l) => l[0] === 'Integrador').at(-1)).toBe('—');
+    });
+    it('vazios com texto', async () => {
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: [], riscos: [{ p: 1, i: 1, n: 0 }] }));
+        expect(el('pn-ot-forn').closest('section').textContent).toContain('Nenhum fornecedor de OT');
+        expect(el('pn-ot-mapa').closest('section').textContent).toContain('Nenhum risco ligado ao n.ot');
+        expect(el('pn-ot-mapa').closest('section').querySelector('.pn-mapa')).toBeNull();
+    });
+    it('papel desconhecido vai escapado', async () => {
+        const x = '<img src=x onerror=alert(1)>';
+        await abrir(painelOt('equipe', { ...EQUIPE, fornecedores: [{ ...FORN[0], papel: x }], riscos: [] }));
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('pn-ot-forn').closest('section').textContent).toContain(x);
+    });
+    it('sem as chaves (leitor, técnico), os quadros não existem', async () => {
+        await abrir(painelOt('cliente', { conformidade: { resumo: { atende: 1, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 0, revisar: 0, a_confirmar: 0 } } }, EM_DIA));
+        expect(el('pn-ot-forn')).toBeNull();
+        expect(el('pn-ot-mapa')).toBeNull();
+    });
+    it('técnico (Por site sem fornecedores nem riscos): a tela não quebra e os quadros não existem', async () => {
+        await abrir(painelOt('equipe', { numeros: [['0 de 1', 'sites em operação']], por_site: SITES }));
+        expect(el('pn-ot-sites')).not.toBeNull();
+        expect(el('pn-ot-forn')).toBeNull();
+        expect(el('pn-ot-mapa')).toBeNull();
+    });
+});
+
 describe('gráficos com rótulos próprios (o padrão não muda)', () => {
     it('sem rótulos, o padrão de sempre: Concluído/Em andamento/Falta e Pedidos recebidos', () => {
         document.body.innerHTML = graficoCobertura([{ tema: 'T', feito: 1, andamento: 2, falta: 3, conta: 'x' }]);

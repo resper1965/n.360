@@ -250,6 +250,22 @@ function quadroVencimentosOt(linhas) {
     return quadro('pn-venc', 'Próximos vencimentos, 90 dias', algum ? graficoVencimentos(linhas) : '<p class="pn-vazio-tx">Nenhum prazo nos próximos 90 dias.</p>');
 }
 
+const PAPEL_FORNECEDOR = { integrador: 'Integrador', fabricante: 'Fabricante', acesso_remoto: 'Acesso remoto' };
+
+/** Fornecedores de OT por papel (só contagem; a lista com nomes fica em "Fornecedores do n.ot"). "Sem VPN" só vale para acesso remoto. */
+function quadroFornecedores(lista) {
+    if (!lista.length) return quadro('pn-ot-forn', 'Fornecedores de OT', '<p class="pn-vazio-tx">Nenhum fornecedor de OT. Ligue um fornecedor a um site ou fluxo em Fornecedores do n.ot.</p>');
+    const linhas = lista.map((p) => [e(PAPEL_FORNECEDOR[p.papel] || p.papel), e(p.total), e(p.vigentes), e(p.pendentes), e(p.vencidos), e(p.papel === 'acesso_remoto' ? p.sem_vpn : '—')]);
+    return quadro('pn-ot-forn', 'Fornecedores de OT', renderDataTable(['Papel', 'Fornecedores', 'Avaliação vigente', 'Pendente', 'Vencida ou reprovada', 'Em fluxo externo sem VPN'], linhas));
+}
+
+/** Mapa de risco dos riscos do núcleo ligados a site, ativo ou desvio do n.ot (só probabilidade, impacto e contagem). */
+function quadroRiscosOt(celulas) {
+    const n = celulas.reduce((t, c) => t + (Number(c.n) || 0), 0);
+    return quadro('pn-ot-mapa', 'Riscos de OT', n ? graficoMapa(celulas) : '<p class="pn-vazio-tx">Nenhum risco ligado ao n.ot. Um risco entra aqui quando é ligado a um site, ativo ou desvio.</p>',
+        n ? `<span class="pn-meta">${n} ${n === 1 ? 'risco' : 'riscos'}</span>` : '');
+}
+
 /**
  * Painel do n.ot (spec 2026-11-19-paineis-do-n-ot). O servidor decide o que cada papel recebe (`?modulo=ot`); aqui só se desenha o que
  * veio. Quadro sem dado não aparece; nunca um zero que pareça "em dia".
@@ -262,8 +278,10 @@ function telaDoOt(d, b) {
     const venc = Array.isArray(b.vencimentos) ? [quadroVencimentosOt(b.vencimentos)] : [];
     const conf = b.conformidade ? [quadroConformidade(b.conformidade)] : [];
     const desv = b.desvios ? [quadroDesvios(b.desvios)] : [];
+    const forn = Array.isArray(b.fornecedores) ? [quadroFornecedores(b.fornecedores)] : [];
+    const mapa = Array.isArray(b.riscos) ? [quadroRiscosOt(b.riscos)] : [];
     const esquerda = [...decidir, ...fazer, ...sites, ...venc];
-    const direita = [...numeros, ...conf, ...desv];
+    const direita = [...numeros, ...conf, ...desv, ...forn, ...mapa];
     return esquerda.length || direita.length ? colunas(esquerda, direita) : '';
 }
 
