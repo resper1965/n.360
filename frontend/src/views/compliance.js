@@ -1629,6 +1629,7 @@ import { classeDoControle } from '../classe-controle.js';
                     !e.ceo_approved_by && !isOrgUser && { rotulo: 'Assinar CEO', action: 'signEvidence', args: [e.id, 'ceo', fileHash] },
                     { rotulo: 'Baixar', action: 'downloadEvidenceFile', args: [e.id] },
                     !isOrgUser && { rotulo: 'Avaliar com IA', action: 'evaluateEvidenceAI', args: [e.id] },
+                    { rotulo: 'Ver avaliação', action: 'abrirAvaliacaoEvidencia', args: [e.id, !isOrgUser && S.user?.role !== 'client'] },
                     // Cliente não troca o vínculo (escrita fora do allow-list dele).
                     !isOrgUser && { rotulo: 'Ligar a controles', action: 'abrirControlesEvidencia', args: [proj.id, e.id] },
                     comPrivacy && { rotulo: 'Requisitos e validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id] },
@@ -2058,6 +2059,38 @@ window.alternarControleEvidencia = async function(evidenceId, controlId, el) {
     }
 };
 
+// Nota da revisão (pessoa) e avaliação da IA ficam em campos separados (evaluation_notes e
+// avaliacao_ia): a tela mostra as duas, cada uma com o seu rótulo. Só a nota humana se edita aqui.
+window.abrirAvaliacaoEvidencia = async function(evidenceId, podeEditar) {
+    let ev;
+    try { ev = await api('GET', `/api/v1/evidence/${evidenceId}/detail`); }
+    catch (e) { showToast('Não foi possível abrir a avaliação: ' + e.message, 'error'); return; }
+    const nota = ev.evaluation_notes || '';
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Avaliação da evidência</span></div>
+        <div class="form-group">
+            <label class="form-label" for="aval-nota">Nota da revisão (escrita por uma pessoa)</label>
+            ${podeEditar
+                ? `<textarea class="form-input" id="aval-nota" rows="6">${escapeHTML(nota)}</textarea>`
+                : `<div id="aval-nota" class="t-md pre">${nota ? escapeHTML(nota) : '<span class="t-dim">Sem nota.</span>'}</div>`}
+        </div>
+        <div class="form-group">
+            <div class="form-label">Avaliação da IA</div>
+            <div id="aval-ia" class="t-md pre">${ev.avaliacao_ia ? escapeHTML(ev.avaliacao_ia) : '<span class="t-dim">A IA ainda não avaliou esta evidência.</span>'}</div>
+        </div>
+        ${podeEditar ? `<button class="btn btn-primary w-full" data-action="salvarNotaEvidencia" data-args='${escapeHTML(JSON.stringify([ev.project_id, evidenceId]))}'>Salvar a nota</button>` : ''}
+    `);
+};
+
+window.salvarNotaEvidencia = async function(projectId, evidenceId) {
+    const nota = (document.getElementById('aval-nota')?.value || '').trim();
+    try {
+        await api('PATCH', `/api/v1/projects/${projectId}/evidence/${evidenceId}`, { evaluation_notes: nota || null });
+        showToast('Nota da revisão salva.');
+        closeModal();
+    } catch (e) { showToast('Erro ao salvar a nota: ' + e.message, 'error'); }
+};
+
 window.evaluateEvidenceAI = function(evidenceId) {
     openModal(`
         <div class="modal-header"><span class="modal-title">Avaliar evidência por IA</span></div>
@@ -2077,7 +2110,7 @@ window.enviarAvaliacaoEvidencia = async function(evidenceId) {
     out.textContent = 'Avaliando...';
     try {
         const r = await api('POST', `/api/v1/evidence/${evidenceId}/evaluate`, { text });
-        out.innerHTML = `<strong>${escapeHTML(r.evaluation_status || '')}</strong>\n${escapeHTML(r.evaluation_markdown || '')}`;
+        out.innerHTML = `<div class="form-label">Avaliação da IA</div><strong>${escapeHTML(r.evaluation_status || '')}</strong>\n${escapeHTML(r.evaluation_markdown || '')}\n<span class="t-dim">Fica guardada à parte: não substitui a nota da revisão escrita por uma pessoa.</span>`;
     } catch (e) {
         out.textContent = 'Erro: ' + e.message;
     }
