@@ -14,7 +14,7 @@
 -- batem com o schema.sql (13 e 16 colunas), e anote `SELECT COUNT(*) FROM pedidos` e `SELECT COUNT(*) FROM pedido_destinatarios`.
 -- DEPOIS: as duas contagens iguais às de antes; `SELECT name FROM sqlite_master WHERE name IN ('pedido_prova_imutavel',
 -- 'pedido_dest_prova_imutavel', 'risco_aceite_imutavel', 'risco_aceite_do_projeto')` devolve 4 linhas; `PRAGMA table_info(risco_aceites)`
--- lista 23 colunas.
+-- lista 22 colunas.
 
 -- Aceite do risco residual (ISO/IEC 27001, 6.1.3 e). Um ato por linha, nunca apagado nem reescrito: o que se aceitou (o estado
 -- congelado do risco e o hash dele), quem aceitou, com qual alçada, quando (UTC) e por qual canal (direto, com senha, ou pedido).
