@@ -198,4 +198,27 @@ describe('trilha do n.privacy: só o que o servidor mandou', () => {
         expect(el('c').querySelector('#pn-trilha-t')).toBeNull();
         expect(el('c').querySelector('button[data-action="painelAbrirProximo"]')).toBeNull();
     });
+    it('passo por fazer com tela fora da lista fechada mostra "Falta" (a linha não fica muda)', async () => {
+        await rodar(base({ privacy: { ...ISO, passos: P } }));
+        const linhas = [...el('c').querySelector('#pn-trilha-t').closest('section').querySelectorAll('li')];
+        expect(linhas[1].querySelector('.pn-tx').textContent).toBe('Fora');
+        expect(linhas[1].querySelector('button')).toBeNull();
+        expect(linhas[1].querySelector('.pn-estado').textContent).toBe('Falta');
+        expect(linhas[0].querySelector('button')).not.toBeNull();   // a tela da lista fechada segue com o botão
+    });
+    it('trilha vazia não desenha a caixa', async () => {
+        await rodar(base({ privacy: { ...ISO, passos: [] } }));
+        expect(el('c').querySelector('#pn-trilha-t')).toBeNull();
+    });
+    it('a ordem exibida é a do servidor (não reordena por `ordem`) e aspas no texto não quebram os atributos', async () => {
+        const Q = [{ id: 'b', ordem: 9, rotulo: 'Segundo "x"', etapa: 'levantar', feito: false, tela: 'ropa', acao: `Abrir 'a' "b"` },
+            { id: 'a', ordem: 1, rotulo: 'Primeiro', etapa: 'comecar', feito: true, tela: 'importacao', acao: 'Trazer' }];
+        await rodar(base({ privacy: { ...ISO, passos: Q } }));
+        const t = el('c').querySelector('#pn-trilha-t').closest('section');
+        expect([...t.querySelectorAll('li .pn-tx')].map((x) => x.textContent)).toEqual(['Segundo "x"', 'Primeiro']);
+        const b = t.querySelector('button');
+        expect(b.getAttribute('aria-label')).toBe(`Abrir 'a' "b": Segundo "x"`);
+        expect(JSON.parse(b.dataset.args)).toEqual(['p9', 'ropa', null, null, null]);
+        expect(b.attributes.length).toBe(5);   // type, class, data-action, data-args, aria-label: nada extra
+    });
 });

@@ -345,6 +345,34 @@ describe('incidentes', () => {
         } finally { vi.useRealTimers(); }
     });
 
+    it('faixa: prazo às 22h de Brasília (01h UTC do dia seguinte) vence no dia de Brasília', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-16T12:00:00Z'));
+        try {
+            await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-17T01:00:00.000Z', situacao_anpd: 'vence_hoje' } });
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até hoje, 16/10.');
+            vi.setSystemTime(new Date('2026-10-14T12:00:00Z'));
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-17T01:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até 16/10 (faltam 2 dias úteis)');
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('faixa: "faltam N dias úteis" pula os feriados nacionais (20/11 e Sexta-feira Santa)', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-11-18T12:00:00Z')); // quarta; sexta 20/11 é feriado
+        try {
+            await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-11-24T10:00:00.000Z', situacao_anpd: 'no_prazo' } });
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até 24/11 (faltam 3 dias úteis)');
+            vi.setSystemTime(new Date('2026-04-01T12:00:00Z')); // quarta; sexta 03/04 é a Sexta-feira Santa de 2026
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-04-07T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até 07/04 (faltam 3 dias úteis)');
+        } finally { vi.useRealTimers(); }
+    });
+
     it('sem dia útil restante: nunca "faltam 0 dias úteis"; vence hoje ou venceu pela data', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-10-16T12:00:00Z')); // sexta-feira
@@ -365,8 +393,47 @@ describe('incidentes', () => {
         } finally { vi.useRealTimers(); }
     });
 
+    it('risco baixo: comunicação "Não exigida" em tom neutro na lista, na ficha e na faixa; sem primário e encerrar não fala da ANPD', async () => {
+        const baixo = { ...INCIDENTES[0], risco_titular: 'baixo', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida' };
+        await abrir('incidentes', { [`GET ${B}/incidentes`]: [baixo], [`GET ${B}/incidentes/i1`]: baixo });
+        expect(el('c').textContent).toContain('Não exigida');
+        expect(el('c').textContent).not.toContain('Atrasado');
+        await ficha();
+        const faixa = el('in-faixa-anpd');
+        expect(faixa.textContent).toContain('Comunicação à ANPD: não exigida');
+        expect(faixa.getAttribute('style')).not.toMatch(/danger|warning/);
+        expect(el('in-prazos').textContent).toContain('ANPD: Não exigida');
+        expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
+        window.pedirEncerramentoIncidente(...JSON.parse(el('c').querySelector('[data-action="pedirEncerramentoIncidente"]').getAttribute('data-args')));
+        expect(el('in-encerrar').textContent).not.toContain('ANPD');
+        await ficha('comunicacao');
+        expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
+    });
+
+    it('risco rebaixado depois do prazo vencido: "Não exigida (reavaliado após o prazo de DD/MM)" na lista, na ficha e na faixa', async () => {
+        const rb = { ...INCIDENTES[0], risco_titular: 'baixo', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida', anpd_reavaliado_apos_prazo: '2026-10-04', titular_reavaliado_apos_prazo: null };
+        await abrir('incidentes', { [`GET ${B}/incidentes`]: [rb], [`GET ${B}/incidentes/i1`]: rb });
+        expect(el('c').textContent).toContain('Não exigida (reavaliado após o prazo de 04/10)');
+        await ficha();
+        expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD: não exigida (reavaliado após o prazo de 04/10).');
+        expect(el('in-faixa-anpd').getAttribute('style')).not.toMatch(/danger|warning/);
+        expect(el('in-prazos').textContent).toContain('ANPD: Não exigida (reavaliado após o prazo de 04/10)');
+        expect(el('in-prazos').textContent).not.toContain('Titular: Não exigida (reavaliado');
+    });
+
+    it('ciência às 21h00 de Brasília (meia-noite UTC): lista e ficha mostram a ciência e o prazo no dia de Brasília', async () => {
+        const i21 = { ...INCIDENTES[0], ciencia_em: '2026-11-13T00:00:00.000Z', prazo_anpd_em: '2026-11-14T00:00:00.000Z', situacao_anpd: 'atrasado' };
+        await abrir('incidentes', { [`GET ${B}/incidentes`]: [i21], [`GET ${B}/incidentes/i1`]: i21 });
+        expect(el('c').textContent).toContain('12/11/2026');
+        expect(el('c').textContent).not.toContain('13/11/2026');
+        await ficha();
+        expect(el('in-prazos').textContent).toContain('Ciência em 12/11/2026.');
+        expect(el('in-prazos').textContent).toContain('(13/11/2026)');
+        expect(el('in-faixa-anpd').textContent).toContain('o prazo era 13/11');
+    });
+
     it('sem risco ao titular: nenhuma comunicação é a próxima ação e encerrar não fala da ANPD', async () => {
-        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco' } });
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida' } });
         await ficha('comunicacao');
         expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
         await ficha();

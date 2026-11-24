@@ -33,7 +33,12 @@ function blocoTransferencias(pid, rid, lig, partes, editavel, simSelecionado) {
 
 function blocoPartes(pid, rid, lig, parceiros, editavel, parceirosFalhou = false) {
     const ligadas = lista(lig.partes);
-    return `<h3 class="at-sub">Operadores e destinatários</h3>
+    // Dado antigo: pessoa ligada num papel de organização. O servidor não liga mais assim; a parte pode virar organização na ficha dela.
+    const pessoas = ligadas.filter((p) => p.tipo === 'pessoa' && PAPEIS_DE_PARCEIRO.includes(p.papel));
+    const aviso = pessoas.length ? `<div class="at-nota" id="at-partes-pessoas" role="status">Operador, cocontrolador, suboperador e destinatário são organizações.
+        ${pessoas.length === 1 ? 'Esta parte está cadastrada como pessoa' : 'Estas partes estão cadastradas como pessoa'}; abra o cadastro para mudar o tipo para organização:
+        <ul>${pessoas.map((p) => `<li>${escapeHTML(p.nome)} <button type="button" class="btn btn-ghost btn-sm" data-action="openParteModal" data-args='${args(pid, p.parte_id)}' aria-label="Abrir o cadastro de ${escapeHTML(p.nome)}">Abrir cadastro</button></li>`).join('')}</ul></div>` : '';
+    return `<h3 class="at-sub">Operadores e destinatários</h3>${aviso}
         ${ligadas.length ? `<ul class="at-lista" id="at-partes-lista">${ligadas.map((p) => `<li><span>${escapeHTML(p.nome)}, ${escapeHTML(PAPEIS_PARTE[p.papel] || p.papel)}</span>
             ${editavel ? `<button type="button" class="btn btn-ghost btn-sm" data-action="removerParteTratamento" data-args='${args(pid, rid, p.parte_id, p.vinculo_id)}' aria-label="Remover ${escapeHTML(p.nome)}">Remover</button>` : ''}</li>`).join('')}</ul>`
             : '<p class="at-nota">Nenhum parceiro ligado. Ligue aqui as empresas que tratam os dados em nome da sua, ou que os recebem.</p>'}

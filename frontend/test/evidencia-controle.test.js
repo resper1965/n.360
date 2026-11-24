@@ -10,9 +10,9 @@ import { S } from '../src/state.js';
 
 const EVIDENCIAS = [
     { id: 'ev-1', file_name: 'politica.pdf', control_id: null, evaluation_status: 'pending' },
-    { id: 'ev-2', file_name: 'log.txt', control_id: 'ctl-1', evaluation_status: 'conforming' },
+    { id: 'ev-2', file_name: 'log.txt', control_id: 'ctl-1', control_ids: ['ctl-1', 'ctl-2'], evaluation_status: 'conforming' },
 ];
-const CONTROLES = [{ id: 'ctl-1', title: 'A.5.1 — Políticas <img src=x onerror=alert(1)>' }];
+const CONTROLES = [{ id: 'ctl-1', title: 'A.5.1 — Políticas <img src=x onerror=alert(1)>' }, { id: 'ctl-2', title: 'A.5.2 — Papéis' }];
 let f;
 
 function tela() {
@@ -23,21 +23,21 @@ beforeEach(() => {
     f = servir({
         'GET /api/v1/projects/p1/evidence': { ok: true, evidence: EVIDENCIAS },
         'GET /api/v1/projects/p1/controls': { ok: true, controls: CONTROLES },
-        'PUT /api/v1/evidence/ev-1': { ok: true },
-        'PUT /api/v1/evidence/ev-2': { ok: true },
+        'GET /api/v1/evidence/ev-2/detail': { id: 'ev-2', file_name: 'log.txt', control_id: 'ctl-1', control_ids: ['ctl-1', 'ctl-2'] },
+        'POST /api/v1/evidence/ev-1/controles': { ok: true },
+        'DELETE /api/v1/evidence/ev-2/controles/ctl-2': { ok: true },
     });
     S.currentProject = { id: 'p1' };
     S.user = { role: 'consultor' };
 });
 
 describe('Central de Evidências', () => {
-    it('mostra o seletor de controle com o vínculo atual e o status traduzido', async () => {
+    it('a coluna mostra todos os controles ligados (N:N) e o status traduzido', async () => {
         const { c, h, a } = tela();
         await window.renderEvidence(c, h, a);
-        const seletores = c.querySelectorAll('select[data-action-change="vincularEvidenciaControle"]');
-        expect(seletores).toHaveLength(2);
-        expect(seletores[1].value).toBe('ctl-1');
-        expect(seletores[0].value).toBe('');
+        const celulas = [...c.querySelectorAll('tbody tr')].map((tr) => tr.children[1].textContent.trim());
+        expect(celulas).toEqual(['—', 'A.5.1 — Políticas <img src=x onerror=alert(1)>; A.5.2 — Papéis']);
+        expect(c.querySelector('tbody select')).toBeNull();
         expect(c.querySelector('img')).toBeNull();
         expect(c.textContent).toContain('Conforme');
         expect(c.textContent).toContain('Pendente');
@@ -61,35 +61,50 @@ describe('Central de Evidências', () => {
         expect(visiveis(linhas[0])[0].getAttribute('aria-label')).toBe('Revisar (Líder SGSI): politica.pdf');
         const menu = (tr) => [...tr.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim());
         // "Definir validade" (spec 3C, C4): o projeto do teste é só do n.iso
-        expect(menu(linhas[0])).toEqual(['Assinar CEO', 'Baixar', 'Avaliar com IA', 'Ver avaliação', 'Definir validade']);
-        expect(menu(linhas[2])).toEqual(['Avaliar com IA', 'Ver avaliação', 'Definir validade']);
+        expect(menu(linhas[0])).toEqual(['Assinar CEO', 'Baixar', 'Avaliar com IA', 'Ver avaliação', 'Ligar a controles', 'Definir validade']);
+        expect(menu(linhas[2])).toEqual(['Avaliar com IA', 'Ver avaliação', 'Ligar a controles', 'Definir validade']);
         expect(c.querySelectorAll('.btn-primary')).toHaveLength(0);
     });
 
-    it('cliente vê o controle, sem seletor', async () => {
+    it('cliente vê os controles, sem a ação de ligar', async () => {
         S.user = { role: 'org_user' };
         const { c, h, a } = tela();
         await window.renderEvidence(c, h, a);
-        expect(c.querySelector('select[data-action-change="vincularEvidenciaControle"]')).toBeNull();
-        expect(c.textContent).toContain('A.5.1');
+        expect(c.querySelector('[data-action="abrirControlesEvidencia"]')).toBeNull();
+        expect(c.textContent).toContain('A.5.2');
     });
 
-    it('trocar o controle chama o PUT da evidência; vazio desassocia', async () => {
-        await window.vincularEvidenciaControle('ev-1', 'ctl-1');
-        await window.vincularEvidenciaControle('ev-2', '');
-        const corpos = f.mock.calls.filter(([, o]) => o.method === 'PUT').map(([u, o]) => [u, JSON.parse(o.body)]);
-        expect(corpos).toEqual([
-            [expect.stringContaining('/api/v1/evidence/ev-1'), { control_id: 'ctl-1' }],
-            [expect.stringContaining('/api/v1/evidence/ev-2'), { control_id: null }],
+    it('a janela marca os controles ligados; marcar liga (POST), desmarcar desliga (DELETE)', async () => {
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        await window.abrirControlesEvidencia('p1', 'ev-2');
+        const caixas = [...document.querySelectorAll('#modal-content input[type="checkbox"]')];
+        expect(caixas.map((x) => x.checked)).toEqual([true, true]);
+        expect(document.querySelector('#modal-content img')).toBeNull();
+        const um = document.createElement('input'); um.type = 'checkbox'; um.checked = true;
+        await window.alternarControleEvidencia('ev-1', 'ctl-1', um);
+        const dois = document.createElement('input'); dois.type = 'checkbox'; dois.checked = false;
+        await window.alternarControleEvidencia('ev-2', 'ctl-2', dois);
+        const escritas = f.mock.calls.filter(([, o]) => o && o.method && o.method !== 'GET').map(([u, o]) => [o.method, String(u).replace(/^.*\/api/, '/api'), o.body ? JSON.parse(o.body) : null]);
+        expect(escritas).toEqual([
+            ['POST', '/api/v1/evidence/ev-1/controles', { control_id: 'ctl-1' }],
+            ['DELETE', '/api/v1/evidence/ev-2/controles/ctl-2', null],
         ]);
     });
 
-    it('troca de controle redesenha a lista; rótulos do Líder SGSI', async () => {
+    it('falha ao ligar devolve a caixa ao estado anterior', async () => {
+        f = servir({}); // sem dublê: o POST volta 404, como o Worker
+        const caixa = document.createElement('input'); caixa.type = 'checkbox'; caixa.checked = true;
+        await window.alternarControleEvidencia('ev-1', 'ctl-x', caixa);
+        expect(caixa.checked).toBe(false);
+    });
+
+    it('ligar redesenha a lista; rótulos do Líder SGSI', async () => {
         document.body.innerHTML = '<div id="main-content"></div><div id="header-title"></div><div id="header-actions"></div>';
         S.view = 'evidence';
-        await window.vincularEvidenciaControle('ev-1', 'ctl-1');
+        const caixa = document.createElement('input'); caixa.type = 'checkbox'; caixa.checked = true;
+        await window.alternarControleEvidencia('ev-1', 'ctl-1', caixa);
         const c = document.getElementById('main-content');
-        expect(c.querySelectorAll('select[data-action-change="vincularEvidenciaControle"]')).toHaveLength(2);
+        expect(c.querySelectorAll('tbody tr')).toHaveLength(2);
         expect(c.textContent).toContain('Revisar (Líder SGSI)');
         expect(c.textContent).toContain('Revisadas (Líder SGSI)');
         expect(c.textContent).not.toContain('DPO');
@@ -111,7 +126,7 @@ describe('Central de Evidências', () => {
         await window.doEvidenceUpload('p1');
         expect(document.getElementById('ev-msg').textContent).toBe(`Evidência enviada: laudo.pdf (SHA-256: ${sha.substring(0, 16)}...)`);
         expect(f2.mock.calls.some(([u, o]) => (o?.method || 'GET') === 'GET' && String(u).endsWith('/evidence'))).toBe(true);
-        expect(document.getElementById('main-content').querySelectorAll('select[data-action-change="vincularEvidenciaControle"]').length).toBe(2);
+        expect(document.getElementById('main-content').querySelectorAll('tbody tr').length).toBe(2);
         S.view = undefined;
     });
 });

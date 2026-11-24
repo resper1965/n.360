@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0118** (`ls migrations/*.sql | tail -1`). São 119 arquivos
+- Última migration no repositório: **0119** (`ls migrations/*.sql | tail -1`). São 120 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -48,6 +48,10 @@ cliente. O arquivo fica porque `d1_migrations` guarda o nome.
 ---
 
 Seções por número, da mais nova para a mais antiga (as anteriores à 0035 não têm seção). Migration nova entra no topo.
+
+## 0119 — evidência ligada a vários controles (2026-11-23)
+
+Cria `evidencia_controles` (`evidence_id`, `control_id`, `project_id`, `ligado_por`, `created_at`; chave `(evidence_id, control_id)`; CASCADE da evidência, do controle e do projeto), dois índices e dois gatilhos: `evidencia_controles_do_projeto` (recusa evidência ou controle de outro projeto) e `evidencia_controle_inicial` (toda evidência nova com `control_id` nasce com esse vínculo). Carga: o `control_id` de hoje vira o primeiro vínculo quando evidência e controle são do mesmo projeto; `evidence.control_id` não é alterado e segue como o primeiro vínculo, para leitura compatível. Aditiva e repetível. **Antes de aplicar**, rode as duas contagens do cabeçalho da migration: a de vínculos que NÃO serão carregados (evidência ligada a controle de outro projeto ou sem projeto) deve ser 0; se não for, decida antes o que fazer com eles. **Depois**, `SELECT COUNT(*) FROM evidencia_controles` deve igualar a contagem de carga. **Status: NÃO aplicada.**
 
 ## 0118 — avaliação por IA em campo próprio (2026-11-20)
 

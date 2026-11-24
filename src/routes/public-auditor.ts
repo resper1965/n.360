@@ -8,6 +8,7 @@ import type { Bindings } from '../index';
 import { rateLimitD1, erro500, logAudit, refForaDoProjeto, genId } from '../helpers';
 import { validateBody, auditorPortalSchema, auditorEvidenciaSchema, auditorPedidosSchema, auditorNotaPortalSchema } from '../schemas';
 import { NA_STATUS } from '../services/soa-logic';
+import { controlesDasEvidencias } from '../services/evidencia-controles';
 import { tokenDoAuditor } from './auditor';
 
 export const publicAuditorApp = new Hono<{ Bindings: Bindings }>();
@@ -56,9 +57,12 @@ publicAuditorApp.post('/ver', async (c) => {
     ]);
     const porControle = new Map<string, EvidenciaPortal[]>(controles.results.map((ct) => [ct.id, []]));
     const semControle: EvidenciaPortal[] = [];
-    for (const { control_id, ...e } of evidencias.results) {
-      const lista = control_id ? porControle.get(control_id) : undefined;
-      (lista ?? semControle).push(e);
+    // N:N (0119): a evidência entra em todo controle do projeto ao qual está ligada.
+    const ligacoes = await controlesDasEvidencias(db, t.project_id);
+    for (const { control_id: _primeiro, ...e } of evidencias.results) {
+      const listas = (ligacoes.get(e.id) ?? []).map((ct) => porControle.get(ct)).filter((l): l is EvidenciaPortal[] => !!l);
+      if (listas.length) for (const l of listas) l.push(e);
+      else semControle.push(e);
     }
     return c.json({
       projeto,

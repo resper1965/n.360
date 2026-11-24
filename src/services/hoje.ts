@@ -21,15 +21,29 @@ export function mesesMaisSP(meses: number, agora: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** O dia (AAAA-MM-DD) de uma data gravada, em São Paulo. Data pura ou meia-noite UTC exata é dia de calendário (prazo) e fica como
- *  está; instante (`toISOString`, ou o `datetime` do SQLite, em UTC) vira o dia de São Paulo. A mesma regra de `dataHoraBr`. */
-export function diaEmSaoPaulo(v: string | null): string | null {
+const semHora = (t: string) => !/[T ]\d{2}:\d{2}/.test(t.trim());
+/**
+ * O dia (AAAA-MM-DD) de uma data gravada, em São Paulo. Data sem hora e meia-noite UTC exata são dia de calendário e ficam como estão
+ * (validades, ações e os prazos de `somarPrazo` contados de data sem hora são gravados assim); instante (`toISOString`, ou o `datetime` do
+ * SQLite, em UTC) vira o dia de São Paulo. `base`: a data de onde o prazo foi contado (para a ciência, ela mesma). Com hora, a meia-noite
+ * UTC também é instante (21h de Brasília do dia anterior).
+ */
+export function diaEmSaoPaulo(v: string | null, base?: string | null): string | null {
   if (!v) return null;
   const t = v.trim();
-  if (!/[T ]\d{2}:\d{2}/.test(t) || /^\d{4}-\d{2}-\d{2}T00:00(:00(\.0+)?)?Z$/.test(t)) return t.slice(0, 10);
+  if (semHora(t) || (!(base && !semHora(base)) && /^\d{4}-\d{2}-\d{2}T00:00(:00(\.0+)?)?Z$/.test(t))) return t.slice(0, 10);
   const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}Z`);
   return Number.isNaN(d.getTime()) ? t.slice(0, 10) : hojeEmSaoPaulo(d);
 }
+
+/**
+ * `diaEmSaoPaulo` em SQL, para comparar e agrupar prazos no banco pela mesma regra do TypeScript: data sem hora e meia-noite UTC exata ficam
+ * como estão (salvo `base` com hora); instante vira o dia de São Paulo (`'-3 hours'`: sem horário de verão desde 2019, o mesmo atalho de
+ * avisos-prazo.ts).
+ */
+const sqlSemHora = (c: string) => `${c} NOT GLOB '*[T ][0-9][0-9]:[0-9][0-9]*'`;
+export const sqlDiaSP = (c: string, base?: string) => `(CASE WHEN ${sqlSemHora(c)} OR (${base ? `(${base} IS NULL OR ${sqlSemHora(base)}) AND ` : ''}(${c} GLOB '????-??-??T00:00Z' OR ${c} GLOB '????-??-??T00:00:00Z'
+  OR (${c} GLOB '????-??-??T00:00:00.?*Z' AND rtrim(substr(${c}, 21, length(${c}) - 21), '0') = ''))) THEN substr(${c}, 1, 10) ELSE date(${c}, '-3 hours') END)`;
 
 /** AAAA-MM do mês de `dia` (AAAA-MM-DD) recuado `n` meses (n >= 0). Conta pelo calendário, sem o dia: 31/03 menos 1 mês é fevereiro. */
 export const mesesAtras = (dia: string, n: number) => {

@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { hojeEmSaoPaulo, diaMaisSP } from '../src/services/hoje';
+import { hojeEmSaoPaulo, diaMaisSP, diaEmSaoPaulo, sqlDiaSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
-import { somarPrazo } from '../src/services/parametros-legais';
+import { somarPrazo, ehFeriadoNacional } from '../src/services/parametros-legais';
+// @ts-expect-error módulo JS do frontend, sem tipos
+import { ehFeriadoNacional as feriadoDaTela, diaSP as diaDaTela } from '../frontend/src/hoje.js';
 import { situacaoDoPrazo } from '../src/services/titular-pedidos';
 import { situacaoDaComunicacao } from '../src/services/incidentes';
 
@@ -31,13 +33,83 @@ describe('somarPrazo', () => {
   it('horas e dias corridos somam direto; dias úteis pulam sábado e domingo', () => {
     expect(somarPrazo('2026-10-09T10:00:00Z', 72, 'horas')).toBe('2026-10-12T10:00:00.000Z');
     expect(somarPrazo('2026-10-09', 15, 'dias_corridos')).toBe('2026-10-24T00:00:00.000Z');
-    // sexta 2026-10-09 + 1 dia útil = segunda; + 5 = sexta seguinte
-    expect(somarPrazo('2026-10-09', 1, 'dias_uteis')).toBe('2026-10-12T00:00:00.000Z');
-    expect(somarPrazo('2026-10-09', 5, 'dias_uteis')).toBe('2026-10-16T00:00:00.000Z');
-    expect(somarPrazo('2026-10-10', 1, 'dias_uteis')).toBe('2026-10-12T00:00:00.000Z'); // base num sábado
+    // sexta 2026-10-16 + 1 dia útil = segunda; + 5 = sexta seguinte
+    expect(somarPrazo('2026-10-16', 1, 'dias_uteis')).toBe('2026-10-19T00:00:00.000Z');
+    expect(somarPrazo('2026-10-16', 5, 'dias_uteis')).toBe('2026-10-23T00:00:00.000Z');
+    expect(somarPrazo('2026-10-17', 1, 'dias_uteis')).toBe('2026-10-19T00:00:00.000Z'); // base num sábado
+  });
+  it('dias úteis pulam os feriados nacionais fixos e a Sexta-feira Santa; Carnaval (ponto facultativo) conta', () => {
+    expect(somarPrazo('2026-11-19', 1, 'dias_uteis')).toBe('2026-11-23T00:00:00.000Z'); // 20/11 (sexta) é feriado
+    expect(somarPrazo('2026-04-20', 1, 'dias_uteis')).toBe('2026-04-22T00:00:00.000Z'); // 21/04
+    expect(somarPrazo('2026-12-24', 1, 'dias_uteis')).toBe('2026-12-28T00:00:00.000Z'); // 25/12
+    expect(somarPrazo('2026-12-31', 1, 'dias_uteis')).toBe('2027-01-04T00:00:00.000Z'); // 01/01 (sexta)
+    expect(somarPrazo('2026-04-02', 1, 'dias_uteis')).toBe('2026-04-06T00:00:00.000Z'); // Páscoa 2026 = 05/04: sexta 03/04 não conta
+    expect(somarPrazo('2027-03-25', 1, 'dias_uteis')).toBe('2027-03-29T00:00:00.000Z'); // Páscoa 2027 = 28/03: sexta 26/03 não conta
+    expect(somarPrazo('2026-02-13', 1, 'dias_uteis')).toBe('2026-02-16T00:00:00.000Z'); // segunda de Carnaval conta
+    expect(somarPrazo('2026-11-19', 3, 'dias_corridos')).toBe('2026-11-22T00:00:00.000Z'); // dias corridos não olham feriado
+  });
+  it('dias úteis contam pelo calendário de São Paulo: ciência às 22h de quinta (sexta em UTC) mantém a hora', () => {
+    // quinta 05/11 22:00 em São Paulo = sexta 06/11 01:00 UTC; + 1 dia útil = sexta 06/11 22:00 em São Paulo
+    expect(somarPrazo('2026-11-05T22:00:00-03:00', 1, 'dias_uteis')).toBe('2026-11-07T01:00:00.000Z');
+    // sexta 06/11 23:30 em São Paulo (sábado em UTC) + 1 = segunda 09/11 23:30 em São Paulo
+    expect(somarPrazo('2026-11-06T23:30:00-03:00', 1, 'dias_uteis')).toBe('2026-11-10T02:30:00.000Z');
+  });
+  it('a tela usa os mesmos feriados nacionais do servidor (2026 a 2028, dia a dia)', () => {
+    const d = new Date(Date.UTC(2026, 0, 1));
+    let feriados = 0;
+    while (d.getUTCFullYear() <= 2028) {
+      const dia = d.toISOString().slice(0, 10);
+      expect(feriadoDaTela(dia), dia).toBe(ehFeriadoNacional(dia));
+      if (ehFeriadoNacional(dia)) feriados++;
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    expect(feriados).toBe(30); // 10 por ano
+  });
+  it('ciência às 21h00 de Brasília (meia-noite UTC exata) é instante: conta do dia de Brasília, não do dia seguinte', () => {
+    // quinta 12/11 21:00 em São Paulo = sexta 13/11 00:00 UTC; + 1 dia útil = sexta 13/11 21:00 (lida como data pura, dava segunda 16/11)
+    expect(somarPrazo('2026-11-13T00:00:00.000Z', 1, 'dias_uteis')).toBe('2026-11-14T00:00:00.000Z');
+    expect(somarPrazo('2026-11-13T00:00:00Z', 1, 'dias_uteis')).toBe('2026-11-14T00:00:00.000Z');
+    expect(somarPrazo('2026-11-13', 1, 'dias_uteis')).toBe('2026-11-16T00:00:00.000Z'); // só a data sem hora é o dia 13
   });
   it('data inválida estoura', () => {
     expect(() => somarPrazo('ontem', 1, 'horas')).toThrow();
+  });
+});
+
+describe('dia do prazo em São Paulo (JS e SQL, a mesma regra)', () => {
+  // 22h de Brasília de 09/10 = 01h UTC de 10/10
+  const SP22 = '2026-10-10T01:00:00.000Z';
+  it('prazo às 22h de Brasília: no dia dele vence hoje, no seguinte atrasado (comunicação e pedido)', () => {
+    expect(situacaoDaComunicacao(SP22, null, 'relevante', '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDaComunicacao(SP22, null, null, '2026-10-10')).toBe('atrasado');
+    expect(situacaoDoPrazo({ prazo_em: SP22, status: 'recebido' }, '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDoPrazo({ prazo_em: SP22, status: 'recebido' }, '2026-10-10')).toBe('atrasado');
+    // data sem hora e meia-noite UTC exata são o dia do calendário (o prazo contado de data sem hora é gravado assim)...
+    expect(situacaoDaComunicacao('2026-10-09', null, 'relevante', '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09', '2026-10-06')).toBe('vence_hoje');
+    // ...salvo o prazo contado de ciência com hora: aí a meia-noite UTC é instante (21h de Brasília do dia anterior)
+    expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09', '2026-10-06T00:00:00.000Z')).toBe('atrasado');
+    expect(situacaoDoPrazo({ prazo_em: '2026-10-09T00:00:00.000Z', status: 'recebido', recebido_em: '2026-09-24' }, '2026-10-09')).toBe('vence_hoje');
+  });
+  it('sqlDiaSP, diaEmSaoPaulo e o diaSP da tela dão o mesmo dia, com e sem a base do prazo', async () => {
+    const valores = [SP22, '2026-10-09', '2026-10-09T00:00:00.000Z', '2026-10-09T00:00:00Z', '2026-10-09T00:00Z', '2026-10-09T10:00:00.000Z',
+      '2026-10-09 12:00:00', '2026-10-10 02:59:59', '2026-10-09T23:30:00-03:00', '2026-10-09T00:00:00.123Z', '2026-10-09 00:00:00'];
+    for (const base of [null, '2026-10-06', '2026-10-06T12:00:00.000Z', '2026-10-06T00:00:00.000Z']) {
+      for (const v of valores) {
+        const r = await env.DB.prepare(`SELECT ${sqlDiaSP('?1', '?2')} AS d, ${sqlDiaSP('?1')} AS sem FROM (SELECT ?2 AS b)`).bind(v, base).first<{ d: string; sem: string }>();
+        expect(r?.d, `${v} / ${base}`).toBe(diaEmSaoPaulo(v, base));
+        expect(diaDaTela(v, base), `${v} / ${base}`).toBe(diaEmSaoPaulo(v, base));
+        expect(r?.sem, v).toBe(diaEmSaoPaulo(v));
+        expect(diaDaTela(v), v).toBe(diaEmSaoPaulo(v));
+      }
+    }
+    expect(diaEmSaoPaulo(SP22)).toBe('2026-10-09');
+    expect(diaEmSaoPaulo('2026-10-09')).toBe('2026-10-09');
+    expect(diaEmSaoPaulo('2026-10-09T00:00:00.000Z')).toBe('2026-10-09'); // validade, ação: data gravada como meia-noite UTC
+    expect(diaEmSaoPaulo('2026-10-09T00:00:00.000Z', '2026-10-06')).toBe('2026-10-09');
+    expect(diaEmSaoPaulo('2026-11-13T00:00:00.000Z', '2026-11-13T00:00:00.000Z')).toBe('2026-11-12'); // a ciência às 21h, base dela mesma
+    expect(diaEmSaoPaulo('2026-10-09T00:00:00.000Z', '2026-10-06T12:00:00.000Z')).toBe('2026-10-08');
   });
 });
 
@@ -50,9 +122,21 @@ describe('situações derivadas', () => {
     expect(situacaoDoPrazo({ prazo_em: '2026-10-01', status: 'recebido' }, '2026-10-09')).toBe('atrasado');
   });
   it('comunicação: feita vale mais que o prazo', () => {
-    expect(situacaoDaComunicacao('2026-10-01', '2026-10-02')).toBe('comunicado');
-    expect(situacaoDaComunicacao(null, null)).toBe('sem_prazo');
-    expect(situacaoDaComunicacao('2026-10-01', null, '2026-10-09')).toBe('atrasado');
+    expect(situacaoDaComunicacao('2026-10-01', '2026-10-02', 'relevante')).toBe('comunicado');
+    expect(situacaoDaComunicacao(null, null, null)).toBe('sem_prazo');
+    expect(situacaoDaComunicacao('2026-10-01', null, 'relevante', '2026-10-09')).toBe('atrasado');
+  });
+  it('comunicação: risco sem_risco ou baixo não exige comunicação; risco não avaliado ou relevante segue o prazo', () => {
+    for (const r of ['sem_risco', 'baixo'] as const) {
+      expect(situacaoDaComunicacao('2026-10-01', null, r, '2026-10-09')).toBe('nao_exigida');
+      expect(situacaoDaComunicacao('2026-10-09', null, r, '2026-10-09')).toBe('nao_exigida');
+      expect(situacaoDaComunicacao(null, null, r)).toBe('nao_exigida');
+      expect(situacaoDaComunicacao('2026-10-01', '2026-10-02', r)).toBe('comunicado'); // feita vale mais
+    }
+    expect(situacaoDaComunicacao('2026-10-01', null, null, '2026-10-09')).toBe('atrasado');
+    expect(situacaoDaComunicacao('2026-10-09', null, null, '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDaComunicacao('2026-10-12', null, 'relevante', '2026-10-09')).toBe('no_prazo');
+    expect(situacaoDaComunicacao(null, null, 'relevante')).toBe('sem_prazo');
   });
 });
 
@@ -192,7 +276,7 @@ describe('incidente', () => {
     const ciencia = '2026-10-09T10:00:00Z';
     const b = await json<{ prazo_anpd_em: string; prazo_titular_em: string }>(await criar({ ciencia_em: ciencia }));
     expect(b.prazo_anpd_em).toBe('2026-10-12T10:00:00.000Z');
-    expect(b.prazo_titular_em).toBe('2026-10-14T10:00:00.000Z');
+    expect(b.prazo_titular_em).toBe('2026-10-15T10:00:00.000Z'); // segunda 12/10 é feriado nacional
     await par('incidente.comunicacao_anpd', 24, 'horas');
     const refeito = (await json<{ prazo_anpd_em: string }[]>(await chamar(consultor, 'GET', `${B}/incidentes`))).find((i) => i.prazo_anpd_em === '2026-10-12T10:00:00.000Z');
     expect(refeito).toBeTruthy();
@@ -220,6 +304,72 @@ describe('incidente', () => {
     expect(i.comunicacao_anpd_em).toBe('2026-10-02');
     expect(i.status).toBe('comunicado');
     expect(i.situacao_anpd).toBe('comunicado');
+  });
+
+  it('risco baixo ou sem risco: a comunicação pendente vira nao_exigida; relevante volta ao prazo', async () => {
+    await par('incidente.comunicacao_anpd', 72, 'horas');
+    const id = (await json<{ id: string }>(await criar({ ciencia_em: '2026-01-05T10:00:00Z' }))).id;
+    expect((await ler(id)).situacao_anpd).toBe('atrasado');
+    await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'baixo', avaliacao_texto: 'Dados cifrados' });
+    const i = await ler(id);
+    expect([i.situacao_anpd, i.situacao_titular]).toEqual(['nao_exigida', 'nao_exigida']);
+    expect((await json<{ id: string; situacao_anpd: string }[]>(await chamar(consultor, 'GET', `${B}/incidentes`))).find((x) => x.id === id)!.situacao_anpd).toBe('nao_exigida');
+    await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'relevante' });
+    expect((await ler(id)).situacao_anpd).toBe('atrasado');
+  });
+
+  it('rebaixar o risco depois do prazo vencido exige a justificativa e a situação diz que foi reavaliado após o prazo', async () => {
+    await par('incidente.comunicacao_anpd', 72, 'horas');
+    await par('incidente.comunicacao_titular', 5, 'dias_uteis');
+    const id = (await json<{ id: string }>(await criar({ ciencia_em: '2026-01-05T10:00:00Z' }))).id; // prazos de 08/01 e 12/01, vencidos
+    const risco = (corpo: object, h = consultor) => chamar(h, 'PUT', `${B}/incidentes/${id}/risco`, corpo);
+    const MSG = 'Para reavaliar o risco depois do prazo de comunicação vencido, registre a justificativa na avaliação.';
+    for (const corpo of [{ risco_titular: 'baixo' }, { risco_titular: 'sem_risco', avaliacao_texto: '   ' }, { risco_titular: 'baixo', avaliacao_texto: null }]) {
+      const r = await risco(corpo);
+      expect(r.status, JSON.stringify(corpo)).toBe(400);
+      expect((await json<{ error: string }>(r)).error).toBe(MSG);
+    }
+    const ag = await chamar({}, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' }, { AGENTE }); // a ferramenta do agente usa a mesma rota
+    expect(ag.status).toBe(400);
+    expect((await ler(id)).risco_titular).toBeNull();
+    expect((await risco({ risco_titular: 'relevante' })).status).toBe(200); // relevante mantém a comunicação exigida: sem exigência
+    expect((await risco({ risco_titular: 'baixo', avaliacao_texto: 'Dados cifrados, chave não exposta' })).status).toBe(200);
+    const i = await ler(id);
+    expect(i).toMatchObject({ situacao_anpd: 'nao_exigida', anpd_reavaliado_apos_prazo: '2026-01-08', situacao_titular: 'nao_exigida', titular_reavaliado_apos_prazo: '2026-01-12' });
+    const l = (await json<Record<string, any>[]>(await chamar(consultor, 'GET', `${B}/incidentes`))).find((x) => x.id === id)!;
+    expect([l.anpd_reavaliado_apos_prazo, l.titular_reavaliado_apos_prazo]).toEqual(['2026-01-08', '2026-01-12']);
+    // baixo -> sem_risco segue rebaixado desde a primeira gravação baixa (a de depois do prazo)
+    expect((await risco({ risco_titular: 'sem_risco', avaliacao_texto: 'Sem dado sensível' })).status).toBe(200);
+    expect((await ler(id)).anpd_reavaliado_apos_prazo).toBe('2026-01-08');
+  });
+
+  it('rebaixar antes do prazo, ou com a comunicação feita, não exige justificativa nem marca a reavaliação', async () => {
+    await par('incidente.comunicacao_anpd', 72, 'horas');
+    await par('incidente.comunicacao_titular', 5, 'dias_uteis');
+    const antes = await novo();
+    expect((await chamar(consultor, 'PUT', `${B}/incidentes/${antes}/risco`, { risco_titular: 'baixo' })).status).toBe(200);
+    expect(await ler(antes)).toMatchObject({ situacao_anpd: 'nao_exigida', anpd_reavaliado_apos_prazo: null, titular_reavaliado_apos_prazo: null });
+    const feito = (await json<{ id: string }>(await criar({ ciencia_em: '2026-01-05T10:00:00Z' }))).id;
+    for (const destino of ['anpd', 'titular']) await chamar(consultor, 'POST', `${B}/incidentes/${feito}/comunicacoes`, { destino, em: '2026-01-06' });
+    expect((await chamar(consultor, 'PUT', `${B}/incidentes/${feito}/risco`, { risco_titular: 'sem_risco' })).status).toBe(200);
+    expect(await ler(feito)).toMatchObject({ situacao_anpd: 'comunicado', anpd_reavaliado_apos_prazo: null });
+  });
+
+  it('regravar risco que já era baixo não é rebaixar: sem 400 e sem "reavaliado" (importado já baixo, sem trilha de risco)', async () => {
+    await par('incidente.comunicacao_anpd', 72, 'horas');
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, risco_titular, status) VALUES ('tr-i-imp', ?, 'IN-2025-0099', 'Importado', '2025-03-03T10:00:00Z', '2025-03-06T10:00:00.000Z', 'baixo', 'avaliado')`).bind(P),
+      env.DB.prepare(`INSERT INTO audit_logs (id, action, actor, details, project_id, entity_type, entity_id, created_at) VALUES ('tr-a-imp', 'incidente.importado', 'cons@ness.lat', 'Incidente IN-2025-0099 (avaliado) importado do histórico', ?, 'incidente', 'tr-i-imp', '2025-04-01 12:00:00')`).bind(P),
+    ]);
+    const risco = (corpo: object) => chamar(consultor, 'PUT', `${B}/incidentes/tr-i-imp/risco`, corpo);
+    expect((await risco({ risco_titular: 'baixo' })).status).toBe(200);
+    expect((await risco({ risco_titular: 'sem_risco' })).status).toBe(200);
+    expect(await ler('tr-i-imp')).toMatchObject({ situacao_anpd: 'nao_exigida', anpd_reavaliado_apos_prazo: null });
+    // relevante e depois baixo, com o prazo vencido: aí é rebaixamento (justificativa e marca)
+    expect((await risco({ risco_titular: 'relevante' })).status).toBe(200);
+    expect((await risco({ risco_titular: 'baixo' })).status).toBe(400);
+    expect((await risco({ risco_titular: 'baixo', avaliacao_texto: 'Reavaliado' })).status).toBe(200);
+    expect((await ler('tr-i-imp')).anpd_reavaliado_apos_prazo).toBe('2025-03-06');
   });
 
   it('encerrar: sem risco avaliado 409; risco relevante sem ANPD 409; com tudo, 200 e depois não muda', async () => {
