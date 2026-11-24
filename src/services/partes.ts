@@ -143,7 +143,7 @@ export async function conciliarResponsaveis(db: D1Database, projectId: string, a
 /**
  * Por que a parte não pode mudar de tipo, ou null. Pessoa -> organização: conta ligada, encarregado, responsável ou linha do DPO na
  * governança (o papel é de gente). Organização -> pessoa: CNPJ ou qualquer marca de fornecedor (tipo, criticidade, avaliação,
- * questionário, perfil, papel de agente, parceiro da atividade, responsável apontando para ela, vínculo de outro módulo).
+ * questionário, perfil, documento ligado (DPA, contrato), papel de agente, parceiro da atividade, responsável apontando para ela, vínculo de outro módulo).
  * A mensagem da organização é genérica de propósito: não revela módulo que o usuário pode não ter.
  */
 export async function recusaDeMudarTipo(db: D1Database, projectId: string,
@@ -159,6 +159,7 @@ export async function recusaDeMudarTipo(db: D1Database, projectId: string,
       OR EXISTS (SELECT 1 FROM avaliacoes_terceiro WHERE parte_id = ?1) OR EXISTS (SELECT 1 FROM criticidades_terceiro WHERE parte_id = ?1)
       OR EXISTS (SELECT 1 FROM homologacoes WHERE parte_id = ?1) OR EXISTS (SELECT 1 FROM vendors WHERE parte_id = ?1)
       OR EXISTS (SELECT 1 FROM ot_fornecedores WHERE parte_id = ?1) OR EXISTS (SELECT 1 FROM tratamento_externo_parceiros WHERE parte_id = ?1)
+      OR EXISTS (SELECT 1 FROM documento_partes WHERE parte_id = ?1) OR EXISTS (SELECT 1 FROM documentos_arquivo_partes WHERE parte_id = ?1)
       OR EXISTS (SELECT 1 FROM parte_vinculos WHERE parte_id = ?1 AND papel IN ('operador', 'cocontrolador', 'suboperador', 'terceiro'))
       OR EXISTS (SELECT 1 FROM parte_vinculos WHERE project_id = ?2 AND alvo_tipo = 'parte' AND alvo_id = ?1)`).bind(p.id, projectId).first();
   return cnpj || preso

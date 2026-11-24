@@ -254,6 +254,10 @@ nucleoApp.put('/partes/:id', async (c) => {
     const cnpj = v.data.cnpj === undefined ? atual.cnpj : v.data.cnpj;
     const mudaTipo = tipo !== atual.tipo;
     if (mudaTipo) {
+      // Mudar o tipo é da equipe da consultoria, em pessoa: nunca o agente (nem com decisão confirmada) nem a chave de API (entra como client).
+      const u = c.get('user');
+      if (!ehEquipeNess(u) || u.agente) return c.json({ error: 'Mudar o tipo da parte é feito pela equipe da consultoria' }, 403);
+      // shortcut: a verificação e a gravação não são atômicas (corrida rara entre a recusa e o UPDATE); vira batch condicional se aparecer dado inconsistente.
       const recusa = await recusaDeMudarTipo(c.env.DB, projectId, { id, ...atual }, cnpj);
       if (recusa) return c.json({ error: recusa }, 409);
     }
@@ -270,9 +274,9 @@ nucleoApp.put('/partes/:id', async (c) => {
       await c.env.DB.batch([
         c.env.DB.prepare('UPDATE partes SET tipo = ?, nome = ?, email = ?, status = ?, cnpj = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?')
           .bind(tipo, v.data.nome ?? atual.nome, email, v.data.status ?? atual.status, cnpj, id, projectId),
-        // O que o gatilho vendor_perfil_do_terceiro faria se a parte já fosse organização quando o vínculo nasceu.
-        c.env.DB.prepare(`INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id) SELECT lower(hex(randomblob(8))), p.project_id, p.nome, p.id FROM partes p
-          WHERE p.id = ? AND p.tipo = 'organizacao' AND EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.parte_id = p.id AND v.papel = 'terceiro' AND v.alvo_tipo = 'projeto')`).bind(id),
+        // Só ao virar organização: o que o gatilho vendor_perfil_do_terceiro faria. Em edição comum, perfil apagado (DELETE /vendors/:id) fica apagado.
+        ...(mudaTipo && tipo === 'organizacao' ? [c.env.DB.prepare(`INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id) SELECT lower(hex(randomblob(8))), p.project_id, p.nome, p.id FROM partes p
+          WHERE p.id = ? AND EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.parte_id = p.id AND v.papel = 'terceiro' AND v.alvo_tipo = 'projeto')`).bind(id)] : []),
       ]);
     } catch (e) {
       if (unico(e)) return c.json({ error: 'Já existe uma organização com esse CNPJ neste projeto' }, 409);

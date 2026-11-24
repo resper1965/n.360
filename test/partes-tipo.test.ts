@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { applySchema, sessionFor, workerEnv, seedTwoProjects } from './helpers/d1';
+import { applySchema, sessionFor, workerEnv, seedTwoProjects, designarConsultor } from './helpers/d1';
+import { sha256Hex } from '../src/helpers';
 
 // Mudar o tipo da parte (pessoa <-> organização) pelo PUT /partes/:id: o servidor recusa com 409 quando a mudança quebraria algo.
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown) =>
@@ -93,6 +94,16 @@ describe('mudar o tipo da parte', () => {
     ['perfil de fornecedor', (id) => env.DB.prepare(`INSERT INTO vendors (id, project_id, name, parte_id) VALUES (?, 'proj-a', 'Perfil', ?)`).bind(crypto.randomUUID(), id).run()],
     ['vínculo de fornecedor fora do privacy', (id) => env.DB.prepare(`INSERT INTO ot_fornecedores (id, project_id, parte_id, papel, ot_site_id, criado_por) VALUES (?, 'proj-a', ?, 'integrador', 'site-tipo', 'teste')`).bind(crypto.randomUUID(), id).run()],
     ['parceiro do compartilhamento externo', (id) => env.DB.prepare(`INSERT INTO tratamento_externo_parceiros (ropa_id, parte_id, project_id) VALUES ('ropa-tipo', ?, 'proj-a')`).bind(id).run()],
+    ['DPA ligado (documento versionado)', async (id) => {
+      const doc = crypto.randomUUID();
+      await env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo, tipo) VALUES (?, 'proj-a', 'Contrato Genérico', 'politica')`).bind(doc).run();
+      await env.DB.prepare(`INSERT INTO documento_partes (documento_id, parte_id, project_id, papel) VALUES (?, ?, 'proj-a', 'dpa')`).bind(doc, id).run();
+    }],
+    ['DPA ligado (documento em arquivo)', async (id) => {
+      const doc = crypto.randomUUID();
+      await env.DB.prepare(`INSERT INTO documentos_arquivo (id, project_id, nome, tipo) VALUES (?, 'proj-a', 'Contrato Genérico', 'contrato')`).bind(doc).run();
+      await env.DB.prepare(`INSERT INTO documentos_arquivo_partes (documento_arquivo_id, parte_id, project_id, papel) VALUES (?, ?, 'proj-a', 'dpa')`).bind(doc, id).run();
+    }],
     ['papel de operador', (id) => vincular(id, 'operador', 'tratamento', 'ropa-tipo')],
     ['responsável apontando para ela', async (id) => vincular(await criar(A, { tipo: 'pessoa', nome: 'Responsável Genérico' }), 'responsavel', 'parte', id)],
   ];
@@ -108,4 +119,44 @@ describe('mudar o tipo da parte', () => {
       expect(await tipoDe(id)).toBe('organizacao');
     });
   }
+
+  it('perfil de fornecedor apagado de propósito não volta numa edição de nome, e-mail ou situação', async () => {
+    const id = await criar(A, { tipo: 'organizacao', nome: 'Organização Sem Perfil' });
+    await vincular(id, 'terceiro', 'projeto', 'proj-a'); // o gatilho cria o perfil
+    await env.DB.prepare('DELETE FROM vendors WHERE parte_id = ?').bind(id).run(); // DELETE /vendors/:id apaga só o perfil
+    expect((await chamar(plat, 'PUT', `${A}/partes/${id}`, { nome: 'Organização Sem Perfil Renomeada', status: 'inativa' })).status).toBe(200);
+    expect(await env.DB.prepare('SELECT 1 FROM vendors WHERE parte_id = ?').bind(id).first()).toBeNull();
+  });
+});
+
+describe('quem muda o tipo: só a equipe da consultoria, nunca agente nem chave de API', () => {
+  const agenteProps = { userId: 'cons:cons-tipo@ness.lat', email: 'cons-tipo@ness.lat', projectId: 'proj-a', concessaoId: 'c-tipo' };
+  const comoAgente = (caminho: string, corpo: unknown) => app.fetch(new Request('http://localhost' + caminho, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }), { ...workerEnv(), AGENTE: agenteProps } as never);
+  beforeAll(async () => {
+    await designarConsultor('cons-tipo@ness.lat', 'proj-a');
+    await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-tipo', 'cons:cons-tipo@ness.lat', 'proj-a', datetime('now', '+30 days'))`).run();
+    await env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('k-tipo', 'proj-a', ?, 'k', 'write', 'Active')`).bind(await sha256Hex('chave-tipo')).run();
+  });
+
+  it('cliente, chave de API e agente com tipo diferente: 403 e nada muda; sem tipo, o resto do PUT segue', async () => {
+    const id = await criar(A, { tipo: 'pessoa', nome: 'Parte Protegida' });
+    const quem: [string, (corpo: unknown) => Promise<Response>][] = [
+      ['org_admin', async (corpo) => chamar(await sessionFor({ id: 'u-oa-tipo', email: 'oa-tipo@exemplo.com', role: 'org_admin', client_project_id: 'proj-a' }), 'PUT', `${A}/partes/${id}`, corpo)],
+      ['chave de API', (corpo) => chamar({ 'X-API-Key': 'chave-tipo' }, 'PUT', `${A}/partes/${id}`, corpo)],
+      ['agente', (corpo) => comoAgente(`${A}/partes/${id}`, corpo)],
+      ['sessão marcada como agente, mesmo com decisão', async (corpo) => chamar(await sessionFor({ id: 'u-ag-tipo', email: 'ag-tipo@ness.lat', role: 'platform_admin', agente: true,
+        agente_decisao: { ferramenta: 'x', motivo: 'y' } }), 'PUT', `${A}/partes/${id}`, corpo)],
+    ];
+    for (const [rotulo, pedir] of quem) {
+      const r = await pedir({ tipo: 'organizacao' });
+      expect(r.status, rotulo).toBe(403);
+      expect((await json<{ error: string }>(r)).error, rotulo).toContain('equipe da consultoria');
+      expect(await tipoDe(id), rotulo).toBe('pessoa');
+    }
+    // mandar o MESMO tipo não é mudar: quem já editava segue editando
+    const r = await quem[0][1]({ tipo: 'pessoa', nome: 'Parte Protegida Renomeada' });
+    expect(r.status).toBe(200);
+    expect((await chamar(plat, 'PUT', `${A}/partes/${id}`, { tipo: 'organizacao' })).status).toBe(200);
+  });
 });
