@@ -75,6 +75,8 @@ export type EmpresaCorpo = z.output<typeof empresaSchema>;
 export const pessoasChaveSchema = z.object({
   representante: z.object({ nome: z.string().trim().min(1).max(200), cargo: z.string().trim().max(200).optional().nullable() }).strict().optional(),
   dpo: z.object({ nome: z.string().trim().min(1).max(200), email: z.union([z.email().max(320), z.literal('')]).optional().nullable() }).strict().optional(),
+  /** Canal do titular (0117, decisão 7 da spec do canal): SÓ o e-mail (o link do portal e as páginas não entram por aqui). Só com o n.privacy no projeto. */
+  canal_titular: z.object({ email: z.string().trim().toLowerCase().pipe(z.email().max(200)) }).strict().optional(),
 }).strict();
 
 export const projetoCriarSchema = z.object({
