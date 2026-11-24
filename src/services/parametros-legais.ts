@@ -75,7 +75,7 @@ export function somarPrazo(baseIso: string, valor: number, unidade: Unidade): st
   if (Number.isNaN(base.getTime())) throw new Error(`Data inválida: ${baseIso}`);
   if (unidade === 'horas') return new Date(base.getTime() + valor * 3_600_000).toISOString();
   if (unidade === 'dias_corridos') return new Date(base.getTime() + valor * 86_400_000).toISOString();
-  const d = new Date(`${diaEmSaoPaulo(baseIso.length === 10 ? baseIso : base.toISOString())}T00:00:00Z`);
+  const d = new Date(`${diaEmSaoPaulo(baseIso.length === 10 ? baseIso : base.toISOString(), baseIso)}T00:00:00Z`); // base com hora: a meia-noite UTC é instante
   let corridos = 0;
   for (let i = 0; i < valor;) {
     d.setUTCDate(d.getUTCDate() + 1);

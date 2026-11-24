@@ -322,6 +322,24 @@ describe('prazo de comunicação às 22h de Brasília', () => {
   });
 });
 
+describe('prazo gravado à meia-noite UTC', () => {
+  it('contado de ciência sem hora é o dia dele (dado já gravado); contado de ciência com hora é 21h de Brasília do dia anterior', async () => {
+    await semear();
+    const meiaNoite = (n: number) => `${dias(n)}T00:00:00.000Z`;
+    await db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, status, risco_titular) VALUES
+      ('mp', 'pa', 'IN-MP', 'Ciência sem hora', ?1, ?3, NULL, 'avaliado', 'relevante'), ('mh', 'pa', 'IN-MH', 'Ciência com hora, vence hoje 21h', ?2, ?4, NULL, 'avaliado', 'relevante'),
+      ('mo', 'pa', 'IN-MO', 'Ciência com hora, venceu ontem 21h', ?2, ?3, NULL, 'avaliado', 'relevante')`)
+      .bind(dias(-5), `${dias(-5)}T12:00:00.000Z`, meiaNoite(0), meiaNoite(1)).run();
+    const m = (await painel(consultor, 'pa', 'privacy')).corpo.modulos.privacy;
+    const linha = m.vencimentos!.find((l) => l.tipo === 'Comunicações de incidente')!;
+    expect(linha.vencidos).toBe(1);
+    expect(linha.itens).toEqual(expect.arrayContaining([{ dias: 0, rotulo: 'IN-MP (ANPD)' }, { dias: 0, rotulo: 'IN-MH (ANPD)' }]));
+    expect(m.cobertura!.find((x) => x.tema.startsWith('Incidentes'))).toMatchObject({ andamento: 2, falta: 1 });
+    const { projetos } = (await (await chamar(consultor, '/api/v1/carteira')).json()) as { projetos: { id: string; situacao: string }[] };
+    expect(projetos.find((p) => p.id === 'pa')!.situacao).toBe('2 prazos legais vencidos');
+  });
+});
+
 describe('GET /api/v1/carteira', () => {
   it('só os projetos que a pessoa alcança, do mais urgente ao em dia, sem a outra organização', async () => {
     await semear();

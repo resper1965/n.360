@@ -6,8 +6,8 @@ import { hojeSP, emDiasSP, diaSP } from './hoje.js';
 // fechada, em memória (`S.filtroPainel`, gravado pelo `navigate` e apagado na navegação seguinte); do n.360 para um módulo vai
 // pelo sessionStorage (produto.js), nunca pelo endereço. Nada de dado: a chave diz "atrasados", não quem nem o quê.
 
-// Dia de São Paulo da data gravada: a mesma regra do servidor (`diaEmSaoPaulo`).
-const dia = (v) => diaSP(v);
+// Dia de São Paulo da data gravada: a mesma regra do servidor (`diaEmSaoPaulo`); `base`, a data de onde o prazo contou.
+const dia = (v, base) => diaSP(v, base);
 /** Hoje em São Paulo: o mesmo dia do servidor. */
 const hoje = () => hojeSP();
 const emDias = (n) => emDiasSP(n);
@@ -17,7 +17,7 @@ const vencida = (d) => !!d && dia(d) < hoje();
 /** `tela:aba:filtro` -> [rótulo do chip, quem fica na lista]. As mesmas regras da visão do encarregado e do painel (servidor). */
 export const FILTROS = {
     'titular:pedidos:atrasados': ['atrasados', (p) => p.situacao_prazo === 'atrasado'],
-    'titular:pedidos:vencem_7_dias': ['vencem em até 7 dias', (p) => PEDIDO_ABERTO.includes(p.status) && !!p.prazo_em && dia(p.prazo_em) >= hoje() && dia(p.prazo_em) <= emDias(7)],
+    'titular:pedidos:vencem_7_dias': ['vencem em até 7 dias', (p) => PEDIDO_ABERTO.includes(p.status) && !!p.prazo_em && dia(p.prazo_em, p.recebido_em) >= hoje() && dia(p.prazo_em, p.recebido_em) <= emDias(7)],
     'titular:incidentes:comunicacao_atrasada': ['comunicação atrasada',
         (i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')],
     'titular:incidentes:sem_avaliacao': ['sem avaliação de risco', (i) => i.status !== 'encerrado' && !i.risco_titular],
