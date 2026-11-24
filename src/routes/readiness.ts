@@ -51,7 +51,7 @@ readinessApp.get('/', async (c) => {
       `SELECT c.id, c.title FROM compliance_controls c
        WHERE c.project_id = ?
          AND (c.ciso_approved_by IS NOT NULL OR c.ceo_approved_by IS NOT NULL)
-         AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.control_id = c.id)`
+         AND NOT EXISTS (SELECT 1 FROM evidencia_controles ec WHERE ec.control_id = c.id)`
     ).bind(projectId).all();
     for (const r of (aprovadoSemEvid.results ?? []) as any[]) {
       achados.push({
@@ -66,7 +66,7 @@ readinessApp.get('/', async (c) => {
       `SELECT c.id, c.title, c.status FROM compliance_controls c
        WHERE c.project_id = ?
          AND (${sqlClasseControle('c.status')}) = 'feito'
-         AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.control_id = c.id)`
+         AND NOT EXISTS (SELECT 1 FROM evidencia_controles ec WHERE ec.control_id = c.id)`
     ).bind(projectId).all();
     for (const r of (implSemEvid.results ?? []) as any[]) {
       achados.push({
@@ -91,7 +91,9 @@ readinessApp.get('/', async (c) => {
 
     // R4 (ALTO): evidência NÃO CONFORME na avaliação — não sustenta o controle.
     const evidRejeitada = await c.env.DB.prepare(
-      `SELECT e.id, e.file_name, e.control_id FROM evidence e
+      // Um achado por controle ligado (N:N, 0119); evidência sem vínculo sai com o próprio id.
+      `SELECT e.id, e.file_name, ec.control_id FROM evidence e
+         LEFT JOIN evidencia_controles ec ON ec.evidence_id = e.id
        WHERE e.project_id = ? AND e.evaluation_status = 'non_conforming'`
     ).bind(projectId).all();
     for (const r of (evidRejeitada.results ?? []) as any[]) {
@@ -131,7 +133,7 @@ readinessApp.get('/', async (c) => {
       try {
         const controles = await c.env.DB.prepare(
           `SELECT c.id, c.title, c.status, c.maturity,
-                  (SELECT COUNT(*) FROM evidence e WHERE e.control_id = c.id) AS n_evid
+                  (SELECT COUNT(*) FROM evidencia_controles ec WHERE ec.control_id = c.id) AS n_evid
            FROM compliance_controls c WHERE c.project_id = ? LIMIT 200`
         ).bind(projectId).all();
         const ropa = await c.env.DB.prepare(

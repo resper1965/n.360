@@ -320,7 +320,8 @@ import { classeDoControle } from '../classe-controle.js';
         if (!listEl) return;
         try {
             const evidences = await api('GET', `/api/v1/projects/${S.currentProject?.id}/evidence`);
-            const filtered = evidences.filter(e => e.control_id === controlId);
+            // N:N (migration 0119): a evidência aparece em todo controle ligado; `control_id` é só o primeiro vínculo.
+            const filtered = evidences.filter(e => (e.control_ids || (e.control_id ? [e.control_id] : [])).includes(controlId));
             if (!filtered.length) {
                 listEl.innerHTML = window.renderEmptyState({ titulo: 'Nenhuma evidência vinculada.', compacto: true });
                 return;
@@ -1579,6 +1580,7 @@ import { classeDoControle } from '../classe-controle.js';
             ])).map(lista);
         } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as evidências.', e); return; }
         const tituloDoControle = Object.fromEntries(controles.map(ctl => [ctl.id, ctl.title || ctl.id]));
+        const controlesDe = e => e.control_ids || (e.control_id ? [e.control_id] : []);
 
         const totalEvidence = evidence.length;
         const dpoSignedCount = evidence.filter(e => e.ciso_approved_by).length;
@@ -1616,13 +1618,9 @@ import { classeDoControle } from '../classe-controle.js';
                 const st = e.evaluation_status || 'pending';
                 const avaliacaoBadge = window.renderStatusBadge(traduzStatus(st), st === 'conforming' ? 'success' : st === 'partial' ? 'warning' : st === 'non_conforming' ? 'danger' : 'neutral');
 
-                // Cliente não troca o vínculo (PUT /evidence/:id é escrita fora do allow-list dele).
-                const controleCell = isOrgUser
-                    ? escapeHTML(e.control_id ? (tituloDoControle[e.control_id] || e.control_id) : '—')
-                    : `<select class="form-input" data-action-change="vincularEvidenciaControle" data-args='${JSON.stringify([e.id])}' data-arg-val>
-                           <option value="">Sem controle</option>
-                           ${controles.map(ctl => `<option value="${escapeHTML(ctl.id)}" ${ctl.id === e.control_id ? 'selected' : ''}>${escapeHTML(ctl.title || ctl.id)}</option>`).join('')}
-                       </select>`;
+                // Todos os controles ligados (N:N); ligar e desligar é "Ligar a controles", no Mais ações.
+                const nomes = controlesDe(e).map(id => tituloDoControle[id] || id);
+                const controleCell = nomes.length ? escapeHTML(nomes.join('; ')) : '—';
 
                 // Uma ação à vista: o próximo passo da evidência (revisar, assinar, ou baixar quando já está assinada); o resto
                 // vai para o "Mais ações" da linha (eram até cinco botões por linha).
@@ -1631,6 +1629,8 @@ import { classeDoControle } from '../classe-controle.js';
                     !e.ceo_approved_by && !isOrgUser && { rotulo: 'Assinar CEO', action: 'signEvidence', args: [e.id, 'ceo', fileHash] },
                     { rotulo: 'Baixar', action: 'downloadEvidenceFile', args: [e.id] },
                     !isOrgUser && { rotulo: 'Avaliar com IA', action: 'evaluateEvidenceAI', args: [e.id] },
+                    // Cliente não troca o vínculo (escrita fora do allow-list dele).
+                    !isOrgUser && { rotulo: 'Ligar a controles', action: 'abrirControlesEvidencia', args: [proj.id, e.id] },
                     comPrivacy && { rotulo: 'Requisitos e validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id] },
                     // Sem o n.privacy, o mesmo modal só com a validade (rota do núcleo), para quem edita evidência.
                     !comPrivacy && !isOrgUser && S.user?.role !== 'client' && { rotulo: 'Definir validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id, { valido_ate: e.valido_ate || null }] },
@@ -1659,7 +1659,7 @@ import { classeDoControle } from '../classe-controle.js';
             id: 'evidencias',
             linhas: evidence,
             colunas: colunasDe(['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Validade', 'Ações'], celulas),
-            busca: e => `${e.file_name || e.filename || ''} ${e.control_id ? (tituloDoControle[e.control_id] || e.control_id) : ''}`,
+            busca: e => `${e.file_name || e.filename || ''} ${controlesDe(e).map(id => tituloDoControle[id] || id).join(' ')}`,
             filtros: [
                 { chave: 'avaliacao', rotulo: 'Avaliação', valor: e => e.evaluation_status || 'pending' },
                 { chave: 'validade', rotulo: 'Validade', valor: validade, opcoes: [['em_dia', 'Em dia'], ['vencida', 'Vencida'], ['sem', 'Sem validade']] },
@@ -2025,15 +2025,36 @@ window.migrate27701 = migrate27701;
 
 // A rota de avaliação trabalha sobre o TEXTO do documento (o arquivo vive no R2, não é lido
 // aqui), então o botão "IA" abre um modal para colar o trecho a avaliar.
-// Troca (ou desfaz) o controle de uma evidência. O servidor confere que o controle é do projeto
-// e volta a avaliação a pendente quando o vínculo muda.
-window.vincularEvidenciaControle = async function(evidenceId, controlId) {
+// Uma evidência pode sustentar vários controles (N:N, migration 0119). Cada caixa liga ou desliga na hora;
+// o servidor confere que o controle é do projeto e registra a mudança na trilha.
+window.abrirControlesEvidencia = async function(projectId, evidenceId) {
+    let ev, controles;
     try {
-        await api('PUT', `/api/v1/evidence/${evidenceId}`, { control_id: controlId || null });
-        showToast(controlId ? 'Evidência ligada ao controle.' : 'Evidência desligada do controle.');
+        [ev, controles] = await Promise.all([
+            api('GET', `/api/v1/evidence/${evidenceId}/detail`),
+            api('GET', `/api/v1/projects/${projectId}/controls`),
+        ]);
+    } catch (e) { showToast('Não foi possível abrir os controles: ' + e.message, 'error'); return; }
+    const ligados = new Set(ev.control_ids || []);
+    const lista = Array.isArray(controles) ? controles : [];
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Controles da evidência</span></div>
+        <p class="t-dim mb-3">${escapeHTML(ev.file_name || '')}: marque cada controle que esta evidência sustenta.</p>
+        ${lista.length ? lista.map(ctl => `<label class="opcao-check"><input type="checkbox" data-action-change="alternarControleEvidencia" data-args='${escapeHTML(JSON.stringify([evidenceId, ctl.id]))}' data-arg-el ${ligados.has(ctl.id) ? 'checked' : ''}> ${escapeHTML(ctl.title || ctl.id)}</label>`).join('')
+            : window.renderEmptyState({ titulo: 'Este projeto ainda não tem controles.', compacto: true })}
+    `);
+};
+
+window.alternarControleEvidencia = async function(evidenceId, controlId, el) {
+    const ligar = el.checked;
+    try {
+        if (ligar) await api('POST', `/api/v1/evidence/${evidenceId}/controles`, { control_id: controlId });
+        else await api('DELETE', `/api/v1/evidence/${evidenceId}/controles/${encodeURIComponent(controlId)}`);
+        showToast(ligar ? 'Evidência ligada ao controle.' : 'Evidência desligada do controle.');
         await recarregaEvidencias();
     } catch (e) {
-        showToast('Erro ao trocar o controle: ' + e.message, 'error');
+        el.checked = !ligar;
+        showToast('Erro ao mudar o controle: ' + e.message, 'error');
     }
 };
 
