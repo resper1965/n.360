@@ -159,11 +159,11 @@ const SQL_UNIAO_DOCUMENTOS_ARQUIVO = `SELECT 'Documentos (revisão)' AS tipo, no
 
 const TIPOS_PRIVACY = ['Pedidos do titular', 'Comunicações de incidente', 'Fornecedores', 'Evidências', 'Documentos (revisão)', 'Ações das atividades'];
 const UNIAO_PRIVACY = [
-  `SELECT 'Pedidos do titular' AS tipo, protocolo AS rotulo, ${sqlDiaSP('prazo_em')} AS data FROM titular_pedidos
+  `SELECT 'Pedidos do titular' AS tipo, protocolo AS rotulo, ${sqlDiaSP('prazo_em', 'recebido_em')} AS data FROM titular_pedidos
     WHERE project_id = ?1 AND status IN ('recebido', 'em_andamento') AND prazo_em IS NOT NULL`,
-  `SELECT 'Comunicações de incidente', protocolo || ' (ANPD)', ${sqlDiaSP('prazo_anpd_em')} FROM incidentes
+  `SELECT 'Comunicações de incidente', protocolo || ' (ANPD)', ${sqlDiaSP('prazo_anpd_em', 'ciencia_em')} FROM incidentes
     WHERE project_id = ?1 AND status <> 'encerrado' AND ${sqlComunicacaoExigida('risco_titular')} AND comunicacao_anpd_em IS NULL AND prazo_anpd_em IS NOT NULL`,
-  `SELECT 'Comunicações de incidente', protocolo || ' (titulares)', ${sqlDiaSP('prazo_titular_em')} FROM incidentes
+  `SELECT 'Comunicações de incidente', protocolo || ' (titulares)', ${sqlDiaSP('prazo_titular_em', 'ciencia_em')} FROM incidentes
     WHERE project_id = ?1 AND status <> 'encerrado' AND ${sqlComunicacaoExigida('risco_titular')} AND comunicacao_titular_em IS NULL AND prazo_titular_em IS NOT NULL`,
   // A avaliação que vale é a mais recente (a mesma regra de `situacaoDe`): reprovada não tem validade.
   `SELECT 'Fornecedores', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
@@ -194,14 +194,14 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
         (SELECT l.status FROM lia_assessments l WHERE l.ropa_id = r.id AND l.project_id = r.project_id) AS lia
       FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.project_id = ?1 AND COALESCE(r.status, '') <> 'Inactive'`).bind(projectId),
     db.prepare(`SELECT sum(CASE WHEN status IN ('respondido', 'negado', 'arquivado') THEN 1 ELSE 0 END) AS feito,
-        sum(CASE WHEN status IN ('recebido', 'em_andamento') AND (prazo_em IS NULL OR ${sqlDiaSP('prazo_em')} >= ?2) THEN 1 ELSE 0 END) AS andamento,
-        sum(CASE WHEN status IN ('recebido', 'em_andamento') AND ${sqlDiaSP('prazo_em')} < ?2 THEN 1 ELSE 0 END) AS falta
+        sum(CASE WHEN status IN ('recebido', 'em_andamento') AND (prazo_em IS NULL OR ${sqlDiaSP('prazo_em', 'recebido_em')} >= ?2) THEN 1 ELSE 0 END) AS andamento,
+        sum(CASE WHEN status IN ('recebido', 'em_andamento') AND ${sqlDiaSP('prazo_em', 'recebido_em')} < ?2 THEN 1 ELSE 0 END) AS falta
       FROM titular_pedidos WHERE project_id = ?1 AND substr(recebido_em, 1, 10) >= ?3`).bind(projectId, dia, somarDias(dia, -90)),
     db.prepare(`SELECT sum(CASE WHEN status = 'encerrado' THEN 1 ELSE 0 END) AS feito, sum(CASE WHEN status <> 'encerrado' AND NOT atraso THEN 1 ELSE 0 END) AS andamento,
         sum(CASE WHEN status <> 'encerrado' AND atraso THEN 1 ELSE 0 END) AS falta
       -- COALESCE: prazo nulo (parâmetro não cadastrado) dá NULL na comparação, e o incidente sumia de "andamento"
-      FROM (SELECT status, COALESCE(${sqlComunicacaoExigida('risco_titular')} AND ((comunicacao_anpd_em IS NULL AND ${sqlDiaSP('prazo_anpd_em')} < ?2)
-              OR (comunicacao_titular_em IS NULL AND ${sqlDiaSP('prazo_titular_em')} < ?2)), 0) AS atraso
+      FROM (SELECT status, COALESCE(${sqlComunicacaoExigida('risco_titular')} AND ((comunicacao_anpd_em IS NULL AND ${sqlDiaSP('prazo_anpd_em', 'ciencia_em')} < ?2)
+              OR (comunicacao_titular_em IS NULL AND ${sqlDiaSP('prazo_titular_em', 'ciencia_em')} < ?2)), 0) AS atraso
               FROM incidentes WHERE project_id = ?1 AND substr(ciencia_em, 1, 10) >= ?3)`).bind(projectId, dia, somarDias(dia, -365)),
     db.prepare(SQL_EVIDENCIAS).bind(projectId, dia),
     // Ciclo de vida (F3): as seis etapas registradas (ou não aplicáveis) / parte delas / nenhuma.
@@ -576,9 +576,9 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          FROM projects p LEFT JOIN empresas e ON e.project_id = p.id WHERE p.id ${escopo} ORDER BY nome LIMIT 300`),
     b(`SELECT project_id, modulo FROM projeto_modulos WHERE project_id ${escopo}`),
     b(`SELECT p.id AS project_id,
-         (SELECT count(*) FROM titular_pedidos t WHERE t.project_id = p.id AND t.status IN ('recebido', 'em_andamento') AND ${sqlDiaSP('t.prazo_em')} < ?1) AS pedidos_atrasados,
+         (SELECT count(*) FROM titular_pedidos t WHERE t.project_id = p.id AND t.status IN ('recebido', 'em_andamento') AND ${sqlDiaSP('t.prazo_em', 't.recebido_em')} < ?1) AS pedidos_atrasados,
          (SELECT count(*) FROM incidentes i WHERE i.project_id = p.id AND i.status <> 'encerrado' AND ${sqlComunicacaoExigida('i.risco_titular')}
-            AND ((i.comunicacao_anpd_em IS NULL AND ${sqlDiaSP('i.prazo_anpd_em')} < ?1) OR (i.comunicacao_titular_em IS NULL AND ${sqlDiaSP('i.prazo_titular_em')} < ?1))) AS comunicacoes_atrasadas,
+            AND ((i.comunicacao_anpd_em IS NULL AND ${sqlDiaSP('i.prazo_anpd_em', 'i.ciencia_em')} < ?1) OR (i.comunicacao_titular_em IS NULL AND ${sqlDiaSP('i.prazo_titular_em', 'i.ciencia_em')} < ?1))) AS comunicacoes_atrasadas,
          (SELECT count(*) FROM corrective_actions a WHERE a.project_id = p.id${escopoRopa('todos', 'a.ropa_id')} AND COALESCE(a.status, 'Open') <> 'Closed' AND substr(a.due_date, 1, 10) < ?1) AS acoes_vencidas,
          (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id AND COALESCE(r.status, '') <> 'Inactive') AS tratamentos,
          (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${sqlClasseControle('c.status')}) <> 'falta') AS controles
@@ -587,7 +587,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?1
        GROUP BY p.project_id`),
     b(`SELECT project_id, tipo, rotulo, data FROM (
-         SELECT project_id, 'pedido' AS tipo, 'Pedido ' || protocolo AS rotulo, ${sqlDiaSP('prazo_em')} AS data FROM titular_pedidos WHERE project_id ${escopo} AND status IN ('recebido', 'em_andamento')
+         SELECT project_id, 'pedido' AS tipo, 'Pedido ' || protocolo AS rotulo, ${sqlDiaSP('prazo_em', 'recebido_em')} AS data FROM titular_pedidos WHERE project_id ${escopo} AND status IN ('recebido', 'em_andamento')
          UNION ALL SELECT project_id, 'acao', 'Ação ' || title, substr(due_date, 1, 10) FROM corrective_actions WHERE project_id ${escopo} AND COALESCE(status, 'Open') <> 'Closed'
          UNION ALL SELECT project_id, 'auditoria', title, substr(scheduled_date, 1, 10) FROM audit_schedule WHERE project_id ${escopo} AND COALESCE(status, 'Planned') NOT IN ('Completed', 'Cancelled')
          UNION ALL SELECT project_id, 'evidencia', 'Evidência ' || file_name, substr(valido_ate, 1, 10) FROM evidence WHERE project_id ${escopo} AND valido_ate IS NOT NULL

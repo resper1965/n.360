@@ -12,12 +12,14 @@ export function emDiasSP(n, agora = new Date()) {
     return d.toISOString().slice(0, 10);
 }
 
-/** O dia (AAAA-MM-DD) de uma data gravada, em São Paulo: a mesma regra de `diaEmSaoPaulo` (src/services/hoje.ts). Data pura ou
- *  meia-noite UTC exata é dia de calendário e fica como está; instante (sem fuso = UTC) vira o dia de São Paulo. */
-export function diaSP(v) {
+const semHora = (t) => !/[T ]\d{2}:\d{2}/.test(String(t).trim());
+/** O dia (AAAA-MM-DD) de uma data gravada, em São Paulo: a mesma regra de `diaEmSaoPaulo` (src/services/hoje.ts). Data sem hora e
+ *  meia-noite UTC exata são dia de calendário; instante (sem fuso = UTC) vira o dia de São Paulo. `base`: a data de onde o prazo foi
+ *  contado (para a ciência, ela mesma); com hora, a meia-noite UTC também é instante. */
+export function diaSP(v, base) {
     const t = String(v || '').trim();
     if (!t) return '';
-    if (!/[T ]\d{2}:\d{2}/.test(t) || /^\d{4}-\d{2}-\d{2}T00:00(:00(\.0+)?)?Z$/.test(t)) return t.slice(0, 10);
+    if (semHora(t) || (!(base && !semHora(base)) && /^\d{4}-\d{2}-\d{2}T00:00(:00(\.0+)?)?Z$/.test(t))) return t.slice(0, 10);
     const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}Z`);
     return Number.isNaN(d.getTime()) ? t.slice(0, 10) : hojeSP(d);
 }

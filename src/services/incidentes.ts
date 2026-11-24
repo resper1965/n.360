@@ -25,11 +25,11 @@ export const sqlComunicacaoExigida = (col: string) => `COALESCE(${col}, '') NOT 
  * Cada comunicação: feita; não exigida (risco avaliado sem_risco ou baixo); ou o prazo em relação a hoje (sem prazo = parâmetro não
  * cadastrado). Risco ainda não avaliado conta o prazo: o risco não pode esconder o prazo antes da avaliação.
  */
-export function situacaoDaComunicacao(prazo: string | null, feita: string | null, risco: Risco | null, em = hojeEmSaoPaulo()): SituacaoComunicacao {
+export function situacaoDaComunicacao(prazo: string | null, feita: string | null, risco: Risco | null, em = hojeEmSaoPaulo(), ciencia: string | null = null): SituacaoComunicacao {
   if (feita) return 'comunicado';
   if (risco && RISCOS_SEM_COMUNICACAO.includes(risco)) return 'nao_exigida';
   if (!prazo) return 'sem_prazo';
-  const dia = diaEmSaoPaulo(prazo)!;
+  const dia = diaEmSaoPaulo(prazo, ciencia)!;
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 
@@ -41,33 +41,69 @@ export type Incidente = {
   anpd_protocolo: string | null; anpd_canal: string | null; anpd_justificativa: string | null;
 };
 const lista = (json: string | null): string[] => { try { const v = JSON.parse(json ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
-const comSituacao = (i: Incidente) => ({
+/**
+ * O prazo (dia de São Paulo) que já tinha vencido quando o risco foi rebaixado para sem_risco ou baixo, com a comunicação ainda por fazer;
+ * null nos outros casos. `rebaixado`: o instante da trilha em que o risco atual, baixo, começou (sem trilha, como na importação: null).
+ */
+const reavaliadoAposPrazo = (i: Incidente, prazo: string | null, feita: string | null, rebaixado: string | null) => {
+  if (feita || !prazo || !rebaixado || !i.risco_titular || !RISCOS_SEM_COMUNICACAO.includes(i.risco_titular)) return null;
+  const dia = diaEmSaoPaulo(prazo, i.ciencia_em)!;
+  return diaEmSaoPaulo(rebaixado)! > dia ? dia : null;
+};
+const comSituacao = (i: Incidente, rebaixado: string | null = null) => ({
   ...i,
   comprometimento: lista(i.comprometimento),
   criterios_risco: lista(i.criterios_risco),
-  situacao_anpd: situacaoDaComunicacao(i.prazo_anpd_em, i.comunicacao_anpd_em, i.risco_titular),
-  situacao_titular: situacaoDaComunicacao(i.prazo_titular_em, i.comunicacao_titular_em, i.risco_titular),
+  situacao_anpd: situacaoDaComunicacao(i.prazo_anpd_em, i.comunicacao_anpd_em, i.risco_titular, undefined, i.ciencia_em),
+  situacao_titular: situacaoDaComunicacao(i.prazo_titular_em, i.comunicacao_titular_em, i.risco_titular, undefined, i.ciencia_em),
+  anpd_reavaliado_apos_prazo: reavaliadoAposPrazo(i, i.prazo_anpd_em, i.comunicacao_anpd_em, rebaixado),
+  titular_reavaliado_apos_prazo: reavaliadoAposPrazo(i, i.prazo_titular_em, i.comunicacao_titular_em, rebaixado),
   // Protocolo interno da comunicação à ANPD (o legado mostra `-COM01`): derivado, sem coluna; uma comunicação por incidente.
   anpd_protocolo_interno: i.comunicacao_anpd_em ? `${i.protocolo}-COM01` : null,
 });
 
+/**
+ * Sem coluna própria, o momento do rebaixamento vem da trilha `incidente.risco` ("risco ao titular <risco>"): o início da sequência final
+ * de gravações sem_risco/baixo, quando ela veio de `relevante` ou do risco não avaliado da criação. Importado (`incidente.importado`) pode
+ * já nascer baixo: sem uma gravação `relevante` depois, não conta como rebaixado. Só consulta incidentes de risco baixo com comunicação por fazer.
+ */
+async function rebaixamentos(db: D1Database, projectId: string, incidentes: Incidente[]): Promise<Map<string, string>> {
+  const ids = incidentes.filter((i) => i.risco_titular && RISCOS_SEM_COMUNICACAO.includes(i.risco_titular)
+    && ((i.prazo_anpd_em && !i.comunicacao_anpd_em) || (i.prazo_titular_em && !i.comunicacao_titular_em))).map((i) => i.id);
+  const desde = new Map<string, string>();
+  if (!ids.length) return desde;
+  const { results } = await db.prepare(`SELECT entity_id, action, details, created_at FROM audit_logs WHERE entity_type = 'incidente' AND entity_id IN (SELECT value FROM json_each(?))
+    AND project_id = ? AND action IN ('incidente.risco', 'incidente.importado') ORDER BY created_at, rowid`).bind(JSON.stringify(ids), projectId).all<{ entity_id: string; action: string; details: string; created_at: string }>();
+  const anterior = new Map<string, 'exigida' | 'baixo' | 'desconhecido'>(); // sem linha: criado pela rota, risco não avaliado
+  for (const t of results) {
+    const antes = anterior.get(t.entity_id) ?? 'exigida';
+    if (t.action === 'incidente.importado') { anterior.set(t.entity_id, 'desconhecido'); desde.delete(t.entity_id); continue; }
+    if (!RISCOS_SEM_COMUNICACAO.some((r) => t.details.endsWith(` ${r}`))) { anterior.set(t.entity_id, 'exigida'); desde.delete(t.entity_id); continue; }
+    if (antes === 'exigida') desde.set(t.entity_id, t.created_at);
+    anterior.set(t.entity_id, 'baixo');
+  }
+  return desde;
+}
+
 export async function listarIncidentes(db: D1Database, projectId: string) {
   const { results } = await db.prepare(`SELECT ${COLS} FROM incidentes WHERE project_id = ? ORDER BY ciencia_em DESC, protocolo DESC`).bind(projectId).all<Incidente>();
-  return results.map(comSituacao);
+  const desde = await rebaixamentos(db, projectId, results);
+  return results.map((i) => comSituacao(i, desde.get(i.id) ?? null));
 }
 
 /** O incidente com as áreas e os titulares × dados afetados (nomes do cadastro). */
 export async function lerIncidente(db: D1Database, projectId: string, id: string) {
   const i = await db.prepare(`SELECT ${COLS} FROM incidentes WHERE id = ? AND project_id = ?`).bind(id, projectId).first<Incidente>();
   if (!i) return null;
-  const [areas, dados] = await Promise.all([
+  const [areas, dados, desde] = await Promise.all([
     db.prepare(`SELECT d.id, d.nome FROM incidente_departamentos x JOIN departamentos d ON d.id = x.departamento_id
                 WHERE x.incidente_id = ? AND x.project_id = ? ORDER BY d.nome`).bind(id, projectId).all<{ id: string; nome: string }>(),
     db.prepare(`SELECT x.titular_id, t.nome AS titular, x.dado_id, d.nome AS dado, d.sensivel FROM incidente_dados x
                 JOIN catalogo_itens t ON t.id = x.titular_id JOIN catalogo_itens d ON d.id = x.dado_id
                 WHERE x.incidente_id = ? AND x.project_id = ? ORDER BY t.nome, d.nome`).bind(id, projectId).all<{ titular_id: string; titular: string; dado_id: string; dado: string; sensivel: number }>(),
+    rebaixamentos(db, projectId, [i]),
   ]);
-  return { ...comSituacao(i), areas: areas.results, dados: dados.results };
+  return { ...comSituacao(i, desde.get(id) ?? null), areas: areas.results, dados: dados.results };
 }
 
 export type NovoIncidente = { titulo: string; descricao?: string | null; ocorrido_em?: string | null; ciencia_em: string; responsavel_parte_id?: string | null };
@@ -232,6 +268,13 @@ export async function avaliarRisco(db: D1Database, projectId: string, id: string
   const i = await lerIncidente(db, projectId, id);
   if (!i) return falha(404, 'Incidente não encontrado');
   if (i.status === 'encerrado') return falha(409, 'Incidente encerrado não muda');
+  // Rebaixar com o prazo já vencido (e a comunicação por fazer) apaga o atraso de todo lugar: a justificativa fica registrada.
+  const vencido = (prazo: string | null, feita: string | null) => situacaoDaComunicacao(prazo, feita, null, undefined, i.ciencia_em) === 'atrasado';
+  const jaBaixo = !!i.risco_titular && RISCOS_SEM_COMUNICACAO.includes(i.risco_titular); // regravar baixo (ex.: só o texto) não é rebaixar
+  if (!jaBaixo && RISCOS_SEM_COMUNICACAO.includes(d.risco_titular) && !d.avaliacao_texto?.trim()
+    && (vencido(i.prazo_anpd_em, i.comunicacao_anpd_em) || vencido(i.prazo_titular_em, i.comunicacao_titular_em))) {
+    return falha(400, 'Para reavaliar o risco depois do prazo de comunicação vencido, registre a justificativa na avaliação.');
+  }
   const status = i.status === 'aberto' ? 'avaliado' : i.status;
   // `status <> 'encerrado'` na própria WHERE: o encerramento pode ter chegado entre a leitura e esta escrita.
   const r = await db.prepare(`UPDATE incidentes SET risco_titular = ?, avaliacao_texto = ?, status = ?, updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status = ?`)
