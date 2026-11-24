@@ -39,8 +39,9 @@ beforeAll(async () => {
   cliente = await sessionFor({ id: 'u-c', email: 'cli@cliente.com', name: 'Cli', role: 'org_user', client_project_id: P });
 });
 
+// Tarefa 3: a assinatura vale para o conteúdo (hash), não para o vínculo. Trocar o controle a mantém e a trilha diz isso.
 describe('trocar o controle da evidência', () => {
-  it('volta a pendente, apaga a assinatura, registra na trilha, e dá para assinar de novo', async () => {
+  it('mantém a revisão e a assinatura, e registra na trilha que a aprovação ficou', async () => {
     const id = await enviarComoCliente();
     const hash = String((await linha(id))!.file_hash);
     expect((await assinar(id, hash)).status).toBe(200);
@@ -49,15 +50,14 @@ describe('trocar o controle da evidência', () => {
     const r = await chamar(`/api/v1/evidence/${id}`, { method: 'PUT', headers: lider, body: JSON.stringify({ control_id: 'rf-2' }) });
     expect(r.status).toBe(200);
     const ev = await linha(id);
-    expect(ev!.evaluation_status).toBe('pending');
-    for (const col of ['ciso_approved_by', 'ciso_approved_at', 'ciso_approved_ip', 'ciso_approved_ua', 'ceo_approved_by', 'ceo_approved_at', 'ceo_approved_ip', 'ceo_approved_ua']) {
-      expect(ev![col], col).toBeNull();
+    expect(ev!.evaluation_status).toBe('conforming');
+    for (const col of ['ciso_approved_by', 'ciso_approved_at', 'ciso_approved_ip', 'ciso_approved_ua']) {
+      expect(ev![col], col).not.toBeNull();
     }
+    expect(ev!.file_hash).toBe(hash);
     const log = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'evidence.relinked' ORDER BY created_at DESC LIMIT 1`).first<{ details: string }>();
-    expect(log!.details).toContain('Lia Lider');
+    expect(log!.details).toContain('Aprovação mantida: Líder SGSI (Lia Lider)');
     expect(log!.details).toContain('rf-2');
-
-    expect((await assinar(id, hash)).status).toBe(200);
   });
 });
 
