@@ -291,6 +291,37 @@ describe('GET /projects/:id/painel', () => {
   });
 });
 
+describe('comunicação de incidente não exigida (risco sem_risco ou baixo)', () => {
+  it('não entra nos vencimentos do painel, na cobertura nem na carteira; risco não avaliado entra', async () => {
+    await semear();
+    await db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, status, risco_titular) VALUES
+      ('ib', 'pa', 'IN-B', 'Baixo', ?1, ?2, ?2, 'avaliado', 'baixo'), ('is', 'pa', 'IN-S', 'Sem risco', ?1, ?2, ?2, 'avaliado', 'sem_risco'),
+      ('in', 'pa', 'IN-N', 'Não avaliado', ?1, ?2, NULL, 'aberto', NULL)`).bind(dias(-5), dias(-2)).run();
+    const m = (await painel(consultor, 'pa', 'privacy')).corpo.modulos.privacy;
+    expect(m.vencimentos!.find((l) => l.tipo === 'Comunicações de incidente')!.vencidos).toBe(1);
+    expect(m.cobertura!.find((x) => x.tema.startsWith('Incidentes'))).toMatchObject({ andamento: 2, falta: 1 });
+    const { projetos } = (await (await chamar(consultor, '/api/v1/carteira')).json()) as { projetos: { id: string; situacao: string }[] };
+    expect(projetos.find((p) => p.id === 'pa')!.situacao).toBe('2 prazos legais vencidos');
+  });
+});
+
+describe('prazo de comunicação às 22h de Brasília', () => {
+  it('vencimentos, cobertura e carteira contam o dia de Brasília (01h UTC do dia seguinte)', async () => {
+    await semear();
+    const as22 = (n: number) => `${dias(n + 1)}T01:00:00.000Z`;
+    await db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, status, risco_titular) VALUES
+      ('h22', 'pa', 'IN-H', 'Hoje às 22h', ?1, ?2, NULL, 'avaliado', 'relevante'), ('o22', 'pa', 'IN-O', 'Ontem às 22h', ?1, ?3, NULL, 'avaliado', 'relevante')`)
+      .bind(dias(-5), as22(0), as22(-1)).run();
+    const m = (await painel(consultor, 'pa', 'privacy')).corpo.modulos.privacy;
+    const linha = m.vencimentos!.find((l) => l.tipo === 'Comunicações de incidente')!;
+    expect(linha.vencidos).toBe(1);
+    expect(linha.itens).toEqual([{ dias: 0, rotulo: 'IN-H (ANPD)' }]);
+    expect(m.cobertura!.find((x) => x.tema.startsWith('Incidentes'))).toMatchObject({ andamento: 1, falta: 1 });
+    const { projetos } = (await (await chamar(consultor, '/api/v1/carteira')).json()) as { projetos: { id: string; situacao: string }[] };
+    expect(projetos.find((p) => p.id === 'pa')!.situacao).toBe('2 prazos legais vencidos');
+  });
+});
+
 describe('GET /api/v1/carteira', () => {
   it('só os projetos que a pessoa alcança, do mais urgente ao em dia, sem a outra organização', async () => {
     await semear();

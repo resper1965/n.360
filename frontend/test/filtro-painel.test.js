@@ -190,3 +190,12 @@ describe('fornecedores do n.iso', () => {
         expect([{ situacao: 'vencida' }, { situacao: 'vigente' }, { situacao: 'pendente' }].filter(quem)).toEqual([{ situacao: 'vencida' }]);
     });
 });
+
+describe('prazo às 22h de Brasília (01h UTC do dia seguinte) conta no dia de Brasília', () => {
+    it('vencem em até 7 dias: o 7º dia às 22h entra; data pura do 7º dia também', () => {
+        const [, f] = FILTROS['titular:pedidos:vencem_7_dias'];
+        expect(f({ status: 'recebido', prazo_em: `${emDiasSP(8)}T01:00:00.000Z` })).toBe(true);
+        expect(f({ status: 'recebido', prazo_em: emDiasSP(7) })).toBe(true);
+        expect(f({ status: 'recebido', prazo_em: `${emDiasSP(9)}T01:00:00.000Z` })).toBe(false);
+    });
+});

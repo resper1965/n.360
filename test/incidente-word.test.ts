@@ -49,6 +49,9 @@ describe('incidente em Word', () => {
     expect(txt).toContain('01/10/2026 07:00');
     expect(txt).not.toContain('01/10/2026 10:00');
     expect(txt).not.toContain('RASCUNHO');
+    // risco baixo: a comunicação ainda não feita (titulares) não é exigida, não "Pendente"
+    expect(txt).toContain('Não exigida (risco baixo)');
+    expect(txt).not.toContain('Pendente');
     expect(xml).not.toContain('<b>exemplo</b>');
     expect(xml).toContain('&lt;b&gt;exemplo&lt;/b&gt; &amp; cia');
   });
@@ -57,6 +60,8 @@ describe('incidente em Word', () => {
     const { txt } = await texto(await chamar(ana, `${B}/incidentes/iw-in/docx`));
     expect(txt).toContain('RASCUNHO');
     expect(txt).toContain('Abre depois do encerramento do incidente.');
+    expect(txt).toContain('Pendente, prazo não calculado'); // risco ainda não avaliado: a comunicação conta
+    expect(txt).not.toContain('Não exigida');
     expect((await chamar(ana, `${B}/incidentes/iw-o/docx`)).status).toBe(404);
     const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'exportacao.docx' AND project_id = ? ORDER BY rowid DESC LIMIT 1`).bind(P).first<any>();
     expect(t.details).toBe('Incidente iw-in baixado em Word');
