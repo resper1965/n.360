@@ -3,7 +3,9 @@ import { hojeEmSaoPaulo, diaMaisSP, diaEmSaoPaulo, sqlDiaSP } from '../src/servi
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
-import { somarPrazo } from '../src/services/parametros-legais';
+import { somarPrazo, ehFeriadoNacional } from '../src/services/parametros-legais';
+// @ts-expect-error módulo JS do frontend, sem tipos
+import { ehFeriadoNacional as feriadoDaTela } from '../frontend/src/hoje.js';
 import { situacaoDoPrazo } from '../src/services/titular-pedidos';
 import { situacaoDaComunicacao } from '../src/services/incidentes';
 
@@ -51,6 +53,17 @@ describe('somarPrazo', () => {
     expect(somarPrazo('2026-11-05T22:00:00-03:00', 1, 'dias_uteis')).toBe('2026-11-07T01:00:00.000Z');
     // sexta 06/11 23:30 em São Paulo (sábado em UTC) + 1 = segunda 09/11 23:30 em São Paulo
     expect(somarPrazo('2026-11-06T23:30:00-03:00', 1, 'dias_uteis')).toBe('2026-11-10T02:30:00.000Z');
+  });
+  it('a tela usa os mesmos feriados nacionais do servidor (2026 a 2028, dia a dia)', () => {
+    const d = new Date(Date.UTC(2026, 0, 1));
+    let feriados = 0;
+    while (d.getUTCFullYear() <= 2028) {
+      const dia = d.toISOString().slice(0, 10);
+      expect(feriadoDaTela(dia), dia).toBe(ehFeriadoNacional(dia));
+      if (ehFeriadoNacional(dia)) feriados++;
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    expect(feriados).toBe(30); // 10 por ano
   });
   it('data inválida estoura', () => {
     expect(() => somarPrazo('ontem', 1, 'horas')).toThrow();

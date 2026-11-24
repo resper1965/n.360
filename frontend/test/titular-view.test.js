@@ -359,6 +359,20 @@ describe('incidentes', () => {
         } finally { vi.useRealTimers(); }
     });
 
+    it('faixa: "faltam N dias úteis" pula os feriados nacionais (20/11 e Sexta-feira Santa)', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-11-18T12:00:00Z')); // quarta; sexta 20/11 é feriado
+        try {
+            await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-11-24T10:00:00.000Z', situacao_anpd: 'no_prazo' } });
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até 24/11 (faltam 3 dias úteis)');
+            vi.setSystemTime(new Date('2026-04-01T12:00:00Z')); // quarta; sexta 03/04 é a Sexta-feira Santa de 2026
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-04-07T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até 07/04 (faltam 3 dias úteis)');
+        } finally { vi.useRealTimers(); }
+    });
+
     it('sem dia útil restante: nunca "faltam 0 dias úteis"; vence hoje ou venceu pela data', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-10-16T12:00:00Z')); // sexta-feira

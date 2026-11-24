@@ -6,7 +6,7 @@ import { produtoAtual, limparFichaDoEndereco } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
 import { montarLista, colunasDe, consultaDe } from '../lista.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
-import { hojeSP, diaSP } from '../hoje.js';
+import { hojeSP, diaSP, ehFeriadoNacional } from '../hoje.js';
 import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 import { rotuloDe } from '../rotulos.js';
 import { semRepetir } from '../ot-comum.js';
@@ -536,12 +536,12 @@ window.salvarNovoIncidente = function (projectId) {
 
 // Dia de São Paulo (o prazo às 22h de Brasília é gravado como 01h UTC do dia seguinte).
 const diaMes = (s) => { const d = diaSP(s); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—'; };
-// Dias úteis (seg. a sex.) depois de hoje até o prazo, inclusive. ponytail: sem feriados; a contagem oficial é a do servidor.
+// Dias úteis (seg. a sex., fora feriado nacional, pelo dia de São Paulo) depois de hoje até o prazo, inclusive: a mesma regra do servidor.
 function diasUteisAte(prazo) {
     const fim = new Date(`${diaSP(prazo)}T00:00:00Z`);
     const d = new Date(`${hojeSP()}T00:00:00Z`);
     let n = 0;
-    while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0) n++; }
+    while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0 && !ehFeriadoNacional(d.toISOString().slice(0, 10))) n++; }
     return n;
 }
 /** Faixa fixa do topo do incidente: o prazo da ANPD em contagem, ou a confirmação de que foi comunicado. */
