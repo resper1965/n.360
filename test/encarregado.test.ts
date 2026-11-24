@@ -197,6 +197,15 @@ describe('prazo às 22h de Brasília', () => {
   });
 });
 
+describe('prazo gravado à meia-noite UTC', () => {
+  it('pedido contado do recebimento sem hora: o 8º dia à meia-noite UTC é o 8º dia, não o 7º às 21h', async () => {
+    await db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, prazo_em, status) VALUES
+      ('m1', 'e1', 'PT-M1', 'acesso', ?1, ?2, 'recebido')`).bind(dias(-8), `${dias(8)}T00:00:00.000Z`).run();
+    const v = await ver();
+    expect(v.pedidos_titular).toMatchObject({ atrasados: 0, vencem_em_7_dias: 0, exigem_atencao: 0 });
+  });
+});
+
 describe('canal do titular (0117)', () => {
   const doCanal = async () => (await ver()).prioridades.filter((p) => p.texto.startsWith('Canal')) as unknown as Record<string, string>[];
   it('sem meio: alta e Exigido, para Solicitações; com meio e sem página: média; página nunca conferida: média; conferida: nenhuma', async () => {

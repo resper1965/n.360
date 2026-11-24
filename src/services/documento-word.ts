@@ -273,8 +273,8 @@ export async function incidenteEmWord(db: D1Database, projectId: string, inciden
   ]);
   const encerrado = i.status === 'encerrado';
   // A situação central (`situacaoDaComunicacao`): risco sem_risco ou baixo não exige a comunicação.
-  const comunicacao = (feita: string | null, prazo: string | null, situacao: string) => feita ? `Comunicada em ${dataHora(feita)}`
-    : situacao === 'nao_exigida' ? `Não exigida (risco ${RISCO_TITULAR[i.risco_titular ?? '']?.toLowerCase() ?? ''})`
+  const comunicacao = (feita: string | null, prazo: string | null, situacao: string, apos: string | null) => feita ? `Comunicada em ${dataHora(feita)}`
+    : situacao === 'nao_exigida' ? `Não exigida (${apos ? `reavaliado após o prazo de ${apos.slice(8, 10)}/${apos.slice(5, 7)}` : `risco ${RISCO_TITULAR[i.risco_titular ?? '']?.toLowerCase() ?? ''}`})`
     : prazo ? `Pendente, prazo ${dataHora(prazo)}` : 'Pendente, prazo não calculado';
   const corpo: Bloco[] = [
     ...ident,
@@ -289,9 +289,9 @@ export async function incidenteEmWord(db: D1Database, projectId: string, inciden
     ...(i.dados.length ? [titulo('Titulares e dados afetados'), tabela(['Titulares', 'Dado', 'Sensível'], i.dados.map((d) => [d.titular, d.dado, simNao(d.sensivel)])), par('')] : []),
     titulo('Risco ao titular'), ...campos([['Avaliação', i.risco_titular ? RISCO_TITULAR[i.risco_titular] : 'Não avaliado'], ['Justificativa', i.avaliacao_texto]]),
     titulo('Comunicação'), ...campos([
-      ['ANPD', comunicacao(i.comunicacao_anpd_em, i.prazo_anpd_em, i.situacao_anpd)], ['Canal', i.anpd_canal ? CANAL_ANPD[i.anpd_canal] : ''],
+      ['ANPD', comunicacao(i.comunicacao_anpd_em, i.prazo_anpd_em, i.situacao_anpd, i.anpd_reavaliado_apos_prazo)], ['Canal', i.anpd_canal ? CANAL_ANPD[i.anpd_canal] : ''],
       ['Protocolo na ANPD', i.anpd_protocolo], ['Protocolo interno', i.anpd_protocolo_interno], ['Justificativa', i.anpd_justificativa],
-      ['Titulares', comunicacao(i.comunicacao_titular_em, i.prazo_titular_em, i.situacao_titular)],
+      ['Titulares', comunicacao(i.comunicacao_titular_em, i.prazo_titular_em, i.situacao_titular, i.titular_reavaliado_apos_prazo)],
     ]),
     titulo('Análises'),
     ...(analises?.length ? analises.flatMap((a) => [par(`${txt(a.autor_nome) || a.autor} · ${dataHora(a.created_at)}`, { bold: true }), par(a.texto)]) : [par('Nenhuma análise.')]),

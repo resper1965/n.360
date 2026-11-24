@@ -21,10 +21,10 @@ const ehData = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00
 
 export type SituacaoPrazo = 'sem_prazo' | 'encerrado' | 'no_prazo' | 'vence_hoje' | 'atrasado';
 /** O prazo do pedido em relação a hoje; pedido respondido, negado ou arquivado não corre mais. */
-export function situacaoDoPrazo(p: { prazo_em: string | null; status: string }, em = hoje()): SituacaoPrazo {
+export function situacaoDoPrazo(p: { prazo_em: string | null; status: string; recebido_em?: string | null }, em = hoje()): SituacaoPrazo {
   if (['respondido', 'negado', 'arquivado'].includes(p.status)) return 'encerrado';
   if (!p.prazo_em) return 'sem_prazo';
-  const dia = diaEmSaoPaulo(p.prazo_em)!;
+  const dia = diaEmSaoPaulo(p.prazo_em, p.recebido_em)!;
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 
@@ -219,7 +219,7 @@ export async function consultarPedidoPortal(db: D1Database, protocolo: string, c
   const p = await db.prepare('SELECT protocolo, tipo, status, recebido_em, prazo_em, respondido_em FROM titular_pedidos WHERE acompanhamento_hash = ?')
     .bind(await sha256Hex(canonico)).first<ConsultaPublica>();
   if (!p || p.protocolo !== protocolo.toUpperCase()) return null;
-  return { ...p, recebido_em: diaEmSaoPaulo(p.recebido_em)!, prazo_em: diaEmSaoPaulo(p.prazo_em), respondido_em: diaEmSaoPaulo(p.respondido_em) };
+  return { ...p, recebido_em: diaEmSaoPaulo(p.recebido_em)!, prazo_em: diaEmSaoPaulo(p.prazo_em, p.recebido_em), respondido_em: diaEmSaoPaulo(p.respondido_em) };
 }
 
 // ─── Tratativas do atendimento (migration 0096) ───────────────────────────────────────────────────

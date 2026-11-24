@@ -198,4 +198,9 @@ describe('prazo às 22h de Brasília (01h UTC do dia seguinte) conta no dia de B
         expect(f({ status: 'recebido', prazo_em: emDiasSP(7) })).toBe(true);
         expect(f({ status: 'recebido', prazo_em: `${emDiasSP(9)}T01:00:00.000Z` })).toBe(false);
     });
+    it('prazo do pedido gravado à meia-noite UTC (contado do recebimento sem hora) é o dia dele, não 21h da véspera', () => {
+        const [, f] = FILTROS['titular:pedidos:vencem_7_dias'];
+        expect(f({ status: 'recebido', recebido_em: emDiasSP(-8), prazo_em: `${emDiasSP(0)}T00:00:00.000Z` })).toBe(true);
+        expect(f({ status: 'recebido', recebido_em: emDiasSP(-1), prazo_em: `${emDiasSP(8)}T00:00:00.000Z` })).toBe(false);
+    });
 });

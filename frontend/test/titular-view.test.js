@@ -410,6 +410,17 @@ describe('incidentes', () => {
         expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
     });
 
+    it('risco rebaixado depois do prazo vencido: "Não exigida (reavaliado após o prazo de DD/MM)" na lista, na ficha e na faixa', async () => {
+        const rb = { ...INCIDENTES[0], risco_titular: 'baixo', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida', anpd_reavaliado_apos_prazo: '2026-10-04', titular_reavaliado_apos_prazo: null };
+        await abrir('incidentes', { [`GET ${B}/incidentes`]: [rb], [`GET ${B}/incidentes/i1`]: rb });
+        expect(el('c').textContent).toContain('Não exigida (reavaliado após o prazo de 04/10)');
+        await ficha();
+        expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD: não exigida (reavaliado após o prazo de 04/10).');
+        expect(el('in-faixa-anpd').getAttribute('style')).not.toMatch(/danger|warning/);
+        expect(el('in-prazos').textContent).toContain('ANPD: Não exigida (reavaliado após o prazo de 04/10)');
+        expect(el('in-prazos').textContent).not.toContain('Titular: Não exigida (reavaliado');
+    });
+
     it('sem risco ao titular: nenhuma comunicação é a próxima ação e encerrar não fala da ANPD', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida' } });
         await ficha('comunicacao');
