@@ -50,10 +50,10 @@ describe('fonte incidente', () => {
     expect(Object.fromEntries(itens.map((i) => [i.item_id, i.marco]))).toEqual({ 'i1:anpd': 'D-7', 'i1:titular': 'D0' });
     expect(itens.map((i) => i.titulo).sort()).toEqual(['Comunicação ao titular do incidente IN-2026-i1', 'Comunicação à ANPD do incidente IN-2026-i1']);
   });
-  it('comunicação feita sai; encerrado sai; sem_risco sai; sem prazo (parâmetro ausente) não entra', async () => {
+  it('comunicação feita sai; encerrado sai; sem_risco e baixo saem (não exigida); sem prazo (parâmetro ausente) não entra', async () => {
     await db().batch([
       inc('feita', { anpd: '2026-10-07', tit: '2026-10-07', feitaAnpd: '2026-10-05' }), inc('enc', { anpd: '2026-10-07', feitaAnpd: '2026-10-06', status: 'encerrado' }),
-      inc('semrisco', { anpd: '2026-10-07', risco: 'sem_risco' }), inc('semprazo', {}),
+      inc('semrisco', { anpd: '2026-10-07', risco: 'sem_risco' }), inc('baixo', { anpd: '2026-10-01', tit: '2026-10-07', risco: 'baixo' }), inc('semprazo', {}),
     ]);
     expect((await daFonte('incidente')).map((i) => i.item_id)).toEqual(['feita:titular']);
   });

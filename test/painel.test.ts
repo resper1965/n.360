@@ -291,6 +291,20 @@ describe('GET /projects/:id/painel', () => {
   });
 });
 
+describe('comunicação de incidente não exigida (risco sem_risco ou baixo)', () => {
+  it('não entra nos vencimentos do painel, na cobertura nem na carteira; risco não avaliado entra', async () => {
+    await semear();
+    await db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, status, risco_titular) VALUES
+      ('ib', 'pa', 'IN-B', 'Baixo', ?1, ?2, ?2, 'avaliado', 'baixo'), ('is', 'pa', 'IN-S', 'Sem risco', ?1, ?2, ?2, 'avaliado', 'sem_risco'),
+      ('in', 'pa', 'IN-N', 'Não avaliado', ?1, ?2, NULL, 'aberto', NULL)`).bind(dias(-5), dias(-2)).run();
+    const m = (await painel(consultor, 'pa', 'privacy')).corpo.modulos.privacy;
+    expect(m.vencimentos!.find((l) => l.tipo === 'Comunicações de incidente')!.vencidos).toBe(1);
+    expect(m.cobertura!.find((x) => x.tema.startsWith('Incidentes'))).toMatchObject({ andamento: 2, falta: 1 });
+    const { projetos } = (await (await chamar(consultor, '/api/v1/carteira')).json()) as { projetos: { id: string; situacao: string }[] };
+    expect(projetos.find((p) => p.id === 'pa')!.situacao).toBe('2 prazos legais vencidos');
+  });
+});
+
 describe('GET /api/v1/carteira', () => {
   it('só os projetos que a pessoa alcança, do mais urgente ao em dia, sem a outra organização', async () => {
     await semear();

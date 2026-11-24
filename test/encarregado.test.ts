@@ -81,7 +81,8 @@ describe('projeto com pendências', () => {
         ('a3', 'e1', 'PT-3', 'acesso', '2026-09-20', NULL, 'recebido', NULL), ('a4', 'e1', 'PT-4', 'acesso', '2026-09-01', ?1, 'respondido', '2026-09-05')`).bind(dias(-5), dias(3)),
       // incidentes: um com comunicações atrasadas, um sem avaliação
       db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, status, risco_titular) VALUES
-        ('i1', 'e1', 'IN-1', 'Atrasado', '2026-09-01', ?1, ?1, 'avaliado', 'relevante'), ('i2', 'e1', 'IN-2', 'Sem risco avaliado', '2026-10-01', NULL, NULL, 'aberto', NULL)`).bind(dias(-2)),
+        ('i1', 'e1', 'IN-1', 'Atrasado', '2026-09-01', ?1, ?1, 'avaliado', 'relevante'), ('i2', 'e1', 'IN-2', 'Sem risco avaliado', '2026-10-01', NULL, NULL, 'aberto', NULL),
+        ('i3', 'e1', 'IN-3', 'Risco baixo: comunicação não exigida', '2026-09-01', ?1, ?1, 'avaliado', 'baixo')`).bind(dias(-2)),
       // tratamentos: sem base, com DPIA exigida sem DPIA, legítimo interesse sem LIA, sem responsável
       db().prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, legal_basis, dpia_required, owner) VALUES
         ('t1', 'e1', 'Sem base', NULL, 0, 'DPO'), ('t2', 'e1', 'DPIA', 'Execução de contrato', 1, 'DPO'), ('t3', 'e1', 'Fraude', 'Legítimo interesse', 0, 'DPO')`),
@@ -96,7 +97,7 @@ describe('projeto com pendências', () => {
     const v = await ver();
     expect(v.pedidos_titular).toMatchObject({ abertos: 3, atrasados: 1, vencem_em_7_dias: 1, exigem_atencao: 2, sem_prazo: 1 });
     expect(v.pedidos_titular.itens.map((i) => i.protocolo).sort()).toEqual(['PT-1', 'PT-2', 'PT-3']);
-    expect(v.incidentes).toMatchObject({ abertos: 2, comunicacoes_atrasadas: 2, sem_avaliacao_de_risco: 1 });
+    expect(v.incidentes).toMatchObject({ abertos: 3, comunicacoes_atrasadas: 2, comunicacoes_pendentes: 4, sem_avaliacao_de_risco: 1 });
     expect(v.tratamentos).toEqual({ total: 3, sem_base_legal: 1, dpia_pendente: 1, lia_pendente: 1, sem_responsavel: 0, com_terceiro_vencido: 1 });
     expect(v.terceiros).toEqual({ total: 3, sem_tipo: 1, pendentes: 1, vencidos: 1, reprovados: 0, com_pendencia: 3 });
     expect(v.evidencias).toEqual({ a_corrigir: 1, vencem_em_7_dias: 1 });

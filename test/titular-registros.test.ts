@@ -31,10 +31,26 @@ describe('somarPrazo', () => {
   it('horas e dias corridos somam direto; dias úteis pulam sábado e domingo', () => {
     expect(somarPrazo('2026-10-09T10:00:00Z', 72, 'horas')).toBe('2026-10-12T10:00:00.000Z');
     expect(somarPrazo('2026-10-09', 15, 'dias_corridos')).toBe('2026-10-24T00:00:00.000Z');
-    // sexta 2026-10-09 + 1 dia útil = segunda; + 5 = sexta seguinte
-    expect(somarPrazo('2026-10-09', 1, 'dias_uteis')).toBe('2026-10-12T00:00:00.000Z');
-    expect(somarPrazo('2026-10-09', 5, 'dias_uteis')).toBe('2026-10-16T00:00:00.000Z');
-    expect(somarPrazo('2026-10-10', 1, 'dias_uteis')).toBe('2026-10-12T00:00:00.000Z'); // base num sábado
+    // sexta 2026-10-16 + 1 dia útil = segunda; + 5 = sexta seguinte
+    expect(somarPrazo('2026-10-16', 1, 'dias_uteis')).toBe('2026-10-19T00:00:00.000Z');
+    expect(somarPrazo('2026-10-16', 5, 'dias_uteis')).toBe('2026-10-23T00:00:00.000Z');
+    expect(somarPrazo('2026-10-17', 1, 'dias_uteis')).toBe('2026-10-19T00:00:00.000Z'); // base num sábado
+  });
+  it('dias úteis pulam os feriados nacionais fixos e a Sexta-feira Santa; Carnaval (ponto facultativo) conta', () => {
+    expect(somarPrazo('2026-11-19', 1, 'dias_uteis')).toBe('2026-11-23T00:00:00.000Z'); // 20/11 (sexta) é feriado
+    expect(somarPrazo('2026-04-20', 1, 'dias_uteis')).toBe('2026-04-22T00:00:00.000Z'); // 21/04
+    expect(somarPrazo('2026-12-24', 1, 'dias_uteis')).toBe('2026-12-28T00:00:00.000Z'); // 25/12
+    expect(somarPrazo('2026-12-31', 1, 'dias_uteis')).toBe('2027-01-04T00:00:00.000Z'); // 01/01 (sexta)
+    expect(somarPrazo('2026-04-02', 1, 'dias_uteis')).toBe('2026-04-06T00:00:00.000Z'); // Páscoa 2026 = 05/04: sexta 03/04 não conta
+    expect(somarPrazo('2027-03-25', 1, 'dias_uteis')).toBe('2027-03-29T00:00:00.000Z'); // Páscoa 2027 = 28/03: sexta 26/03 não conta
+    expect(somarPrazo('2026-02-13', 1, 'dias_uteis')).toBe('2026-02-16T00:00:00.000Z'); // segunda de Carnaval conta
+    expect(somarPrazo('2026-11-19', 3, 'dias_corridos')).toBe('2026-11-22T00:00:00.000Z'); // dias corridos não olham feriado
+  });
+  it('dias úteis contam pelo calendário de São Paulo: ciência às 22h de quinta (sexta em UTC) mantém a hora', () => {
+    // quinta 05/11 22:00 em São Paulo = sexta 06/11 01:00 UTC; + 1 dia útil = sexta 06/11 22:00 em São Paulo
+    expect(somarPrazo('2026-11-05T22:00:00-03:00', 1, 'dias_uteis')).toBe('2026-11-07T01:00:00.000Z');
+    // sexta 06/11 23:30 em São Paulo (sábado em UTC) + 1 = segunda 09/11 23:30 em São Paulo
+    expect(somarPrazo('2026-11-06T23:30:00-03:00', 1, 'dias_uteis')).toBe('2026-11-10T02:30:00.000Z');
   });
   it('data inválida estoura', () => {
     expect(() => somarPrazo('ontem', 1, 'horas')).toThrow();
@@ -50,9 +66,21 @@ describe('situações derivadas', () => {
     expect(situacaoDoPrazo({ prazo_em: '2026-10-01', status: 'recebido' }, '2026-10-09')).toBe('atrasado');
   });
   it('comunicação: feita vale mais que o prazo', () => {
-    expect(situacaoDaComunicacao('2026-10-01', '2026-10-02')).toBe('comunicado');
-    expect(situacaoDaComunicacao(null, null)).toBe('sem_prazo');
-    expect(situacaoDaComunicacao('2026-10-01', null, '2026-10-09')).toBe('atrasado');
+    expect(situacaoDaComunicacao('2026-10-01', '2026-10-02', 'relevante')).toBe('comunicado');
+    expect(situacaoDaComunicacao(null, null, null)).toBe('sem_prazo');
+    expect(situacaoDaComunicacao('2026-10-01', null, 'relevante', '2026-10-09')).toBe('atrasado');
+  });
+  it('comunicação: risco sem_risco ou baixo não exige comunicação; risco não avaliado ou relevante segue o prazo', () => {
+    for (const r of ['sem_risco', 'baixo'] as const) {
+      expect(situacaoDaComunicacao('2026-10-01', null, r, '2026-10-09')).toBe('nao_exigida');
+      expect(situacaoDaComunicacao('2026-10-09', null, r, '2026-10-09')).toBe('nao_exigida');
+      expect(situacaoDaComunicacao(null, null, r)).toBe('nao_exigida');
+      expect(situacaoDaComunicacao('2026-10-01', '2026-10-02', r)).toBe('comunicado'); // feita vale mais
+    }
+    expect(situacaoDaComunicacao('2026-10-01', null, null, '2026-10-09')).toBe('atrasado');
+    expect(situacaoDaComunicacao('2026-10-09', null, null, '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDaComunicacao('2026-10-12', null, 'relevante', '2026-10-09')).toBe('no_prazo');
+    expect(situacaoDaComunicacao(null, null, 'relevante')).toBe('sem_prazo');
   });
 });
 
@@ -192,7 +220,7 @@ describe('incidente', () => {
     const ciencia = '2026-10-09T10:00:00Z';
     const b = await json<{ prazo_anpd_em: string; prazo_titular_em: string }>(await criar({ ciencia_em: ciencia }));
     expect(b.prazo_anpd_em).toBe('2026-10-12T10:00:00.000Z');
-    expect(b.prazo_titular_em).toBe('2026-10-14T10:00:00.000Z');
+    expect(b.prazo_titular_em).toBe('2026-10-15T10:00:00.000Z'); // segunda 12/10 é feriado nacional
     await par('incidente.comunicacao_anpd', 24, 'horas');
     const refeito = (await json<{ prazo_anpd_em: string }[]>(await chamar(consultor, 'GET', `${B}/incidentes`))).find((i) => i.prazo_anpd_em === '2026-10-12T10:00:00.000Z');
     expect(refeito).toBeTruthy();
@@ -220,6 +248,18 @@ describe('incidente', () => {
     expect(i.comunicacao_anpd_em).toBe('2026-10-02');
     expect(i.status).toBe('comunicado');
     expect(i.situacao_anpd).toBe('comunicado');
+  });
+
+  it('risco baixo ou sem risco: a comunicação pendente vira nao_exigida; relevante volta ao prazo', async () => {
+    await par('incidente.comunicacao_anpd', 72, 'horas');
+    const id = (await json<{ id: string }>(await criar({ ciencia_em: '2026-01-05T10:00:00Z' }))).id;
+    expect((await ler(id)).situacao_anpd).toBe('atrasado');
+    await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'baixo' });
+    const i = await ler(id);
+    expect([i.situacao_anpd, i.situacao_titular]).toEqual(['nao_exigida', 'nao_exigida']);
+    expect((await json<{ id: string; situacao_anpd: string }[]>(await chamar(consultor, 'GET', `${B}/incidentes`))).find((x) => x.id === id)!.situacao_anpd).toBe('nao_exigida');
+    await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'relevante' });
+    expect((await ler(id)).situacao_anpd).toBe('atrasado');
   });
 
   it('encerrar: sem risco avaliado 409; risco relevante sem ANPD 409; com tudo, 200 e depois não muda', async () => {

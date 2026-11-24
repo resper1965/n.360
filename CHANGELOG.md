@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Incidentes: comunicação não exigida e feriados nos prazos em dias úteis
+- **Comunicação não exigida:** quando o risco ao titular foi avaliado como "sem risco" ou "baixo", a comunicação à ANPD e aos titulares aparece como "Não exigida", em tom neutro, na lista, na página do incidente e na faixa do prazo da ANPD no topo. Ela deixa de contar como atrasada ou pendente no sino de avisos, no painel, na carteira e na visão do encarregado, e o agente recebe a mesma situação. A Resolução CD/ANPD 15/2024 (arts. 5º e 9º) exige a comunicação só quando o incidente pode acarretar risco ou dano relevante. Com o risco ainda não avaliado ou relevante, o prazo continua sendo contado como antes. A regra de encerramento não muda: com risco relevante, o incidente só encerra com a comunicação à ANPD registrada.
+- **Feriados nos dias úteis:** prazos em dias úteis (comunicação do incidente e resposta ao titular, conforme o parâmetro legal) agora pulam os feriados nacionais: 01/01, 21/04, 01/05, 07/09, 12/10, 02/11, 15/11, 20/11, 25/12 e a Sexta-feira Santa (calculada pela Páscoa). Ponto facultativo (Carnaval, Corpus Christi) e feriados estaduais e municipais ficam de fora até o jurídico confirmar a lista.
+- **Dia de Brasília:** a contagem em dias úteis passa a usar o dia de São Paulo. Antes, uma ciência entre 21h e meia-noite de Brasília era contada a partir do dia seguinte (o dia em UTC), e o prazo podia cair um dia útil fora.
+- Vale para os registros criados a partir de agora; prazos já gravados não são recalculados.
+
 ### Fornecedor cadastrado como pessoa
 - **Tipo da parte:** o cadastro da parte agora mostra o tipo (pessoa ou organização), e só a equipe da consultoria pode mudá-lo (nunca o agente nem a chave de API). O servidor recusa com uma mensagem clara quando a mudança quebraria algo: a pessoa com conta, encarregada, responsável ou na governança não vira organização; a organização com CNPJ, dados de fornecedor (tipo, criticidade, avaliação, questionário, DPA ou contrato ligado) ou papéis de organização não vira pessoa. A mudança fica na trilha.
 - **Atividade, aba Agentes de Tratamento:** a parte cadastrada como pessoa que já estava ligada como operador, cocontrolador, suboperador ou destinatário aparece com um aviso e o atalho "Abrir cadastro", onde dá para transformá-la em organização. O seletor continua mostrando só organizações, e o servidor continua recusando ligar pessoa nesses papéis.

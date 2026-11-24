@@ -18,7 +18,7 @@ export const FILTROS = {
     'titular:pedidos:atrasados': ['atrasados', (p) => p.situacao_prazo === 'atrasado'],
     'titular:pedidos:vencem_7_dias': ['vencem em até 7 dias', (p) => PEDIDO_ABERTO.includes(p.status) && !!p.prazo_em && dia(p.prazo_em) >= hoje() && dia(p.prazo_em) <= emDias(7)],
     'titular:incidentes:comunicacao_atrasada': ['comunicação atrasada',
-        (i) => i.status !== 'encerrado' && i.risco_titular !== 'sem_risco' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')],
+        (i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')],
     'titular:incidentes:sem_avaliacao': ['sem avaliação de risco', (i) => i.status !== 'encerrado' && !i.risco_titular],
     'terceiros::vencidos': ['avaliação vencida', (t) => t.situacao === 'vencida'],
     'terceiros::pendentes': ['nunca avaliados ou a reavaliar', (t) => !!t.terceiro_tipo && (t.situacao === 'pendente' || t.situacao === 'reavaliar')],

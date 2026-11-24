@@ -22,7 +22,7 @@ const METODOS_IDENTIDADE = { documento_foto: 'Documento com foto', dados_cadastr
 const STATUS_ENCAMINHAMENTO = { aguardando: 'Aguardando', respondido: 'Respondido', cancelado: 'Cancelado' };
 const STATUS_PEDIDO = { recebido: 'Recebido', em_andamento: 'Em andamento', respondido: 'Respondido', negado: 'Negado', arquivado: 'Arquivado' };
 const TIPOS_TRATATIVA = { comunicacao_titular: 'Comunicação ao titular', encaminhamento: 'Encaminhamento a ponto focal', evidencia: 'Evidência recebida', nota: 'Nota interna' };
-const PRAZO = { sem_prazo: ['Prazo não calculado', 'neutral'], encerrado: ['Encerrado', 'neutral'], no_prazo: ['No prazo', 'success'], vence_hoje: ['Vence hoje', 'warning'], atrasado: ['Atrasado', 'danger'], comunicado: ['Comunicado', 'success'] };
+const PRAZO = { sem_prazo: ['Prazo não calculado', 'neutral'], encerrado: ['Encerrado', 'neutral'], no_prazo: ['No prazo', 'success'], vence_hoje: ['Vence hoje', 'warning'], atrasado: ['Atrasado', 'danger'], comunicado: ['Comunicado', 'success'], nao_exigida: ['Não exigida', 'neutral'] };
 const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' };
 const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
 // Registro completo do incidente (0098; listas aprovadas pelo dono em 04/11/2026). Os valores são os do servidor (src/schemas/nucleo.ts).
@@ -550,7 +550,9 @@ function faixaAnpd(i) {
         const noPrazo = !i.prazo_anpd_em || String(i.comunicacao_anpd_em).slice(0, 10) <= String(i.prazo_anpd_em).slice(0, 10);
         return faixa('var(--text-2)', `Comunicado à ANPD em ${diaMes(i.comunicacao_anpd_em)}, ${noPrazo ? 'dentro do prazo' : 'fora do prazo'}.`);
     }
-    if (i.status === 'encerrado' || i.risco_titular === 'sem_risco') return '';
+    if (i.status === 'encerrado') return '';
+    // Risco avaliado sem_risco ou baixo: a comunicação não é exigida (regra do servidor, `situacaoDaComunicacao`).
+    if (i.situacao_anpd === 'nao_exigida') return faixa('var(--text-2)', `Comunicação à ANPD: não exigida (risco ${(RISCOS[i.risco_titular] || '').toLowerCase()}).`);
     if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
     // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
     const hoje = hojeSP(), prazo = String(i.prazo_anpd_em).slice(0, 10);
@@ -593,7 +595,7 @@ let fichaInc = null;
 let seqInc = 0;
 const repintarIncidente = () => (fichaInc ? window.renderIncidenteFicha(fichaInc.c, fichaInc.h, fichaInc.a) : undefined);
 
-function painelRegistro(i, projectId, id, editar, encerrar, semRisco) {
+function painelRegistro(i, projectId, id, editar, encerrar) {
     return `<p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
         ${i.descricao ? `<p class="at-nota">${escapeHTML(i.descricao)}</p>` : ''}
@@ -605,13 +607,14 @@ function painelRegistro(i, projectId, id, editar, encerrar, semRisco) {
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
             <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>` : ''}
         ${encerrar ? `<div class="mt-4"><div id="in-encerrar"></div>
-            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button></div>` : ''}
+            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || i.situacao_anpd === 'nao_exigida', i.risco_titular || null)}'>Encerrar incidente</button></div>` : ''}
         ${vinculoOtHTML(projectId)}`;
 }
 
-function painelComunicacao(i, projectId, id, editar, semRisco) {
-    // A ação primária é a próxima comunicação devida; sem risco ao titular não há comunicação devida (nem à ANPD).
-    const proxima = semRisco ? null : !i.comunicacao_anpd_em ? 'anpd' : !i.comunicacao_titular_em ? 'titular' : null;
+function painelComunicacao(i, projectId, id, editar) {
+    // A ação primária é a próxima comunicação devida; a não exigida (risco sem_risco ou baixo) nunca é a próxima.
+    const devida = (s) => s !== 'comunicado' && s !== 'nao_exigida';
+    const proxima = devida(i.situacao_anpd) ? 'anpd' : devida(i.situacao_titular) ? 'titular' : null;
     const comunicar = (destino, rotulo) => `<button class="btn ${proxima === destino ? 'btn-primary' : ''} btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, destino)}'>${rotulo}</button>`;
     const feitas = `<ul class="at-lista">
         <li><strong>ANPD:</strong> ${i.comunicacao_anpd_em ? `${escapeHTML(i.anpd_protocolo_interno || '')}, enviada em ${dia(i.comunicacao_anpd_em)}${i.anpd_canal ? ` · ${escapeHTML(CANAIS_ANPD[i.anpd_canal] || i.anpd_canal)}` : ''}${i.anpd_protocolo ? ` · protocolo ${escapeHTML(i.anpd_protocolo)}` : ''}` : 'não registrada'}</li>
@@ -653,10 +656,9 @@ async function renderIncidenteFicha(c, h, a) {
     const aba = abaIncDoEndereco();
     const editar = podeRegistrar() && i.status !== 'encerrado';
     const encerrar = podeEditar() && i.status !== 'encerrado';
-    const semRisco = i.risco_titular === 'sem_risco';
     h.textContent = `${i.protocolo} — ${i.titulo}`;
-    const corpo = aba === 'registro' ? painelRegistro(i, projectId, id, editar, encerrar, semRisco)
-        : aba === 'comunicacao' ? painelComunicacao(i, projectId, id, editar, semRisco)
+    const corpo = aba === 'registro' ? painelRegistro(i, projectId, id, editar, encerrar)
+        : aba === 'comunicacao' ? painelComunicacao(i, projectId, id, editar)
         : aba === 'analise' ? '<div id="in-analises"></div>'
         : aba === 'acoes' ? '<div id="in-acoes"></div>'
         : aba === 'postmortem' ? '<div id="in-postmortem"></div>'

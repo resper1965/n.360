@@ -54,7 +54,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
 
   const pedidosAbertos = pedidos.filter((p) => ['recebido', 'em_andamento'].includes(p.status));
   const incidentesAbertos = incidentes.filter((i) => i.status !== 'encerrado');
-  const comunicacoes = incidentesAbertos.flatMap((i) => [i.situacao_anpd, i.situacao_titular].filter((s) => i.risco_titular !== 'sem_risco' && s !== 'comunicado'));
+  const comunicacoes = incidentesAbertos.flatMap((i) => [i.situacao_anpd, i.situacao_titular].filter((s) => s !== 'comunicado' && s !== 'nao_exigida'));
 
   // Tratamentos: contas que dependem de texto livre (legítimo interesse) são feitas aqui, sobre as poucas linhas do projeto.
   // Base legal (F3): a principal, uma adicional ou o texto do GDPR; qualquer uma de legítimo interesse pede a LIA.
@@ -145,7 +145,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   const venceu = (datas: (string | null | undefined)[]) => { const d = datas.filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort()[0]; return d ? `Venceu em ${diaMes(d)}` : 'Vencido'; };
   const atrasados = pedidosAbertos.filter((x) => x.situacao_prazo === 'atrasado');
   const em7dias = pedidosAbertos.filter((x) => x.prazo_em && x.prazo_em.slice(0, 10) >= dia && x.prazo_em.slice(0, 10) <= em7);
-  const comAtraso = incidentesAbertos.filter((i) => i.risco_titular !== 'sem_risco' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado'));
+  const comAtraso = incidentesAbertos.filter((i) => i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado');
   const terceirosVencidos = terceiros.filter((t) => t.situacao === 'vencida');
   const acoesVencidas = abertas.filter((a) => faixaDePrazo(a.due_date, dia) === 'vencidas');
   const semBase = (t: (typeof trat)[number]) => !t.base_legal_id && !String(t.legal_basis ?? '').trim() && !t.adicionais && !String(t.base_gdpr ?? '').trim();

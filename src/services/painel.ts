@@ -1,5 +1,6 @@
 import { visaoDoEncarregado, diaMes, exemplos, type Grupo, type Prioridade } from './encarregado';
 import { lerEmpresa } from './empresas';
+import { sqlComunicacaoExigida } from './incidentes';
 import { aprovacoesDoProjeto } from './documentos';
 import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { ehLegitimoInteresse } from './lia';
@@ -161,9 +162,9 @@ const UNIAO_PRIVACY = [
   `SELECT 'Pedidos do titular' AS tipo, protocolo AS rotulo, substr(prazo_em, 1, 10) AS data FROM titular_pedidos
     WHERE project_id = ?1 AND status IN ('recebido', 'em_andamento') AND prazo_em IS NOT NULL`,
   `SELECT 'Comunicações de incidente', protocolo || ' (ANPD)', substr(prazo_anpd_em, 1, 10) FROM incidentes
-    WHERE project_id = ?1 AND status <> 'encerrado' AND COALESCE(risco_titular, '') <> 'sem_risco' AND comunicacao_anpd_em IS NULL AND prazo_anpd_em IS NOT NULL`,
+    WHERE project_id = ?1 AND status <> 'encerrado' AND ${sqlComunicacaoExigida('risco_titular')} AND comunicacao_anpd_em IS NULL AND prazo_anpd_em IS NOT NULL`,
   `SELECT 'Comunicações de incidente', protocolo || ' (titulares)', substr(prazo_titular_em, 1, 10) FROM incidentes
-    WHERE project_id = ?1 AND status <> 'encerrado' AND COALESCE(risco_titular, '') <> 'sem_risco' AND comunicacao_titular_em IS NULL AND prazo_titular_em IS NOT NULL`,
+    WHERE project_id = ?1 AND status <> 'encerrado' AND ${sqlComunicacaoExigida('risco_titular')} AND comunicacao_titular_em IS NULL AND prazo_titular_em IS NOT NULL`,
   // A avaliação que vale é a mais recente (a mesma regra de `situacaoDe`): reprovada não tem validade.
   `SELECT 'Fornecedores', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
       WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) AS data
@@ -198,7 +199,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
       FROM titular_pedidos WHERE project_id = ?1 AND substr(recebido_em, 1, 10) >= ?3`).bind(projectId, dia, somarDias(dia, -90)),
     db.prepare(`SELECT sum(CASE WHEN status = 'encerrado' THEN 1 ELSE 0 END) AS feito, sum(CASE WHEN status <> 'encerrado' AND NOT atraso THEN 1 ELSE 0 END) AS andamento,
         sum(CASE WHEN status <> 'encerrado' AND atraso THEN 1 ELSE 0 END) AS falta
-      FROM (SELECT status, (COALESCE(risco_titular, '') <> 'sem_risco' AND ((comunicacao_anpd_em IS NULL AND substr(prazo_anpd_em, 1, 10) < ?2)
+      FROM (SELECT status, (${sqlComunicacaoExigida('risco_titular')} AND ((comunicacao_anpd_em IS NULL AND substr(prazo_anpd_em, 1, 10) < ?2)
               OR (comunicacao_titular_em IS NULL AND substr(prazo_titular_em, 1, 10) < ?2))) AS atraso
               FROM incidentes WHERE project_id = ?1 AND substr(ciencia_em, 1, 10) >= ?3)`).bind(projectId, dia, somarDias(dia, -365)),
     db.prepare(SQL_EVIDENCIAS).bind(projectId, dia),
@@ -575,7 +576,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
     b(`SELECT project_id, modulo FROM projeto_modulos WHERE project_id ${escopo}`),
     b(`SELECT p.id AS project_id,
          (SELECT count(*) FROM titular_pedidos t WHERE t.project_id = p.id AND t.status IN ('recebido', 'em_andamento') AND substr(t.prazo_em, 1, 10) < ?1) AS pedidos_atrasados,
-         (SELECT count(*) FROM incidentes i WHERE i.project_id = p.id AND i.status <> 'encerrado' AND COALESCE(i.risco_titular, '') <> 'sem_risco'
+         (SELECT count(*) FROM incidentes i WHERE i.project_id = p.id AND i.status <> 'encerrado' AND ${sqlComunicacaoExigida('i.risco_titular')}
             AND ((i.comunicacao_anpd_em IS NULL AND substr(i.prazo_anpd_em, 1, 10) < ?1) OR (i.comunicacao_titular_em IS NULL AND substr(i.prazo_titular_em, 1, 10) < ?1))) AS comunicacoes_atrasadas,
          (SELECT count(*) FROM corrective_actions a WHERE a.project_id = p.id${escopoRopa('todos', 'a.ropa_id')} AND COALESCE(a.status, 'Open') <> 'Closed' AND substr(a.due_date, 1, 10) < ?1) AS acoes_vencidas,
          (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id AND COALESCE(r.status, '') <> 'Inactive') AS tratamentos,

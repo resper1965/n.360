@@ -365,8 +365,25 @@ describe('incidentes', () => {
         } finally { vi.useRealTimers(); }
     });
 
+    it('risco baixo: comunicação "Não exigida" em tom neutro na lista, na ficha e na faixa; sem primário e encerrar não fala da ANPD', async () => {
+        const baixo = { ...INCIDENTES[0], risco_titular: 'baixo', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida' };
+        await abrir('incidentes', { [`GET ${B}/incidentes`]: [baixo], [`GET ${B}/incidentes/i1`]: baixo });
+        expect(el('c').textContent).toContain('Não exigida');
+        expect(el('c').textContent).not.toContain('Atrasado');
+        await ficha();
+        const faixa = el('in-faixa-anpd');
+        expect(faixa.textContent).toContain('Comunicação à ANPD: não exigida');
+        expect(faixa.getAttribute('style')).not.toMatch(/danger|warning/);
+        expect(el('in-prazos').textContent).toContain('ANPD: Não exigida');
+        expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
+        window.pedirEncerramentoIncidente(...JSON.parse(el('c').querySelector('[data-action="pedirEncerramentoIncidente"]').getAttribute('data-args')));
+        expect(el('in-encerrar').textContent).not.toContain('ANPD');
+        await ficha('comunicacao');
+        expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
+    });
+
     it('sem risco ao titular: nenhuma comunicação é a próxima ação e encerrar não fala da ANPD', async () => {
-        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco' } });
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida' } });
         await ficha('comunicacao');
         expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
         await ficha();

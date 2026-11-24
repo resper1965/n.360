@@ -13,6 +13,7 @@ import { vencerEvidencias } from './evidencia-validade';
 import { gestorArciberDireto } from './ot-inventario';
 import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, type Faixa, type Modulo } from '../modulos';
 import { log } from '../observability';
+import { sqlComunicacaoExigida } from './incidentes';
 import { passoPorId } from '../data/passos/catalogo';
 import type { Bindings } from '../index';
 
@@ -75,7 +76,7 @@ export function marcoDoDia(vence: string, hoje: string): string | null {
  * a parte não tem dono, então o aviso vai aos consultores do projeto.
  * Pedido do titular (fatia 7): `prazo_em` de pedido ainda não respondido, negado ou arquivado; sem parâmetro cadastrado o prazo é nulo e
  * o pedido não entra. Incidente: um item por comunicação pendente (`<id>:anpd` e `<id>:titular`), só enquanto não encerrado, não comunicado
- * e com risco diferente de `sem_risco`. Responsável = a parte responsável do registro. As duas fontes trazem `criado_em` (dia da criação do
+ * e com a comunicação exigida (`sqlComunicacaoExigida`: risco não avaliado ou relevante). Responsável = a parte responsável do registro. As duas fontes trazem `criado_em` (dia da criação do
  * registro) só para a carência de `itensDoDia`: prazo que já nasce vencido (histórico importado, ou registro à mão com data antiga) não
  * gera atraso na semana ISO da criação; da semana seguinte em diante, o atraso semanal volta. D-7 e D0 nunca são retroativos (só saem no
  * próprio dia).
@@ -132,12 +133,12 @@ const FONTES: Record<Fonte, string> = {
   incidente: `SELECT i.id || ':anpd' AS item_id, i.project_id, date(substr(i.prazo_anpd_em, 1, 10)) AS vence_em, 'Comunicação à ANPD do incidente ' || i.protocolo AS titulo,
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(i.created_at, '-3 hours') AS criado_em
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
-    WHERE i.status <> 'encerrado' AND i.prazo_anpd_em IS NOT NULL AND i.comunicacao_anpd_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'
+    WHERE i.status <> 'encerrado' AND i.prazo_anpd_em IS NOT NULL AND i.comunicacao_anpd_em IS NULL AND ${sqlComunicacaoExigida('i.risco_titular')}
     UNION ALL
     SELECT i.id || ':titular', i.project_id, date(substr(i.prazo_titular_em, 1, 10)), 'Comunicação ao titular do incidente ' || i.protocolo,
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome), date(i.created_at, '-3 hours')
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
-    WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'`,
+    WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND ${sqlComunicacaoExigida('i.risco_titular')}`,
   evidencia: `SELECT e.id AS item_id, e.project_id, date(substr(e.valido_ate, 1, 10)) AS vence_em, 'Evidência ' || e.file_name AS titulo, NULL AS responsavel
     FROM evidence e JOIN projects p ON p.id = e.project_id WHERE e.valido_ate IS NOT NULL`,
   documento_arquivo: `SELECT d.id AS item_id, d.project_id, date(substr(d.vencimento, 1, 10)) AS vence_em, 'Documento ' || d.nome AS titulo,
