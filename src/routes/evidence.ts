@@ -5,7 +5,9 @@ import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAcce
 import type { PapelAssinatura } from '../helpers';
 import { EvidenceAgent } from '../agents/evidence';
 import { listPaged } from '../helpers';
-import { validateBody, evidenceContentSchema, evidenciaVincularSchema, evidenciaTextoSchema, evidenciaAssinarSchema, evidenciaAvaliacaoSchema } from '../schemas';
+import { validateBody, evidenceContentSchema, evidenciaVincularSchema, evidenciaTextoSchema, evidenciaAssinarSchema, evidenciaAvaliacaoSchema, evidenciaControleSchema } from '../schemas';
+import { comControles, ligarControle, desligarControle } from '../services/evidencia-controles';
+import { recusaDoModulo } from '../modulos';
 
 /**
  * Confere que o documento existe, é do MESMO projeto e está `vigente`. Devolve a
@@ -33,7 +35,8 @@ evidenceApp.get('/:id/detail', async (c) => {
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
     const evidence = await c.env.DB.prepare('SELECT * FROM evidence WHERE id = ?').bind(id).first<any>();
     if (!evidence) return c.json({ error: 'Evidência não encontrada' }, 404);
-    return c.json(semRastroDeAssinatura(evidence));
+    const [comCtrl] = await comControles(c.env.DB, evidence.project_id, [evidence]);
+    return c.json(semRastroDeAssinatura(comCtrl));
   } catch (e: any) {
     return erro500(c, 'Falha ao buscar detalhe da evidência', e);
   }
@@ -218,6 +221,11 @@ evidenceApp.put('/:id', async (c) => {
              ceo_approved_by = NULL, ceo_approved_at = NULL, ceo_approved_ip = NULL, ceo_approved_ua = NULL,
              updated_at = datetime('now') WHERE id = ?`
         ).bind(novoControle, id).run();
+        // N:N (0119): o PUT troca o controle PRINCIPAL; os outros vínculos ficam. Liga o novo e só então desliga o antigo,
+        // para o principal não pular para outro vínculo no meio.
+        const quem = c.get('user')?.email ?? 'system';
+        if (novoControle) await ligarControle(c.env.DB, ev, novoControle, quem);
+        if (ev.control_id) await desligarControle(c.env.DB, id, ev.control_id);
         const assinaram = [ev.ciso_approved_by ? `Líder SGSI (${ev.ciso_approved_by})` : '', ev.ceo_approved_by ? `Direção (${ev.ceo_approved_by})` : ''].filter(Boolean).join(' e ') || 'ninguém';
         await logAudit(c.env.DB, 'evidence.relinked', c.get('user')?.email ?? 'system', `Evidência ${id} re-associada: controle ${ev.control_id ?? '(nenhum)'} -> ${novoControle ?? '(nenhum)'}; avaliação resetada; assinaturas apagadas de: ${assinaram}.`, '', '', ev.project_id);
       }
@@ -229,6 +237,51 @@ evidenceApp.put('/:id', async (c) => {
     return c.json(resp);
   } catch (e: any) {
     return erro500(c, 'Erro ao re-associar evidência', e);
+  }
+});
+
+// Liga a evidência a mais um controle do mesmo projeto (N:N). Não mexe em avaliação nem em assinatura:
+// a aprovação vale para o conteúdo da evidência (hash), não para o vínculo. A mudança vai para a trilha.
+evidenceApp.post('/:id/controles', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
+    const ev = await c.env.DB.prepare('SELECT id, project_id FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string }>();
+    if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
+    // A evidência é do núcleo, o controle é do n.iso: ligar e desligar exigem o n.iso no projeto e na pessoa (como as rotas de controle).
+    const semIso = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, 'iso');
+    if (semIso) return c.json({ error: semIso }, 403);
+    const v = await validateBody(c, evidenciaControleSchema);
+    if (!v.success) return v.response;
+    // Mesma resposta para controle inexistente e de outro projeto. Aceita o id da linha ou o código ("A.5.1").
+    const controlId = await idDoControle(c.env.DB, ev.project_id, v.data.control_id);
+    if (!controlId) return c.json({ error: 'Controle não encontrado neste projeto' }, 400);
+    const quem = c.get('user')?.email ?? 'system';
+    const ligou = await ligarControle(c.env.DB, ev, controlId, quem);
+    if (ligou) await logAudit(c.env.DB, 'evidence.controle_ligado', quem, `Evidência ${id} ligada ao controle ${controlId}.`, '', '', ev.project_id);
+    return c.json({ ok: true, control_id: controlId, ligado: ligou }, ligou ? 201 : 200);
+  } catch (e) {
+    return erro500(c, 'Erro ao ligar a evidência ao controle', e);
+  }
+});
+
+evidenceApp.delete('/:id/controles/:controlId', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
+    const ev = await c.env.DB.prepare('SELECT id, project_id FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string }>();
+    if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
+    // A evidência é do núcleo, o controle é do n.iso: ligar e desligar exigem o n.iso no projeto e na pessoa (como as rotas de controle).
+    const semIso = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, 'iso');
+    if (semIso) return c.json({ error: semIso }, 403);
+    const controlId = c.req.param('controlId');
+    const desligou = await desligarControle(c.env.DB, id, controlId);
+    if (!desligou) return c.json({ error: 'A evidência não está ligada a este controle' }, 404);
+    const quem = c.get('user')?.email ?? 'system';
+    await logAudit(c.env.DB, 'evidence.controle_desligado', quem, `Evidência ${id} desligada do controle ${controlId}.`, '', '', ev.project_id);
+    return c.json({ ok: true, control_id: controlId });
+  } catch (e) {
+    return erro500(c, 'Erro ao desligar a evidência do controle', e);
   }
 });
 
@@ -424,9 +477,11 @@ evidenceApp.put('/:id/signatures/approve', handleApprove);
 // ─── Project Evidence Sub-Router (/api/v1/projects/:projectId/evidence) ────
 
 projectEvidenceApp.get('/', async (c) => {
-  const projectId = c.req.param('projectId');
+  const projectId = c.req.param('projectId') ?? '';
   const p = await listPaged(c, 'SELECT * FROM evidence WHERE project_id = ? ORDER BY created_at DESC', [projectId]);
-  return c.json({ ok: true, evidence: semRastros(p.results) }, 200, { 'X-Has-More': String(p.hasMore) });
+  // `control_id` segue sendo o primeiro vínculo (leitura compatível); `control_ids` traz todos.
+  const evidence = await comControles(c.env.DB, projectId, p.results as { id: string }[]);
+  return c.json({ ok: true, evidence: semRastros(evidence) }, 200, { 'X-Has-More': String(p.hasMore) });
 });
 
 // Notas de avaliação: grava evaluation_notes e/ou evaluation_status (domínio

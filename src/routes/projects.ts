@@ -32,6 +32,7 @@ import { ipPermitido } from '../politica-tenant';
 import { papelValidoParaSso } from '../sso';
 import { appUrl } from '../config/url';
 import { modulosContratados, modulosDoProjeto, modulosDaPessoa, recusaDaPessoa } from '../modulos';
+import { comControles } from '../services/evidencia-controles';
 
 export const projectsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -1177,8 +1178,9 @@ projectsApp.get('/:id/traceability', async (c) => {
   ).bind(projectId).all();
 
   const evidenceResult = await db.prepare(
-    `SELECT id, file_name, created_at, control_id, evaluation_status, evaluation_notes, avaliacao_ia FROM evidence
-      WHERE control_id IN (SELECT id FROM compliance_controls WHERE project_id = ?)`
+    `SELECT e.id, e.file_name, e.created_at, ec.control_id, e.evaluation_status, e.evaluation_notes, e.avaliacao_ia
+       FROM evidencia_controles ec JOIN evidence e ON e.id = ec.evidence_id
+      WHERE ec.project_id = ?`
   ).bind(projectId).all();
 
   const risksMap: Record<string, any[]> = {};
@@ -1212,7 +1214,7 @@ projectsApp.get('/:id/gap-analysis', async (c) => {
     db.prepare(`SELECT id, title, status FROM compliance_controls WHERE project_id = ?`).bind(projectId),
     db.prepare(
       `SELECT cc.id,
-              (SELECT COUNT(*) FROM evidence e WHERE e.control_id = cc.id) AS evidence_count,
+              (SELECT COUNT(*) FROM evidencia_controles ec WHERE ec.control_id = cc.id) AS evidence_count,
               (SELECT COUNT(*) FROM risks r WHERE r.control_id = cc.id) AS risk_count
          FROM compliance_controls cc WHERE cc.project_id = ?`
     ).bind(projectId),
@@ -1308,7 +1310,7 @@ projectsApp.get('/:id/audit-pack', async (c) => {
         project: redactProject(project),
         phases: phases.results || [],
         controls: semRastros(controls.results),
-        evidence: semRastros(evidence.results),
+        evidence: semRastros(await comControles(c.env.DB, projectId, evidence.results as { id: string }[])),
         audit_trail: semIpENavegador(c.get('user'), logs.results as Record<string, unknown>[]),
         generated_at: new Date().toISOString()
       }

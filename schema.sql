@@ -1841,6 +1841,37 @@ CREATE INDEX IF NOT EXISTS idx_evid_requisitos_requisito ON evidencia_requisitos
 CREATE INDEX IF NOT EXISTS idx_evid_requisitos_projeto ON evidencia_requisitos(project_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_validade ON evidence(valido_ate);
 
+-- Evidência ligada a vários controles (N:N, migration 0119). evidence.control_id fica como o primeiro vínculo, para leitura compatível.
+CREATE TABLE IF NOT EXISTS evidencia_controles (
+    evidence_id TEXT NOT NULL REFERENCES evidence(id) ON DELETE CASCADE,
+    control_id TEXT NOT NULL REFERENCES compliance_controls(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ligado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (evidence_id, control_id)
+);
+CREATE INDEX IF NOT EXISTS idx_evid_controles_controle ON evidencia_controles(control_id);
+CREATE INDEX IF NOT EXISTS idx_evid_controles_projeto ON evidencia_controles(project_id);
+
+-- Isolamento no banco: evidência e controle do mesmo projeto da linha.
+CREATE TRIGGER IF NOT EXISTS evidencia_controles_do_projeto
+BEFORE INSERT ON evidencia_controles
+WHEN NOT EXISTS (SELECT 1 FROM evidence e WHERE e.id = NEW.evidence_id AND e.project_id IS NEW.project_id)
+  OR NOT EXISTS (SELECT 1 FROM compliance_controls c WHERE c.id = NEW.control_id AND c.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'evidência ou controle inexistente ou de outro projeto');
+END;
+
+-- Toda evidência nova com control_id (upload, checklist, importação, agente) nasce com esse vínculo.
+CREATE TRIGGER IF NOT EXISTS evidencia_controle_inicial
+AFTER INSERT ON evidence
+WHEN NEW.control_id IS NOT NULL
+  AND EXISTS (SELECT 1 FROM compliance_controls c WHERE c.id = NEW.control_id AND c.project_id IS NEW.project_id)
+BEGIN
+    INSERT OR IGNORE INTO evidencia_controles (evidence_id, control_id, project_id, ligado_por)
+      VALUES (NEW.id, NEW.control_id, NEW.project_id, NEW.uploaded_by);
+END;
+
 -- Importação de programa de privacidade (n.privacy, migration 0064)
 CREATE TABLE IF NOT EXISTS importacoes (
     id TEXT PRIMARY KEY,

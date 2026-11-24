@@ -223,6 +223,11 @@ export const evidenciaTextoSchema = z.object({ text: z.string().optional() });
 // 'conforming' NÃO entra: conforme é a assinatura do Líder SGSI (assinarEvidencia),
 // com autoridade de governança, senha e hash do conteúdo — marcá-lo por PATCH de
 // nota driblava essas travas e inflava a cobertura (que conta `conforming` como válido).
+// Ligar a evidência a mais um controle do projeto (N:N, migration 0119). Desligar é DELETE .../controles/:controlId.
+export const evidenciaControleSchema = z.object({
+  control_id: z.string().trim().min(1).max(200),
+}).strict();
+
 export const evidenciaAvaliacaoSchema = z.object({
   evaluation_notes: z.string().max(20000).nullable().optional(),
   evaluation_status: z.enum(['pending', 'partial', 'non_conforming']).optional(),

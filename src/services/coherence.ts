@@ -60,8 +60,7 @@ export async function checkCoherence(db: D1Database, projectId: string): Promise
       // parâmetros do D1 quando há mais de 100 aprovados. O laço abaixo já
       // filtra só os aprovados.
       const { results: evid } = await db.prepare(
-        `SELECT DISTINCT control_id FROM evidence
-          WHERE control_id IN (SELECT id FROM compliance_controls WHERE project_id = ?)`
+        `SELECT DISTINCT control_id FROM evidencia_controles WHERE project_id = ?`
       ).bind(projectId).all<any>();
       const comEvidencia = new Set((evid || []).map((e: any) => e.control_id));
 
