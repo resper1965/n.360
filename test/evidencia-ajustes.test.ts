@@ -10,8 +10,8 @@ import { applySchema, resetData, sessionFor, workerEnv } from './helpers/d1';
  *   2) DELETE /evidence/:id não estoura 500 quando um item de checklist aponta
  *      para a evidência (FK sem cascata em checklist_progress.evidence_id).
  *   3) PATCH /projects/:p/evidence/:id grava evaluation_notes/evaluation_status.
- *   4) Trocar o controle zera a aprovação de propósito — a resposta e a trilha
- *      declaram isso (approvals_reset).
+ *   4) Trocar o controle NÃO zera a aprovação (tarefa 3): ela vale para o conteúdo (hash),
+ *      não para o vínculo. A trilha registra a troca e diz que a aprovação ficou.
  */
 const P = 'p-acme';
 const OUTRO = 'p-outro';
@@ -186,19 +186,19 @@ describe('3) PATCH grava notas de avaliação', () => {
   });
 });
 
-describe('4) trocar o controle zera a aprovação, declarado', () => {
-  it('control_id null zera a aprovação, responde approvals_reset e registra na trilha', async () => {
+describe('4) trocar o controle mantém a aprovação, declarado na trilha', () => {
+  it('control_id null desliga o controle, mantém a aprovação e registra na trilha', async () => {
     await inserirEvidencia('ev-acme-sgsi-capa', { ciso_approved_by: 'CISO: Ana Exemplo', ciso_approved_at: '2026-07-21T15:49:12Z' });
     const res = await chamar(`/api/v1/evidence/ev-acme-sgsi-capa`, { method: 'PUT', headers: json(consultor), body: JSON.stringify({ control_id: null }) });
     const body = await res.json<any>();
     expect(res.status, JSON.stringify(body)).toBe(200);
     expect(body.relinked).toBe(true);
-    expect(body.approvals_reset).toBe(true);
+    expect(body.approvals_reset).toBe(false);
     const ev = await evidencia('ev-acme-sgsi-capa');
     expect(ev!.control_id).toBeNull();
-    expect(ev!.ciso_approved_by).toBeNull();
+    expect(ev!.ciso_approved_by).toBe('CISO: Ana Exemplo');
     const log = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'evidence.relinked' AND details LIKE '%ev-acme-sgsi-capa%' ORDER BY created_at DESC`).first<any>();
-    expect(String(log.details)).toMatch(/Ana Exemplo|assinaturas apagadas/i);
+    expect(String(log.details)).toContain('Aprovação mantida: Líder SGSI (CISO: Ana Exemplo)');
   });
 
   it('trocar o controle sem aprovação prévia não marca approvals_reset', async () => {

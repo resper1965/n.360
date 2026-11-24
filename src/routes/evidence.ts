@@ -164,7 +164,7 @@ evidenceApp.put('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
-    const ev = await c.env.DB.prepare('SELECT id, project_id, control_id, documento_id, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<any>();
+    const ev = await c.env.DB.prepare('SELECT id, project_id, control_id, documento_id, file_hash, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<any>();
     if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
 
     const v = await validateBody(c, evidenciaVincularSchema);
@@ -208,30 +208,23 @@ evidenceApp.put('/:id', async (c) => {
     }
 
     if (temControle) {
-      // Mudar o controle-alvo invalida a avaliação anterior (foi feita contra outro
-      // controle): volta a 'pending' e as assinaturas (revisão contra o outro controle)
-      // caem. É INTENCIONAL — a resposta devolve `approvals_reset` e a trilha registra
-      // quem trocou e de quem era a assinatura apagada. Sem efeito se o vínculo não mudou.
+      // Troca o controle PRINCIPAL (N:N, 0119): liga o novo e só então desliga o antigo, para o principal não pular para
+      // outro vínculo no meio. Assinaturas, situação e nota humana ficam (valem para o conteúdo); a avaliação da IA, feita contra o controle antigo, zera.
       const mudou = novoControle !== (ev.control_id ?? null);
-      const tinhaAprovacao = !!(ev.ciso_approved_by || ev.ceo_approved_by);
       if (mudou) {
-        await c.env.DB.prepare(
-          `UPDATE evidence SET control_id = ?, evaluation_status = 'pending', evaluation_score = NULL, evaluation_notes = NULL, avaliacao_ia = NULL,
-             ciso_approved_by = NULL, ciso_approved_at = NULL, ciso_approved_ip = NULL, ciso_approved_ua = NULL,
-             ceo_approved_by = NULL, ceo_approved_at = NULL, ceo_approved_ip = NULL, ceo_approved_ua = NULL,
-             updated_at = datetime('now') WHERE id = ?`
-        ).bind(novoControle, id).run();
-        // N:N (0119): o PUT troca o controle PRINCIPAL; os outros vínculos ficam. Liga o novo e só então desliga o antigo,
-        // para o principal não pular para outro vínculo no meio.
         const quem = c.get('user')?.email ?? 'system';
-        if (novoControle) await ligarControle(c.env.DB, ev, novoControle, quem);
+        if (novoControle) {
+          await ligarControle(c.env.DB, ev, novoControle, quem);
+          await c.env.DB.prepare(`UPDATE evidence SET control_id = ?, avaliacao_ia = NULL, evaluation_score = NULL, updated_at = datetime('now') WHERE id = ?`).bind(novoControle, id).run();
+        }
+        // Sem controle novo, o principal passa ao vínculo mais antigo que sobrar (ou a NULL).
         if (ev.control_id) await desligarControle(c.env.DB, id, ev.control_id);
-        const assinaram = [ev.ciso_approved_by ? `Líder SGSI (${ev.ciso_approved_by})` : '', ev.ceo_approved_by ? `Direção (${ev.ceo_approved_by})` : ''].filter(Boolean).join(' e ') || 'ninguém';
-        await logAudit(c.env.DB, 'evidence.relinked', c.get('user')?.email ?? 'system', `Evidência ${id} re-associada: controle ${ev.control_id ?? '(nenhum)'} -> ${novoControle ?? '(nenhum)'}; avaliação resetada; assinaturas apagadas de: ${assinaram}.`, '', '', ev.project_id);
+        await logAudit(c.env.DB, 'evidence.relinked', quem, `Evidência ${id} re-associada: controle ${ev.control_id ?? '(nenhum)'} -> ${novoControle ?? '(nenhum)'}.${await aprovacaoAgora(c.env.DB, id, ev)}`, '', '', ev.project_id);
       }
       resp.control_id = novoControle;
       resp.relinked = mudou;
-      resp.approvals_reset = mudou && tinhaAprovacao;
+      // Mantido por compatibilidade: trocar o vínculo não zera mais a aprovação.
+      resp.approvals_reset = false;
     }
 
     return c.json(resp);
@@ -240,13 +233,27 @@ evidenceApp.put('/:id', async (c) => {
   }
 });
 
+/**
+ * A aprovação (Líder SGSI e Direção) vale para a EVIDÊNCIA, isto é, para o conteúdo que tem aquele hash, e não para o
+ * vínculo com um controle: ligar, desligar ou trocar controle não a zera; mudar o conteúdo (hash novo, PUT .../content)
+ * zera. A trilha da mudança de vínculo diz que a aprovação ficou e de qual hash ela é.
+ */
+type Aprovacoes = { file_hash: string | null; ciso_approved_by: string | null; ceo_approved_by: string | null };
+/** O estado de aprovação lido de novo, logo depois de mudar o vínculo: a trilha não registra uma assinatura ou um hash que mudou no meio. */
+const aprovacaoAgora = async (db: D1Database, id: string, antes: Aprovacoes) =>
+  aprovacaoMantida((await db.prepare('SELECT file_hash, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<Aprovacoes>()) ?? antes);
+const aprovacaoMantida = (ev: Aprovacoes) => {
+  const quem = [ev.ciso_approved_by ? `Líder SGSI (${ev.ciso_approved_by})` : '', ev.ceo_approved_by ? `Direção (${ev.ceo_approved_by})` : ''].filter(Boolean).join(' e ');
+  return quem ? ` Aprovação mantida: ${quem}, conteúdo ${ev.file_hash ?? '-'}.` : '';
+};
+
 // Liga a evidência a mais um controle do mesmo projeto (N:N). Não mexe em avaliação nem em assinatura:
 // a aprovação vale para o conteúdo da evidência (hash), não para o vínculo. A mudança vai para a trilha.
 evidenceApp.post('/:id/controles', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
-    const ev = await c.env.DB.prepare('SELECT id, project_id FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string }>();
+    const ev = await c.env.DB.prepare('SELECT id, project_id, file_hash, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string } & Aprovacoes>();
     if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
     // A evidência é do núcleo, o controle é do n.iso: ligar e desligar exigem o n.iso no projeto e na pessoa (como as rotas de controle).
     const semIso = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, 'iso');
@@ -258,7 +265,7 @@ evidenceApp.post('/:id/controles', async (c) => {
     if (!controlId) return c.json({ error: 'Controle não encontrado neste projeto' }, 400);
     const quem = c.get('user')?.email ?? 'system';
     const ligou = await ligarControle(c.env.DB, ev, controlId, quem);
-    if (ligou) await logAudit(c.env.DB, 'evidence.controle_ligado', quem, `Evidência ${id} ligada ao controle ${controlId}.`, '', '', ev.project_id);
+    if (ligou) await logAudit(c.env.DB, 'evidence.controle_ligado', quem, `Evidência ${id} ligada ao controle ${controlId}.${await aprovacaoAgora(c.env.DB, id, ev)}`, '', '', ev.project_id);
     return c.json({ ok: true, control_id: controlId, ligado: ligou }, ligou ? 201 : 200);
   } catch (e) {
     return erro500(c, 'Erro ao ligar a evidência ao controle', e);
@@ -269,7 +276,7 @@ evidenceApp.delete('/:id/controles/:controlId', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
-    const ev = await c.env.DB.prepare('SELECT id, project_id FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string }>();
+    const ev = await c.env.DB.prepare('SELECT id, project_id, file_hash, ciso_approved_by, ceo_approved_by FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string } & Aprovacoes>();
     if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
     // A evidência é do núcleo, o controle é do n.iso: ligar e desligar exigem o n.iso no projeto e na pessoa (como as rotas de controle).
     const semIso = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, 'iso');
@@ -278,7 +285,7 @@ evidenceApp.delete('/:id/controles/:controlId', async (c) => {
     const desligou = await desligarControle(c.env.DB, id, controlId);
     if (!desligou) return c.json({ error: 'A evidência não está ligada a este controle' }, 404);
     const quem = c.get('user')?.email ?? 'system';
-    await logAudit(c.env.DB, 'evidence.controle_desligado', quem, `Evidência ${id} desligada do controle ${controlId}.`, '', '', ev.project_id);
+    await logAudit(c.env.DB, 'evidence.controle_desligado', quem, `Evidência ${id} desligada do controle ${controlId}.${await aprovacaoAgora(c.env.DB, id, ev)}`, '', '', ev.project_id);
     return c.json({ ok: true, control_id: controlId });
   } catch (e) {
     return erro500(c, 'Erro ao desligar a evidência do controle', e);
