@@ -3,7 +3,7 @@ import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, logAudit, podeAdministrarOrg, registraErro, podeMexerEmAssinaturaDe, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
 import { mesclar, previaDaMescla } from '../services/mesclar';
-import { importarPartes, conciliarResponsaveis } from '../services/partes';
+import { importarPartes, conciliarResponsaveis, recusaDeMudarTipo } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
 import { sincronizarDpoDaParte, membroDpoDaParte } from '../services/encarregado-pessoa';
 import { emailAindaNaMatriz, revogarContaStakeholder } from './governance';
@@ -246,11 +246,17 @@ nucleoApp.put('/partes/:id', async (c) => {
     const id = c.req.param('id');
     const v = await validateBody(c, parteAtualizarSchema);
     if (!v.success) return v.response;
-    const atual = await c.env.DB.prepare('SELECT nome, email, status, tipo, cnpj FROM partes WHERE id = ? AND project_id = ?')
-      .bind(id, projectId).first<{ nome: string; email: string | null; status: string; tipo: string; cnpj: string | null }>();
+    const atual = await c.env.DB.prepare('SELECT nome, email, status, tipo, cnpj, user_id FROM partes WHERE id = ? AND project_id = ?')
+      .bind(id, projectId).first<{ nome: string; email: string | null; status: string; tipo: string; cnpj: string | null; user_id: string | null }>();
     if (!atual) return c.json({ error: 'Parte não encontrada' }, 404);
-    if (v.data.cnpj && atual.tipo !== 'organizacao') return c.json({ error: 'CNPJ é só de organização' }, 400);
+    const tipo = v.data.tipo ?? atual.tipo;
+    if (v.data.cnpj && tipo !== 'organizacao') return c.json({ error: 'CNPJ é só de organização' }, 400);
     const cnpj = v.data.cnpj === undefined ? atual.cnpj : v.data.cnpj;
+    const mudaTipo = tipo !== atual.tipo;
+    if (mudaTipo) {
+      const recusa = await recusaDeMudarTipo(c.env.DB, projectId, { id, ...atual }, cnpj);
+      if (recusa) return c.json({ error: recusa }, 409);
+    }
     const email = v.data.email === undefined ? atual.email : (v.data.email?.toLowerCase() ?? null);
     // A parte encarregada leva nome e e-mail à linha do DPO na governança: mudar é mexer na linha de quem assina.
     if ((v.data.nome ?? atual.nome) !== atual.nome || email !== atual.email) {
@@ -261,13 +267,19 @@ nucleoApp.put('/partes/:id', async (c) => {
       }
     }
     try {
-      await c.env.DB.prepare('UPDATE partes SET nome = ?, email = ?, status = ?, cnpj = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?')
-        .bind(v.data.nome ?? atual.nome, email, v.data.status ?? atual.status, cnpj, id, projectId).run();
+      await c.env.DB.batch([
+        c.env.DB.prepare('UPDATE partes SET tipo = ?, nome = ?, email = ?, status = ?, cnpj = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?')
+          .bind(tipo, v.data.nome ?? atual.nome, email, v.data.status ?? atual.status, cnpj, id, projectId),
+        // O que o gatilho vendor_perfil_do_terceiro faria se a parte já fosse organização quando o vínculo nasceu.
+        c.env.DB.prepare(`INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id) SELECT lower(hex(randomblob(8))), p.project_id, p.nome, p.id FROM partes p
+          WHERE p.id = ? AND p.tipo = 'organizacao' AND EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.parte_id = p.id AND v.papel = 'terceiro' AND v.alvo_tipo = 'projeto')`).bind(id),
+      ]);
     } catch (e) {
       if (unico(e)) return c.json({ error: 'Já existe uma organização com esse CNPJ neste projeto' }, 409);
       throw e;
     }
     await logAudit(c.env.DB, 'parte.atualizada', c.get('user').email, `Parte ${id} atualizada${cnpj !== atual.cnpj ? ' (CNPJ alterado)' : ''}`, '', '', projectId);
+    if (mudaTipo) await logAudit(c.env.DB, 'parte.tipo_alterado', c.get('user').email, `Parte ${id}: tipo ${atual.tipo} → ${tipo}`, '', '', projectId);
     const nome = v.data.nome ?? atual.nome;
     if (nome !== atual.nome || email !== atual.email) {
       // A parte é a encarregada: o membro DPO da governança acompanha. Falha é registrada, a parte já está gravada.

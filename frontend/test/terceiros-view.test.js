@@ -413,14 +413,28 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         perguntas: [{ id: 'q1', tema: 'Segurança', texto: 'Há <i>política</i>?', resposta: 'parcial', justificativa: 'Em <b>revisão</b>' }, { id: 'q2', tema: 'DPA', texto: 'Assina DPA?', resposta: null, justificativa: null }],
     };
 
-    it('lista os envios com situação e %, e oferece "Homologar" a quem edita', async () => {
+    it('lista os envios com situação e %, e oferece "Enviar questionário" a quem edita', async () => {
         const f = await ficha({ [`GET ${H}`]: HOMOLOGACOES }, 'avaliacoes');
         expect(chamadas(f)).toContain(`GET ${H}?parte_id=a`);
         const s = el('tc-homologacao');
         expect(s.textContent).toContain('Respondida');
         expect(s.textContent).toContain('75% (9 de 12)');
         expect(s.textContent).toContain('Link vencido');
-        expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
+        expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]').textContent).toBe('Enviar questionário');
+        expect(el('tc-homologacao-motivo')).toBeNull();
+    });
+
+    it('sem tipo que recebe questionário: a seção diz o motivo antes e leva ao Cadastro para definir o tipo', async () => {
+        for (const [extra, motivo] of [[{ terceiro_tipo: null, metodo: null }, 'Defina o tipo'], [{ terceiro_tipo: 'grande_provedor', metodo: 'trust_center' }, 'Grande provedor']]) {
+            const f = await ficha({ [`GET ${B}/a`]: FICHA({ ...extra, pode_questionario: false }) }, 'avaliacoes');
+            const m = el('tc-homologacao-motivo');
+            expect(m.textContent).toContain(motivo);
+            expect(m.textContent).toContain('crítico, médio ou pequeno');
+            const atalho = m.querySelector('[data-action="tcIrParaAba"]');
+            expect(JSON.parse(atalho.dataset.args)).toEqual(['cadastro']);
+            expect(el('c').querySelector('[data-action="criarHomologacaoTerceiro"]')).toBeNull();
+            expect(chamadas(f)).not.toContain(`GET ${H}?parte_id=a`);
+        }
     });
 
     it('crítico: o campo de evidência da nova avaliação diz que é obrigatório; nos outros tipos, não', async () => {

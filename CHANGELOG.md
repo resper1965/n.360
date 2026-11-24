@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Fornecedor cadastrado como pessoa
+- **Tipo da parte:** o cadastro da parte agora mostra o tipo (pessoa ou organização), e quem já edita a parte pode mudá-lo. O servidor recusa com uma mensagem clara quando a mudança quebraria algo: a pessoa com conta, encarregada, responsável ou na governança não vira organização; a organização com CNPJ, dados de fornecedor (tipo, criticidade, avaliação, questionário) ou papéis de organização não vira pessoa. A mudança fica na trilha.
+- **Atividade, aba Agentes de Tratamento:** a parte cadastrada como pessoa que já estava ligada como operador, cocontrolador, suboperador ou destinatário aparece com um aviso e o atalho "Abrir cadastro", onde dá para transformá-la em organização. O seletor continua mostrando só organizações, e o servidor continua recusando ligar pessoa nesses papéis.
+- **Fornecedores, aba Avaliações:** o botão "Homologar" passa a se chamar "Enviar questionário". Quando o fornecedor não tem um tipo que recebe questionário (crítico, médio ou pequeno), a seção diz o motivo antes e leva ao Cadastro para definir o tipo.
+
 ### Pontos menores das ondas 1 a 4 (lote 3, telas e documentação)
 - **Chaves de API** (só `platform_admin`) abre sem projeto escolhido: "Nova chave" fica desabilitada até a pessoa escolher o projeto, para a chave não nascer no projeto errado.
 - **Trilha de implantação do n.privacy:** o passo por fazer cuja tela não abre pelo Painel mostra "Falta" em vez de ficar sem nada, e a trilha vazia não desenha mais a caixa.

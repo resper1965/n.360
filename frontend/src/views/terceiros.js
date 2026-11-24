@@ -251,7 +251,7 @@ function abaAvaliacoes(projectId, parteId, t, editar, extra) {
         <div id="tc-historico">${hist.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Método</th><th>Resultado</th><th>Vale até</th><th>Evidência</th><th>Observação</th><th>Por</th></tr></thead><tbody>${hist.map((x) =>
             `<tr><td>${dataBr(x.created_at)}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${dataBr(x.valido_ate)}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.observacao || '')}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
             : vazio('Nenhuma avaliação registrada.')}</div>
-        ${t.pode_questionario ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : ''}
+        ${t.pode_questionario ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : motivoSemQuestionario(t)}
         ${t.terceiro_tipo === 'grande_provedor' ? secaoRoteiro(extra.roteiro) : ''}`;
 }
 
@@ -457,8 +457,15 @@ function secaoHomologacao(projectId, parteId, homologacoes, editar) {
         ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; margin-top:0.75rem">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-dias">Link vale (dias; também para prorrogar e para o novo link)</label><input class="form-input" id="tc-hm-dias" type="number" min="1" max="60" value="15"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-hm-email">E-mail do fornecedor (opcional)</label><input class="form-input" id="tc-hm-email" type="email" maxlength="254"></div>
-            <button class="btn btn-sm" data-action="criarHomologacaoTerceiro" data-args='${args(projectId, parteId)}'>Homologar</button></div>
+            <button class="btn btn-sm" data-action="criarHomologacaoTerceiro" data-args='${args(projectId, parteId)}'>Enviar questionário</button></div>
             <div id="tc-hm-link"></div>` : ''}</div>`;
+}
+
+/** Por que este fornecedor não recebe questionário, antes de o servidor recusar; o atalho leva ao tipo, no Cadastro. */
+function motivoSemQuestionario(t) {
+    const motivo = t.terceiro_tipo === 'grande_provedor' ? 'Grande provedor é avaliado pelo trust center e não recebe questionário.' : 'Defina o tipo do fornecedor para enviar o questionário.';
+    return `${titulo('Homologação por questionário')}<div id="tc-homologacao-motivo"><p class="t-dim">${motivo} Recebe questionário o fornecedor do tipo crítico, médio ou pequeno.</p>
+        ${podeAvaliar() ? `<button type="button" class="btn btn-ghost btn-sm" data-action="tcIrParaAba" data-arg-event data-args='${args('cadastro')}'>Definir o tipo no Cadastro</button>` : ''}</div>`;
 }
 
 /** Dias do campo "Link vale (dias)", ou null com o aviso. */

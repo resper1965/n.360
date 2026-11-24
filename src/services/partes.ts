@@ -1,6 +1,6 @@
 import { logAudit } from '../helpers';
 import { log, resumoErro } from '../observability';
-import { ehDpo } from './encarregado-pessoa';
+import { ehDpo, membroDpoDaParte } from './encarregado-pessoa';
 import { normalizarNome } from './nomes';
 
 /** Nome comparável: sem caixa e sem espaço repetido. Não tira acento (a spec pede nome exato). */
@@ -138,4 +138,30 @@ export async function conciliarResponsaveis(db: D1Database, projectId: string, a
   await logAudit(db, 'partes.conciliadas', ator,
     `Conciliação de responsáveis: ${Object.values(casados).reduce((a, b) => a + b, 0)} ligados, ${relatorio.sem_correspondencia.length} sem correspondência, ${relatorio.ambiguos.length} ambíguos`, '', '', projectId);
   return relatorio;
+}
+
+/**
+ * Por que a parte não pode mudar de tipo, ou null. Pessoa -> organização: conta ligada, encarregado, responsável ou linha do DPO na
+ * governança (o papel é de gente). Organização -> pessoa: CNPJ ou qualquer marca de fornecedor (tipo, criticidade, avaliação,
+ * questionário, perfil, papel de agente, parceiro da atividade, responsável apontando para ela, vínculo de outro módulo).
+ * A mensagem da organização é genérica de propósito: não revela módulo que o usuário pode não ter.
+ */
+export async function recusaDeMudarTipo(db: D1Database, projectId: string,
+  p: { id: string; tipo: string; nome: string; email: string | null; user_id: string | null }, cnpj: string | null): Promise<string | null> {
+  if (p.tipo === 'pessoa') {
+    const papel = await db.prepare(`SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND project_id = ? AND papel IN ('encarregado', 'responsavel') LIMIT 1`)
+      .bind(p.id, projectId).first();
+    return p.user_id || papel || (await membroDpoDaParte(db, projectId, p))
+      ? 'Esta pessoa tem conta, é encarregada, responsável ou está na governança do projeto: o tipo não muda. Cadastre a organização à parte.'
+      : null;
+  }
+  const preso = await db.prepare(`SELECT 1 WHERE EXISTS (SELECT 1 FROM partes WHERE id = ?1 AND terceiro_tipo IS NOT NULL)
+      OR EXISTS (SELECT 1 FROM avaliacoes_terceiro WHERE parte_id = ?1) OR EXISTS (SELECT 1 FROM criticidades_terceiro WHERE parte_id = ?1)
+      OR EXISTS (SELECT 1 FROM homologacoes WHERE parte_id = ?1) OR EXISTS (SELECT 1 FROM vendors WHERE parte_id = ?1)
+      OR EXISTS (SELECT 1 FROM ot_fornecedores WHERE parte_id = ?1) OR EXISTS (SELECT 1 FROM tratamento_externo_parceiros WHERE parte_id = ?1)
+      OR EXISTS (SELECT 1 FROM parte_vinculos WHERE parte_id = ?1 AND papel IN ('operador', 'cocontrolador', 'suboperador', 'terceiro'))
+      OR EXISTS (SELECT 1 FROM parte_vinculos WHERE project_id = ?2 AND alvo_tipo = 'parte' AND alvo_id = ?1)`).bind(p.id, projectId).first();
+  return cnpj || preso
+    ? 'A organização tem vínculos que dependem do tipo (CNPJ, dados de fornecedor ou papéis de organização): o tipo não muda.'
+    : null;
 }
