@@ -192,7 +192,7 @@ export async function contagensDoProjeto(db: D1Database, projectId: string): Pro
         (trim(COALESCE(x.internal_strengths, '') || COALESCE(x.internal_weaknesses, '') || COALESCE(x.external_opportunities, '') || COALESCE(x.external_threats, '')) <> '') AS contexto
       FROM projects p LEFT JOIN context_analysis x ON x.project_id = p.id WHERE p.id = ?1`).bind(projectId),
     db.prepare(`SELECT classe, count(*) AS n, sum(CASE WHEN classe = 'na' AND trim(COALESCE(description, '')) = '' THEN 1 ELSE 0 END) AS sem_just,
-        sum(CASE WHEN classe = 'feito' AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.control_id = k.id) THEN 1 ELSE 0 END) AS sem_evid
+        sum(CASE WHEN classe = 'feito' AND NOT EXISTS (SELECT 1 FROM evidencia_controles ec WHERE ec.control_id = k.id) THEN 1 ELSE 0 END) AS sem_evid
       FROM (SELECT id, description, ${SQL_CLASSE_CONTROLE} AS classe FROM compliance_controls WHERE project_id = ?1) k GROUP BY classe`).bind(projectId),
     db.prepare(`SELECT count(*) AS n FROM compliance_controls WHERE project_id = ?1 AND substr(title, 1, instr(title || ' ', ' ') - 1) = 'A.5.1'
       AND (ciso_approved_by IS NOT NULL OR ceo_approved_by IS NOT NULL)`).bind(projectId),
