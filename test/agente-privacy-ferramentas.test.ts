@@ -71,6 +71,8 @@ describe('ferramentas nomeadas do n.privacy (definições)', () => {
     expect(r5.indexOf('Escopo')).toBeLessThan(r5.indexOf('Logs'));
     expect(r5).toContain('anexos, relatório e aprovação são de uma pessoa');
     for (const n of LEITURA) expect(ROTEIROS_AUDITOR, n).toContain(n);
+    // Incidente com risco sem_risco ou baixo: a comunicação é "nao_exigida" (não pendente, não atrasada); os dois roteiros explicam.
+    for (const r of [ROTEIROS, ROTEIROS_AUDITOR]) expect(r).toMatch(/nao_exigida[^\n]*(sem_risco|baixo)/);
   });
 });
 

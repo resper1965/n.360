@@ -153,6 +153,56 @@ describe('assistente', () => {
         expect($('np-titulo').textContent).toBe('Novo projeto — Pessoas e acessos');
     });
 
+    it('com o n.privacy, "E-mail do canal do titular" vai em pessoas.canal_titular, aparece no resumo e o campo é acessível', async () => {
+        digitar('emp-razao_social', 'Teta Fictícia Ltda');
+        window.novoProjetoIr(2);
+        window.novoProjetoIr(3);
+        expect(document.querySelector('label[for="np-canal-email"]')).not.toBeNull();
+        expect($('np-canal-email').getAttribute('aria-describedby')).toBe('np-canal-dica');
+        digitar('np-dpo-nome', 'Encarregado Fictício');
+        digitar('np-canal-email', 'privacidade@teta.exemplo');
+        window.novoProjetoIr(4);
+        expect($('np-passo').textContent).toContain('privacidade@teta.exemplo');
+        apiMock.mockImplementation(async (m) => (m === 'POST' ? { id: 'novo', modulos: ['iso', 'privacy'], canal_titular: true } : []));
+        await window.criarNovoProjeto();
+        const [, , corpo] = apiMock.mock.calls.find(([m]) => m === 'POST');
+        expect(corpo.pessoas.canal_titular).toEqual({ email: 'privacidade@teta.exemplo' });
+        expect(document.querySelector('.toast-error')).toBeNull();
+    });
+
+    it('e-mail do canal inválido não segue do passo 3; sem o n.privacy o passo não oferece o campo e o corpo não leva o canal', async () => {
+        digitar('emp-razao_social', 'Teta');
+        window.novoProjetoIr(2);
+        window.novoProjetoIr(3);
+        digitar('np-canal-email', 'nao-e-email');
+        window.novoProjetoIr(4);
+        expect($('np-erro').textContent).toMatch(/e-mail válido para o canal do titular/);
+        expect($('np-canal-email')).not.toBeNull();   // ficou no passo 3
+        digitar('np-canal-email', 'canal@teta.exemplo');
+        window.novoProjetoIr(2);                       // voltar não valida e guarda o que foi digitado
+        for (const c of document.querySelectorAll('input[name=np-modulo]')) c.checked = c.value === 'iso';
+        window.novoProjetoIr(3);
+        expect($('np-canal-email')).toBeNull();
+        window.novoProjetoIr(4);
+        expect($('np-passo').textContent).not.toContain('canal@teta.exemplo');
+        apiMock.mockImplementation(async (m) => (m === 'POST' ? { id: 'novo', modulos: ['iso'] } : []));
+        await window.criarNovoProjeto();
+        const [, , corpo] = apiMock.mock.calls.find(([m]) => m === 'POST');
+        expect(JSON.stringify(corpo)).not.toContain('canal_titular');
+    });
+
+    it('canal não gravado (canal_titular: false na resposta): o projeto segue e a pessoa é avisada onde registrar', async () => {
+        digitar('emp-razao_social', 'Teta');
+        window.novoProjetoIr(2);
+        window.novoProjetoIr(3);
+        digitar('np-canal-email', 'canal@teta.exemplo');
+        window.novoProjetoIr(4);
+        apiMock.mockImplementation(async (m) => (m === 'POST' ? { id: 'novo', modulos: ['iso', 'privacy'], canal_titular: false } : []));
+        await window.criarNovoProjeto();
+        expect($('np-titulo').textContent).toBe('Novo projeto — Pessoas e acessos');
+        expect(document.querySelector('.toast-error').textContent).toMatch(/canal do titular não foi gravado/i);
+    });
+
     it('limite do plano (409): a mensagem da API aparece no passo e o botão volta', async () => {
         digitar('emp-razao_social', 'Fictícia');
         window.novoProjetoIr(2); window.novoProjetoIr(3); window.novoProjetoIr(4);

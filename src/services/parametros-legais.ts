@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { diaEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: prazos legais como PARÂMETRO editável (spec 5: "todo prazo entra como parâmetro com fonte
@@ -47,22 +48,42 @@ export async function removerParametro(db: D1Database, ator: string, chave: stri
   return (r.meta.changes ?? 0) > 0;
 }
 
+// shortcut: só feriados nacionais; ponto facultativo e local ficam de fora até o jurídico confirmar
+const FERIADOS_FIXOS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'];
+/** Domingo de Páscoa do ano (algoritmo de Meeus/Jones/Butcher), como data UTC. */
+function pascoa(ano: number): Date {
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(ano, mes - 1, dia));
+}
+/** Feriado nacional (AAAA-MM-DD): os fixos e a Sexta-feira Santa (Páscoa − 2 dias). */
+export function ehFeriadoNacional(dia: string): boolean {
+  if (FERIADOS_FIXOS.includes(dia.slice(5, 10))) return true;
+  const sexta = pascoa(Number(dia.slice(0, 4)));
+  sexta.setUTCDate(sexta.getUTCDate() - 2);
+  return sexta.toISOString().slice(0, 10) === dia.slice(0, 10);
+}
+
 /**
- * Soma o prazo a uma data/hora ISO. `horas` e `dias_corridos` somam direto; `dias_uteis` pula sábado e domingo (UTC), mantendo
- * a hora. ponytail: feriado não entra; se o jurídico pedir, vira um calendário.
+ * Soma o prazo a uma data/hora ISO. `horas` e `dias_corridos` somam direto; `dias_uteis` conta pelo calendário de São Paulo
+ * (`diaEmSaoPaulo`: ciência às 22h de Brasília é o dia de Brasília, não o dia seguinte em UTC), pula sábado, domingo e feriado
+ * nacional, e mantém a hora (São Paulo sem horário de verão desde 2019: cada dia são 24 h).
  */
 export function somarPrazo(baseIso: string, valor: number, unidade: Unidade): string {
   const base = new Date(/^\d{4}-\d{2}-\d{2}$/.test(baseIso) ? `${baseIso}T00:00:00Z` : baseIso);
   if (Number.isNaN(base.getTime())) throw new Error(`Data inválida: ${baseIso}`);
   if (unidade === 'horas') return new Date(base.getTime() + valor * 3_600_000).toISOString();
   if (unidade === 'dias_corridos') return new Date(base.getTime() + valor * 86_400_000).toISOString();
-  const d = new Date(base.getTime());
+  const d = new Date(`${diaEmSaoPaulo(baseIso.length === 10 ? baseIso : base.toISOString(), baseIso)}T00:00:00Z`); // base com hora: a meia-noite UTC é instante
+  let corridos = 0;
   for (let i = 0; i < valor;) {
     d.setUTCDate(d.getUTCDate() + 1);
+    corridos++;
     const dia = d.getUTCDay();
-    if (dia !== 0 && dia !== 6) i++;
+    if (dia !== 0 && dia !== 6 && !ehFeriadoNacional(d.toISOString().slice(0, 10))) i++;
   }
-  return d.toISOString();
+  return new Date(base.getTime() + corridos * 86_400_000).toISOString();
 }
 
 /** O prazo do parâmetro a partir da base, ou null se o parâmetro não foi cadastrado ("não calculado"). */

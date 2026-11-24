@@ -22,6 +22,7 @@ import { comOrigemMudou } from '../services/lia';
 import { classeDoControle } from '../services/classe-controle';
 import { validateBody, checklistProgressSchema, dpiaSchema, projectPhaseSchema, interviewSchema, evidenceMetaSchema, scopeChangeSchema, auditorTokenSchema, politicaTenantSchema, ssoConfigSchema, projetoCriarSchema, projetoAtualizarSchema, revogarAprovacaoSchema, reatribuirResponsavelSchema, cnpjValido } from '../schemas';
 import { camposPresentes, gravacaoDaEmpresa, gravacaoDasPessoas, projetoComCnpj } from '../services/empresas';
+import { hostsDoApp, salvarCanal } from '../services/titular-canal';
 import { registerAssetRoutes } from './project-assets';
 import { encryptSecret, decryptSecret, isEncrypted } from '../secret-crypto';
 import { COLUNAS_REVOGACAO } from './controls';
@@ -31,6 +32,7 @@ import { ipPermitido } from '../politica-tenant';
 import { papelValidoParaSso } from '../sso';
 import { appUrl } from '../config/url';
 import { modulosContratados, modulosDoProjeto, modulosDaPessoa, recusaDaPessoa } from '../modulos';
+import { comControles } from '../services/evidencia-controles';
 
 export const projectsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -372,6 +374,12 @@ projectsApp.post('/', async (c) => {
     const escolhidos = body.modulos?.length ? [...new Set(body.modulos)] : null;
     const fora = (escolhidos ?? []).filter((m) => !contratados.includes(m));
     if (fora.length) return c.json({ error: `Produto não contratado pela consultoria: ${fora.join(', ')}` }, 409);
+    // Canal do titular (opcional): ato da equipe e só com o n.privacy no projeto. Recusa ANTES do batch: nada é criado.
+    const canalEmail = body.pessoas?.canal_titular?.email;
+    if (canalEmail) {
+      if (!ehEquipeNess(user)) return c.json({ error: 'Forbidden: o canal do titular é registrado pela equipe da consultoria' }, 403);
+      if (!(escolhidos ?? contratados).includes('privacy')) return c.json({ error: 'O canal do titular é do n.privacy: habilite o módulo no projeto' }, 400);
+    }
     // CNPJ repetido na organização: 409 com o projeto que já o tem (só equipe chega aqui com empresa; o cliente não cria).
     if (empresa?.cnpj) {
       const outro = await projetoComCnpj(c.env.DB, orgId, empresa.cnpj, id);
@@ -404,7 +412,21 @@ projectsApp.post('/', async (c) => {
     const pessoas = [body.pessoas?.representante && 'representante legal', body.pessoas?.dpo && 'encarregado (DPO)'].filter(Boolean);
     if (pessoas.length) await logAudit(c.env.DB, 'parte.criada', user?.email ?? 'system', `Pessoas-chave do projeto ${id}: ${pessoas.join(', ')}`, '', '', id);
 
-    return c.json({ id, project_name: body.project_name, client_name: body.client_name, status: 'active', modulos: modulos.sort() }, 201);
+    // Canal DEPOIS do batch: campo opcional nunca derruba o projeto já criado (um 500 aqui convidaria a repetir a criação).
+    // `salvarCanal` grava e registra a trilha só com o NOME do campo; o endereço nunca vai para o log.
+    let canalGravado: boolean | undefined;
+    if (canalEmail) {
+      try {
+        canalGravado = (await salvarCanal(c.env.DB, id, user.email, { email: canalEmail }, hostsDoApp(c.env))).ok;
+      } catch (e) {
+        canalGravado = false;
+        console.log(JSON.stringify({ nivel: 'warn', msg: 'titular_canal_nao_gravado', projeto: id,
+          causa: /no such table: titular_canal/i.test(String((e as Error)?.message ?? e)) ? 'tabela_ausente' : 'erro' }));
+      }
+    }
+
+    return c.json({ id, project_name: body.project_name, client_name: body.client_name, status: 'active', modulos: modulos.sort(),
+      ...(canalGravado === undefined ? {} : { canal_titular: canalGravado }) }, 201);
   } catch (e: any) {
     return erro500(c, 'Falha ao criar projeto', e);
   }
@@ -1156,8 +1178,9 @@ projectsApp.get('/:id/traceability', async (c) => {
   ).bind(projectId).all();
 
   const evidenceResult = await db.prepare(
-    `SELECT id, file_name, created_at, control_id, evaluation_status, evaluation_notes, avaliacao_ia FROM evidence
-      WHERE control_id IN (SELECT id FROM compliance_controls WHERE project_id = ?)`
+    `SELECT e.id, e.file_name, e.created_at, ec.control_id, e.evaluation_status, e.evaluation_notes, e.avaliacao_ia
+       FROM evidencia_controles ec JOIN evidence e ON e.id = ec.evidence_id
+      WHERE ec.project_id = ?`
   ).bind(projectId).all();
 
   const risksMap: Record<string, any[]> = {};
@@ -1191,7 +1214,7 @@ projectsApp.get('/:id/gap-analysis', async (c) => {
     db.prepare(`SELECT id, title, status FROM compliance_controls WHERE project_id = ?`).bind(projectId),
     db.prepare(
       `SELECT cc.id,
-              (SELECT COUNT(*) FROM evidence e WHERE e.control_id = cc.id) AS evidence_count,
+              (SELECT COUNT(*) FROM evidencia_controles ec WHERE ec.control_id = cc.id) AS evidence_count,
               (SELECT COUNT(*) FROM risks r WHERE r.control_id = cc.id) AS risk_count
          FROM compliance_controls cc WHERE cc.project_id = ?`
     ).bind(projectId),
@@ -1287,7 +1310,7 @@ projectsApp.get('/:id/audit-pack', async (c) => {
         project: redactProject(project),
         phases: phases.results || [],
         controls: semRastros(controls.results),
-        evidence: semRastros(evidence.results),
+        evidence: semRastros(await comControles(c.env.DB, projectId, evidence.results as { id: string }[])),
         audit_trail: semIpENavegador(c.get('user'), logs.results as Record<string, unknown>[]),
         generated_at: new Date().toISOString()
       }

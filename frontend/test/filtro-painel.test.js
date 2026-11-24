@@ -190,3 +190,22 @@ describe('fornecedores do n.iso', () => {
         expect([{ situacao: 'vencida' }, { situacao: 'vigente' }, { situacao: 'pendente' }].filter(quem)).toEqual([{ situacao: 'vencida' }]);
     });
 });
+
+describe('prazo às 22h de Brasília (01h UTC do dia seguinte) conta no dia de Brasília', () => {
+    it('vencem em até 7 dias: o 7º dia às 22h entra; data pura do 7º dia também', () => {
+        const [, f] = FILTROS['titular:pedidos:vencem_7_dias'];
+        expect(f({ status: 'recebido', prazo_em: `${emDiasSP(8)}T01:00:00.000Z` })).toBe(true);
+        expect(f({ status: 'recebido', prazo_em: emDiasSP(7) })).toBe(true);
+        expect(f({ status: 'recebido', prazo_em: `${emDiasSP(9)}T01:00:00.000Z` })).toBe(false);
+    });
+    it('ação (capa) com due_date gravado à meia-noite UTC é a data dela, como no servidor (substr): hoje não está vencida', () => {
+        const [, f] = FILTROS['capa::vencidas'];
+        expect(f({ status: 'Open', due_date: `${emDiasSP(0)}T00:00:00.000Z` })).toBe(false);
+        expect(f({ status: 'Open', due_date: `${emDiasSP(-1)}T00:00:00.000Z` })).toBe(true);
+    });
+    it('prazo do pedido gravado à meia-noite UTC (contado do recebimento sem hora) é o dia dele, não 21h da véspera', () => {
+        const [, f] = FILTROS['titular:pedidos:vencem_7_dias'];
+        expect(f({ status: 'recebido', recebido_em: emDiasSP(-8), prazo_em: `${emDiasSP(0)}T00:00:00.000Z` })).toBe(true);
+        expect(f({ status: 'recebido', recebido_em: emDiasSP(-1), prazo_em: `${emDiasSP(8)}T00:00:00.000Z` })).toBe(false);
+    });
+});

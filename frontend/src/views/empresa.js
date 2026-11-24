@@ -319,13 +319,17 @@ function passoHtml() {
     }
     if (W.passo === 3) {
         const r = W.pessoas.representante, d = W.pessoas.dpo;
+        const canalHtml = W.programa.modulos.includes('privacy')
+            ? `<div class="form-group"><label class="form-label" for="np-canal-email">E-mail do canal do titular (opcional)</label>
+                <input class="form-input" id="np-canal-email" type="email" maxlength="200" aria-describedby="np-canal-dica" value="${escapeHTML(W.pessoas.canal_email || '')}">
+                <p id="np-canal-dica" class="tc-dica">Caixa institucional por onde o titular fala com a empresa (por exemplo, privacidade@empresa.com.br). Não cole aqui o link do portal de solicitações.</p></div>` : '';
         corpo = `<p style="color:var(--text-dim);font-size:0.85rem;margin-top:0">Opcional. As duas pessoas entram em Partes do projeto; o DPO como encarregado do n.privacy. Não pedimos CPF.</p>
             <fieldset style="border:0;padding:0;margin:0 0 1rem"><legend class="form-label" style="font-weight:600">Representante legal</legend><div style="${grade}">
                 <div class="form-group"><label class="form-label" for="np-rep-nome">Nome</label><input class="form-input" id="np-rep-nome" maxlength="200" value="${escapeHTML(r.nome)}"></div>
                 <div class="form-group"><label class="form-label" for="np-rep-cargo">Cargo</label><input class="form-input" id="np-rep-cargo" maxlength="200" value="${escapeHTML(r.cargo)}"></div></div></fieldset>
             <fieldset style="border:0;padding:0;margin:0"><legend class="form-label" style="font-weight:600">Encarregado (DPO)</legend><div style="${grade}">
                 <div class="form-group"><label class="form-label" for="np-dpo-nome">Nome</label><input class="form-input" id="np-dpo-nome" maxlength="200" value="${escapeHTML(d.nome)}"></div>
-                <div class="form-group"><label class="form-label" for="np-dpo-email">E-mail</label><input class="form-input" id="np-dpo-email" type="email" maxlength="320" value="${escapeHTML(d.email)}"></div></div></fieldset>`;
+                <div class="form-group"><label class="form-label" for="np-dpo-email">E-mail</label><input class="form-input" id="np-dpo-email" type="email" maxlength="320" value="${escapeHTML(d.email)}"></div></div></fieldset>${canalHtml}`;
     }
     if (W.passo === 4) {
         const e = W.empresa, p = W.programa, ps = W.pessoas;
@@ -338,6 +342,7 @@ function passoHtml() {
             ${linha('Papel na LGPD', (PAPEIS.find(([v]) => v === p.org_role) || [, ''])[1])}${linha('Módulos', p.modulos.map((m) => `n.${m}`).join(', '))}
             ${linha('Representante legal', [ps.representante.nome, ps.representante.cargo].filter(Boolean).join(', '))}
             ${linha('Encarregado (DPO)', [ps.dpo.nome, ps.dpo.email].filter(Boolean).join(', '))}
+            ${p.modulos.includes('privacy') ? linha('Canal do titular', ps.canal_email) : ''}
         </tbody></table>`;
     }
     return `${cab}<div id="np-passo">${corpo}</div>${rodape}`;
@@ -369,9 +374,12 @@ function guardarPasso() {
     }
     if (W.passo === 3) {
         const v = (id) => document.getElementById(id).value.trim();
-        W.pessoas = { representante: { nome: v('np-rep-nome'), cargo: v('np-rep-cargo') }, dpo: { nome: v('np-dpo-nome'), email: v('np-dpo-email') } };
+        const campoCanal = document.getElementById('np-canal-email'); // só existe com o n.privacy; sem ele, guarda o que já estava
+        W.pessoas = { representante: { nome: v('np-rep-nome'), cargo: v('np-rep-cargo') }, dpo: { nome: v('np-dpo-nome'), email: v('np-dpo-email') },
+            canal_email: campoCanal ? campoCanal.value.trim() : W.pessoas.canal_email };
         if (W.pessoas.dpo.email && !W.pessoas.dpo.nome) return 'Informe o nome do DPO.';
         if (W.pessoas.representante.cargo && !W.pessoas.representante.nome) return 'Informe o nome do representante legal.';
+        if (campoCanal && W.pessoas.canal_email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(W.pessoas.canal_email)) return 'Informe um e-mail válido para o canal do titular.';
     }
     return '';
 }
@@ -382,7 +390,7 @@ window.abrirNovoProjeto = function () {
     ultimaConsulta = '';
     S.empresaProjetoId = null;
     W = { passo: 1, empresa: { pais: 'BR' }, programa: { project_name: '', normas: ['ISO 27001'], org_role: 'Controller', modulos: [...meus] },
-        pessoas: { representante: { nome: '', cargo: '' }, dpo: { nome: '', email: '' } } };
+        pessoas: { representante: { nome: '', cargo: '' }, dpo: { nome: '', email: '' }, canal_email: '' } };
     mostrarPasso();
 };
 
@@ -407,6 +415,8 @@ window.criarNovoProjeto = async function () {
     const pessoas = {};
     if (ps.representante.nome) pessoas.representante = { nome: ps.representante.nome, cargo: ps.representante.cargo || null };
     if (ps.dpo.nome) pessoas.dpo = { nome: ps.dpo.nome, email: ps.dpo.email || null };
+    // Só com o n.privacy ainda marcado: quem desmarca o módulo depois de digitar não envia o canal.
+    if (ps.canal_email && p.modulos.includes('privacy')) pessoas.canal_titular = { email: ps.canal_email };
     const corpo = {
         client_name: e.nome_fantasia || e.razao_social,
         project_name: p.project_name || null,
@@ -431,6 +441,7 @@ window.criarNovoProjeto = async function () {
         return;
     }
     showToast('Projeto criado.', 'success');
+    if (r && r.canal_titular === false) showToast('O projeto foi criado, mas o e-mail do canal do titular não foi gravado. Registre em Solicitações, botão "Canal do titular".', 'error');
     if (typeof window.loadProjects === 'function') await window.loadProjects();
     if (W !== meu || !W) return; // fechado (ou outro assistente) durante a recarga
     W.projeto = { id: r.id, modulos: Array.isArray(r.modulos) ? r.modulos : [] };

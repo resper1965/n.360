@@ -476,7 +476,7 @@ export const TOOLS: Ferramenta[] = [
   {
     name: "niso_privacy_incidentes",
     description:
-      "n.privacy: incidentes (protocolo, risco ao titular, status) com os prazos de comunicação em situacao_anpd e situacao_titular. Só leitura.",
+      "n.privacy: incidentes (protocolo, risco ao titular, status) com os prazos de comunicação em situacao_anpd e situacao_titular (nao_exigida: risco avaliado sem_risco ou baixo, a comunicação não é exigida nem pendente). Só leitura.",
     inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
   },
   {

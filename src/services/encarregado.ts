@@ -6,7 +6,7 @@ import { lerParametros } from './parametros-legais';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-atividade';
-import { hojeEmSaoPaulo, diaMaisSP } from './hoje';
+import { hojeEmSaoPaulo, diaMaisSP, diaEmSaoPaulo } from './hoje';
 import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 import { escopoRopa } from './escopo-itens';
 import { resumoDoCanal } from './titular-canal';
@@ -54,7 +54,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
 
   const pedidosAbertos = pedidos.filter((p) => ['recebido', 'em_andamento'].includes(p.status));
   const incidentesAbertos = incidentes.filter((i) => i.status !== 'encerrado');
-  const comunicacoes = incidentesAbertos.flatMap((i) => [i.situacao_anpd, i.situacao_titular].filter((s) => i.risco_titular !== 'sem_risco' && s !== 'comunicado'));
+  const comunicacoes = incidentesAbertos.flatMap((i) => [i.situacao_anpd, i.situacao_titular].filter((s) => s !== 'comunicado' && s !== 'nao_exigida'));
 
   // Tratamentos: contas que dependem de texto livre (legítimo interesse) são feitas aqui, sobre as poucas linhas do projeto.
   // Base legal (F3): a principal, uma adicional ou o texto do GDPR; qualquer uma de legítimo interesse pede a LIA.
@@ -107,9 +107,9 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     pedidos_titular: {
       abertos: pedidosAbertos.length,
       atrasados: pedidosAbertos.filter((p) => p.situacao_prazo === 'atrasado').length,
-      vencem_em_7_dias: pedidosAbertos.filter((p) => p.prazo_em && p.prazo_em.slice(0, 10) >= dia && p.prazo_em.slice(0, 10) <= em7).length,
+      vencem_em_7_dias: pedidosAbertos.filter((p) => p.prazo_em && diaEmSaoPaulo(p.prazo_em, p.recebido_em)! >= dia && diaEmSaoPaulo(p.prazo_em, p.recebido_em)! <= em7).length,
       // Contador do menu: aberto com prazo já vencido ou até 7 dias à frente (os dois grupos não se cruzam; sem prazo fica de fora).
-      exigem_atencao: pedidosAbertos.filter((p) => p.prazo_em && p.prazo_em.slice(0, 10) <= em7).length,
+      exigem_atencao: pedidosAbertos.filter((p) => p.prazo_em && diaEmSaoPaulo(p.prazo_em, p.recebido_em)! <= em7).length,
       sem_prazo: pedidosAbertos.filter((p) => p.situacao_prazo === 'sem_prazo').length,
       itens: pedidosAbertos.slice(0, 5).map((p) => ({ id: p.id, protocolo: p.protocolo, tipo: p.tipo, prazo_em: p.prazo_em, situacao_prazo: p.situacao_prazo })),
     },
@@ -142,10 +142,10 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
 
   const prioridades: Prioridade[] = [];
   const p = (nivel: Prioridade['nivel'], quantidade: number, texto: (q: number) => string, tela: string, extra: Extra) => { if (quantidade > 0) prioridades.push({ nivel, texto: texto(quantidade), tela, ...extra }); };
-  const venceu = (datas: (string | null | undefined)[]) => { const d = datas.filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort()[0]; return d ? `Venceu em ${diaMes(d)}` : 'Vencido'; };
+  const venceu = (datas: (string | null | undefined)[]) => { const d = datas.filter((x): x is string => !!x).map((x) => diaEmSaoPaulo(x)!).sort()[0]; return d ? `Venceu em ${diaMes(d)}` : 'Vencido'; };
   const atrasados = pedidosAbertos.filter((x) => x.situacao_prazo === 'atrasado');
-  const em7dias = pedidosAbertos.filter((x) => x.prazo_em && x.prazo_em.slice(0, 10) >= dia && x.prazo_em.slice(0, 10) <= em7);
-  const comAtraso = incidentesAbertos.filter((i) => i.risco_titular !== 'sem_risco' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado'));
+  const em7dias = pedidosAbertos.filter((x) => x.prazo_em && diaEmSaoPaulo(x.prazo_em, x.recebido_em)! >= dia && diaEmSaoPaulo(x.prazo_em, x.recebido_em)! <= em7);
+  const comAtraso = incidentesAbertos.filter((i) => i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado');
   const terceirosVencidos = terceiros.filter((t) => t.situacao === 'vencida');
   const acoesVencidas = abertas.filter((a) => faixaDePrazo(a.due_date, dia) === 'vencidas');
   const semBase = (t: (typeof trat)[number]) => !t.base_legal_id && !String(t.legal_basis ?? '').trim() && !t.adicionais && !String(t.base_gdpr ?? '').trim();
@@ -161,9 +161,9 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   // Projeto vazio não é projeto em dia: sem inventário e sem catálogo, a lista vazia afirmaria conformidade que ninguém verificou.
   p('alta', tratamentos.total ? 0 : 1, () => 'Nenhum tratamento no RoPA (LGPD, art. 37)', 'ropa', exigido('Importe o programa que já existe ou cadastre a primeira atividade', 'Abrir os tratamentos'));
   p('alta', secao.pedidos_titular.atrasados, (q) => `${q} ${q === 1 ? 'pedido do titular atrasado' : 'pedidos do titular atrasados'}`, 'titular',
-    { grupo: 'atraso', quando: venceu(atrasados.map((x) => x.prazo_em)), contexto: exemplos(atrasados.map((x) => `${x.protocolo} (${x.tipo})`)), acao: 'Responder os pedidos', aba: 'pedidos', filtro: 'atrasados' });
+    { grupo: 'atraso', quando: venceu(atrasados.map((x) => diaEmSaoPaulo(x.prazo_em, x.recebido_em))), contexto: exemplos(atrasados.map((x) => `${x.protocolo} (${x.tipo})`)), acao: 'Responder os pedidos', aba: 'pedidos', filtro: 'atrasados' });
   p('alta', secao.incidentes.comunicacoes_atrasadas, (q) => `${q} ${q === 1 ? 'comunicação de incidente atrasada' : 'comunicações de incidente atrasadas'}`, 'titular',
-    { grupo: 'atraso', quando: venceu(comAtraso.flatMap((i) => [i.situacao_anpd === 'atrasado' ? i.prazo_anpd_em : null, i.situacao_titular === 'atrasado' ? i.prazo_titular_em : null])),
+    { grupo: 'atraso', quando: venceu(comAtraso.flatMap((i) => [i.situacao_anpd === 'atrasado' ? diaEmSaoPaulo(i.prazo_anpd_em, i.ciencia_em) : null, i.situacao_titular === 'atrasado' ? diaEmSaoPaulo(i.prazo_titular_em, i.ciencia_em) : null])),
       contexto: exemplos(comAtraso.map((i) => i.protocolo)), acao: 'Comunicar o incidente', aba: 'incidentes', filtro: 'comunicacao_atrasada' });
   p('alta', secao.incidentes.sem_avaliacao_de_risco, (q) => `${q} ${q === 1 ? 'incidente sem avaliação de risco' : 'incidentes sem avaliação de risco'}`, 'titular',
     exigido(exemplos(incidentesAbertos.filter((i) => !i.risco_titular).map((i) => i.protocolo)), 'Avaliar o risco', 'incidentes', 'sem_avaliacao'));
@@ -178,7 +178,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   p('alta', riscos.acoes_vencidas, (q) => `${q} ${q === 1 ? 'ação de atividade com prazo vencido' : 'ações de atividade com prazo vencido'}`, 'ropa',
     { grupo: 'atraso', quando: venceu(acoesVencidas.map((a) => a.due_date)), contexto: exemplos(acoesVencidas.map((a) => a.title)), acao: 'Ver as ações', filtro: 'acoes_vencidas' });
   p('media', secao.pedidos_titular.vencem_em_7_dias, (q) => `${q} ${q === 1 ? 'pedido do titular vence' : 'pedidos do titular vencem'} em até 7 dias`, 'titular',
-    { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos', filtro: 'vencem_7_dias' });
+    { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => diaEmSaoPaulo(x.prazo_em, x.recebido_em)!).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos', filtro: 'vencem_7_dias' });
   p('media', secao.evidencias.a_corrigir, (q) => `${q} ${q === 1 ? 'evidência vencida ou não conforme' : 'evidências vencidas ou não conformes'}`, 'evidence', planejar('Renove ou substitua o arquivo', 'Renovar as evidências', 'vencidas_ou_nao_conformes'));
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos', planejar('A data de revisão passou', 'Revisar os documentos'));
   p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'fornecedor nunca avaliado ou a reavaliar' : 'fornecedores nunca avaliados ou a reavaliar'}`, 'terceiros',

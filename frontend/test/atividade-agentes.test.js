@@ -88,6 +88,21 @@ describe('operadores e destinatários', () => {
     expect(botao.dataset.action).toBe('removerParteTratamento');
   });
 
+  it('pessoa já ligada como operador (dado antigo) aparece com aviso e atalho para abrir a parte; organização não', async () => {
+    await abrir(renderAtividade, base({ [`GET ${B}/ligacoes`]: LIG({ partes: [
+      { nome: 'Escritório <b>exemplo</b>', tipo: 'pessoa', papel: 'operador', parte_id: 'pe1', vinculo_id: 'v1' },
+      { nome: 'Pessoa responsável', tipo: 'pessoa', papel: 'responsavel', parte_id: 'pe2', vinculo_id: 'v2' },
+      { nome: 'Empresa exemplo', tipo: 'organizacao', papel: 'suboperador', parte_id: 'pa1', vinculo_id: 'v3' }] }) }));
+    const aviso = el('at-partes-pessoas');
+    expect(aviso.getAttribute('role')).toBe('status');
+    expect(aviso.textContent).toContain('Escritório <b>exemplo</b>');
+    expect(aviso.querySelector('b')).toBeNull();
+    const atalhos = [...aviso.querySelectorAll('[data-action="openParteModal"]')];
+    expect(atalhos.map((b) => JSON.parse(b.dataset.args))).toEqual([['p9', 'pe1']]);
+    await abrir(renderAtividade, base({ [`GET ${B}/ligacoes`]: LIG({ partes: [{ nome: 'Empresa exemplo', tipo: 'organizacao', papel: 'operador', parte_id: 'pa1', vinculo_id: 'v1' }] }) }));
+    expect(el('at-partes-pessoas')).toBeNull();
+  });
+
   it('o seletor lista só os parceiros escolhidos na etapa Compartilhamento Externo; sem eles, o vazio leva à etapa', async () => {
     const etapas = (parceiros) => ({ [`GET ${B}/etapas`]: { etapas: [{ etapa: 'coleta', parceiros: [] }, { etapa: 'compartilhamento_externo', parceiros }] } });
     await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [{ id: 'pe1', tipo: 'pessoa', nome: 'Pessoa exemplo', status: 'ativa' }], ...etapas([]) }));
