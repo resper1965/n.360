@@ -117,6 +117,9 @@ window.openParteModal = async function (projectId, id) {
         `<li>${escapeHTML(PAPEIS[v.papel] || v.papel)} — ${escapeHTML(ALVOS[v.alvo_tipo] || v.alvo_tipo)}</li>`).join('');
     openModal(`
         <div class="modal-header"><span class="modal-title">${escapeHTML(p.nome)}</span></div>
+        <div class="form-group"><label class="form-label" for="parte-e-tipo">Tipo</label>
+            <select class="form-input" id="parte-e-tipo" aria-describedby="parte-e-tipo-ajuda" ${editar ? '' : 'disabled'}>${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === p.tipo ? 'selected' : ''}>${r}</option>`).join('')}</select>
+            <p class="t-dim" id="parte-e-tipo-ajuda">Fornecedor, operador e suboperador são organizações. Depois de mudar o tipo, abra a parte de novo para informar o CNPJ.</p></div>
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-e-nome" maxlength="200" value="${escapeHTML(p.nome)}" ${editar ? '' : 'disabled'}></div>
         <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="parte-e-email" type="email" maxlength="320" value="${escapeHTML(p.email || '')}" ${editar ? '' : 'disabled'}></div>
         ${p.tipo === 'organizacao' ? `<div class="form-group"><label class="form-label" for="parte-e-cnpj">CNPJ</label><input class="form-input" id="parte-e-cnpj" inputmode="numeric" maxlength="18" value="${escapeHTML(mascaraCnpj(p.cnpj || ''))}" ${editar ? '' : 'disabled'}></div>` : ''}
@@ -137,7 +140,11 @@ window.salvarParte = async function (projectId, id) {
     const email = document.getElementById('parte-e-email').value.trim();
     try {
         const campoCnpj = document.getElementById('parte-e-cnpj');
-        await api('PUT', `/api/v1/projects/${projectId}/partes/${id}`, { nome, email: email || null, status: document.getElementById('parte-e-status').value, ...(campoCnpj ? { cnpj: campoCnpj.value.trim() || null } : {}) });
+        // O tipo só vai quando muda: o servidor recusa (409) a mudança que quebraria algo, e a mensagem dele aparece.
+        const tipo = document.getElementById('parte-e-tipo');
+        const mudouTipo = tipo && !tipo.disabled && tipo.value !== tipo.querySelector('option[selected]')?.value;
+        await api('PUT', `/api/v1/projects/${projectId}/partes/${id}`, { nome, email: email || null, status: document.getElementById('parte-e-status').value,
+            ...(campoCnpj ? { cnpj: campoCnpj.value.trim() || null } : {}), ...(mudouTipo ? { tipo: tipo.value } : {}) });
         window.forceCloseModal();
         window.render();
     } catch (e) { falha(e, 'Não foi possível salvar a parte'); }

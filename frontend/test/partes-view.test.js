@@ -108,6 +108,37 @@ describe('tela de Partes', () => {
   });
 });
 
+describe('mudar o tipo da parte', () => {
+  const PARTE = { id: 'pt9', tipo: 'pessoa', nome: 'Escritório', email: null, status: 'ativa', vinculos: [] };
+  it('quem edita escolhe o tipo; só a mudança vai no corpo; a recusa do servidor aparece', async () => {
+    montar();
+    apiMock.mockImplementation((m, url) => Promise.resolve(url.endsWith('/partes/pt9') && m === 'GET' ? PARTE : {}));
+    await window.openParteModal('p1', 'pt9');
+    const sel = document.getElementById('parte-e-tipo');
+    expect(sel.value).toBe('pessoa');
+    expect(sel.disabled).toBe(false);
+    await window.salvarParte('p1', 'pt9');
+    expect(apiMock).toHaveBeenLastCalledWith('PUT', '/api/v1/projects/p1/partes/pt9', { nome: 'Escritório', email: null, status: 'ativa' });
+    await window.openParteModal('p1', 'pt9');
+    document.getElementById('parte-e-tipo').value = 'organizacao';
+    await window.salvarParte('p1', 'pt9');
+    expect(apiMock).toHaveBeenLastCalledWith('PUT', '/api/v1/projects/p1/partes/pt9', { nome: 'Escritório', email: null, status: 'ativa', tipo: 'organizacao' });
+    apiMock.mockImplementation((m) => (m === 'PUT' ? Promise.reject(new Error('A pessoa tem conta')) : Promise.resolve(PARTE)));
+    await window.openParteModal('p1', 'pt9');
+    document.getElementById('parte-e-tipo').value = 'organizacao';
+    await window.salvarParte('p1', 'pt9');
+    expect(document.querySelector('.toast').textContent).toContain('A pessoa tem conta');
+  });
+
+  it('quem só lê vê o tipo desabilitado', async () => {
+    S.user = { role: 'org_user' };
+    montar();
+    apiMock.mockImplementation(() => Promise.resolve(PARTE));
+    await window.openParteModal('p1', 'pt9');
+    expect(document.getElementById('parte-e-tipo').disabled).toBe(true);
+  });
+});
+
 describe('Partes no n.iso: tudo como antes', () => {
   it('header: só "+ Nova parte" é primário; os outros três ficam no menu "Mais"', async () => {
     const [c, h, a] = montar();

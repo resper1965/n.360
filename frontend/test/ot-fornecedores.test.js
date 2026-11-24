@@ -59,8 +59,22 @@ describe('com o módulo ot', () => {
         expect(c.textContent).toContain('Integra <b id="xss">Ltda</b>');
         expect(c.textContent).toContain('Integrador');
         expect(c.textContent).toContain('SE Norte');
-        expect(botao().textContent).toBe('Gerar perguntas de OT');
+        expect(botao().textContent).toBe('Gerar perguntas de OT para o projeto');
         window.otFornPerguntas('f1'); window.otFornPerguntas('f1'); await pausa(); await pausa();
+        expect(chamadas.filter(([m, u]) => m === 'POST' && /\/ot\/fornecedores\/f1\/perguntas-padrao$/.test(u))).toHaveLength(1);
+    });
+    it('com vários fornecedores há UM botão, do projeto, e ele usa o primeiro só como âncora de existência', async () => {
+        cenario(['iso', 'ot', 'privacy'], ['iso', 'ot', 'privacy']); servir();
+        const base = apiMock.getMockImplementation();
+        apiMock.mockImplementation(async (m, url, corpo) => (m === 'GET' && /\/ot\/fornecedores$/.test(url)
+            ? { fornecedores: [...FORN.fornecedores, { ...FORN.fornecedores[0], id: 'f2', parte_id: 'pa2', parte_nome: 'Outra' }] }
+            : base(m, url, corpo)));
+        await montarFornecedoresOt(c, a, S.activeProject);
+        const botoes = c.querySelectorAll('[data-action="otFornPerguntas"]');
+        expect(botoes).toHaveLength(1);
+        expect(botoes[0].textContent).toBe('Gerar perguntas de OT para o projeto');
+        expect(JSON.parse(botoes[0].dataset.args)).toEqual(['f1']);
+        window.otFornPerguntas('f1'); await pausa(); await pausa();   // o arquivo não liga a delegação: chama a ação com os args do botão
         expect(chamadas.filter(([m, u]) => m === 'POST' && /\/ot\/fornecedores\/f1\/perguntas-padrao$/.test(u))).toHaveLength(1);
     });
     it('sem privacy no projeto: aviso, sem botão e a rota de perguntas não é chamada', async () => {

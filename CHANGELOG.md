@@ -12,6 +12,17 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Fornecedor cadastrado como pessoa
+- **Tipo da parte:** o cadastro da parte agora mostra o tipo (pessoa ou organização), e só a equipe da consultoria pode mudá-lo (nunca o agente nem a chave de API). O servidor recusa com uma mensagem clara quando a mudança quebraria algo: a pessoa com conta, encarregada, responsável ou na governança não vira organização; a organização com CNPJ, dados de fornecedor (tipo, criticidade, avaliação, questionário, DPA ou contrato ligado) ou papéis de organização não vira pessoa. A mudança fica na trilha.
+- **Atividade, aba Agentes de Tratamento:** a parte cadastrada como pessoa que já estava ligada como operador, cocontrolador, suboperador ou destinatário aparece com um aviso e o atalho "Abrir cadastro", onde dá para transformá-la em organização. O seletor continua mostrando só organizações, e o servidor continua recusando ligar pessoa nesses papéis.
+- **Fornecedores, aba Avaliações:** o botão "Homologar" passa a se chamar "Enviar questionário". Quando o fornecedor não tem um tipo que recebe questionário (crítico, médio ou pequeno), a seção diz o motivo antes e leva ao Cadastro para definir o tipo.
+
+### Pontos menores das ondas 1 a 4 (lote 3, telas e documentação)
+- **Chaves de API** (só `platform_admin`) abre sem projeto escolhido: "Nova chave" fica desabilitada até a pessoa escolher o projeto, para a chave não nascer no projeto errado.
+- **Trilha de implantação do n.privacy:** o passo por fazer cuja tela não abre pelo Painel mostra "Falta" em vez de ficar sem nada, e a trilha vazia não desenha mais a caixa.
+- **Fornecedores do n.ot:** o botão agora diz "Gerar perguntas de OT para o projeto" (a ação sempre foi do projeto, não de um fornecedor).
+- Testes novos fixam o botão "Criar o primeiro projeto" (habilita só com as organizações carregadas) e o teto de módulos do convite (cliente: o do projeto; equipe: o da organização).
+
 ### Fornecedores: as perguntas de OT só vão ao fornecedor ligado ao n.ot
 - **Muda para quem já usa:** as 4 perguntas de OT (acesso remoto, contas de integração, correções de segurança, incidentes) entram só no questionário de fornecedor ligado a um site ou fluxo do n.ot. Os demais fornecedores recebem o questionário do modelo como antes. Decisão do dono em 19/11/2026.
 - Quem não tem o n.ot pode notar que um questionário tem perguntas a mais; o texto delas é genérico e não cita OT, site nem norma (pista fraca aceita pelo dono). Questionário já enviado não muda.
@@ -47,6 +58,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Muda para quem já usa:** o passo 1 da trilha do n.privacy passa a se chamar "Encarregado e canal" e só fica feito com o encarregado indicado, ao menos um meio de contato (e-mail, telefone ou formulário; o portal de solicitações ativo conta) e a página onde o canal e o encarregado estão publicados. Projetos que tinham o passo 1 feito só com o encarregado voltam a tê-lo por fazer, e o "O que fazer" do Painel do n.privacy ganha "Canal do titular não registrado" (Exigido) até o canal ser registrado em Solicitações → "Canal do titular". Nenhum dado foi migrado: basta registrar o canal. "Canal sem página de divulgação ou nunca conferido" entra em "Planejar". O Painel mostra "Canal do titular: Registrado/Não registrado".
 - **Registro do canal do titular (API):** por projeto, o e-mail, o telefone e a página do formulário pelos quais o titular fala com a empresa, a página onde canal e encarregado estão publicados, o responsável e a data da última conferência. Leem e gravam a equipe designada no projeto, o `consultoria_admin` da organização do projeto (inclusive o da organização direta no projeto dela), o `platform_admin` e o `org_admin` do cliente; `org_user` e `client` só leem; chave de API e agente só leem; o `stakeholder` não tem acesso (nem para ler). O link do portal de solicitações é recusado nesses campos.
 - **Botão "Canal do titular" em Solicitações**, ao lado de "Link do portal": quem registra os pedidos preenche e-mail, telefone, página do formulário, página de divulgação e responsável, e marca "Conferi a página de divulgação hoje"; os demais leem. A tela recomenda caixa institucional.
+- O assistente "Novo projeto" pede, opcionalmente, o e-mail do canal do titular em "Pessoas-chave" (só com o n.privacy). É gravado depois da criação do projeto; se não puder ser gravado, o projeto nasce mesmo assim e o assistente avisa onde registrar.
 - A migração 0117 foi aplicada em produção em 19/11/2026 (com backup antes; 11 colunas conferidas no banco). Em ambientes que ainda não a aplicaram, o deploy recusa publicar.
 
 ### n.360, onda 4: jornada comum (spec 2026-11-18)

@@ -216,6 +216,74 @@ describe('POST /projects com empresa e pessoas-chave', () => {
     const agente = { AGENTE: { concessaoId: 'c-e', userId: 'u-cons', email: 'cons@e.lat', projectId: 'pe1' } };
     expect((await chamar({ 'X-Agente-Confirmado': '1' }, 'POST', '/api/v1/projects', { client_name: 'X' }, agente)).status).toBe(403);
   });
+
+  const contar = async (tabela: string) => (await env.DB.prepare(`SELECT count(*) AS n FROM ${tabela}`).first<any>()).n;
+
+  it('canal do titular (opcional, só o e-mail) é gravado depois da criação; a trilha leva só o nome do campo', async () => {
+    const r = await chamar(cadm, 'POST', '/api/v1/projects', { project_name: 'Programa Ômega', standards: 'ISO 27001', org_role: 'Controller', modulos: ['iso', 'privacy'],
+      empresa: { razao_social: 'Ômega Fictícia S.A.' }, pessoas: { dpo: { nome: 'Encarregado Ômega', email: 'dpo@omega.exemplo' }, canal_titular: { email: ' Privacidade@Omega.exemplo ' } } });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const corpo = await r.json<any>();
+    expect(corpo.canal_titular).toBe(true);
+    expect(await env.DB.prepare('SELECT email, telefone, formulario_url, divulgacao_url, atualizado_por FROM titular_canal WHERE project_id = ?').bind(corpo.id).first())
+      .toEqual({ email: 'privacidade@omega.exemplo', telefone: null, formulario_url: null, divulgacao_url: null, atualizado_por: 'cadm@e.lat' });
+    const log = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'titular.canal' AND project_id = ?`).bind(corpo.id).first<{ details: string }>();
+    expect(log!.details).toBe('Canal do titular atualizado: email');
+    expect(log!.details).not.toContain('omega.exemplo');
+  });
+
+  it('sem canal_titular nada muda: a resposta não traz o campo e não nasce linha em titular_canal', async () => {
+    const antes = await contar('titular_canal');
+    const r = await chamar(cadm, 'POST', '/api/v1/projects', { client_name: 'Ômicron Fictícia', modulos: ['iso', 'privacy'], pessoas: { dpo: { nome: 'Encarregado Ômicron' } } });
+    expect(r.status).toBe(201);
+    expect('canal_titular' in (await r.json<any>())).toBe(false);
+    expect(await contar('titular_canal')).toBe(antes);
+  });
+
+  it('o campo só aceita e-mail: link, campo extra, e-mail inválido e ausência do n.privacy são recusados e nada é criado', async () => {
+    const antes = { projetos: await contar('projects'), canais: await contar('titular_canal') };
+    const corpo = (canal_titular: unknown, modulos = ['iso', 'privacy']) => ({ client_name: 'Pi Fictícia', modulos, pessoas: { canal_titular } });
+    const link = 'https://n360.ness.com.br/solicitacao#' + 'a'.repeat(64);
+    for (const c of [{ email: 'nao-e-email' }, { email: link }, { email: 'a@b.exemplo', formulario_url: 'https://formulario.exemplo' }, {}]) {
+      expect((await chamar(cadm, 'POST', '/api/v1/projects', corpo(c))).status, JSON.stringify(c)).toBe(400);
+    }
+    const semPrivacy = await chamar(cadm, 'POST', '/api/v1/projects', corpo({ email: 'canal@pi.exemplo' }, ['iso']));
+    expect(semPrivacy.status).toBe(400);
+    expect((await semPrivacy.json<any>()).error).toMatch(/n\.privacy/);
+    expect({ projetos: await contar('projects'), canais: await contar('titular_canal') }).toEqual(antes);
+  });
+
+  it('quem não é equipe (comercial, cliente) e o agente MCP não registram o canal: 403 e nada é criado', async () => {
+    const antes = { projetos: await contar('projects'), canais: await contar('titular_canal') };
+    const corpo = { client_name: 'Rô Fictícia', modulos: ['iso', 'privacy'], pessoas: { canal_titular: { email: 'canal@ro.exemplo' } } };
+    // O comercial chega à rota (tem organização) e é o caso que só a recusa do canal barra; cliente e agente já param antes.
+    const r = await chamar(com, 'POST', '/api/v1/projects', corpo);
+    expect(r.status).toBe(403);
+    expect((await r.json<any>()).error).toMatch(/canal do titular/);
+    expect((await chamar(cli, 'POST', '/api/v1/projects', corpo)).status).toBe(403);
+    const agente = { AGENTE: { concessaoId: 'c-e', userId: 'u-cons', email: 'cons@e.lat', projectId: 'pe1' } };
+    expect((await chamar({ 'X-Agente-Confirmado': '1' }, 'POST', '/api/v1/projects', corpo, agente)).status).toBe(403);
+    expect({ projetos: await contar('projects'), canais: await contar('titular_canal') }).toEqual(antes);
+  });
+
+  it('tabela titular_canal ausente (antes da 0117): o projeto nasce, canal_titular é false e o log não leva o endereço', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await env.DB.prepare('DROP TABLE titular_canal').run();
+    try {
+      const r = await chamar(cadm, 'POST', '/api/v1/projects', { client_name: 'Sigma Fictícia', modulos: ['iso', 'privacy'], pessoas: { canal_titular: { email: 'canal@sigma.exemplo' } } });
+      expect(r.status, await r.clone().text()).toBe(201);
+      const corpo = await r.json<any>();
+      expect(corpo.canal_titular).toBe(false);
+      expect(await env.DB.prepare('SELECT 1 FROM projects WHERE id = ?').bind(corpo.id).first()).not.toBeNull();
+      const saida = log.mock.calls.flat().join(' ');
+      expect(saida).toContain('titular_canal_nao_gravado');
+      expect(saida).toContain('tabela_ausente');
+      expect(saida).not.toContain('sigma.exemplo');
+    } finally {
+      log.mockRestore();
+      await applySchema();   // devolve titular_canal (CREATE IF NOT EXISTS); os dados dos outros testes ficam
+    }
+  });
 });
 
 describe('GET /projects/consulta-cnpj/:cnpj', () => {

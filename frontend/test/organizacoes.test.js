@@ -227,6 +227,23 @@ describe('nova organização', () => {
     expect(document.querySelector('#modal-content input[type="password"]')).toBeNull();
   });
 
+  it('"Criar o primeiro projeto" nasce desabilitado e só habilita quando a lista de organizações recarrega', async () => {
+    rotas['POST /api/v1/platform/orgs'] = () => json({ id: 'org_gama', adminEmail: 'ana@gama.test', emailEnviado: true }, 201);
+    await monta();
+    await clica('__orgNova');
+    preenche();
+    let liberar;
+    const segura = new Promise((r) => { liberar = r; });
+    rotas['GET /api/v1/platform/orgs'] = async () => { await segura; return json(ORGS); };   // o recarregamento pós-criação fica pendurado
+    envia('org-n-form');
+    await espera();
+    expect($('org-n-primeiro')).not.toBeNull();
+    expect($('org-n-primeiro').disabled).toBe(true);
+    liberar();
+    await espera();
+    expect($('org-n-primeiro').disabled).toBe(false);
+  });
+
   it('Tipo (Consultoria por padrão, com a ajuda da Direta) e módulos (n.iso por padrão); Direta esconde o prefixo e não o envia', async () => {
     rotas['POST /api/v1/platform/orgs'] = () => json({ id: 'org_gama', adminEmail: 'ana@gama.test', emailEnviado: true }, 201);
     await monta();
