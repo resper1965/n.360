@@ -54,7 +54,8 @@ export const departamentoAtualizarSchema = z.object({ nome: nome.optional(), sta
 /** CNPJ só de organização (migration 0085): em pessoa o servidor recusa com 400, antes do CHECK do banco. */
 export const parteCriarSchema = z.object({ tipo: z.enum(['pessoa', 'organizacao']).default('pessoa'), nome, email: email.optional().nullable(), cnpj: cnpjCampo })
   .refine((p) => !p.cnpj || p.tipo === 'organizacao', { message: 'CNPJ é só de organização', path: ['cnpj'] });
-export const parteAtualizarSchema = z.object({ nome: nome.optional(), email: email.optional().nullable(), status: z.enum(['ativa', 'inativa']).optional(), cnpj: cnpjCampo });
+/** `tipo` muda pessoa <-> organização; o servidor recusa (409) quando a parte tem algo que depende do tipo atual. */
+export const parteAtualizarSchema = z.object({ tipo: z.enum(['pessoa', 'organizacao']).optional(), nome: nome.optional(), email: email.optional().nullable(), status: z.enum(['ativa', 'inativa']).optional(), cnpj: cnpjCampo });
 export const vinculoCriarSchema = z.object({ papel: z.enum(PAPEIS_VINCULO), alvo_tipo: z.enum(ALVOS_VINCULO), alvo_id: z.string().trim().min(1).max(100) });
 
 // ─── Ligações do tratamento (fatia 4.1) ───────────────────────────────────────

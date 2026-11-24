@@ -20,7 +20,7 @@ description: Use ao avaliar a maturidade de um programa de privacidade LGPD no n
 | RoPA (tratamentos) | `/api/v1/projects/{p}/ropa` e, por tratamento, `/ropa/{id}/ligacoes` e `/ropa/{id}/lia` |
 | Terceiros (operadores e compartilhamento) | `/api/v1/projects/{p}/terceiros` |
 | Pedidos do titular | `/api/v1/projects/{p}/titular-pedidos` (prazo em `situacao_prazo`) |
-| Incidentes | `/api/v1/projects/{p}/incidentes` (prazos em `situacao_anpd` e `situacao_titular`) |
+| Incidentes | `/api/v1/projects/{p}/incidentes` (prazos em `situacao_anpd` e `situacao_titular`; `nao_exigida` = risco avaliado sem risco ou baixo, comunicação não exigida e não pendente) |
 | Encarregado | `/api/v1/projects/{p}/encarregado` |
 | Consentimentos | `/api/v1/projects/{p}/consentimentos` |
 | Cobertura de requisitos | `/api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd` e `?fonte=anpd` |

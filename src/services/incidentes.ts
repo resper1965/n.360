@@ -1,6 +1,6 @@
 import { logAudit } from '../helpers';
 import { prazoDe, proximoProtocolo } from './parametros-legais';
-import { hojeEmSaoPaulo } from './hoje';
+import { hojeEmSaoPaulo, diaEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: incidente de segurança com dado pessoal (registro interno). Protocolo `IN-AAAA-NNNN`; os dois prazos de
@@ -16,12 +16,20 @@ const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, s
 const agora = () => new Date().toISOString();
 const ehInstante = (s: string) => /^\d{4}-\d{2}-\d{2}([T ][\d:.]+Z?)?$/.test(s) && !Number.isNaN(Date.parse(s.length === 10 ? `${s}T00:00:00Z` : s));
 
-export type SituacaoComunicacao = 'sem_prazo' | 'comunicado' | 'no_prazo' | 'vence_hoje' | 'atrasado';
-/** Cada comunicação: feita, ou o prazo em relação a hoje (sem prazo = parâmetro não cadastrado). */
-export function situacaoDaComunicacao(prazo: string | null, feita: string | null, em = hojeEmSaoPaulo()): SituacaoComunicacao {
+export type SituacaoComunicacao = 'sem_prazo' | 'comunicado' | 'no_prazo' | 'vence_hoje' | 'atrasado' | 'nao_exigida';
+/** Riscos avaliados em que a comunicação à ANPD e aos titulares não é exigida (Res. CD/ANPD 15/2024, arts. 5º e 9º: só risco ou dano relevante). */
+export const RISCOS_SEM_COMUNICACAO: readonly Risco[] = ['sem_risco', 'baixo'];
+/** A mesma regra em SQL, para as contas que não passam por `situacaoDaComunicacao` (painel, carteira, avisos). `col` é a coluna do risco. */
+export const sqlComunicacaoExigida = (col: string) => `COALESCE(${col}, '') NOT IN (${RISCOS_SEM_COMUNICACAO.map((r) => `'${r}'`).join(', ')})`;
+/**
+ * Cada comunicação: feita; não exigida (risco avaliado sem_risco ou baixo); ou o prazo em relação a hoje (sem prazo = parâmetro não
+ * cadastrado). Risco ainda não avaliado conta o prazo: o risco não pode esconder o prazo antes da avaliação.
+ */
+export function situacaoDaComunicacao(prazo: string | null, feita: string | null, risco: Risco | null, em = hojeEmSaoPaulo()): SituacaoComunicacao {
   if (feita) return 'comunicado';
+  if (risco && RISCOS_SEM_COMUNICACAO.includes(risco)) return 'nao_exigida';
   if (!prazo) return 'sem_prazo';
-  const dia = prazo.slice(0, 10);
+  const dia = diaEmSaoPaulo(prazo)!;
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 
@@ -37,8 +45,8 @@ const comSituacao = (i: Incidente) => ({
   ...i,
   comprometimento: lista(i.comprometimento),
   criterios_risco: lista(i.criterios_risco),
-  situacao_anpd: situacaoDaComunicacao(i.prazo_anpd_em, i.comunicacao_anpd_em),
-  situacao_titular: situacaoDaComunicacao(i.prazo_titular_em, i.comunicacao_titular_em),
+  situacao_anpd: situacaoDaComunicacao(i.prazo_anpd_em, i.comunicacao_anpd_em, i.risco_titular),
+  situacao_titular: situacaoDaComunicacao(i.prazo_titular_em, i.comunicacao_titular_em, i.risco_titular),
   // Protocolo interno da comunicação à ANPD (o legado mostra `-COM01`): derivado, sem coluna; uma comunicação por incidente.
   anpd_protocolo_interno: i.comunicacao_anpd_em ? `${i.protocolo}-COM01` : null,
 });
