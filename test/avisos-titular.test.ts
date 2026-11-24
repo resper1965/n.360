@@ -65,6 +65,15 @@ describe('fonte incidente', () => {
     expect(Object.fromEntries((await daFonte('incidente')).map((i) => [i.item_id, i.marco]))).toEqual({ 'hoje22:anpd': 'D0', 'd7:anpd': 'D-7', 'ontem22:anpd': 'atraso-2026-W41' });
     expect((await daFonte('titular_pedido')).map((i) => [i.item_id, i.marco])).toEqual([['p22', 'D0']]);
   });
+  it('prazo à meia-noite UTC: contado de data sem hora é o dia dele (D0); contado de ciência com hora é 21h da véspera (atraso)', async () => {
+    await db().batch([
+      inc('pura', { anpd: '2026-10-07T00:00:00.000Z' }), ped('ppura', '2026-10-07T00:00:00.000Z'),
+      db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, status, risco_titular, created_at)
+        VALUES ('hora', 'p1', 'IN-2026-hora', 'Incidente', '2026-10-01T12:00:00.000Z', '2026-10-07T00:00:00.000Z', 'aberto', 'relevante', '2026-10-01 12:00:00')`),
+    ]);
+    expect(Object.fromEntries((await daFonte('incidente')).map((i) => [i.item_id, i.marco]))).toEqual({ 'pura:anpd': 'D0', 'hora:anpd': 'atraso-2026-W41' });
+    expect((await daFonte('titular_pedido')).map((i) => [i.item_id, i.marco])).toEqual([['ppura', 'D0']]);
+  });
   it('incidente ainda sem avaliação de risco avisa (o risco não pode esconder o prazo)', async () => {
     await inc('naoavaliado', { anpd: '2026-10-07', risco: null }).run();
     expect((await daFonte('incidente')).map((i) => i.item_id)).toEqual(['naoavaliado:anpd']);

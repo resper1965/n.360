@@ -157,8 +157,8 @@ async function renderTitular(c, h, a) {
             linhas: incidentes,
             filtroPainel,
             colunas: colunasDe(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], (i) => [
-                `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), dia(i.ciencia_em), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
-                selo(i.situacao_anpd), selo(i.situacao_titular), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
+                `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), dia(diaSP(i.ciencia_em, i.ciencia_em)), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
+                seloComunicacao(i, 'anpd'), seloComunicacao(i, 'titular'), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
                 `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
             ]),
             vazio: { titulo: 'Nenhum incidente registrado.', dica: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', acao: novo('abrirNovoIncidente', 'Registrar incidente', false) },
@@ -534,8 +534,13 @@ window.salvarNovoIncidente = function (projectId) {
     }, 'Não foi possível registrar o incidente', null, () => (novoId ? window.abrirIncidente(projectId, novoId) : forceCloseModal()));
 };
 
-// Dia de São Paulo (o prazo às 22h de Brasília é gravado como 01h UTC do dia seguinte).
-const diaMes = (s) => { const d = diaSP(s); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—'; };
+// Dia de São Paulo (o prazo às 22h de Brasília é gravado como 01h UTC do dia seguinte); `base`: a ciência, de onde o prazo contou.
+const diaMes = (s, base) => { const d = diaSP(s, base); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—'; };
+// Selo da comunicação; rebaixada a risco baixo com o prazo já vencido, a "Não exigida" diz o prazo que tinha passado.
+const seloComunicacao = (i, destino) => {
+    const apos = i[`${destino}_reavaliado_apos_prazo`];
+    return i[`situacao_${destino}`] === 'nao_exigida' && apos ? window.renderStatusBadge(`Não exigida (reavaliado após o prazo de ${diaMes(apos)})`, 'neutral') : selo(i[`situacao_${destino}`]);
+};
 // Dias úteis (seg. a sex., fora feriado nacional, pelo dia de São Paulo) depois de hoje até o prazo, inclusive: a mesma regra do servidor.
 function diasUteisAte(prazo) {
     const fim = new Date(`${diaSP(prazo)}T00:00:00Z`);
@@ -548,19 +553,19 @@ function diasUteisAte(prazo) {
 function faixaAnpd(i) {
     const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor.replace(/var\(--(danger|warning)\)/, 'var(--$1-ink)')}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
     if (i.comunicacao_anpd_em) {
-        const noPrazo = !i.prazo_anpd_em || diaSP(i.comunicacao_anpd_em) <= diaSP(i.prazo_anpd_em);
+        const noPrazo = !i.prazo_anpd_em || diaSP(i.comunicacao_anpd_em) <= diaSP(i.prazo_anpd_em, i.ciencia_em);
         return faixa('var(--text-2)', `Comunicado à ANPD em ${diaMes(i.comunicacao_anpd_em)}, ${noPrazo ? 'dentro do prazo' : 'fora do prazo'}.`);
     }
     if (i.status === 'encerrado') return '';
     // Risco avaliado sem_risco ou baixo: a comunicação não é exigida (regra do servidor, `situacaoDaComunicacao`).
-    if (i.situacao_anpd === 'nao_exigida') return faixa('var(--text-2)', `Comunicação à ANPD: não exigida (risco ${(RISCOS[i.risco_titular] || '').toLowerCase()}).`);
+    if (i.situacao_anpd === 'nao_exigida') return faixa('var(--text-2)', `Comunicação à ANPD: não exigida (${i.anpd_reavaliado_apos_prazo ? `reavaliado após o prazo de ${diaMes(i.anpd_reavaliado_apos_prazo)}` : `risco ${(RISCOS[i.risco_titular] || '').toLowerCase()}`}).`);
     if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
     // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
-    const hoje = hojeSP(), prazo = diaSP(i.prazo_anpd_em);
-    if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
-    if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
-    const n = diasUteisAte(i.prazo_anpd_em);
-    return faixa(n <= 1 ? 'var(--danger)' : 'var(--warning)', `Comunicar à ANPD até ${diaMes(i.prazo_anpd_em)} (${n === 0 ? 'nenhum dia útil antes do prazo' : n === 1 ? 'falta 1 dia útil' : `faltam ${n} dias úteis`})`);
+    const hoje = hojeSP(), prazo = diaSP(i.prazo_anpd_em, i.ciencia_em), ddmm = diaMes(prazo);
+    if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${ddmm}.`);
+    if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${ddmm}.`);
+    const n = diasUteisAte(prazo);
+    return faixa(n <= 1 ? 'var(--danger)' : 'var(--warning)', `Comunicar à ANPD até ${ddmm} (${n === 0 ? 'nenhum dia útil antes do prazo' : n === 1 ? 'falta 1 dia útil' : `faltam ${n} dias úteis`})`);
 }
 
 // ─── Ficha do incidente (fatia 3): página com abas, no molde da do RIPD, com o incidente e a aba no endereço
@@ -597,7 +602,7 @@ let seqInc = 0;
 const repintarIncidente = () => (fichaInc ? window.renderIncidenteFicha(fichaInc.c, fichaInc.h, fichaInc.a) : undefined);
 
 function painelRegistro(i, projectId, id, editar, encerrar) {
-    return `<p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
+    return `<p id="in-prazos">Ciência em ${dia(diaSP(i.ciencia_em, i.ciencia_em))}. ANPD: ${seloComunicacao(i, 'anpd')} (${(i.prazo_anpd_em ? dia(diaSP(i.prazo_anpd_em, i.ciencia_em)) : 'prazo não calculado')}) · Titular: ${seloComunicacao(i, 'titular')} (${(i.prazo_titular_em ? dia(diaSP(i.prazo_titular_em, i.ciencia_em)) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
         ${i.descricao ? `<p class="at-nota">${escapeHTML(i.descricao)}</p>` : ''}
         ${blocoRegistroIncidente(i)}
