@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Riscos: aceite do risco residual com senha e alçada (ISO 27001, 6.1.3 e)
+- **Aceite do risco residual:** quem tem a alçada do nível residual (a Direção por padrão, configurável por nível pelo administrador do cliente) aceita o risco no detalhe, com a senha. O aceite congela o estado do risco com um hash e registra quem, quando, a alçada, a estratégia e os controles. Mudar o residual, a estratégia, o plano ou o controle invalida o aceite e o risco volta a "aceite pendente".
+- **Pedido de aceite** em "Minhas aprovações": o consultor envia o pedido a uma pessoa com a alçada, e aprovar com senha é o aceite. A revogação é só de quem aceitou, com senha e motivo.
+- **Mudança de comportamento:** o status "Aceito" não se grava mais pela edição do risco, e o agente não aceita risco. Risco com aceite registrado não se exclui (409). A lista de riscos ganha a coluna "Aceite" e o filtro; os CSVs e o pacote de auditoria trazem o aceite.
+
 ### Incidentes: comunicação não exigida e feriados nos prazos em dias úteis
 - **Comunicação não exigida:** quando o risco ao titular foi avaliado como "sem risco" ou "baixo", a comunicação à ANPD e aos titulares aparece como "Não exigida", em tom neutro, na lista, na página do incidente e na faixa do prazo da ANPD no topo. Ela deixa de contar como atrasada ou pendente no sino de avisos, no painel, na carteira e na visão do encarregado, e o agente recebe a mesma situação. A Resolução CD/ANPD 15/2024 (arts. 5º e 9º) exige a comunicação só quando o incidente pode acarretar risco ou dano relevante. Com o risco ainda não avaliado ou relevante, o prazo continua sendo contado como antes. A regra de encerramento não muda: com risco relevante, o incidente só encerra com a comunicação à ANPD registrada.
 - **Feriados nos dias úteis:** prazos em dias úteis (comunicação do incidente e resposta ao titular, conforme o parâmetro legal) agora pulam os feriados nacionais: 01/01, 21/04, 01/05, 07/09, 12/10, 02/11, 15/11, 20/11, 25/12 e a Sexta-feira Santa (calculada pela Páscoa). Ponto facultativo (Carnaval, Corpus Christi) e feriados estaduais e municipais ficam de fora até o jurídico confirmar a lista.
