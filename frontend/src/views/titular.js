@@ -157,7 +157,7 @@ async function renderTitular(c, h, a) {
             linhas: incidentes,
             filtroPainel,
             colunas: colunasDe(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], (i) => [
-                `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), dia(i.ciencia_em), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
+                `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), dia(diaSP(i.ciencia_em, i.ciencia_em)), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
                 seloComunicacao(i, 'anpd'), seloComunicacao(i, 'titular'), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
                 `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
             ]),
@@ -602,7 +602,7 @@ let seqInc = 0;
 const repintarIncidente = () => (fichaInc ? window.renderIncidenteFicha(fichaInc.c, fichaInc.h, fichaInc.a) : undefined);
 
 function painelRegistro(i, projectId, id, editar, encerrar) {
-    return `<p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${seloComunicacao(i, 'anpd')} (${(i.prazo_anpd_em ? dia(diaSP(i.prazo_anpd_em, i.ciencia_em)) : 'prazo não calculado')}) · Titular: ${seloComunicacao(i, 'titular')} (${(i.prazo_titular_em ? dia(diaSP(i.prazo_titular_em, i.ciencia_em)) : 'prazo não calculado')}).</p>
+    return `<p id="in-prazos">Ciência em ${dia(diaSP(i.ciencia_em, i.ciencia_em))}. ANPD: ${seloComunicacao(i, 'anpd')} (${(i.prazo_anpd_em ? dia(diaSP(i.prazo_anpd_em, i.ciencia_em)) : 'prazo não calculado')}) · Titular: ${seloComunicacao(i, 'titular')} (${(i.prazo_titular_em ? dia(diaSP(i.prazo_titular_em, i.ciencia_em)) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
         ${i.descricao ? `<p class="at-nota">${escapeHTML(i.descricao)}</p>` : ''}
         ${blocoRegistroIncidente(i)}

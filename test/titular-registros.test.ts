@@ -84,11 +84,11 @@ describe('dia do prazo em São Paulo (JS e SQL, a mesma regra)', () => {
     expect(situacaoDaComunicacao(SP22, null, null, '2026-10-10')).toBe('atrasado');
     expect(situacaoDoPrazo({ prazo_em: SP22, status: 'recebido' }, '2026-10-09')).toBe('vence_hoje');
     expect(situacaoDoPrazo({ prazo_em: SP22, status: 'recebido' }, '2026-10-10')).toBe('atrasado');
-    // só a data sem hora é o dia do calendário; a meia-noite UTC exata é instante (21h de Brasília do dia anterior)
+    // data sem hora e meia-noite UTC exata são o dia do calendário (o prazo contado de data sem hora é gravado assim)...
     expect(situacaoDaComunicacao('2026-10-09', null, 'relevante', '2026-10-09')).toBe('vence_hoje');
-    expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09')).toBe('atrasado');
-    // ...salvo o prazo contado de uma data sem hora, que `somarPrazo` grava à meia-noite UTC (o dado já gravado): é o dia dele
+    expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09')).toBe('vence_hoje');
     expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09', '2026-10-06')).toBe('vence_hoje');
+    // ...salvo o prazo contado de ciência com hora: aí a meia-noite UTC é instante (21h de Brasília do dia anterior)
     expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09', '2026-10-06T00:00:00.000Z')).toBe('atrasado');
     expect(situacaoDoPrazo({ prazo_em: '2026-10-09T00:00:00.000Z', status: 'recebido', recebido_em: '2026-09-24' }, '2026-10-09')).toBe('vence_hoje');
   });
@@ -106,8 +106,9 @@ describe('dia do prazo em São Paulo (JS e SQL, a mesma regra)', () => {
     }
     expect(diaEmSaoPaulo(SP22)).toBe('2026-10-09');
     expect(diaEmSaoPaulo('2026-10-09')).toBe('2026-10-09');
-    expect(diaEmSaoPaulo('2026-10-09T00:00:00.000Z')).toBe('2026-10-08');
+    expect(diaEmSaoPaulo('2026-10-09T00:00:00.000Z')).toBe('2026-10-09'); // validade, ação: data gravada como meia-noite UTC
     expect(diaEmSaoPaulo('2026-10-09T00:00:00.000Z', '2026-10-06')).toBe('2026-10-09');
+    expect(diaEmSaoPaulo('2026-11-13T00:00:00.000Z', '2026-11-13T00:00:00.000Z')).toBe('2026-11-12'); // a ciência às 21h, base dela mesma
     expect(diaEmSaoPaulo('2026-10-09T00:00:00.000Z', '2026-10-06T12:00:00.000Z')).toBe('2026-10-08');
   });
 });
@@ -352,6 +353,23 @@ describe('incidente', () => {
     for (const destino of ['anpd', 'titular']) await chamar(consultor, 'POST', `${B}/incidentes/${feito}/comunicacoes`, { destino, em: '2026-01-06' });
     expect((await chamar(consultor, 'PUT', `${B}/incidentes/${feito}/risco`, { risco_titular: 'sem_risco' })).status).toBe(200);
     expect(await ler(feito)).toMatchObject({ situacao_anpd: 'comunicado', anpd_reavaliado_apos_prazo: null });
+  });
+
+  it('regravar risco que já era baixo não é rebaixar: sem 400 e sem "reavaliado" (importado já baixo, sem trilha de risco)', async () => {
+    await par('incidente.comunicacao_anpd', 72, 'horas');
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, risco_titular, status) VALUES ('tr-i-imp', ?, 'IN-2025-0099', 'Importado', '2025-03-03T10:00:00Z', '2025-03-06T10:00:00.000Z', 'baixo', 'avaliado')`).bind(P),
+      env.DB.prepare(`INSERT INTO audit_logs (id, action, actor, details, project_id, entity_type, entity_id, created_at) VALUES ('tr-a-imp', 'incidente.importado', 'cons@ness.lat', 'Incidente IN-2025-0099 (avaliado) importado do histórico', ?, 'incidente', 'tr-i-imp', '2025-04-01 12:00:00')`).bind(P),
+    ]);
+    const risco = (corpo: object) => chamar(consultor, 'PUT', `${B}/incidentes/tr-i-imp/risco`, corpo);
+    expect((await risco({ risco_titular: 'baixo' })).status).toBe(200);
+    expect((await risco({ risco_titular: 'sem_risco' })).status).toBe(200);
+    expect(await ler('tr-i-imp')).toMatchObject({ situacao_anpd: 'nao_exigida', anpd_reavaliado_apos_prazo: null });
+    // relevante e depois baixo, com o prazo vencido: aí é rebaixamento (justificativa e marca)
+    expect((await risco({ risco_titular: 'relevante' })).status).toBe(200);
+    expect((await risco({ risco_titular: 'baixo' })).status).toBe(400);
+    expect((await risco({ risco_titular: 'baixo', avaliacao_texto: 'Reavaliado' })).status).toBe(200);
+    expect((await ler('tr-i-imp')).anpd_reavaliado_apos_prazo).toBe('2025-03-06');
   });
 
   it('encerrar: sem risco avaliado 409; risco relevante sem ANPD 409; com tudo, 200 e depois não muda', async () => {

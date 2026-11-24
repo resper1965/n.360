@@ -26,6 +26,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, descricao, ciencia_em, status, severidade, tipo, comprometimento, anpd_canal, anpd_protocolo, comunicacao_anpd_em)
       VALUES ('iw-enc', ?1, 'IN-2026-0030', 'Vazamento <b>exemplo</b> & cia', 'Planilha enviada por engano', '2026-10-01T10:00:00Z', 'aberto', 'alta', 'vazamento', '["confidencialidade"]', 'sei', 'ANPD-123', '2026-10-02T09:00:00Z'),
              ('iw-in', ?1, 'IN-2026-0031', 'Ainda aberto', NULL, '2026-10-05', 'aberto', NULL, NULL, NULL, NULL, NULL, NULL),
+             ('iw-21', ?1, 'IN-2026-0033', 'Ciência às 21h', NULL, '2026-11-13T00:00:00.000Z', 'aberto', NULL, NULL, NULL, NULL, NULL, NULL),
              ('iw-o', ?2, 'IN-2026-0001', 'Alheio', NULL, '2026-10-01', 'aberto', NULL, NULL, NULL, NULL, NULL, NULL)`).bind(P, OUTRO),
     // Baixo em 05/10, relevante em 06/10 e sem risco em 20/10, depois do prazo da ANPD (08/10, contado da ciência sem hora): vale o último rebaixamento.
     env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, risco_titular, avaliacao_texto, status)
@@ -67,6 +68,14 @@ describe('incidente em Word', () => {
     const { txt } = await texto(await chamar(ana, `${B}/incidentes/iw-rb/docx`));
     expect(txt).toContain('Não exigida (reavaliado após o prazo de 08/10)');
     expect(txt).toContain('Não exigida (risco sem risco)'); // titulares: sem prazo, nada a dizer do atraso
+  });
+
+  it('ciência às 21h00 de Brasília (meia-noite UTC): a ciência e o prazo saem na hora de Brasília, como na tela', async () => {
+    await env.DB.prepare(`UPDATE incidentes SET prazo_anpd_em = '2026-11-14T00:00:00.000Z' WHERE id = 'iw-21'`).run();
+    const { txt } = await texto(await chamar(ana, `${B}/incidentes/iw-21/docx`));
+    expect(txt).toContain('12/11/2026 21:00');
+    expect(txt).toContain('Pendente, prazo 13/11/2026 21:00');
+    expect(txt).not.toContain('14/11/2026');
   });
 
   it('aberto sai como rascunho e o post mortem diz que abre depois; outro projeto é 404; trilha sem conteúdo', async () => {

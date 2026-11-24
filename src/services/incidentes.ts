@@ -64,18 +64,23 @@ const comSituacao = (i: Incidente, rebaixado: string | null = null) => ({
 
 /**
  * Sem coluna própria, o momento do rebaixamento vem da trilha `incidente.risco` ("risco ao titular <risco>"): o início da sequência final
- * de gravações sem_risco/baixo. Só consulta os incidentes com risco baixo e comunicação ainda por fazer.
+ * de gravações sem_risco/baixo, quando ela veio de `relevante` ou do risco não avaliado da criação. Importado (`incidente.importado`) pode
+ * já nascer baixo: sem uma gravação `relevante` depois, não conta como rebaixado. Só consulta incidentes de risco baixo com comunicação por fazer.
  */
 async function rebaixamentos(db: D1Database, projectId: string, incidentes: Incidente[]): Promise<Map<string, string>> {
   const ids = incidentes.filter((i) => i.risco_titular && RISCOS_SEM_COMUNICACAO.includes(i.risco_titular)
     && ((i.prazo_anpd_em && !i.comunicacao_anpd_em) || (i.prazo_titular_em && !i.comunicacao_titular_em))).map((i) => i.id);
   const desde = new Map<string, string>();
   if (!ids.length) return desde;
-  const { results } = await db.prepare(`SELECT entity_id, details, created_at FROM audit_logs WHERE entity_type = 'incidente' AND entity_id IN (SELECT value FROM json_each(?))
-    AND project_id = ? AND action = 'incidente.risco' ORDER BY created_at, rowid`).bind(JSON.stringify(ids), projectId).all<{ entity_id: string; details: string; created_at: string }>();
+  const { results } = await db.prepare(`SELECT entity_id, action, details, created_at FROM audit_logs WHERE entity_type = 'incidente' AND entity_id IN (SELECT value FROM json_each(?))
+    AND project_id = ? AND action IN ('incidente.risco', 'incidente.importado') ORDER BY created_at, rowid`).bind(JSON.stringify(ids), projectId).all<{ entity_id: string; action: string; details: string; created_at: string }>();
+  const anterior = new Map<string, 'exigida' | 'baixo' | 'desconhecido'>(); // sem linha: criado pela rota, risco não avaliado
   for (const t of results) {
-    if (!RISCOS_SEM_COMUNICACAO.some((r) => t.details.endsWith(` ${r}`))) desde.delete(t.entity_id);
-    else if (!desde.has(t.entity_id)) desde.set(t.entity_id, t.created_at);
+    const antes = anterior.get(t.entity_id) ?? 'exigida';
+    if (t.action === 'incidente.importado') { anterior.set(t.entity_id, 'desconhecido'); desde.delete(t.entity_id); continue; }
+    if (!RISCOS_SEM_COMUNICACAO.some((r) => t.details.endsWith(` ${r}`))) { anterior.set(t.entity_id, 'exigida'); desde.delete(t.entity_id); continue; }
+    if (antes === 'exigida') desde.set(t.entity_id, t.created_at);
+    anterior.set(t.entity_id, 'baixo');
   }
   return desde;
 }
@@ -265,7 +270,8 @@ export async function avaliarRisco(db: D1Database, projectId: string, id: string
   if (i.status === 'encerrado') return falha(409, 'Incidente encerrado não muda');
   // Rebaixar com o prazo já vencido (e a comunicação por fazer) apaga o atraso de todo lugar: a justificativa fica registrada.
   const vencido = (prazo: string | null, feita: string | null) => situacaoDaComunicacao(prazo, feita, null, undefined, i.ciencia_em) === 'atrasado';
-  if (RISCOS_SEM_COMUNICACAO.includes(d.risco_titular) && !d.avaliacao_texto?.trim()
+  const jaBaixo = !!i.risco_titular && RISCOS_SEM_COMUNICACAO.includes(i.risco_titular); // regravar baixo (ex.: só o texto) não é rebaixar
+  if (!jaBaixo && RISCOS_SEM_COMUNICACAO.includes(d.risco_titular) && !d.avaliacao_texto?.trim()
     && (vencido(i.prazo_anpd_em, i.comunicacao_anpd_em) || vencido(i.prazo_titular_em, i.comunicacao_titular_em))) {
     return falha(400, 'Para reavaliar o risco depois do prazo de comunicação vencido, registre a justificativa na avaliação.');
   }

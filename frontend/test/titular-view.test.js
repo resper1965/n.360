@@ -421,6 +421,17 @@ describe('incidentes', () => {
         expect(el('in-prazos').textContent).not.toContain('Titular: Não exigida (reavaliado');
     });
 
+    it('ciência às 21h00 de Brasília (meia-noite UTC): lista e ficha mostram a ciência e o prazo no dia de Brasília', async () => {
+        const i21 = { ...INCIDENTES[0], ciencia_em: '2026-11-13T00:00:00.000Z', prazo_anpd_em: '2026-11-14T00:00:00.000Z', situacao_anpd: 'atrasado' };
+        await abrir('incidentes', { [`GET ${B}/incidentes`]: [i21], [`GET ${B}/incidentes/i1`]: i21 });
+        expect(el('c').textContent).toContain('12/11/2026');
+        expect(el('c').textContent).not.toContain('13/11/2026');
+        await ficha();
+        expect(el('in-prazos').textContent).toContain('Ciência em 12/11/2026.');
+        expect(el('in-prazos').textContent).toContain('(13/11/2026)');
+        expect(el('in-faixa-anpd').textContent).toContain('o prazo era 13/11');
+    });
+
     it('sem risco ao titular: nenhuma comunicação é a próxima ação e encerrar não fala da ANPD', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco', situacao_anpd: 'nao_exigida', situacao_titular: 'nao_exigida' } });
         await ficha('comunicacao');
