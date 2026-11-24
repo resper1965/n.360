@@ -556,14 +556,14 @@ window.__adminCopiarApiKey = () => {
         try {
             if (!S.projects || S.projects.length === 0) { await loadProjects(); }
             const projects = S.projects || [];
-            if (!S.apiKeysProjectId && projects.length) S.apiKeysProjectId = projects[0].id;
-            const pid = S.apiKeysProjectId;
+            // Sem projeto pré-escolhido: a chave nasce no projeto que a pessoa viu e escolheu (id guardado que sumiu da lista conta como sem escolha).
+            const pid = projects.some(p => p.id === S.apiKeysProjectId) ? S.apiKeysProjectId : '';
             a.innerHTML = `<button class="btn btn-primary" data-action="openApiKeyModal" ${pid ? '' : 'disabled'}>Nova chave</button>`;
-            const projOptions = projects.map(p =>
+            const projOptions = `<option value="" ${pid ? '' : 'selected'}>Escolha o projeto</option>` + projects.map(p =>
                 `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${escapeHTML(p.project_name || p.client_name || p.id)}</option>`
             ).join('');
 
-            let tabela = '';
+            let tabela = '<p class="form-hint">Escolha o projeto para ver e criar as chaves.</p>';
             if (pid) {
                 // api() desembrulha o envelope { ok, keys: [...] } e devolve o array direto.
                 // Deixar o erro propagar para o catch externo — não mascarar falha como "sem chaves".

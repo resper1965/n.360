@@ -1,7 +1,7 @@
 // Autoatendimento do segundo fator (src/views/security.js). O que importa: a senha é exigida
 // antes de qualquer chamada, o MFA só liga na confirmação do código, os códigos de recuperação
 // (exibidos uma única vez) nunca somem em silêncio, e desativar derruba a sessão.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
 vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://api.test' }));
@@ -16,10 +16,16 @@ const texto = () => $('modal-content').textContent;
 const acoes = () => [...$('modal-content').querySelectorAll('[data-action]')].map((e) => e.dataset.action);
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); // o foco do modal agenda 50 ms: sem relógio falso ele dispara depois do teardown
   apiMock.mockReset();
   document.body.innerHTML = MODAL;
   window.doLogout = vi.fn();
   S.user = { email: 'ana@exemplo.test' };
+});
+
+afterEach(() => {
+  vi.clearAllTimers(); // timer pendente morre aqui, não depois do fim do ambiente
+  vi.useRealTimers();
 });
 
 describe('openSecurityModal', () => {
@@ -141,6 +147,13 @@ describe('ativação', () => {
     $('mfa-codigo').value = '123456';
     await window.doMfaActivate();
     expect($('x')).toBeNull();
+  });
+
+  it('o foco vai para o campo do código depois de 50 ms (timer controlado pelo teste, nada pendente depois dele)', async () => {
+    await ateOCodigo();
+    expect(document.activeElement).not.toBe($('mfa-codigo'));
+    vi.advanceTimersByTime(50);
+    expect(document.activeElement).toBe($('mfa-codigo'));
   });
 });
 

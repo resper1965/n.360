@@ -348,11 +348,12 @@ describe('renderApiKeys', () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  it('platform_admin: seleciona o primeiro projeto, lista chaves e só oferece revogar a ativa', async () => {
+  it('platform_admin com o projeto escolhido: lista chaves e só oferece revogar a ativa', async () => {
     apiMock.mockResolvedValue({ keys: [
       { id: 'k1', name: '<b id="kn">x</b>', status: 'Active', permissions: 'consultant', created_at: '2026-10-01T10:00:00Z' },
       { id: 'k2', name: 'velha', status: 'Revoked', last_used_at: '2026-09-01' },
     ] });
+    S.apiKeysProjectId = 'p1';
     const [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
     expect(S.apiKeysProjectId).toBe('p1');
@@ -372,6 +373,7 @@ describe('renderApiKeys', () => {
 
   it('sem chaves: linha de vazio; sem projetos: "Nova chave" desabilitado e nenhuma chamada de chaves', async () => {
     apiMock.mockResolvedValue([]);
+    S.apiKeysProjectId = 'p1';
     let [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
     expect(c.textContent).toMatch(/Nenhuma chave para este projeto/);
@@ -387,11 +389,34 @@ describe('renderApiKeys', () => {
 
   it('erro da API não vira "sem chaves": mostra o erro', async () => {
     apiMock.mockRejectedValue(new Error('403 Forbidden'));
+    S.apiKeysProjectId = 'p1';
     const [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
     expect(c.querySelector('.error-state').textContent).toContain('Não foi possível carregar as chaves de API.');
     expect(c.textContent).not.toContain('403');
     expect(c.querySelector('table')).toBeNull();
+  });
+
+  it('abre sem projeto escolhido: "Nova chave" desabilitada, opção "Escolha o projeto" e nenhuma chamada de chaves; escolher habilita', async () => {
+    apiMock.mockResolvedValue([]);
+    S.projects = [{ id: 'p1', client_name: 'Cliente Um' }, { id: 'p2', client_name: 'Cliente Dois' }];
+    let [c, h, a] = dom();
+    await window.renderApiKeys(c, h, a);
+    expect(S.apiKeysProjectId).toBeFalsy();
+    expect(apiMock).not.toHaveBeenCalled();
+    expect(a.querySelector('[data-action="openApiKeyModal"]').disabled).toBe(true);
+    const sel = c.querySelector('#apikeys-projeto');
+    expect(sel.value).toBe('');
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['Escolha o projeto', 'Cliente Um', 'Cliente Dois']);
+    expect(c.textContent).toContain('para ver e criar as chaves');
+    expect(c.querySelector('table')).toBeNull();
+
+    S.apiKeysProjectId = 'p2';   // o que o __setFilter faz ao escolher
+    [c, h, a] = dom();
+    await window.renderApiKeys(c, h, a);
+    expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p2/api-keys');
+    expect(a.querySelector('[data-action="openApiKeyModal"]').disabled).toBe(false);
+    expect(c.querySelector('#apikeys-projeto').value).toBe('p2');
   });
 });
 

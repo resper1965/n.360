@@ -102,6 +102,24 @@ describe('teto de módulos (tetoDaConta): vem da conta que se cria', () => {
     expect((await equipe('cons-on4', 'eq-teto-ok@cons-on4.lat', ['ot'])).status).toBe(201);
     expect(await modulosDe('eq-teto-ok@cons-on4.lat')).toEqual(['ot']);
   });
+  it('teto do PROJETO: cliente com o ot em projeto SEM o ot, de organização que CONTRATA o ot, é 400; no projeto com o ot passa', async () => {
+    const pj = await chamar('POST', '/api/v1/projects', S['cons-on4'], { client_name: 'Cliente sem ot, organização com ot', modulos: ['iso', 'privacy'] });
+    expect(pj.status).toBe(201);
+    const semOt = ((await pj.json()) as { id: string }).id;
+    const recusa = await convidar('cons-on4', { name: 'Cliente', email: 'cli-teto-proj@cliente.lat', role: 'org_admin', client_project_id: semOt, modulos: ['ot'] });
+    expect(recusa.status).toBe(400);
+    expect(((await recusa.json()) as { error: string }).error).toMatch(/Esta conta não pode receber/);
+    expect(await env.DB.prepare(`SELECT 1 AS x FROM users WHERE email = 'cli-teto-proj@cliente.lat'`).first()).toBeNull();
+    // Controle: a MESMA organização, projeto COM o ot (P['cons-on4']): o teto do cliente é o do projeto, então passa.
+    expect((await cliente('cons-on4', 'cli-teto-proj-ok@cliente.lat', ['ot'])).status).toBe(201);
+    expect(await modulosDe('cli-teto-proj-ok@cliente.lat')).toEqual(['ot']);
+  });
+  it('teto da ORGANIZAÇÃO: projeto com o ot não nasce em organização que não o contrata (409), então só a equipe tem esse teto', async () => {
+    const r = await chamar('POST', '/api/v1/projects', S['sem-ot4'], { client_name: 'Tenta o ot sem contrato', modulos: ['iso', 'ot'] });
+    expect(r.status).toBe(409);
+    expect(((await r.json()) as { error: string }).error).toMatch(/não contratado/);
+    expect(await env.DB.prepare(`SELECT 1 AS x FROM projects WHERE client_name = 'Tenta o ot sem contrato'`).first()).toBeNull();
+  });
 });
 
 describe('o que o assistente encadeado repete ou reenvia', () => {

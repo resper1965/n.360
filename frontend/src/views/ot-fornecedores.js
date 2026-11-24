@@ -30,7 +30,7 @@ export async function montarFornecedoresOt(c, a, p) {
     const privacy = temPrivacyNoProjeto(p);
     const nomeFluxo = (id) => { const f = D.fluxos.find((x) => x.id === id); return f ? rotuloFluxo(f) : '—'; };
     const perguntas = !edita || !forn.length ? '' : privacy
-        ? `<button class="btn" data-action="otFornPerguntas" data-args='${escapeHTML(JSON.stringify([forn[0].id]))}'>Gerar perguntas de OT</button>`
+        ? `<button class="btn" data-action="otFornPerguntas" data-args='${escapeHTML(JSON.stringify([forn[0].id]))}'>Gerar perguntas de OT para o projeto</button>`
         : `<p class="org-dica">${AVISO_PRIVACY}</p>`;
     const form = !edita ? '' : `<div class="d-flex gap-2 items-center flex-wrap">
         <label class="form-label" for="ot-forn-parte">Fornecedor</label><select class="form-input" id="ot-forn-parte">${opcoes(partes.map((x) => [x.id, x.nome]))}</select>
