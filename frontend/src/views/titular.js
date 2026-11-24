@@ -6,7 +6,7 @@ import { produtoAtual, limparFichaDoEndereco } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
 import { montarLista, colunasDe, consultaDe } from '../lista.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
-import { hojeSP } from '../hoje.js';
+import { hojeSP, diaSP, ehFeriadoNacional } from '../hoje.js';
 import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 import { rotuloDe } from '../rotulos.js';
 import { semRepetir } from '../ot-comum.js';
@@ -22,7 +22,7 @@ const METODOS_IDENTIDADE = { documento_foto: 'Documento com foto', dados_cadastr
 const STATUS_ENCAMINHAMENTO = { aguardando: 'Aguardando', respondido: 'Respondido', cancelado: 'Cancelado' };
 const STATUS_PEDIDO = { recebido: 'Recebido', em_andamento: 'Em andamento', respondido: 'Respondido', negado: 'Negado', arquivado: 'Arquivado' };
 const TIPOS_TRATATIVA = { comunicacao_titular: 'Comunicação ao titular', encaminhamento: 'Encaminhamento a ponto focal', evidencia: 'Evidência recebida', nota: 'Nota interna' };
-const PRAZO = { sem_prazo: ['Prazo não calculado', 'neutral'], encerrado: ['Encerrado', 'neutral'], no_prazo: ['No prazo', 'success'], vence_hoje: ['Vence hoje', 'warning'], atrasado: ['Atrasado', 'danger'], comunicado: ['Comunicado', 'success'] };
+const PRAZO = { sem_prazo: ['Prazo não calculado', 'neutral'], encerrado: ['Encerrado', 'neutral'], no_prazo: ['No prazo', 'success'], vence_hoje: ['Vence hoje', 'warning'], atrasado: ['Atrasado', 'danger'], comunicado: ['Comunicado', 'success'], nao_exigida: ['Não exigida', 'neutral'] };
 const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' };
 const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
 // Registro completo do incidente (0098; listas aprovadas pelo dono em 04/11/2026). Os valores são os do servidor (src/schemas/nucleo.ts).
@@ -534,26 +534,29 @@ window.salvarNovoIncidente = function (projectId) {
     }, 'Não foi possível registrar o incidente', null, () => (novoId ? window.abrirIncidente(projectId, novoId) : forceCloseModal()));
 };
 
-const diaMes = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}` : '—');
-// Dias úteis (seg. a sex.) depois de hoje até o prazo, inclusive. ponytail: sem feriados; a contagem oficial é a do servidor.
+// Dia de São Paulo (o prazo às 22h de Brasília é gravado como 01h UTC do dia seguinte).
+const diaMes = (s) => { const d = diaSP(s); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—'; };
+// Dias úteis (seg. a sex., fora feriado nacional, pelo dia de São Paulo) depois de hoje até o prazo, inclusive: a mesma regra do servidor.
 function diasUteisAte(prazo) {
-    const fim = new Date(`${String(prazo).slice(0, 10)}T00:00:00Z`);
+    const fim = new Date(`${diaSP(prazo)}T00:00:00Z`);
     const d = new Date(`${hojeSP()}T00:00:00Z`);
     let n = 0;
-    while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0) n++; }
+    while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0 && !ehFeriadoNacional(d.toISOString().slice(0, 10))) n++; }
     return n;
 }
 /** Faixa fixa do topo do incidente: o prazo da ANPD em contagem, ou a confirmação de que foi comunicado. */
 function faixaAnpd(i) {
     const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor.replace(/var\(--(danger|warning)\)/, 'var(--$1-ink)')}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
     if (i.comunicacao_anpd_em) {
-        const noPrazo = !i.prazo_anpd_em || String(i.comunicacao_anpd_em).slice(0, 10) <= String(i.prazo_anpd_em).slice(0, 10);
+        const noPrazo = !i.prazo_anpd_em || diaSP(i.comunicacao_anpd_em) <= diaSP(i.prazo_anpd_em);
         return faixa('var(--text-2)', `Comunicado à ANPD em ${diaMes(i.comunicacao_anpd_em)}, ${noPrazo ? 'dentro do prazo' : 'fora do prazo'}.`);
     }
-    if (i.status === 'encerrado' || i.risco_titular === 'sem_risco') return '';
+    if (i.status === 'encerrado') return '';
+    // Risco avaliado sem_risco ou baixo: a comunicação não é exigida (regra do servidor, `situacaoDaComunicacao`).
+    if (i.situacao_anpd === 'nao_exigida') return faixa('var(--text-2)', `Comunicação à ANPD: não exigida (risco ${(RISCOS[i.risco_titular] || '').toLowerCase()}).`);
     if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
     // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
-    const hoje = hojeSP(), prazo = String(i.prazo_anpd_em).slice(0, 10);
+    const hoje = hojeSP(), prazo = diaSP(i.prazo_anpd_em);
     if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
     if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
     const n = diasUteisAte(i.prazo_anpd_em);
@@ -593,7 +596,7 @@ let fichaInc = null;
 let seqInc = 0;
 const repintarIncidente = () => (fichaInc ? window.renderIncidenteFicha(fichaInc.c, fichaInc.h, fichaInc.a) : undefined);
 
-function painelRegistro(i, projectId, id, editar, encerrar, semRisco) {
+function painelRegistro(i, projectId, id, editar, encerrar) {
     return `<p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
         ${i.descricao ? `<p class="at-nota">${escapeHTML(i.descricao)}</p>` : ''}
@@ -605,13 +608,14 @@ function painelRegistro(i, projectId, id, editar, encerrar, semRisco) {
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
             <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>` : ''}
         ${encerrar ? `<div class="mt-4"><div id="in-encerrar"></div>
-            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button></div>` : ''}
+            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || i.situacao_anpd === 'nao_exigida', i.risco_titular || null)}'>Encerrar incidente</button></div>` : ''}
         ${vinculoOtHTML(projectId)}`;
 }
 
-function painelComunicacao(i, projectId, id, editar, semRisco) {
-    // A ação primária é a próxima comunicação devida; sem risco ao titular não há comunicação devida (nem à ANPD).
-    const proxima = semRisco ? null : !i.comunicacao_anpd_em ? 'anpd' : !i.comunicacao_titular_em ? 'titular' : null;
+function painelComunicacao(i, projectId, id, editar) {
+    // A ação primária é a próxima comunicação devida; a não exigida (risco sem_risco ou baixo) nunca é a próxima.
+    const devida = (s) => s !== 'comunicado' && s !== 'nao_exigida';
+    const proxima = devida(i.situacao_anpd) ? 'anpd' : devida(i.situacao_titular) ? 'titular' : null;
     const comunicar = (destino, rotulo) => `<button class="btn ${proxima === destino ? 'btn-primary' : ''} btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, destino)}'>${rotulo}</button>`;
     const feitas = `<ul class="at-lista">
         <li><strong>ANPD:</strong> ${i.comunicacao_anpd_em ? `${escapeHTML(i.anpd_protocolo_interno || '')}, enviada em ${dia(i.comunicacao_anpd_em)}${i.anpd_canal ? ` · ${escapeHTML(CANAIS_ANPD[i.anpd_canal] || i.anpd_canal)}` : ''}${i.anpd_protocolo ? ` · protocolo ${escapeHTML(i.anpd_protocolo)}` : ''}` : 'não registrada'}</li>
@@ -653,10 +657,9 @@ async function renderIncidenteFicha(c, h, a) {
     const aba = abaIncDoEndereco();
     const editar = podeRegistrar() && i.status !== 'encerrado';
     const encerrar = podeEditar() && i.status !== 'encerrado';
-    const semRisco = i.risco_titular === 'sem_risco';
     h.textContent = `${i.protocolo} — ${i.titulo}`;
-    const corpo = aba === 'registro' ? painelRegistro(i, projectId, id, editar, encerrar, semRisco)
-        : aba === 'comunicacao' ? painelComunicacao(i, projectId, id, editar, semRisco)
+    const corpo = aba === 'registro' ? painelRegistro(i, projectId, id, editar, encerrar)
+        : aba === 'comunicacao' ? painelComunicacao(i, projectId, id, editar)
         : aba === 'analise' ? '<div id="in-analises"></div>'
         : aba === 'acoes' ? '<div id="in-acoes"></div>'
         : aba === 'postmortem' ? '<div id="in-postmortem"></div>'

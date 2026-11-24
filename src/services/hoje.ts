@@ -31,6 +31,13 @@ export function diaEmSaoPaulo(v: string | null): string | null {
   return Number.isNaN(d.getTime()) ? t.slice(0, 10) : hojeEmSaoPaulo(d);
 }
 
+/**
+ * `diaEmSaoPaulo` em SQL, para comparar e agrupar prazos no banco pela mesma regra do TypeScript: data pura ou meia-noite UTC exata fica
+ * como está; instante vira o dia de São Paulo (`'-3 hours'`: sem horário de verão desde 2019, o mesmo atalho de avisos-prazo.ts).
+ */
+export const sqlDiaSP = (c: string) => `(CASE WHEN ${c} NOT GLOB '*[T ][0-9][0-9]:[0-9][0-9]*' OR ${c} GLOB '????-??-??T00:00Z' OR ${c} GLOB '????-??-??T00:00:00Z'
+  OR (${c} GLOB '????-??-??T00:00:00.?*Z' AND rtrim(substr(${c}, 21, length(${c}) - 21), '0') = '') THEN substr(${c}, 1, 10) ELSE date(${c}, '-3 hours') END)`;
+
 /** AAAA-MM do mês de `dia` (AAAA-MM-DD) recuado `n` meses (n >= 0). Conta pelo calendário, sem o dia: 31/03 menos 1 mês é fevereiro. */
 export const mesesAtras = (dia: string, n: number) => {
   const t = Number(dia.slice(0, 4)) * 12 + Number(dia.slice(5, 7)) - 1 - n;

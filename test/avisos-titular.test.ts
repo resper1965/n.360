@@ -50,12 +50,20 @@ describe('fonte incidente', () => {
     expect(Object.fromEntries(itens.map((i) => [i.item_id, i.marco]))).toEqual({ 'i1:anpd': 'D-7', 'i1:titular': 'D0' });
     expect(itens.map((i) => i.titulo).sort()).toEqual(['Comunicação ao titular do incidente IN-2026-i1', 'Comunicação à ANPD do incidente IN-2026-i1']);
   });
-  it('comunicação feita sai; encerrado sai; sem_risco sai; sem prazo (parâmetro ausente) não entra', async () => {
+  it('comunicação feita sai; encerrado sai; sem_risco e baixo saem (não exigida); sem prazo (parâmetro ausente) não entra', async () => {
     await db().batch([
       inc('feita', { anpd: '2026-10-07', tit: '2026-10-07', feitaAnpd: '2026-10-05' }), inc('enc', { anpd: '2026-10-07', feitaAnpd: '2026-10-06', status: 'encerrado' }),
-      inc('semrisco', { anpd: '2026-10-07', risco: 'sem_risco' }), inc('semprazo', {}),
+      inc('semrisco', { anpd: '2026-10-07', risco: 'sem_risco' }), inc('baixo', { anpd: '2026-10-01', tit: '2026-10-07', risco: 'baixo' }), inc('semprazo', {}),
     ]);
     expect((await daFonte('incidente')).map((i) => i.item_id)).toEqual(['feita:titular']);
+  });
+  it('prazo às 22h de Brasília conta no dia de Brasília (01h UTC do dia seguinte): D0, D-7 e atraso', async () => {
+    await db().batch([
+      inc('hoje22', { anpd: '2026-10-08T01:00:00.000Z' }), inc('d7', { anpd: '2026-10-15T01:00:00.000Z' }), inc('ontem22', { anpd: '2026-10-07T01:00:00.000Z' }),
+      ped('p22', '2026-10-08T01:00:00.000Z'),
+    ]);
+    expect(Object.fromEntries((await daFonte('incidente')).map((i) => [i.item_id, i.marco]))).toEqual({ 'hoje22:anpd': 'D0', 'd7:anpd': 'D-7', 'ontem22:anpd': 'atraso-2026-W41' });
+    expect((await daFonte('titular_pedido')).map((i) => [i.item_id, i.marco])).toEqual([['p22', 'D0']]);
   });
   it('incidente ainda sem avaliação de risco avisa (o risco não pode esconder o prazo)', async () => {
     await inc('naoavaliado', { anpd: '2026-10-07', risco: null }).run();

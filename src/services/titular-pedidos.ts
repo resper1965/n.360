@@ -24,7 +24,7 @@ export type SituacaoPrazo = 'sem_prazo' | 'encerrado' | 'no_prazo' | 'vence_hoje
 export function situacaoDoPrazo(p: { prazo_em: string | null; status: string }, em = hoje()): SituacaoPrazo {
   if (['respondido', 'negado', 'arquivado'].includes(p.status)) return 'encerrado';
   if (!p.prazo_em) return 'sem_prazo';
-  const dia = p.prazo_em.slice(0, 10);
+  const dia = diaEmSaoPaulo(p.prazo_em)!;
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 
