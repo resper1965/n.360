@@ -345,6 +345,20 @@ describe('incidentes', () => {
         } finally { vi.useRealTimers(); }
     });
 
+    it('faixa: prazo às 22h de Brasília (01h UTC do dia seguinte) vence no dia de Brasília', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-16T12:00:00Z'));
+        try {
+            await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-17T01:00:00.000Z', situacao_anpd: 'vence_hoje' } });
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até hoje, 16/10.');
+            vi.setSystemTime(new Date('2026-10-14T12:00:00Z'));
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-17T01:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await ficha();
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até 16/10 (faltam 2 dias úteis)');
+        } finally { vi.useRealTimers(); }
+    });
+
     it('sem dia útil restante: nunca "faltam 0 dias úteis"; vence hoje ou venceu pela data', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-10-16T12:00:00Z')); // sexta-feira

@@ -6,7 +6,7 @@ import { produtoAtual, limparFichaDoEndereco } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
 import { montarLista, colunasDe, consultaDe } from '../lista.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
-import { hojeSP } from '../hoje.js';
+import { hojeSP, diaSP } from '../hoje.js';
 import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 import { rotuloDe } from '../rotulos.js';
 import { semRepetir } from '../ot-comum.js';
@@ -534,10 +534,11 @@ window.salvarNovoIncidente = function (projectId) {
     }, 'Não foi possível registrar o incidente', null, () => (novoId ? window.abrirIncidente(projectId, novoId) : forceCloseModal()));
 };
 
-const diaMes = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}` : '—');
+// Dia de São Paulo (o prazo às 22h de Brasília é gravado como 01h UTC do dia seguinte).
+const diaMes = (s) => { const d = diaSP(s); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—'; };
 // Dias úteis (seg. a sex.) depois de hoje até o prazo, inclusive. ponytail: sem feriados; a contagem oficial é a do servidor.
 function diasUteisAte(prazo) {
-    const fim = new Date(`${String(prazo).slice(0, 10)}T00:00:00Z`);
+    const fim = new Date(`${diaSP(prazo)}T00:00:00Z`);
     const d = new Date(`${hojeSP()}T00:00:00Z`);
     let n = 0;
     while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0) n++; }
@@ -547,7 +548,7 @@ function diasUteisAte(prazo) {
 function faixaAnpd(i) {
     const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor.replace(/var\(--(danger|warning)\)/, 'var(--$1-ink)')}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
     if (i.comunicacao_anpd_em) {
-        const noPrazo = !i.prazo_anpd_em || String(i.comunicacao_anpd_em).slice(0, 10) <= String(i.prazo_anpd_em).slice(0, 10);
+        const noPrazo = !i.prazo_anpd_em || diaSP(i.comunicacao_anpd_em) <= diaSP(i.prazo_anpd_em);
         return faixa('var(--text-2)', `Comunicado à ANPD em ${diaMes(i.comunicacao_anpd_em)}, ${noPrazo ? 'dentro do prazo' : 'fora do prazo'}.`);
     }
     if (i.status === 'encerrado') return '';
@@ -555,7 +556,7 @@ function faixaAnpd(i) {
     if (i.situacao_anpd === 'nao_exigida') return faixa('var(--text-2)', `Comunicação à ANPD: não exigida (risco ${(RISCOS[i.risco_titular] || '').toLowerCase()}).`);
     if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
     // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
-    const hoje = hojeSP(), prazo = String(i.prazo_anpd_em).slice(0, 10);
+    const hoje = hojeSP(), prazo = diaSP(i.prazo_anpd_em);
     if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
     if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
     const n = diasUteisAte(i.prazo_anpd_em);

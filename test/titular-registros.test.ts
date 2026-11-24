@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { hojeEmSaoPaulo, diaMaisSP } from '../src/services/hoje';
+import { hojeEmSaoPaulo, diaMaisSP, diaEmSaoPaulo, sqlDiaSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
@@ -54,6 +54,30 @@ describe('somarPrazo', () => {
   });
   it('data inválida estoura', () => {
     expect(() => somarPrazo('ontem', 1, 'horas')).toThrow();
+  });
+});
+
+describe('dia do prazo em São Paulo (JS e SQL, a mesma regra)', () => {
+  // 22h de Brasília de 09/10 = 01h UTC de 10/10
+  const SP22 = '2026-10-10T01:00:00.000Z';
+  it('prazo às 22h de Brasília: no dia dele vence hoje, no seguinte atrasado (comunicação e pedido)', () => {
+    expect(situacaoDaComunicacao(SP22, null, 'relevante', '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDaComunicacao(SP22, null, null, '2026-10-10')).toBe('atrasado');
+    expect(situacaoDoPrazo({ prazo_em: SP22, status: 'recebido' }, '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDoPrazo({ prazo_em: SP22, status: 'recebido' }, '2026-10-10')).toBe('atrasado');
+    // data pura e meia-noite UTC exata são o dia do calendário (não voltam um dia)
+    expect(situacaoDaComunicacao('2026-10-09', null, 'relevante', '2026-10-09')).toBe('vence_hoje');
+    expect(situacaoDaComunicacao('2026-10-09T00:00:00.000Z', null, 'relevante', '2026-10-09')).toBe('vence_hoje');
+  });
+  it('sqlDiaSP dá o mesmo dia que diaEmSaoPaulo', async () => {
+    const valores = [SP22, '2026-10-09', '2026-10-09T00:00:00.000Z', '2026-10-09T00:00:00Z', '2026-10-09T00:00Z', '2026-10-09T10:00:00.000Z',
+      '2026-10-09 12:00:00', '2026-10-10 02:59:59', '2026-10-09T23:30:00-03:00', '2026-10-09T00:00:00.123Z'];
+    for (const v of valores) {
+      const r = await env.DB.prepare(`SELECT ${sqlDiaSP('?1')} AS d`).bind(v).first<{ d: string }>();
+      expect(r?.d, v).toBe(diaEmSaoPaulo(v));
+    }
+    expect(diaEmSaoPaulo(SP22)).toBe('2026-10-09');
+    expect(diaEmSaoPaulo('2026-10-09')).toBe('2026-10-09');
   });
 });
 

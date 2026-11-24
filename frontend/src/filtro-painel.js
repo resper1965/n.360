@@ -1,12 +1,13 @@
 import { S } from './state.js';
 import { escapeHTML } from './ui.js';
-import { hojeSP, emDiasSP } from './hoje.js';
+import { hojeSP, emDiasSP, diaSP } from './hoje.js';
 
 // Filtro por situação com que o painel abre uma lista de destino ("O que fazer" > botão). O estado é só uma chave desta lista
 // fechada, em memória (`S.filtroPainel`, gravado pelo `navigate` e apagado na navegação seguinte); do n.360 para um módulo vai
 // pelo sessionStorage (produto.js), nunca pelo endereço. Nada de dado: a chave diz "atrasados", não quem nem o quê.
 
-const dia = (v) => String(v || '').slice(0, 10);
+// Dia de São Paulo da data gravada: a mesma regra do servidor (`diaEmSaoPaulo`).
+const dia = (v) => diaSP(v);
 /** Hoje em São Paulo: o mesmo dia do servidor. */
 const hoje = () => hojeSP();
 const emDias = (n) => emDiasSP(n);

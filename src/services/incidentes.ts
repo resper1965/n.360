@@ -1,6 +1,6 @@
 import { logAudit } from '../helpers';
 import { prazoDe, proximoProtocolo } from './parametros-legais';
-import { hojeEmSaoPaulo } from './hoje';
+import { hojeEmSaoPaulo, diaEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: incidente de segurança com dado pessoal (registro interno). Protocolo `IN-AAAA-NNNN`; os dois prazos de
@@ -29,7 +29,7 @@ export function situacaoDaComunicacao(prazo: string | null, feita: string | null
   if (feita) return 'comunicado';
   if (risco && RISCOS_SEM_COMUNICACAO.includes(risco)) return 'nao_exigida';
   if (!prazo) return 'sem_prazo';
-  const dia = prazo.slice(0, 10);
+  const dia = diaEmSaoPaulo(prazo)!;
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 

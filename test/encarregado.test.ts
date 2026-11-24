@@ -182,6 +182,21 @@ describe('projeto com pendências', () => {
   });
 });
 
+describe('prazo às 22h de Brasília', () => {
+  it('conta no dia de Brasília: pedido do 7º dia às 22h vence em 7 dias; o atrasado não entra nos 7 dias; incidente de ontem às 22h atrasado', async () => {
+    const as22 = (n: number) => `${dias(n + 1)}T01:00:00.000Z`; // 22h de Brasília do dia n
+    await db().batch([
+      db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, prazo_em, status) VALUES
+        ('q1', 'e1', 'PT-1', 'acesso', ?1, ?2, 'recebido'), ('q2', 'e1', 'PT-2', 'acesso', ?1, ?3, 'recebido')`).bind(dias(-10), as22(7), as22(-2)),
+      db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, status, risco_titular) VALUES
+        ('j1', 'e1', 'IN-1', 'Ontem às 22h', ?1, ?2, NULL, 'avaliado', 'relevante')`).bind(dias(-5), as22(-1)),
+    ]);
+    const v = await ver();
+    expect(v.pedidos_titular).toMatchObject({ atrasados: 1, vencem_em_7_dias: 1, exigem_atencao: 2 });
+    expect(v.incidentes.comunicacoes_atrasadas).toBe(1);
+  });
+});
+
 describe('canal do titular (0117)', () => {
   const doCanal = async () => (await ver()).prioridades.filter((p) => p.texto.startsWith('Canal')) as unknown as Record<string, string>[];
   it('sem meio: alta e Exigido, para Solicitações; com meio e sem página: média; página nunca conferida: média; conferida: nenhuma', async () => {
