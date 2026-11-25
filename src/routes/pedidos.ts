@@ -636,7 +636,7 @@ projectPedidosApp.post('/:id/cancelar', async (c) => {
       `Pedido ${p.id} (${p.tipo} ${p.ref_id}, papel ${p.papel_exigido}) cancelado por ${user.email}`,
       valid.data.motivo, c.req.header('CF-Connecting-IP') ?? '', p.project_id);
     return c.json({ ok: true, status: 'cancelado' });
-  } catch (e: any) {
+  } catch (e) {
     return erro500(c, 'Erro ao cancelar o pedido', e);
   }
 });
