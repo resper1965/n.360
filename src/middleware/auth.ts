@@ -417,6 +417,8 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
       // Decisão do PRÓPRIO pedido de aprovação/ciência (o handler exige ser destinatário e a senha).
       // Criar pedido continua bloqueado para estes papéis.
       { methods: ['POST'], test: p => /^\/api\/v1\/pedidos\/[^/]+\/(aprovar|recusar)$/.test(p) },
+      // Aceite do risco residual e revogação do próprio aceite (o handler exige a alçada na matriz de Governança e a senha).
+      { methods: ['POST'], test: p => /^\/api\/v1\/risks\/[^/]+\/aceite(\/revogar)?$/.test(p) || /^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/riscos\/[^/]+\/aceite(\/revogar)?$/.test(p) },
       // n.ot: o técnico (org_user) escreve só a lista fechada ESCRITAS_DO_TECNICO (modelo de ameaças P1-2, E3); o site e o papel a rota confere.
       { methods: ['POST', 'PUT'], test: p => /^\/api\/v1\/projects\/[^/]+\/ot(\/.*)$/.test(p) && ESCRITAS_DO_TECNICO.test(p.replace(/^.*?\/ot(?=\/)/, '')) },
     ];

@@ -40,8 +40,9 @@ const baixar = async (tipo: string) => {
 describe('CSV do n.iso em pt-BR', () => {
   it('riscos: cabeçalho em português, nível, tratamento e status traduzidos', async () => {
     const [cab, linha] = await baixar('risks');
-    expect(cab).toBe('"Ativo";"Ameaça";"Vulnerabilidade";"Impacto";"Probabilidade";"Nível";"Tratamento";"Responsável";"Status"');
-    expect(linha).toBe('"Servidor";"Vazamento";"Senha fraca";"4";"4";"Alto";"Mitigar";"Ana";"Aberto"');
+    // Nível residual e as três colunas do aceite do risco residual (migration 0120): sem aceite, "Aceite pendente".
+    expect(cab).toBe('"Ativo";"Ameaça";"Vulnerabilidade";"Impacto";"Probabilidade";"Nível";"Tratamento";"Nível residual";"Responsável";"Status";"Aceite do risco residual";"Aceito por";"Aceito em (UTC)"');
+    expect(linha).toBe('"Servidor";"Vazamento";"Senha fraca";"4";"4";"Alto";"Mitigar";"";"Ana";"Aberto";"Aceite pendente";"";""');
   });
 
   it('fornecedores: Sim/Não e o nível de diligência traduzido', async () => {

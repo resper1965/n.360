@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { genId, logAudit, requireResourceAccess, erro500, ForbiddenError, refForaDoProjeto } from '../helpers';
-import { validateBody, createRiskSchema, riskUpdateSchema } from '../schemas';
+import { genId, logAudit, requireResourceAccess, erro500, ForbiddenError, refForaDoProjeto, podeMexerEmAssinaturaDe } from '../helpers';
+import { validateBody, createRiskSchema, riskUpdateSchema, riscoAceiteSchema, riscoRevogarAceiteSchema, riscoAlcadasSchema } from '../schemas';
+import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, alcadasDoProjeto, NIVEIS_RISCO, RECUSA_STATUS_ACEITO, RECUSA_EXCLUIR_COM_ACEITE, temAceiteRegistrado, type RiscoBase } from '../services/aceite-risco';
+import { conferirPedidosDoDocumento } from './pedidos';
 import { escopoRopa } from '../services/escopo-itens';
 import { riskLevel, residualLevel, carimboDeAceite, aceiteCaiu } from '../services/riscos-atividade';
 
@@ -16,8 +18,9 @@ risks.get('/api/v1/projects/:projectId/risks', async (c) => {
      LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
      WHERE r.project_id = ?${escopoRopa('todos', 'r.ropa_id')}
      ORDER BY r.impact * r.probability DESC`
-  ).bind(c.req.param('projectId')).all();
-  return c.json({ ok: true, risks: results });
+  ).bind(c.req.param('projectId')).all<RiscoBase>();
+  // `aceite`: situação do aceite do risco residual (aceito, pendente, revogado), quem e quando, e se esta pessoa pode aceitar.
+  return c.json({ ok: true, risks: await comAceite(c.env.DB, c.get('user'), c.req.param('projectId') ?? '', results) });
 });
 
 risks.post('/api/v1/projects/:projectId/risks', async (c) => {
@@ -30,6 +33,8 @@ risks.post('/api/v1/projects/:projectId/risks', async (c) => {
     if (c.get('user')?.agente === true && (body.status === 'Accepted' || body.accepted_by != null || body.accepted_at != null)) {
       return c.json({ error: 'Forbidden: aceitar risco é ato humano, pela interface' }, 403);
     }
+    // Risco não nasce aceito: o aceite do residual é um ato à parte, com senha (services/aceite-risco.ts).
+    if (body.status === 'Accepted') return c.json({ error: RECUSA_STATUS_ACEITO }, 403);
     const fora = await refForaDoProjeto(c.env.DB, projectId, body, ['control_id', 'asset_id', 'owner_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
     const id = genId();
@@ -104,6 +109,8 @@ risks.put('/api/v1/risks/:id', async (c) => {
     ).bind(id).first<Record<string, any>>();
     if (!atual) return c.json({ error: 'Risco não encontrado' }, 404);
     const projectId = atual.project_id;
+    const recusaStatus = await recusaDoStatus(c.env.DB, id, atual.status, body.status);
+    if (recusaStatus) return c.json({ error: recusaStatus }, body.status === 'Accepted' ? 403 : 409);
     // O projeto vem do risco gravado, nunca do corpo.
     const fora = await refForaDoProjeto(c.env.DB, projectId, body, ['control_id', 'asset_id', 'owner_parte_id', 'ropa_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
@@ -162,8 +169,11 @@ risks.put('/api/v1/risks/:id', async (c) => {
          VALUES (?, ?, ?, ?, ?, ?)`
       ).bind(histId, id, projectId, impact, probability, level).run();
     }
-    if (aceite) await logAudit(c.env.DB, 'risk.aceito', email, `Risco ${id} aceito`, '', '', projectId);
-    if (caiu) await logAudit(c.env.DB, 'risk.aceite_invalidado', email, `Risco ${id}: as notas mudaram depois do aceite; voltou a Aberto`, '', '', projectId);
+    // Aceite com senha: mudou o que foi aceito (notas, residual, estratégia, plano, controle), o aceite cai e o risco volta ao status
+    // de antes. O pedido de aceite aberto acompanha o conteúdo novo. O aceite antigo (sem senha) segue a regra das notas, abaixo.
+    const invalidou = await conferirAceite(c.env.DB, id, email);
+    await conferirPedidosDoDocumento(c, 'risco', id, projectId);
+    if (caiu && !invalidou) await logAudit(c.env.DB, 'risk.aceite_invalidado', email, `Risco ${id}: as notas mudaram depois do aceite; voltou a Aberto`, '', '', projectId);
     if (saiu) await logAudit(c.env.DB, 'risk.aceite_invalidado', email, `Risco ${id}: saiu de Aceito para ${status}; aceite desfeito`, '', '', projectId);
 
     return c.json({ ok: true, id, risk_level: level });
@@ -179,6 +189,7 @@ risks.delete('/api/v1/risks/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
+    if (await temAceiteRegistrado(c.env.DB, id)) return c.json({ error: RECUSA_EXCLUIR_COM_ACEITE }, 409);
     // A ação corretiva sobrevive ao risco (o FK é CASCADE): solta antes, como apagarRisco.
     await c.env.DB.batch([
       c.env.DB.prepare('UPDATE corrective_actions SET risk_id = NULL WHERE risk_id = ?').bind(id),
@@ -188,6 +199,85 @@ risks.delete('/api/v1/risks/:id', async (c) => {
   } catch (e: any) {
     if (e instanceof ForbiddenError) return c.json({ ok: false, error: e.message }, 403);
     return erro500(c, 'Falha ao excluir risco', e);
+  }
+});
+
+// ─── Aceite do risco residual (ISO/IEC 27001, 6.1.3 e; migration 0120) ───────────────────────────────────
+// Um risco por chamada, com a senha de quem tem a alçada do nível residual. Sem rota de lote, de propósito.
+risks.post('/api/v1/risks/:id/aceite', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
+    const v = await validateBody(c, riscoAceiteSchema);
+    if (!v.success) return v.response;
+    const r = await aceitarRisco(c.env.DB, c.get('user'), id, {
+      senha: v.data.senha, justificativa: v.data.justificativa || null, hashVisto: v.data.hash_visto,
+      ip: c.req.header('CF-Connecting-IP') || null, ua: c.req.header('User-Agent') || null,
+    });
+    return c.json(r.corpo, r.status as 200);
+  } catch (e) {
+    if (e instanceof ForbiddenError) return c.json({ ok: false, error: e.message }, 403);
+    return erro500(c, 'Falha ao aceitar o risco', e);
+  }
+});
+
+risks.post('/api/v1/risks/:id/aceite/revogar', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
+    const v = await validateBody(c, riscoRevogarAceiteSchema);
+    if (!v.success) return v.response;
+    const r = await revogarAceite(c.env.DB, c.get('user'), id, v.data.motivo, v.data.senha, c.req.header('CF-Connecting-IP') || null);
+    return c.json(r.corpo, r.status as 200);
+  } catch (e) {
+    if (e instanceof ForbiddenError) return c.json({ ok: false, error: e.message }, 403);
+    return erro500(c, 'Falha ao revogar o aceite', e);
+  }
+});
+
+/** Todos os aceites do risco, do mais recente ao mais antigo (vigente, invalidados e revogados), sem IP nem navegador. */
+risks.get('/api/v1/risks/:id/aceites', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
+    const { results } = await c.env.DB.prepare(
+      `SELECT id, aceito_por, aceito_nome, papel, aceito_em, nivel_residual, estrategia, controles_json, conteudo_json, hash, justificativa, pedido_id,
+              situacao, encerrado_em, encerrado_por, motivo FROM risco_aceites WHERE risk_id = ? ORDER BY aceito_em DESC`
+    ).bind(id).all();
+    return c.json({ ok: true, aceites: results });
+  } catch (e) {
+    if (e instanceof ForbiddenError) return c.json({ ok: false, error: e.message }, 403);
+    return erro500(c, 'Falha ao ler os aceites do risco', e);
+  }
+});
+
+// Alçada de aceite por nível do residual: lê quem alcança o projeto; muda só o administrador do cliente no projeto
+// (a mesma regra da linha de quem assina na Governança).
+risks.get('/api/v1/projects/:projectId/risco-alcadas', async (c) => {
+  return c.json({ ok: true, alcadas: await alcadasDoProjeto(c.env.DB, c.req.param('projectId') ?? '') });
+});
+
+risks.put('/api/v1/projects/:projectId/risco-alcadas', async (c) => {
+  try {
+    const projectId = c.req.param('projectId') ?? '';
+    const user = c.get('user');
+    if (user?.agente === true || !(await podeMexerEmAssinaturaDe(c.env.DB, user, projectId))) {
+      return c.json({ error: 'A alçada de aceite de risco é do cliente: só o administrador do cliente neste projeto a muda.' }, 403);
+    }
+    const v = await validateBody(c, riscoAlcadasSchema);
+    if (!v.success) return v.response;
+    const antes = await alcadasDoProjeto(c.env.DB, projectId);
+    const mudou = NIVEIS_RISCO.filter((n) => v.data.alcadas[n] && v.data.alcadas[n] !== antes[n]);
+    if (mudou.length) {
+      await c.env.DB.batch(mudou.map((n) => c.env.DB.prepare(
+        `INSERT INTO risco_alcadas (project_id, nivel, papel, atualizado_por) VALUES (?, ?, ?, ?)
+         ON CONFLICT(project_id, nivel) DO UPDATE SET papel = excluded.papel, atualizado_por = excluded.atualizado_por, atualizado_em = CURRENT_TIMESTAMP`
+      ).bind(projectId, n, v.data.alcadas[n], user.email)));
+      await logAudit(c.env.DB, 'risco.alcada', user.email, `Alçada de aceite de risco: ${mudou.map((n) => `${n} ${antes[n]} -> ${v.data.alcadas[n]}`).join('; ')}`, '', '', projectId);
+    }
+    return c.json({ ok: true, alcadas: await alcadasDoProjeto(c.env.DB, projectId) });
+  } catch (e) {
+    return erro500(c, 'Falha ao gravar a alçada de aceite', e);
   }
 });
 

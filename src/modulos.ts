@@ -27,6 +27,8 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   // painel: a faixa depende do `?modulo=` (iso ou privacy), que o middleware não lê; a rota faz a mesma recusa (routes/painel.ts).
   painel: 'nucleo', 'ponto-de-partida': 'nucleo', ropa: 'nucleo', 'scim-token': 'nucleo', 'security-policy': 'nucleo', similares: 'nucleo', sso: 'nucleo',
   incidentes: 'nucleo', stakeholders: 'nucleo', training: 'nucleo', vendors: 'nucleo', webhooks: 'nucleo',
+  // alçada de aceite do risco residual: vale para a matriz do n.iso e os riscos das atividades do n.privacy
+  'risco-alcadas': 'nucleo',
   // só n.iso
   bancada: 'iso', passos: 'iso',
   'approve-document': 'iso', assessment: 'iso', 'audit-pack': 'iso', 'auditor-notes': 'iso', 'auditor-token': 'iso', audits: 'iso',

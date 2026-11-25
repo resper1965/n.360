@@ -516,6 +516,71 @@ CREATE TABLE IF NOT EXISTS risks (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_risks_ropa_idr ON risks(ropa_id, idr) WHERE ropa_id IS NOT NULL AND idr IS NOT NULL;
 
+-- Aceite do risco residual (migration 0120) (ISO/IEC 27001, 6.1.3 e). Um ato por linha, nunca apagado nem reescrito: o que se aceitou (o estado
+-- congelado do risco e o hash dele), quem aceitou, com qual alçada, quando (UTC) e por qual canal (direto, com senha, ou pedido).
+-- `situacao` só sai de 'vigente' (para 'invalidado', quando o risco muda, ou 'revogado', pelo próprio aceitante com motivo).
+CREATE TABLE IF NOT EXISTS risco_aceites (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    risk_id TEXT NOT NULL REFERENCES risks(id) ON DELETE CASCADE,
+    aceito_por TEXT NOT NULL,
+    aceito_user_id TEXT,
+    aceito_nome TEXT,
+    papel TEXT NOT NULL CHECK (papel IN ('ceo', 'ciso')),
+    aceito_em TEXT NOT NULL,
+    nivel_residual TEXT NOT NULL,
+    estrategia TEXT,
+    controles_json TEXT NOT NULL,
+    conteudo_json TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    justificativa TEXT CHECK (justificativa IS NULL OR length(justificativa) <= 2000),
+    pedido_id TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    status_anterior TEXT,
+    situacao TEXT NOT NULL DEFAULT 'vigente' CHECK (situacao IN ('vigente', 'invalidado', 'revogado')),
+    encerrado_em TEXT,
+    encerrado_por TEXT,
+    motivo TEXT CHECK (motivo IS NULL OR length(motivo) <= 2000),
+    CHECK (situacao = 'vigente' OR (encerrado_em IS NOT NULL AND encerrado_por IS NOT NULL AND motivo IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_risco_aceites_risco ON risco_aceites(risk_id, aceito_em);
+CREATE INDEX IF NOT EXISTS idx_risco_aceites_projeto ON risco_aceites(project_id);
+-- Um aceite vigente por risco.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_risco_aceites_vigente ON risco_aceites(risk_id) WHERE situacao = 'vigente';
+
+CREATE TRIGGER IF NOT EXISTS risco_aceite_do_projeto
+BEFORE INSERT ON risco_aceites
+WHEN NOT EXISTS (SELECT 1 FROM risks r WHERE r.id = NEW.risk_id AND r.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'risco inexistente ou de outro projeto');
+END;
+
+-- Prova: só o encerramento de um aceite vigente muda a linha, e só nas colunas do encerramento.
+CREATE TRIGGER IF NOT EXISTS risco_aceite_imutavel
+BEFORE UPDATE ON risco_aceites
+WHEN OLD.situacao <> 'vigente' OR NEW.situacao = 'vigente'
+  OR NEW.id IS NOT OLD.id OR NEW.project_id IS NOT OLD.project_id OR NEW.risk_id IS NOT OLD.risk_id
+  OR NEW.aceito_por IS NOT OLD.aceito_por OR NEW.aceito_user_id IS NOT OLD.aceito_user_id OR NEW.aceito_nome IS NOT OLD.aceito_nome OR NEW.papel IS NOT OLD.papel
+  OR NEW.aceito_em IS NOT OLD.aceito_em OR NEW.nivel_residual IS NOT OLD.nivel_residual OR NEW.estrategia IS NOT OLD.estrategia
+  OR NEW.controles_json IS NOT OLD.controles_json OR NEW.conteudo_json IS NOT OLD.conteudo_json OR NEW.hash IS NOT OLD.hash
+  OR NEW.justificativa IS NOT OLD.justificativa OR NEW.pedido_id IS NOT OLD.pedido_id OR NEW.ip IS NOT OLD.ip
+  OR NEW.user_agent IS NOT OLD.user_agent OR NEW.status_anterior IS NOT OLD.status_anterior
+BEGIN
+    SELECT RAISE(ABORT, 'prova de aceite de risco e imutavel');
+END;
+
+-- Alçada de aceite por nível do risco residual: quem aceita ('ceo' = Direção, 'ciso' = Líder SGSI, pela matriz de Governança).
+-- Nível sem linha usa 'ceo'.
+CREATE TABLE IF NOT EXISTS risco_alcadas (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nivel TEXT NOT NULL CHECK (nivel IN ('Low', 'Medium', 'High', 'Critical')),
+    papel TEXT NOT NULL CHECK (papel IN ('ceo', 'ciso')),
+    atualizado_por TEXT NOT NULL,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, nivel)
+);
+
 CREATE TABLE IF NOT EXISTS risk_history (
     id TEXT PRIMARY KEY,
     risk_id TEXT REFERENCES risks(id) ON DELETE CASCADE,
@@ -1184,7 +1249,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    tipo TEXT NOT NULL CHECK (tipo IN ('dpia', 'politica', 'documento', 'excecao', 'tratamento', 'avaliacao_terceiro')),
+    tipo TEXT NOT NULL CHECK (tipo IN ('dpia', 'politica', 'documento', 'excecao', 'tratamento', 'avaliacao_terceiro', 'risco')),
     ref_id TEXT NOT NULL,
     titulo TEXT NOT NULL,
     papel_exigido TEXT NOT NULL CHECK (papel_exigido IN ('ciso', 'ceo', 'ciente')),

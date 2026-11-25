@@ -269,6 +269,9 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_fluxos_pendentes: { dados: '{}', origem_ip_hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
   // Canal do titular (0117): colunas opcionais; o e-mail carrega o id alheio, então vazar a linha aparece na varredura
   titular_canal: { email: (id: string) => `canal-${id}@varredura.teste` },
+  // Aceite do risco residual (0120): papel e nível são enums do CHECK
+  risco_aceites: { papel: 'ceo' },
+  risco_alcadas: { nivel: 'Low', papel: 'ceo' },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {
