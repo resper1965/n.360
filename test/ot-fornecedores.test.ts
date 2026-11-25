@@ -201,6 +201,14 @@ describe('perguntas de OT na avaliação do fornecedor (decisão 7)', () => {
     expect(await nperg()).toBe(0);
   });
 
+  it('técnico COM ot e privacy (o módulo não é o motivo) continua recusado: o 403 é do papel', async () => {
+    await concederModulos(['u-tec2'], ['privacy']);
+    const r = await chamar(tec, 'POST', URL());
+    expect(r.status).toBe(403);
+    expect((await r.json<{ error: string }>()).error).toMatch(/role|papel/); // a trava de papel (auth.ts ou a do topo de ot.ts), não a de módulo
+    expect(await nperg()).toBe(0);
+  });
+
   it('com os dois módulos: cria 4 perguntas do projeto; repetir não duplica; id alheio é 404', async () => {
     const r = await chamar(cons, 'POST', URL());
     expect(r.status, await r.clone().text()).toBe(200);
