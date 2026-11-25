@@ -12,6 +12,9 @@ const el = (id) => document.getElementById(id);
 
 export const podeAceitar = (r) => !!r?.aceite?.pode_aceitar;
 export const podeRevogar = (r) => !!r?.aceite?.pode_revogar;
+/** No lugar do botão de aceite: o servidor manda `motivo_nao_aceita` só quando falta o residual (a qualquer pessoa). */
+export const avisoSemResidual = (r) => (r?.aceite?.motivo_nao_aceita && r.aceite.situacao !== 'aceito'
+    ? '<span class="t-sm t-dim">Defina o risco residual (impacto e probabilidade residuais) antes do aceite.</span>' : '');
 /** Pedir o aceite a quem tem a alçada: só quem pede (a consultoria, o administrador do cliente) e com o residual avaliado. */
 export const podePedirAceite = (r, user) => !!r?.aceite && r.aceite.situacao !== 'aceito' && !!r.aceite.alcada
     && !['Closed', 'Accepted'].includes(r.status) && typeof window.podePedirAprovacao === 'function' && window.podePedirAprovacao(user);

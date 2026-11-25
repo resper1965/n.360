@@ -6,7 +6,7 @@ import { navigate } from '../router.js';
 import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
-import { podeAceitar, podeRevogar, podePedirAceite, linhaDeAceite, colunaDeAceite, aceitarRisco, revogarAceiteRisco, pedirAceiteRisco, SITUACOES_ACEITE } from '../aceite-risco.js';
+import { podeAceitar, avisoSemResidual, podeRevogar, podePedirAceite, linhaDeAceite, colunaDeAceite, aceitarRisco, revogarAceiteRisco, pedirAceiteRisco, SITUACOES_ACEITE } from '../aceite-risco.js';
 import { montarLista, colunasDe } from '../lista.js';
 import { vinculoOtHTML, montarVinculoOt } from '../ot-vinculo.js';
 
@@ -471,7 +471,7 @@ window.__grcCloseExecAudit = function (id) {
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
                 ${podePedirAceite(r, S.user) ? `<button class="btn" data-action="pedirAceiteRiscoIso" data-args='["${id}"]'>Pedir aceite</button>` : ''}
                 ${podeRevogar(r) ? `<button class="btn" data-action="revogarAceiteRiscoIso" data-args='["${id}"]'>Revogar aceite</button>` : ''}
-                ${podeAceitar(r) ? `<button class="btn" data-action="aceitarRiscoIso" data-args='["${id}"]'>Aceitar risco residual</button>` : ''}
+                ${podeAceitar(r) ? `<button class="btn" data-action="aceitarRiscoIso" data-args='["${id}"]'>Aceitar risco residual</button>` : avisoSemResidual(r)}
                 ${canCrud ? `<button class="btn btn-primary" data-action="openEditRiskModal" data-args='["${id}"]'>Editar Risco</button>` : ''}
             </div>
         `);

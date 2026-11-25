@@ -44,6 +44,11 @@ export async function alcadasDoProjeto(db: D1Database, projectId: string): Promi
   return a;
 }
 
+export const RECUSA_SEM_RESIDUAL = 'Avalie o risco residual (impacto e probabilidade residuais) antes do aceite.';
+/** O motivo que a tela mostra no lugar do botão, a qualquer pessoa: só a falta de residual (motivo de alçada não vaza). */
+const motivoSemResidual = (r: Pick<RiscoBase, 'status' | 'residual_level'>) =>
+  !r.residual_level && r.status !== 'Accepted' && r.status !== 'Closed' ? RECUSA_SEM_RESIDUAL : null;
+
 /** Por que esta pessoa não aceita este risco agora, ou `null` se aceita. `autoridade` lida uma vez por requisição. */
 export function recusaDoAceite(
   user: Usuario, risco: Pick<RiscoBase, 'status' | 'residual_level'>, alcadas: Alcadas, autoridade: Awaited<ReturnType<typeof autoridadeDeAssinatura>>,
@@ -51,7 +56,7 @@ export function recusaDoAceite(
   if (user.agente === true) return 'Aceitar risco é ato da pessoa com a alçada, com a senha dela: o agente não aceita.';
   if (risco.status === 'Accepted') return 'Este risco já está aceito.';
   if (risco.status === 'Closed') return 'Risco encerrado não é aceito.';
-  if (!risco.residual_level) return 'Avalie o risco residual (impacto e probabilidade residuais) antes do aceite.';
+  if (!risco.residual_level) return RECUSA_SEM_RESIDUAL;
   return recusaDeAssinatura(autoridade, alcadas[risco.residual_level as NivelRisco] ?? 'ceo');
 }
 
@@ -230,6 +235,7 @@ export async function comAceite<T extends RiscoBase & { accepted_by?: string | n
         revogado: situacao === 'revogado' ? { por: u!.encerrado_por, em: u!.encerrado_em, motivo: u!.motivo } : null,
         alcada: r.residual_level ? alcadas[r.residual_level as NivelRisco] ?? 'ceo' : null,
         pode_aceitar: !recusa,
+        motivo_nao_aceita: motivoSemResidual(r),
         hash: conteudo ? await hashConteudo(conteudo) : null,
         pode_revogar: !!vigente && foiQuemAceitou(vigente, user) && user.agente !== true,
       },

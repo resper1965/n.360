@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Pedidos, evidência N:N e aceite de risco: pendências do uso real
+- **Cancelar pedido de aprovação:** quem pediu, ou o consultor designado no projeto, cancela um pedido aberto com motivo (`POST /api/v1/projects/:projectId/pedidos/:id/cancelar`, corpo `{ motivo }`, 3 a 500 caracteres). O pedido sai de "Minhas aprovações", os destinatários não decidem mais (individual nem em lote) e a trilha `pedido.cancelado` guarda quem, o pedido e o motivo. Pedido que não está aberto é 409. Na tela, o botão "Cancelar pedido" aparece no acompanhamento para quem pode. O agente cancela pela ação `cancelar` de `niso_pedir_aprovacao`, com confirmação e motivo.
+- **Evidência ligada a vários controles pelo agente:** desligar (`DELETE /api/v1/evidence/:id/controles/:controlId`) aceita também o código do controle ("A.5.1"), como o ligar. `niso_create_evidence` ganha `controlIds` (até 50): depois de criar, liga cada um e a resposta diz o que ligou e o que falhou.
+- **Aceite de risco sem residual:** o bloco `aceite` traz `motivo_nao_aceita` quando falta o risco residual, e a tela mostra "Defina o risco residual (impacto e probabilidade residuais) antes do aceite." no lugar do botão. A alçada não muda.
+- **Agente:** a descrição de `niso_evaluate_evidence` diz que a IA grava só em `avaliacao_ia` e `evaluation_score`, nunca na nota humana (`evaluation_notes`).
+
 ### Carteira e partes: sonda parada só para quem a abre; consultoria_admin muda o tipo da parte
 - **Carteira:** a sonda parada (número e frase) só aparece no projeto em que a pessoa abre a sonda, como no Painel do n.ot. O platform_admin e o administrador da consultoria não designados não a recebem mais.
 - **Partes:** o administrador da consultoria passa a usar o seletor de tipo da parte, como a API já permitia; o resto do cadastro continua só leitura para ele. Ao virar pessoa, o CNPJ é limpo.

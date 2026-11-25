@@ -1109,9 +1109,8 @@ O texto abaixo descreve o fluxo pelo Actions, que e o que publica hoje.
 - **Ruleset "main protegida"** (id **25554528**, `gh api repos/resper1965/n.360/rulesets/25554528`, 2026-11-23): exige PR,
   exige o status **`gate/local`** (gravado pelo `gate.sh`, via `ship.sh`, depois do portao local), exige branch atualizado
   com a base (`strict`), bloqueia delecao e force-push. O antigo `rulesets/20312002` (que exigia `test` e `e2e`) responde
-  404. `bypass_actors` hoje: `RepositoryRole` 5 (admin do repositorio), `bypass_mode` `always`. **Nao use esse bypass:**
-  so mergeie com o status `gate/local` verde no SHA do head do PR (nada de `gh pr merge --admin` nem de merge sem o
-  status); excecao so com o "sim" explicito do dono para aquele PR.
+  404. O bypass de admin foi **REMOVIDO em 25/11/2026**: `bypass_actors` vazio, ninguem (nem o admin do repositorio)
+  faz merge sem o status `gate/local` verde no SHA do head do PR; `gh pr merge --admin` nao passa mais.
 - Nao exija check que pode deixar de existir (o `CodeQL`, se o repo ficar privado): um check
   obrigatorio inexistente trava todo merge para sempre.
 - **Deploy e automatico** desde 2026-08-03: merge na `main` dispara

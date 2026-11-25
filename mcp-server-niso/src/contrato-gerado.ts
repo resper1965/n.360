@@ -124,6 +124,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/passos/{itemId}/desbloquear': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/passos/{itemId}/reabrir': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/pedidos': { obrigatorios: ['destinatarios', 'papel_exigido', 'ref_id', 'tipo'] },
+  'POST /api/v1/projects/{projectId}/pedidos/{id}/cancelar': { obrigatorios: ['motivo'] },
   'POST /api/v1/projects/{projectId}/pedidos/{id}/reenviar': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/pedidos/ciencia': { obrigatorios: ['destinatarios', 'ref_id', 'tipo'] },
   'POST /api/v1/projects/{projectId}/politicas': { obrigatorios: [] },

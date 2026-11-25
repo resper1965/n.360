@@ -202,6 +202,39 @@ describe('ciência por link (consultoria, fatia 3)', () => {
     expect(JSON.parse(init.body)).toEqual({ tipo: 'documento', ref_id: 'd1', destinatarios: [{ email: 'ana@cliente.com' }, { email: 'bia@cliente.com' }] });
   });
 
+  it('acompanhamento: "Cancelar pedido" só para quem pode, pede o motivo e envia', async () => {
+    const pedido = { id: 'pd8', titulo: 'DPIA', status: 'aberto', papel_exigido: 'ceo', hash: 'h'.repeat(64) };
+    fetchMock.mockResolvedValueOnce(json({ pedido, destinatarios: [], pode_cancelar: false }));
+    await window.abrirAcompanhamento('p1', 'pd8');
+    expect(document.querySelector('[data-action="cancelarPedido"]')).toBeNull();
+    fetchMock.mockResolvedValueOnce(json({ pedido: { ...pedido, status: 'cancelado' }, destinatarios: [], pode_cancelar: true }));
+    await window.abrirAcompanhamento('p1', 'pd8');
+    expect(document.querySelector('[data-action="cancelarPedido"]')).toBeNull();
+    fetchMock.mockResolvedValueOnce(json({ pedido, destinatarios: [], pode_cancelar: true }));
+    await window.abrirAcompanhamento('p1', 'pd8');
+    const n = fetchMock.mock.calls.length;
+    document.querySelector('[data-action="cancelarPedido"]').click();
+    await espera();
+    const campo = document.querySelector('.confirmar input');
+    expect(campo).not.toBeNull();
+    // Motivo curto não vai ao servidor.
+    campo.value = 'ab';
+    document.querySelector('.confirmar [data-confirmar="sim"]').click();
+    await espera();
+    expect(fetchMock.mock.calls.length).toBe(n);
+    expect(document.body.textContent).toContain('Informe o motivo do cancelamento');
+    document.querySelector('[data-action="cancelarPedido"]').click();
+    await espera();
+    fetchMock.mockResolvedValueOnce(json({ ok: true, status: 'cancelado' }));
+    fetchMock.mockResolvedValueOnce(json({ pedido: { ...pedido, status: 'cancelado' }, destinatarios: [], pode_cancelar: false }));
+    document.querySelector('.confirmar input').value = 'Destinatário errado';
+    document.querySelector('.confirmar [data-confirmar="sim"]').click();
+    await espera();
+    expect(fetchMock.mock.calls[n][0]).toMatch(/\/api\/v1\/projects\/p1\/pedidos\/pd8\/cancelar$/);
+    expect(fetchMock.mock.calls[n][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[n][1].body)).toEqual({ motivo: 'Destinatário errado' });
+  });
+
   it('acompanhamento: situação por pessoa escapada, versão anterior, e reenviar aos pendentes', async () => {
     fetchMock.mockResolvedValueOnce(json({
       pedido: { id: 'pd7', titulo: 'Política: <b>x</b>', status: 'aberto', papel_exigido: 'ciente', hash: 'h'.repeat(64) },

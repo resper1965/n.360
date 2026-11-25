@@ -696,6 +696,8 @@ export const pedidoCienciaLoteSchema = z.object({
 export const pedidoReenvioSchema = z.object({
   emails: z.array(z.string().trim().email().max(320)).min(1).max(200).optional(),
 }).strict();
+// Cancelar pedido aberto: o motivo vai para a trilha.
+export const pedidoCancelarSchema = z.object({ motivo: z.string().trim().min(3).max(500) }).strict();
 // Rotas públicas do link: o token vem no CORPO, nunca na URL.
 const tokenPedido = z.string().min(1).max(200);
 export const pedidoTokenSchema = z.object({ token: tokenPedido }).strict();

@@ -2,11 +2,11 @@ import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
 import {
-  logAudit, verifyPassword, recusaSenhaDeOutro, erro500, requireProjectAccess, projetosVisiveis,
+  logAudit, verifyPassword, recusaSenhaDeOutro, erro500, requireProjectAccess, projetosVisiveis, ehConsultor,
   type PapelAssinatura,
   sendEmail, genToken, sha256Hex, registraErro,
 } from '../helpers';
-import { validateBody, aprovacaoLoteSchema, pedidoCriarSchema, pedidoDecisaoSchema, pedidoCienciaLoteSchema, pedidoReenvioSchema } from '../schemas';
+import { validateBody, aprovacaoLoteSchema, pedidoCriarSchema, pedidoDecisaoSchema, pedidoCienciaLoteSchema, pedidoReenvioSchema, pedidoCancelarSchema } from '../schemas';
 import { appUrl } from '../config/url';
 import { remetente } from '../services/email-layout';
 import { emailCiencia, emailPedidoAprovacao, type QuemPede } from '../services/emails';
@@ -15,7 +15,7 @@ import { assinarEvidencia } from './evidence';
 import { alcadasDoProjeto, type NivelRisco } from '../services/aceite-risco';
 import {
   criarPedido, recusaDeDestinatarios, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
-  substituirPedidosDoDocumento, type TipoPedido, type Vigencia,
+  substituirPedidosDoDocumento, CONTEINER_PORTAL, type TipoPedido, type Vigencia,
 } from '../services/pedidos';
 
 /**
@@ -557,6 +557,7 @@ projectPedidosApp.get('/:id', async (c) => {
     return c.json({
       pedido,
       sem_link: semLink,
+      pode_cancelar: p.status === 'aberto' && !(await recusaCancelar(c, p)),
       destinatarios: dests.map((d) => ({
         ...d,
         situacao: d.status === 'pendente' ? (d.aberto_em ? 'pendente' : 'nao_abriu') : d.status,
@@ -599,5 +600,43 @@ projectPedidosApp.post('/:id/reenviar', async (c) => {
     return c.json({ enviados: links.length - falhas.length, falhas }); // sem `ok: true`: ver POST /ciencia
   } catch (e: any) {
     return erro500(c, 'Erro ao reenviar o pedido de ciência', e);
+  }
+});
+
+/**
+ * Quem cancela um pedido: o autor (`criado_por`; para o agente, o consultor que o concedeu) ou o consultor designado no projeto
+ * (a designação de `podePedir`; o agente do consultor conta como ele). Agente auditor nunca. Devolve a recusa, ou `null`.
+ */
+async function recusaCancelar(c: Context<Ctx>, p: PedidoRow): Promise<string | null> {
+  const user = c.get('user');
+  // O pedido "em pé" do portal guarda as ciências de quem entra sem convite: não é pedido de alguém, não se cancela.
+  if (p.criado_por === CONTEINER_PORTAL) return 'Este é o registro das ciências do portal público, não um pedido: não se cancela.';
+  if (user.agente === true && user.agente_papel !== 'consultor') return 'O agente auditor não cancela pedido.';
+  if (p.criado_por.toLowerCase() === quemPede(user).toLowerCase()) return null;
+  const consultor = ehConsultor(user) || user.agente === true;
+  if (consultor && !(await podePedir(c.env.DB, user, p.project_id))) return null;
+  return 'Só quem pediu ou o consultor designado no projeto cancela o pedido.';
+}
+
+/** Cancela um pedido ABERTO, com motivo: os destinatários pendentes não decidem mais e ele sai de "Minhas aprovações". */
+projectPedidosApp.post('/:id/cancelar', async (c) => {
+  try {
+    const db = c.env.DB;
+    const user = c.get('user');
+    const p = await pedidoDoProjeto(db, c.req.param('projectId') ?? '', c.req.param('id'));
+    if (!p) return c.json({ error: 'Pedido não encontrado' }, 404);
+    const recusa = await recusaCancelar(c, p);
+    if (recusa) return c.json({ error: recusa }, 403);
+    const valid = await validateBody(c, pedidoCancelarSchema);
+    if (!valid.success) return valid.response;
+    // Só o aberto: a guarda no UPDATE também cobre a corrida com uma decisão ou uma substituição.
+    const r = await db.prepare(`UPDATE pedidos SET status = 'cancelado' WHERE id = ? AND status = 'aberto'`).bind(p.id).run();
+    if (!r.meta?.changes) return c.json({ error: 'Só pedido aberto é cancelado.', status: p.status }, 409);
+    await logAudit(db, 'pedido.cancelado', user.email,
+      `Pedido ${p.id} (${p.tipo} ${p.ref_id}, papel ${p.papel_exigido}) cancelado por ${user.email}`,
+      valid.data.motivo, c.req.header('CF-Connecting-IP') ?? '', p.project_id);
+    return c.json({ ok: true, status: 'cancelado' });
+  } catch (e) {
+    return erro500(c, 'Erro ao cancelar o pedido', e);
   }
 });

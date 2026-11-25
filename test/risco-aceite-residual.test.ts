@@ -91,6 +91,11 @@ describe('aceite direto, com senha', () => {
 
   it('sem residual avaliado não há aceite', async () => {
     expect((await doRisco(ceo, 'rk-sem')).aceite.pode_aceitar).toBe(false);
+    // O motivo vai a todos (a tela mostra no lugar do botão); motivo de alçada não vaza a quem não tem.
+    for (const h of [ceo, leitor, cons]) {
+      expect((await doRisco(h, 'rk-sem')).aceite.motivo_nao_aceita).toBe('Avalie o risco residual (impacto e probabilidade residuais) antes do aceite.');
+      expect((await doRisco(h, 'rk-1')).aceite.motivo_nao_aceita).toBeNull();
+    }
     const r = await aceitar(ceo, 'rk-sem');
     expect(r.status).toBe(403);
     expect((await r.json<any>()).error).toContain('risco residual');

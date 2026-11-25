@@ -19,6 +19,7 @@ const tudo = () => new Promise((ok) => setTimeout(ok, 0));
 async function esperar(cond) { for (let i = 0; i < 40 && !cond(); i++) await tudo(); }
 const botao = (rotulo) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === rotulo);
 const sim = () => document.querySelector('.confirmar [data-confirmar="sim"]');
+const SEM_RESIDUAL = 'Defina o risco residual (impacto e probabilidade residuais) antes do aceite.';
 const ACEITE = { situacao: 'pendente', por: null, em: null, com_senha: false, alcada: 'ceo', pode_aceitar: true, pode_revogar: false, hash: 'a'.repeat(64) };
 const risco = (extra = {}, aceite = {}) => ({ id: 'k1', idr: 1, asset: 'ERP (exemplo)', threat: 'Vazamento (exemplo)', impact: 3, probability: 3, risk_level: 'Medium',
     residual_level: 'Low', treatment: 'Mitigate', status: 'Open', accepted_by: null, accepted_at: null, aceite_manual: 0, aceite: { ...ACEITE, ...aceite }, ...extra });
@@ -76,6 +77,13 @@ describe('n.iso: aceite do risco residual', () => {
         expect(botao('Aceitar risco residual')).toBeUndefined();
     });
 
+    it('sem residual: no lugar do botão, o que falta para o aceite', () => {
+        S.risks = [risco({ residual_level: null }, { pode_aceitar: false, alcada: null, motivo_nao_aceita: 'Avalie o risco residual (impacto e probabilidade residuais) antes do aceite.' })];
+        window.openRiskDetailsModal('k1');
+        expect(botao('Aceitar risco residual')).toBeUndefined();
+        expect(document.getElementById('modal-content').textContent).toContain(SEM_RESIDUAL);
+    });
+
     it('risco aceito mostra quem e quando; quem aceitou revoga com motivo', async () => {
         const reqs = servidor({ 'POST /api/v1/risks/k1/aceite/revogar': { ok: true }, 'GET /api/v1/projects/p9/risks': { ok: true, risks: [] } });
         S.risks = [risco({ status: 'Accepted' }, { situacao: 'aceito', por: 'Carla Ceo', em: '2026-11-20T13:05:00Z', com_senha: true, pode_aceitar: false, pode_revogar: true })];
@@ -128,6 +136,16 @@ describe('n.privacy: aceite na aba Riscos', () => {
         await enviar('ar-form', { 'ar-senha': 'segredo', 'ar-just': '' });
         await esperar(() => reqs.some((r) => r.k.startsWith('POST')));
         expect(reqs.filter((r) => r.k.startsWith('POST'))).toEqual([{ k: `POST ${P}/riscos/k1/aceite`, corpo: { senha: 'segredo', hash_visto: 'a'.repeat(64), justificativa: null } }]);
+    });
+
+    it('sem residual: a linha diz o que falta no lugar do botão; aceito, não diz', async () => {
+        const motivo = 'Avalie o risco residual (impacto e probabilidade residuais) antes do aceite.';
+        servidor({ [`GET ${P}/riscos`]: { riscos: [risco({ residual_level: null }, { pode_aceitar: false, alcada: null, motivo_nao_aceita: motivo }),
+            risco({ id: 'k2', idr: 2, status: 'Accepted' }, { situacao: 'aceito', por: 'Diretoria', em: '2026-05-10', pode_aceitar: false, motivo_nao_aceita: motivo })] },
+            [`GET ${P}/riscos/motivos`]: { motivos: [] }, 'GET /api/v1/projects/p9/partes': [] });
+        await abrir();
+        expect(botao('Aceitar risco residual')).toBeUndefined();
+        expect(document.getElementById('painel').textContent.split(SEM_RESIDUAL).length - 1).toBe(1);
     });
 
     it('risco aceito mostra a linha de aceite e não tem botão; sem alçada, sem botão', async () => {
