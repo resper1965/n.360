@@ -54,7 +54,7 @@ carteiraApp.get('/', async (c) => {
     const user = c.get('user');
     // a tela só mostra a carteira à equipe; o cliente e o técnico por site não recebem o n.ot (a contagem é do projeto inteiro)
     const semOt = user?.agente === true || !!user?.id?.startsWith('apikey:') || ehPapelCliente(user);
-    const projetos = await carteira(c.env.DB, projetosVisiveis(user), (await modulosDaPessoa(c.env.DB, user)).filter((m) => !(semOt && m === 'ot')));
+    const projetos = await carteira(c.env.DB, projetosVisiveis(user), (await modulosDaPessoa(c.env.DB, user)).filter((m) => !(semOt && m === 'ot')), user ?? null);
     return c.json({ gerado_em: new Date().toISOString(), projetos });
   } catch (e) {
     return erro500(c, 'Falha ao montar a carteira', e);

@@ -12,7 +12,7 @@ import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
 import { blocoOt, respostaDoOt } from './painel-ot';
 import { etapasDoPrograma, primeiroMarco } from './programa';
 import { SEM_ACAO_OT } from './ot-visibilidade';
-import { TETO_LEITURA_OT } from './ot-inventario';
+import { escopoVerCompleto, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
 import { situacaoSensor, type Cred } from './ot-sensor';
 
 /** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA. A regra mora em classe-controle.ts. */
@@ -563,7 +563,7 @@ const PESO: Record<Tom, number> = { atraso: 0, vez: 1, semana: 2, plano: 3, ok: 
  * consultas agrupadas por projeto num `db.batch`, nunca o painel projeto a projeto. Só conta o módulo que o projeto tem e a
  * pessoa também tem; projeto sem nenhum desses fica de fora.
  */
-export async function carteira(db: D1Database, visiveis: { sql: string; bind: string } | null, modulosDaPessoa: Modulo[], agora = new Date()): Promise<LinhaCarteira[]> {
+export async function carteira(db: D1Database, visiveis: { sql: string; bind: string } | null, modulosDaPessoa: Modulo[], ator: AtorOt | null = null, agora = new Date()): Promise<LinhaCarteira[]> {
   const dia = hoje();
   const em7 = somarDias(dia, 7);
   const em90 = somarDias(dia, 90);
@@ -571,7 +571,9 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
   // ?1 hoje, ?2 daqui a 7 dias, ?3 daqui a 90, ?9 o escopo. Cada consulta recebe só até o maior índice que usa.
   const args = [dia, em7, em90, null, null, null, null, null, visiveis?.bind ?? null];
   const b = (sql: string) => db.prepare(sql).bind(...args.slice(0, Math.max(0, ...[...sql.matchAll(/\?(\d)/g)].map((m) => Number(m[1])))));
-  const [proj, mods, contas, terceiros, proximos, movimento, otContas, otSondas, otCreds] = await db.batch([
+  // sonda só para quem a abre no projeto (a regra de podeVerCompleto, numa consulta do batch e não por projeto)
+  const verCompleto = ator && modulosDaPessoa.includes('ot') ? escopoVerCompleto(ator) : false;
+  const [proj, mods, contas, terceiros, proximos, movimento, otContas, otSondas, otCreds, otCompleto] = await db.batch([
     b(`SELECT p.id, COALESCE(NULLIF(e.nome_fantasia, ''), NULLIF(e.razao_social, ''), NULLIF(p.client_name, ''), p.project_name, p.id) AS nome
          FROM projects p LEFT JOIN empresas e ON e.project_id = p.id WHERE p.id ${escopo} ORDER BY nome LIMIT 300`),
     b(`SELECT project_id, modulo FROM projeto_modulos WHERE project_id ${escopo}`),
@@ -608,7 +610,10 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
            AND s.site_id IN (SELECT id FROM ot_sites WHERE project_id = s.project_id AND status = 'ativo') LIMIT ${TETO_LEITURA_OT}`),
       b(`SELECT sensor_id, project_id, expira_em, situacao FROM ot_sensor_credenciais WHERE project_id ${escopo} AND situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`),
     ] : [b('SELECT 1 WHERE 0'), b('SELECT 1 WHERE 0'), b('SELECT 1 WHERE 0')]),
+    typeof verCompleto === 'object' ? db.prepare(`SELECT id FROM projects WHERE id IN (${verCompleto.sql})`).bind(...verCompleto.bind) : b('SELECT 1 WHERE 0'),
   ]);
+  const completos = new Set((otCompleto.results as { id: string }[]).map((x) => x.id));
+  const veSondas = (id: string) => verCompleto === true || completos.has(id);
   const porProjeto = <T extends { project_id: string }>(r: D1Result) => {
     const m = new Map<string, T[]>();
     for (const x of r.results as T[]) m.set(x.project_id, [...(m.get(x.project_id) ?? []), x]);
@@ -636,7 +641,8 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
       proximo: prox[0] ? { data: prox[0].data, rotulo: prox[0].rotulo } : null,
       // shortcut: a carteira conta o projeto inteiro, sem o corte por site; por isso a rota tira o `ot` de quem tem papel de cliente (inclusive o técnico por site). Se a carteira passar a servir cliente, aplicar sitesPermitidos.
       ...(modulos.includes('ot') ? { sites: oo.get(p.id)?.[0]?.sites ?? 0, desvios_abertos: oo.get(p.id)?.[0]?.desvios_abertos ?? 0,
-        lotes_revisao: oo.get(p.id)?.[0]?.lotes_revisao ?? 0, sondas_paradas: paradas(p.id) } : {}),
+        // sonda só para quem a abre no projeto (podeVerCompleto, como o painel-ot): nem número, nem frase para o admin não designado.
+        lotes_revisao: oo.get(p.id)?.[0]?.lotes_revisao ?? 0, sondas_paradas: veSondas(p.id) ? paradas(p.id) : 0 } : {}),
     });
     linhas.push({ id: p.id, nome: p.nome, modulos, tom: s.tom, situacao: s.situacao, urgente: s.urgente, modulo_urgente: s.modulo, ultimo_movimento: mv.get(p.id)?.[0]?.em ?? null });
   }

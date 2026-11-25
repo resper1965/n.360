@@ -6,6 +6,7 @@ vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost' }))
 
 import { S } from '../src/state.js';
 import '../src/ui.js';
+import '../src/globals.js';
 import '../src/views/partes.js';
 
 const PARTES = [
@@ -136,6 +137,41 @@ describe('mudar o tipo da parte', () => {
     apiMock.mockImplementation(() => Promise.resolve(PARTE));
     await window.openParteModal('p1', 'pt9');
     expect(document.getElementById('parte-e-tipo').disabled).toBe(true);
+  });
+
+  it('consultoria_admin (equipe, como a API aceita) muda o tipo; o resto do cadastro segue só leitura', async () => {
+    S.user = { role: 'consultoria_admin' };
+    montar();
+    apiMock.mockImplementation((m, url) => Promise.resolve(url.endsWith('/partes/pt9') && m === 'GET' ? PARTE : {}));
+    await window.openParteModal('p1', 'pt9');
+    expect(document.getElementById('parte-e-tipo').disabled).toBe(false);
+    expect(document.getElementById('parte-e-nome').disabled).toBe(true);
+    document.getElementById('parte-e-tipo').value = 'organizacao';
+    await window.salvarParte('p1', 'pt9');
+    expect(apiMock).toHaveBeenLastCalledWith('PUT', '/api/v1/projects/p1/partes/pt9', { nome: 'Escritório', email: null, status: 'ativa', tipo: 'organizacao' });
+  });
+
+  it('consultoria_admin: organização com CNPJ vira pessoa com cnpj null; sem mudar o tipo, o CNPJ do campo desabilitado não vai', async () => {
+    S.user = { role: 'consultoria_admin' };
+    montar();
+    const ORG = { id: 'pt9', tipo: 'organizacao', nome: 'Org', email: null, status: 'ativa', cnpj: '11222333000181', vinculos: [] };
+    apiMock.mockImplementation((m, url) => Promise.resolve(url.endsWith('/partes/pt9') && m === 'GET' ? ORG : {}));
+    await window.openParteModal('p1', 'pt9');
+    document.getElementById('parte-e-tipo').value = 'pessoa';
+    await window.salvarParte('p1', 'pt9');
+    expect(apiMock).toHaveBeenLastCalledWith('PUT', '/api/v1/projects/p1/partes/pt9', { nome: 'Org', email: null, status: 'ativa', cnpj: null, tipo: 'pessoa' });
+    await window.openParteModal('p1', 'pt9');
+    await window.salvarParte('p1', 'pt9');
+    expect(apiMock).toHaveBeenLastCalledWith('PUT', '/api/v1/projects/p1/partes/pt9', { nome: 'Org', email: null, status: 'ativa' });
+  });
+
+  it('papel do cliente (org_admin) vê o tipo desabilitado e sem Salvar', async () => {
+    S.user = { role: 'org_admin' };
+    montar();
+    apiMock.mockImplementation(() => Promise.resolve(PARTE));
+    await window.openParteModal('p1', 'pt9');
+    expect(document.getElementById('parte-e-tipo').disabled).toBe(true);
+    expect(document.querySelector('[data-action="salvarParte"]')).toBeNull();
   });
 });
 
