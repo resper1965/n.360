@@ -143,7 +143,9 @@ describe('ot_fornecedores (0116) e rotas', () => {
       expect(res.status).toBe(200);
       const t = await res.text();
       expect(t).toContain('Integradora Segredo Ltda'); // a parte comum sai, como sempre
-      for (const x of ['ot_fornecedores', 'acesso_remoto', 'fabricante', 'ot_fluxo_id', 'fx1', 'site1']) expect(t, x).not.toContain(x);
+      for (const x of ['ot_fornecedores', 'acesso_remoto', 'fabricante', 'ot_fluxo_id']) expect(t, x).not.toContain(x);
+      // ids curtos como palavra inteira: o id da trilha (genId, base 36 aleatória) contém 'fx1' por acaso de vez em quando
+      for (const x of ['fx1', 'site1']) expect(t, x).not.toMatch(new RegExp(`\\b${x}\\b`));
     }
   });
 
