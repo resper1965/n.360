@@ -412,9 +412,9 @@ Regra do lote: nenhum arquivo de `src/` ou `frontend/src/` muda. Se um teste nov
 
 **Interfaces:** `vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })` (só esses dois: o `blob.text()` de `baixarCodigosMfa` e as promises seguem reais).
 
-- [ ] **Step 1: Reproduzir** (opcional, determinístico): `cd frontend && npx vitest run test/security-mfa.test.js --repeat 20`. Quando o flake aparecer, a saída traz `document is not defined` em `Unhandled Errors`. Se não aparecer, o teste de foco do Step 2 ainda falha por ausência de relógio falso, então o vermelho é garantido.
+- [x] **Step 1: Reproduzir** (opcional, determinístico): `cd frontend && npx vitest run test/security-mfa.test.js --repeat 20`. Quando o flake aparecer, a saída traz `document is not defined` em `Unhandled Errors`. Se não aparecer, o teste de foco do Step 2 ainda falha por ausência de relógio falso, então o vermelho é garantido.
 
-- [ ] **Step 2: Teste que falha** — acrescente ao fim do `describe('ativação')` (ele já tem `ateOCodigo()`):
+- [x] **Step 2: Teste que falha** — acrescente ao fim do `describe('ativação')` (ele já tem `ateOCodigo()`):
 
 ```js
   it('o foco vai para o campo do código depois de 50 ms (timer controlado pelo teste, nada pendente depois dele)', async () => {
@@ -427,7 +427,7 @@ Regra do lote: nenhum arquivo de `src/` ou `frontend/src/` muda. Se um teste nov
 
 Rode `cd frontend && npx vitest run test/security-mfa.test.js -t "o foco vai"`: falha (`vi.advanceTimersByTime` sem relógio falso avisa que os timers não são falsos).
 
-- [ ] **Step 3: Implementar** — no topo do arquivo, ajuste o import e o `beforeEach`:
+- [x] **Step 3: Implementar** — no topo do arquivo, ajuste o import e o `beforeEach`:
 
 ```js
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -446,11 +446,11 @@ afterEach(() => {
 });
 ```
 
-- [ ] **Step 4: Verde e estabilidade.** `cd frontend && npx vitest run test/security-mfa.test.js --repeat 50` (nenhum `Unhandled Errors`); depois `npx vitest run test/security-mfa.test.js test/globals-shell.test.js` e `npm run build`. Mutação: remova o `afterEach` e rode `--repeat 20`: o foco pendente do teste anterior pode atingir o seguinte (o teste de foco sozinho deixa de ser determinístico). Restaure.
+- [x] **Step 4: Verde e estabilidade.** `cd frontend && npx vitest run test/security-mfa.test.js --repeat 50` (nenhum `Unhandled Errors`); depois `npx vitest run test/security-mfa.test.js test/globals-shell.test.js` e `npm run build`. Mutação: remova o `afterEach` e rode `--repeat 20`: o foco pendente do teste anterior pode atingir o seguinte (o teste de foco sozinho deixa de ser determinístico). Restaure.
 
-- [ ] **Step 5: Mesma varredura nos outros três arquivos com o padrão** (só diagnóstico, sem editar produção): `grep -rn "setTimeout(() => document" frontend/src/views/jornada.js frontend/src/views/commercial.js frontend/src/views/compliance.js`; para cada, `grep -ln "<view>" frontend/test/*.test.js` e rode esses testes com `--repeat 10`. Se algum mostrar o mesmo erro, aplique o mesmo `beforeEach/afterEach` ao teste dele neste task (um commit só).
+- [x] **Step 5: Mesma varredura nos outros três arquivos com o padrão** (só diagnóstico, sem editar produção): `grep -rn "setTimeout(() => document" frontend/src/views/jornada.js frontend/src/views/commercial.js frontend/src/views/compliance.js`; para cada, `grep -ln "<view>" frontend/test/*.test.js` e rode esses testes com `--repeat 10`. Se algum mostrar o mesmo erro, aplique o mesmo `beforeEach/afterEach` ao teste dele neste task (um commit só).
 
-- [ ] **Step 6: Commit:**
+- [x] **Step 6: Commit:**
 
 ```bash
 git add frontend/test/security-mfa.test.js
@@ -461,7 +461,7 @@ git commit -m "test(security): relógio falso no foco do modal de MFA (acaba o '
 
 **Files:** Modify `test/ot-desvio-acao.test.ts`.
 
-- [ ] **Step 1: Teste novo** (no `describe('POST /desvios/:id/acao')`; usa `desvio`, `acao`, `cons`, `run`, `n`, `ok`):
+- [x] **Step 1: Teste novo** (no `describe('POST /desvios/:id/acao')`; usa `desvio`, `acao`, `cons`, `run`, `n`, `ok`):
 
 ```ts
   it('desvio já ligado a um risco: 409 "ligado a outro item", sem ação nova e a referência de risco intacta', async () => {
@@ -479,15 +479,15 @@ git commit -m "test(security): relógio falso no foco do modal de MFA (acaba o '
 
 Rode `npx vitest run test/ot-desvio-acao.test.ts -t "ligado a um risco"`: já passa (cobre comportamento existente; é o objetivo). Mutação para provar que pega: em `ot.ts:1152` troque o 409 por `c.json({ ok: true, ... })`; o teste falha; restaure.
 
-- [ ] **Step 2: Desacoplar o `d3`** — os três testes das linhas 88-122 (`sem n.iso`, `texto com IP`, `nome de ativo`...) hoje compartilham `d3` por efeito colateral. Dê um id próprio a cada um (`d3a`, `d3b`, ...) e passe o novo id nas chamadas `acao(cons, 'd3x', ...)` e nos `count(*)` da mesma `it`. Confirme que cada `it` passa sozinho: `npx vitest run test/ot-desvio-acao.test.ts -t "sem n.iso"`, `-t "texto com IP"`, `-t "desvio de outro projeto"`; depois o arquivo inteiro.
+- [x] **Step 2: Desacoplar o `d3`** — os três testes das linhas 88-122 (`sem n.iso`, `texto com IP`, `nome de ativo`...) hoje compartilham `d3` por efeito colateral. Dê um id próprio a cada um (`d3a`, `d3b`, ...) e passe o novo id nas chamadas `acao(cons, 'd3x', ...)` e nos `count(*)` da mesma `it`. Confirme que cada `it` passa sozinho: `npx vitest run test/ot-desvio-acao.test.ts -t "sem n.iso"`, `-t "texto com IP"`, `-t "desvio de outro projeto"`; depois o arquivo inteiro.
 
-- [ ] **Step 3: Commit:** `git add test/ot-desvio-acao.test.ts && git commit -m "test(ot): desvio ligado a outro item (409) e testes da ação do desvio sem desvio compartilhado"`.
+- [x] **Step 3: Commit:** `git add test/ot-desvio-acao.test.ts && git commit -m "test(ot): desvio ligado a outro item (409) e testes da ação do desvio sem desvio compartilhado"`.
 
 ### Task 3: trilha oculta para `platform_admin` e DELETE de referência de outro projeto (P-09, P-10)
 
 **Files:** Modify `test/ot-trilha-oculta.test.ts`, `test/ot-referencias.test.ts`.
 
-- [ ] **Step 1: `platform_admin` na trilha** — em `ot-trilha-oculta.test.ts`, no `beforeAll`, depois de `concederModulos(...)`: `await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id, ativo) VALUES ('t-pa','t-pa@ness.lat','x','PA','platform_admin','org_ness',1)`).run();` e `pa = await sessionFor({ id: 't-pa', email: 't-pa@ness.lat', role: 'platform_admin' });` (declare `let pa: Record<string, string>;` junto aos outros). Novo `it` no primeiro `describe`:
+- [x] **Step 1: `platform_admin` na trilha** — em `ot-trilha-oculta.test.ts`, no `beforeAll`, depois de `concederModulos(...)`: `await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id, ativo) VALUES ('t-pa','t-pa@ness.lat','x','PA','platform_admin','org_ness',1)`).run();` e `pa = await sessionFor({ id: 't-pa', email: 't-pa@ness.lat', role: 'platform_admin' });` (declare `let pa: Record<string, string>;` junto aos outros). Novo `it` no primeiro `describe`:
 
 ```ts
   it('platform_admin (todos os módulos) vê as linhas ot.% de um projeto com ot; e do projeto sem ot não vê nenhuma', async () => {
@@ -498,7 +498,7 @@ Rode `npx vitest run test/ot-desvio-acao.test.ts -t "ligado a um risco"`: já pa
 
 Rode `npx vitest run test/ot-trilha-oculta.test.ts`. Se o `platform_admin` NÃO vir as linhas de `proj-a`, isso é defeito de verdade (`podeVerOt` exige `modulosDaPessoa` com `ot`): pare e abra o achado.
 
-- [ ] **Step 2: DELETE de outro projeto** — em `ot-referencias.test.ts`, depois do `it('DELETE: 200 e some...')` (linha 219):
+- [x] **Step 2: DELETE de outro projeto** — em `ot-referencias.test.ts`, depois do `it('DELETE: 200 e some...')` (linha 219):
 
 ```ts
   it('DELETE de referência de OUTRO projeto: 404 e a linha continua lá', async () => {
@@ -512,13 +512,13 @@ Rode `npx vitest run test/ot-trilha-oculta.test.ts`. Se o `platform_admin` NÃO 
 
 Mutação: em `apagarReferencia` (`ot-referencias.ts:73`) tire `AND r.project_id = ?`; o teste falha; restaure. E renomeie o título do teste antigo para `'DELETE: 200 e some; de novo 404'` (o "de outro projeto" passou para o novo).
 
-- [ ] **Step 3: Commit:** `git add test/ot-trilha-oculta.test.ts test/ot-referencias.test.ts && git commit -m "test(ot): platform_admin na trilha e DELETE de referência de outro projeto"`.
+- [x] **Step 3: Commit:** `git add test/ot-trilha-oculta.test.ts test/ot-referencias.test.ts && git commit -m "test(ot): platform_admin na trilha e DELETE de referência de outro projeto"`.
 
 ### Task 4: o 403 das perguntas de OT é do papel, não do módulo (P-11)
 
 **Files:** Modify `test/ot-fornecedores.test.ts` (no `describe('perguntas de OT na avaliação do fornecedor')`, depois do teste "agente, chave de API e técnico são recusados", linha 196).
 
-- [ ] **Step 1: Teste novo:**
+- [x] **Step 1: Teste novo:**
 
 ```ts
   it('técnico COM ot e privacy (o módulo não é o motivo) continua recusado: o 403 é do papel', async () => {
@@ -530,7 +530,7 @@ Mutação: em `apagarReferencia` (`ot-referencias.ts:73`) tire `AND r.project_id
 
 Rode `npx vitest run test/ot-fornecedores.test.ts`. Mutação: remova a guarda de escrita do topo para o técnico no `otApp.on([...])` (procure `podeEditarOt` perto do topo de `src/routes/ot.ts`); este teste e o 403 do papel passam a ser 200: o teste falha. Restaure.
 
-- [ ] **Step 2: Commit:** `git add test/ot-fornecedores.test.ts && git commit -m "test(ot): o 403 das perguntas de OT para o técnico é do papel (privacy concedido)"`.
+- [x] **Step 2: Commit:** `git add test/ot-fornecedores.test.ts && git commit -m "test(ot): o 403 das perguntas de OT para o técnico é do papel (privacy concedido)"`.
 
 **Verificação do lote 2:** `cd frontend && npx vitest run test/security-mfa.test.js --repeat 20`; na raiz `npx vitest run test/ot-desvio-acao.test.ts test/ot-trilha-oculta.test.ts test/ot-referencias.test.ts test/ot-fornecedores.test.ts`. `git diff --stat origin/main -- src frontend/src` vazio neste lote.
 

@@ -216,11 +216,19 @@ describe('rotas /ot/referencias', () => {
     expect((await chamar(cons, 'POST', `${P}/ot/referencias`, { risk_id: 'risk1', ot_site_id: 'siteRem' })).status).toBe(404);
   });
 
-  it('DELETE: 200 e some; de novo 404; de outro projeto 404', async () => {
+  it('DELETE: 200 e some; de novo 404', async () => {
     expect((await chamar(cons, 'DELETE', `${P}/ot/referencias/${refId}`)).status).toBe(200);
     expect((await chamar(cons, 'DELETE', `${P}/ot/referencias/${refId}`)).status).toBe(404);
     const trilha = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action LIKE 'ot.referencia.%'`).all<{ details: string }>();
     expect(trilha.results.map((x) => x.details).sort()).toEqual(['Referência criada', 'Referência criada', 'Referência removida']);
+  });
+
+  it('DELETE de referência de OUTRO projeto: 404 e a linha continua lá', async () => {
+    await run(`INSERT OR IGNORE INTO risks (id, project_id, asset, threat) VALUES ('riskB', 'proj-b', 'a', 't')`);
+    await run(`INSERT OR IGNORE INTO ot_sites (id, project_id, nome) VALUES ('siteB', 'proj-b', 'siteB')`);
+    await run(`INSERT INTO ot_referencias (id, project_id, risk_id, ot_site_id, criado_por) VALUES ('ref-b', 'proj-b', 'riskB', 'siteB', 'u')`);
+    expect((await chamar(cons, 'DELETE', `${P}/ot/referencias/ref-b`)).status).toBe(404);
+    expect(await env.DB.prepare(`SELECT 1 AS x FROM ot_referencias WHERE id = 'ref-b'`).first()).not.toBeNull();
   });
 
   it('o núcleo não vaza a referência (listas e detalhe, pessoa com ot)', async () => {

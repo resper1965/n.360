@@ -100,12 +100,13 @@ describe('POST /desvios/:id/acao', () => {
   });
 
   it('texto com IP, e-mail ou MAC: 400; sem responsável: 400', async () => {
+    await desvio('d3b');
     for (const titulo of ['Isolar o host 10.1.2.3 agora', 'Avisar fulano@empresa.com sobre', 'Trocar o equipamento 00:1A:2B:3C:4D:5E']) {
-      const r = await acao(cons, 'd3', { ...ok, titulo });
+      const r = await acao(cons, 'd3b', { ...ok, titulo });
       expect(r.status, titulo).toBe(400);
     }
-    expect((await acao(cons, 'd3', { titulo: ok.titulo })).status).toBe(400);
-    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'd3'`)).toBe(0);
+    expect((await acao(cons, 'd3b', { titulo: ok.titulo })).status).toBe(400);
+    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'd3b'`)).toBe(0);
   });
 
   it('nome de ativo, zona ou site (qualquer caixa/acento): 400 sem dizer qual; texto inócuo: 201', async () => {
@@ -156,12 +157,24 @@ describe('POST /desvios/:id/acao', () => {
   });
 
   it('desvio de outro projeto e inexistente: 404; desvio não aberto e sem ação: 409; corpo com campo a mais: 400', async () => {
-    await desvio('db', 'sb', 'proj-b'); await desvio('d6', 's1', 'proj-a', 'aceito');
+    await desvio('db', 'sb', 'proj-b'); await desvio('d6', 's1', 'proj-a', 'aceito'); await desvio('d6b');
     expect((await acao(cons, 'db', ok)).status).toBe(404);
     expect((await acao(cons, 'nao-existe', ok)).status).toBe(404);
     expect((await acao(cons, 'd6', ok)).status).toBe(409);
-    expect((await acao(cons, 'd5', { ...ok, severity: 'High' })).status).toBe(400);
-    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id IN ('db', 'd6')`)).toBe(0);
+    expect((await acao(cons, 'd6b', { ...ok, severity: 'High' })).status).toBe(400);
+    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id IN ('db', 'd6', 'd6b')`)).toBe(0);
+  });
+
+  it('desvio já ligado a um risco: 409 "ligado a outro item", sem ação nova e a referência de risco intacta', async () => {
+    await desvio('d-risco');
+    await run(`INSERT INTO risks (id, project_id, asset, threat) VALUES ('r-d', 'proj-a', 'a', 't') ON CONFLICT DO NOTHING`);
+    await run(`INSERT INTO ot_referencias (id, project_id, risk_id, ot_site_id, ot_desvio_id, criado_por) VALUES ('ref-risco', 'proj-a', 'r-d', 's1', 'd-risco', 'u')`);
+    const antes = await n(`SELECT count(*) n FROM corrective_actions`);
+    const r = await acao(cons, 'd-risco', ok);
+    expect(r.status).toBe(409);
+    expect((await r.json<{ error: string }>()).error).toBe('Este desvio já está ligado a outro item.');
+    expect(await n(`SELECT count(*) n FROM corrective_actions`)).toBe(antes);
+    expect(await n(`SELECT count(*) n FROM ot_referencias WHERE ot_desvio_id = 'd-risco'`)).toBe(1);
   });
 
   it('corrida: se o desvio deixou de estar aberto entre a checagem e o batch, nenhuma ação órfã nasce', async () => {

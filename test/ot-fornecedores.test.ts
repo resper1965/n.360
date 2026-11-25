@@ -143,7 +143,9 @@ describe('ot_fornecedores (0116) e rotas', () => {
       expect(res.status).toBe(200);
       const t = await res.text();
       expect(t).toContain('Integradora Segredo Ltda'); // a parte comum sai, como sempre
-      for (const x of ['ot_fornecedores', 'acesso_remoto', 'fabricante', 'ot_fluxo_id', 'fx1', 'site1']) expect(t, x).not.toContain(x);
+      for (const x of ['ot_fornecedores', 'acesso_remoto', 'fabricante', 'ot_fluxo_id']) expect(t, x).not.toContain(x);
+      // ids curtos como palavra inteira: o id da trilha (genId, base 36 aleatória) contém 'fx1' por acaso de vez em quando
+      for (const x of ['fx1', 'site1']) expect(t, x).not.toMatch(new RegExp(`\\b${x}\\b`));
     }
   });
 
@@ -198,6 +200,14 @@ describe('perguntas de OT na avaliação do fornecedor (decisão 7)', () => {
     await concederModulos([AGENTE.userId], ['privacy']);
     expect((await chamar(tec, 'POST', URL())).status).toBe(403);
     expect((await chamar({ 'X-API-Key': CHAVE }, 'POST', URL())).status).toBe(403);
+    expect(await nperg()).toBe(0);
+  });
+
+  it('técnico COM ot e privacy (o módulo não é o motivo) continua recusado: o 403 é do papel', async () => {
+    await concederModulos(['u-tec2'], ['privacy']);
+    const r = await chamar(tec, 'POST', URL());
+    expect(r.status).toBe(403);
+    expect((await r.json<{ error: string }>()).error).toMatch(/role|papel/); // a trava de papel (auth.ts ou a do topo de ot.ts), não a de módulo
     expect(await nperg()).toBe(0);
   });
 
