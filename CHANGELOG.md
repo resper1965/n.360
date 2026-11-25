@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Carteira e partes: sonda parada só para quem a abre; consultoria_admin muda o tipo da parte
+- **Carteira:** a sonda parada (número e frase) só aparece no projeto em que a pessoa abre a sonda, como no Painel do n.ot. O platform_admin e o administrador da consultoria não designados não a recebem mais.
+- **Partes:** o administrador da consultoria passa a usar o seletor de tipo da parte, como a API já permitia; o resto do cadastro continua só leitura para ele.
+
 ### Riscos: aceite do risco residual com senha e alçada (ISO 27001, 6.1.3 e)
 - **Aceite do risco residual:** quem tem a alçada do nível residual (a Direção por padrão, configurável por nível pelo administrador do cliente) aceita o risco no detalhe, com a senha. O aceite congela o estado do risco com um hash e registra quem, quando, a alçada, a estratégia e os controles. Mudar o residual, a estratégia, o plano ou o controle invalida o aceite e o risco volta a "aceite pendente".
 - **Pedido de aceite** em "Minhas aprovações": o consultor envia o pedido a uma pessoa com a alçada, e aprovar com senha é o aceite. A revogação é só de quem aceitou, com senha e motivo.

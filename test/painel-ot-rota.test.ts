@@ -132,4 +132,22 @@ describe('carteira com o n.ot', () => {
     const s = await (await chamar(semOt, '/api/v1/carteira')).json() as any;
     expect(JSON.stringify(s)).not.toContain('desvio');
   });
+
+  it('sonda parada: só quem abre a sonda no projeto (podeVerCompleto) recebe; platform_admin e consultoria_admin não designados não', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-pa', 'pa@ness.lat', 'x', 'Plataforma', 'platform_admin'), ('u-ca', 'ca@ness.lat', 'x', 'Admin', 'consultoria_admin')`),
+      env.DB.prepare(`INSERT INTO ot_sensores (id, project_id, site_id, nome, faixa_origem, criado_por, created_at) VALUES ('sn-c', 'proj-a', 's1', 'Sonda Exemplo', '10.0.0.0/8', 'u-g', '2020-01-01 00:00:00')`),
+    ]);
+    await concederModulos(['u-ca'], ['iso', 'ot']);
+    const plat = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin' });
+    const cadm = await sessionFor({ id: 'u-ca', email: 'ca@ness.lat', role: 'consultoria_admin' });
+    const c = await (await chamar(cons, '/api/v1/carteira')).json() as any;
+    expect(c.projetos.find((p: any) => p.id === 'proj-a')).toMatchObject({ situacao: '1 sonda parada', urgente: '1 sonda parada e 1 desvio aberto' });
+    for (const h of [plat, cadm]) {
+      const d = await (await chamar(h, '/api/v1/carteira')).json() as any;
+      expect(d.projetos.find((p: any) => p.id === 'proj-a').situacao).toBe('1 desvio aberto');
+      expect(JSON.stringify(d)).not.toMatch(/sonda|Sonda Exemplo/i);
+    }
+    await env.DB.prepare(`DELETE FROM ot_sensores WHERE id = 'sn-c'`).run();
+  });
 });

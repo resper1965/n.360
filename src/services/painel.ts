@@ -12,7 +12,7 @@ import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
 import { blocoOt, respostaDoOt } from './painel-ot';
 import { etapasDoPrograma, primeiroMarco } from './programa';
 import { SEM_ACAO_OT } from './ot-visibilidade';
-import { TETO_LEITURA_OT } from './ot-inventario';
+import { podeVerCompleto, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
 import { situacaoSensor, type Cred } from './ot-sensor';
 
 /** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA. A regra mora em classe-controle.ts. */
@@ -563,7 +563,7 @@ const PESO: Record<Tom, number> = { atraso: 0, vez: 1, semana: 2, plano: 3, ok: 
  * consultas agrupadas por projeto num `db.batch`, nunca o painel projeto a projeto. Só conta o módulo que o projeto tem e a
  * pessoa também tem; projeto sem nenhum desses fica de fora.
  */
-export async function carteira(db: D1Database, visiveis: { sql: string; bind: string } | null, modulosDaPessoa: Modulo[], agora = new Date()): Promise<LinhaCarteira[]> {
+export async function carteira(db: D1Database, visiveis: { sql: string; bind: string } | null, modulosDaPessoa: Modulo[], ator: AtorOt | null = null, agora = new Date()): Promise<LinhaCarteira[]> {
   const dia = hoje();
   const em7 = somarDias(dia, 7);
   const em90 = somarDias(dia, 90);
@@ -636,7 +636,8 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
       proximo: prox[0] ? { data: prox[0].data, rotulo: prox[0].rotulo } : null,
       // shortcut: a carteira conta o projeto inteiro, sem o corte por site; por isso a rota tira o `ot` de quem tem papel de cliente (inclusive o técnico por site). Se a carteira passar a servir cliente, aplicar sitesPermitidos.
       ...(modulos.includes('ot') ? { sites: oo.get(p.id)?.[0]?.sites ?? 0, desvios_abertos: oo.get(p.id)?.[0]?.desvios_abertos ?? 0,
-        lotes_revisao: oo.get(p.id)?.[0]?.lotes_revisao ?? 0, sondas_paradas: paradas(p.id) } : {}),
+        // sonda só para quem a abre no projeto (podeVerCompleto, como o painel-ot): nem número, nem frase para o admin não designado.
+        lotes_revisao: oo.get(p.id)?.[0]?.lotes_revisao ?? 0, sondas_paradas: sondasPor.has(p.id) && ator && await podeVerCompleto(db, ator, p.id) ? paradas(p.id) : 0 } : {}),
     });
     linhas.push({ id: p.id, nome: p.nome, modulos, tom: s.tom, situacao: s.situacao, urgente: s.urgente, modulo_urgente: s.modulo, ultimo_movimento: mv.get(p.id)?.[0]?.em ?? null });
   }

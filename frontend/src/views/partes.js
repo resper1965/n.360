@@ -113,12 +113,14 @@ window.openParteModal = async function (projectId, id) {
     let p;
     try { p = await api('GET', `/api/v1/projects/${projectId}/partes/${id}`); } catch (e) { return falha(e, 'Não foi possível abrir a parte'); }
     const editar = podeEditar();
+    // Mudar o tipo: quem a API aceita (ehEquipeNess, PUT /partes/:id), que inclui o consultoria_admin; o resto do cadastro segue `editar`.
+    const mudaTipo = editar || !!window.ehEquipeNess?.();
     const vinculos = lista(p.vinculos).map(v =>
         `<li>${escapeHTML(PAPEIS[v.papel] || v.papel)} — ${escapeHTML(ALVOS[v.alvo_tipo] || v.alvo_tipo)}</li>`).join('');
     openModal(`
         <div class="modal-header"><span class="modal-title">${escapeHTML(p.nome)}</span></div>
         <div class="form-group"><label class="form-label" for="parte-e-tipo">Tipo</label>
-            <select class="form-input" id="parte-e-tipo" aria-describedby="parte-e-tipo-ajuda" ${editar ? '' : 'disabled'}>${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === p.tipo ? 'selected' : ''}>${r}</option>`).join('')}</select>
+            <select class="form-input" id="parte-e-tipo" aria-describedby="parte-e-tipo-ajuda" ${mudaTipo ? '' : 'disabled'}>${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === p.tipo ? 'selected' : ''}>${r}</option>`).join('')}</select>
             <p class="t-dim" id="parte-e-tipo-ajuda">Fornecedor, operador e suboperador são organizações. Depois de mudar o tipo, abra a parte de novo para informar o CNPJ.</p></div>
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-e-nome" maxlength="200" value="${escapeHTML(p.nome)}" ${editar ? '' : 'disabled'}></div>
         <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="parte-e-email" type="email" maxlength="320" value="${escapeHTML(p.email || '')}" ${editar ? '' : 'disabled'}></div>
@@ -130,7 +132,7 @@ window.openParteModal = async function (projectId, id) {
             </select></div>
         <div class="form-group"><label class="form-label">Papéis</label>
             ${vinculos ? `<ul style="margin:0;padding-left:1.2rem">${vinculos}</ul>` : window.renderEmptyState({ titulo: 'Nenhum papel registrado.', compacto: true })}</div>
-        ${editar ? `<button class="btn btn-primary" style="width:100%" data-action="salvarParte" data-args='["${projectId}","${escapeHTML(p.id)}"]'>Salvar</button>` : ''}
+        ${mudaTipo ? `<button class="btn btn-primary" style="width:100%" data-action="salvarParte" data-args='["${projectId}","${escapeHTML(p.id)}"]'>Salvar</button>` : ''}
     `);
 };
 
