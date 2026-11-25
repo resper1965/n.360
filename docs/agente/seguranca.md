@@ -18,7 +18,7 @@ O agente remoto tem dois papéis, escolhidos no consentimento OAuth e gravados n
 | | Consultor | Auditor |
 |---|---|---|
 | Quem conecta | `consultor` designado, `consultoria_admin` da organização | Os mesmos. `platform_admin` e `comercial` não conectam em nenhum papel |
-| Leitura | Tudo o que o consultor alcança no projeto (menos `FORA_DO_AGENTE`) | Só GET/HEAD numa **allow-list**: `/projects/<projeto da concessão>` e abaixo, `/portfolio`, `/audits/:id/findings`, `/evidence/:id/{content,detail,download}` (menos `FORA_DO_AGENTE`). Rota fora da lista é 403, inclusive rota nova |
+| Leitura | Tudo o que o consultor alcança no projeto (menos `FORA_DO_AGENTE`) | Só GET/HEAD numa **allow-list**: `/projects/<projeto da concessão>` e abaixo, `/portfolio`, `/audits/:id/findings`, `/evidence/:id` e `/evidence/:id/{content,detail,download}` (menos `FORA_DO_AGENTE`). Rota fora da lista é 403, inclusive rota nova |
 | Escrita | Adequação; destrutivo com confirmação (I5); decisão do consultor com ferramenta, confirmação e motivo (I5) | **Só** `POST /audits/:id/findings` e `POST /projects/<projeto>/auditor-notes`. Qualquer outro método/rota: 403 |
 | Decisão confirmada | Publicar documento, concluir passo, avaliar fornecedor, situação da atividade, concluir ação, encerrar incidente, revogar consentimento, importar programa, padronizar nomes: só pela ferramenta de decisão, com `confirmado_pelo_usuario: true` e motivo (`src/middleware/decisoes-agente.ts`). Atos do cliente seguem recusados (abaixo) | Nenhuma |
 | Achado e nota de auditor | Recusados (I6) | Permitidos |

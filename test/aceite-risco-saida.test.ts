@@ -4,7 +4,7 @@ import { prepararProjeto, chamar, json, base, novaAtividade, type Sessoes } from
 
 /**
  * Sair de Accepted por status explícito desfaz o aceite ANTIGO (sem senha, de antes da 0120): carimbo limpo e trilha, nas duas portas.
- * O aceite com senha não sai por status (só revogando): test/risco-aceite-residual.test.ts.
+ * O aceite com senha não depende do status (migration 0121): o status muda e o aceite fica (test/risco-aceite-residual.test.ts).
  */
 describe('aceite de risco: saída por status', () => {
   let s: Sessoes;

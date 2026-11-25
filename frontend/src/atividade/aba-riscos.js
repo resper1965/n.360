@@ -140,7 +140,8 @@ window.atRiscoGravar = async function () {
 // ─── Tratar Risco (spec 2026-10-19): o modal do legado em três abas, também aberto pela lista de Riscos do projeto ───
 // Risco (só leitura), Tratamento (Estratégia, Descrição, Responsável, Status e Data prevista, todos obrigatórios) e Risco residual
 // (calculado ao vivo e por "Recalcular"; o servidor recalcula e é a verdade). Status: Pendente é o risco aberto, Concluído o fechado
-// (`Closed`); o status só vai no corpo quando muda, para não desfazer um aceite (`Accepted`) que a tela não mostra.
+// (`Closed`); o status só vai no corpo quando muda, para não desfazer um aceite antigo (`Accepted`, de antes da 0120) que a tela
+// não mostra. O aceite com senha não depende do status (migration 0121).
 const SUBABAS_TR = [['risco', 'Risco'], ['tratamento', 'Tratamento'], ['residual', 'Risco residual']];
 const STATUS_TR = [['Open', 'Pendente'], ['Closed', 'Concluído']];
 let T = null; // { projectId, risco, aoGravar, sub }

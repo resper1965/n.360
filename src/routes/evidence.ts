@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
-import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAccess, verifyPassword, validateUpload, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, idDoControle } from '../helpers';
+import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAccess, verifyPassword, validateUpload, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, idDoControle, ForbiddenError } from '../helpers';
 import type { PapelAssinatura } from '../helpers';
 import { EvidenceAgent } from '../agents/evidence';
 import { listPaged } from '../helpers';
@@ -39,6 +39,26 @@ evidenceApp.get('/:id/detail', async (c) => {
     return c.json(semRastroDeAssinatura(comCtrl));
   } catch (e: any) {
     return erro500(c, 'Falha ao buscar detalhe da evidência', e);
+  }
+});
+
+// A evidência por id: controles (N:N), avaliação por IA, notas e aprovações, sem IP nem navegador das assinaturas. Inexistente e de
+// outro projeto respondem igual (404): a resposta não diz se o id existe.
+evidenceApp.get('/:id', async (c) => {
+  const id = c.req.param('id');
+  try {
+    await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
+  } catch (e) {
+    if (e instanceof ForbiddenError) return c.json({ error: 'Evidência não encontrada' }, 404);
+    return erro500(c, 'Falha ao buscar a evidência', e);
+  }
+  try {
+    const ev = await c.env.DB.prepare('SELECT * FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string }>();
+    if (!ev) return c.json({ error: 'Evidência não encontrada' }, 404);
+    const [comCtrl] = await comControles(c.env.DB, ev.project_id, [ev]);
+    return c.json({ ok: true, evidence: semRastroDeAssinatura(comCtrl) });
+  } catch (e) {
+    return erro500(c, 'Falha ao buscar a evidência', e);
   }
 });
 
@@ -486,7 +506,13 @@ evidenceApp.put('/:id/signatures/approve', handleApprove);
 
 projectEvidenceApp.get('/', async (c) => {
   const projectId = c.req.param('projectId') ?? '';
-  const p = await listPaged(c, 'SELECT * FROM evidence WHERE project_id = ? ORDER BY created_at DESC', [projectId]);
+  // `?controlId=` (id da linha ou código do controle): só as evidências ligadas a ele (N:N). Controle que não existe no projeto: lista vazia.
+  const ref = c.req.query('controlId');
+  const controlId = ref ? (await idDoControle(c.env.DB, projectId, ref)) ?? '' : null;
+  const p = controlId === null
+    ? await listPaged(c, 'SELECT * FROM evidence WHERE project_id = ? ORDER BY created_at DESC', [projectId])
+    : await listPaged(c, `SELECT * FROM evidence e WHERE e.project_id = ?
+        AND EXISTS (SELECT 1 FROM evidencia_controles ec WHERE ec.evidence_id = e.id AND ec.control_id = ?) ORDER BY e.created_at DESC`, [projectId, controlId]);
   // `control_id` segue sendo o primeiro vínculo (leitura compatível); `control_ids` traz todos.
   const evidence = await comControles(c.env.DB, projectId, p.results as { id: string }[]);
   return c.json({ ok: true, evidence: semRastros(evidence) }, 200, { 'X-Has-More': String(p.hasMore) });
