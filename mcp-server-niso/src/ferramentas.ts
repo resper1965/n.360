@@ -265,7 +265,7 @@ export const TOOLS: Ferramenta[] = [
   },
   {
     name: "niso_evaluate_evidence",
-    description: `AI pre-qualification of an evidence record (CONFORME/PARCIAL/NAO CONFORME draft — not an audit verdict). Requires the extracted text of the evidence document. ${WRITE_GUARDRAIL}`,
+    description: `AI pre-qualification of an evidence record (CONFORME/PARCIAL/NAO CONFORME draft — not an audit verdict). Requires the extracted text of the evidence document. Writes ONLY the AI fields avaliacao_ia and evaluation_score (plus the draft evaluation_status while the evidence is not approved); it NEVER writes evaluation_notes, which is the human reviewer's note. ${WRITE_GUARDRAIL}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -295,6 +295,12 @@ export const TOOLS: Ferramenta[] = [
         controlId: {
           type: "string",
           description: "Optional Annex A control ID to link the evidence to (e.g. ctrl-a51)",
+        },
+        controlIds: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 50,
+          description: "Optional: more controls to link the evidence to (N:N), by row id or code (e.g. A.5.1). Linked after the evidence is created; the reply lists what was linked and what failed.",
         },
         documentoId: {
           type: "string",
@@ -809,11 +815,12 @@ export async function executarFerramenta(
           content: z.string().min(1, "content não pode ser vazio"),
           contentType: z.enum(EVIDENCE_TEXT_TYPES).optional(),
           controlId: z.string().optional(),
+          controlIds: z.array(z.string().min(1)).max(50).optional(),
           documentoId: z.string().optional(),
         });
         const validated = schema.parse(args);
         fora(validated.projectId);
-        return await t.uploadTexto(
+        const criada = await t.uploadTexto(
           `/api/v1/projects/${enc(validated.projectId)}/evidence/upload`,
           {
             contentType: validated.contentType || "text/markdown",
@@ -823,6 +830,21 @@ export async function executarFerramenta(
           validated.content,
           validated.fileName
         );
+        const id = (criada as { id?: unknown })?.id;
+        if (!validated.controlIds?.length || typeof id !== "string") return criada;
+        // Uma falha não desfaz a evidência nem as outras ligações: a resposta diz o que ligou e o que falhou.
+        const ligados: string[] = [];
+        const falhas: { control_id: string; erro: string }[] = [];
+        for (const control_id of new Set(validated.controlIds)) {
+          try {
+            const r = (await t.contrato("POST /api/v1/evidence/{id}/controles", { id }, { control_id })) as { error?: unknown };
+            if (typeof r?.error === "string") falhas.push({ control_id, erro: r.error });
+            else ligados.push(control_id);
+          } catch (e) {
+            falhas.push({ control_id, erro: e instanceof Error ? e.message : String(e) });
+          }
+        }
+        return { ...(criada as object), controles_ligados: ligados, controles_com_falha: falhas };
       }
 
       case "niso_migrate_27701": {

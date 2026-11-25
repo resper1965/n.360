@@ -65,6 +65,7 @@ export const DECISOES: readonly Decisao[] = [
   // Pedir aprovação ou ciência é do consultor; aprovar segue do destinatário, com a senha dele (FORA_DO_AGENTE). Ler a fila é niso_ler.
   { ferramenta: 'niso_pedir_aprovacao', acao: 'pedir', metodo: 'POST', caminho: `${P}/pedidos`, corpo: true },
   { ferramenta: 'niso_pedir_aprovacao', acao: 'pedir_ciencia_por_link', metodo: 'POST', caminho: `${P}/pedidos/ciencia`, corpo: true },
+  { ferramenta: 'niso_pedir_aprovacao', acao: 'cancelar', metodo: 'POST', caminho: `${P}/pedidos/{pedidoId}/cancelar`, corpo: true },
 ];
 
 export const parametrosDe = (modelo: string): string[] => [...modelo.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);

@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, forceCloseModal, confirmar, escapeHTML, formatarData, renderDataTable, renderMaisAcoes } from '../ui.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
-import { podeAceitar, podeRevogar, podePedirAceite, linhaDeAceite, aceitarRisco, revogarAceiteRisco, pedirAceiteRisco } from '../aceite-risco.js';
+import { podeAceitar, avisoSemResidual, podeRevogar, podePedirAceite, linhaDeAceite, aceitarRisco, revogarAceiteRisco, pedirAceiteRisco } from '../aceite-risco.js';
 
 // Aba Riscos da ficha da atividade (spec 2026-10-16, seção 7). Contrato de aba da casca: montar(painel, ctx) com
 // ctx = { projectId, ropaId, ficha, editavel, recarregarFicha }; devolve { esvaziar }. O risco é o MESMO cadastro do n.iso
@@ -46,7 +46,7 @@ function desenhar() {
     const linhas = R.riscos.map((r) => {
         const t = tratado(r);
         // Aceitar é da alçada (o CEO pode não editar a atividade): o botão segue o servidor, não a edição.
-        const aceitar = podeAceitar(r) ? `<button type="button" class="btn btn-sm" data-action="atRiscoAceitar" data-args='${args(r.id)}' aria-label="${escapeHTML(`Aceitar o risco residual ${idr(r.idr)}: ${r.threat}`)}">Aceitar risco residual</button>` : '';
+        const aceitar = podeAceitar(r) ? `<button type="button" class="btn btn-sm" data-action="atRiscoAceitar" data-args='${args(r.id)}' aria-label="${escapeHTML(`Aceitar o risco residual ${idr(r.idr)}: ${r.threat}`)}">Aceitar risco residual</button>` : avisoSemResidual(r);
         const mais = [
             ed && { rotulo: 'Editar', action: 'atRiscoEditar', args: [r.id] },
             ed && podePedirAceite(r, S.user) && { rotulo: 'Pedir aceite', action: 'atRiscoPedirAceite', args: [r.id] },

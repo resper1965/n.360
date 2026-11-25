@@ -281,7 +281,8 @@ evidenceApp.delete('/:id/controles/:controlId', async (c) => {
     // A evidência é do núcleo, o controle é do n.iso: ligar e desligar exigem o n.iso no projeto e na pessoa (como as rotas de controle).
     const semIso = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, 'iso');
     if (semIso) return c.json({ error: semIso }, 403);
-    const controlId = c.req.param('controlId');
+    // Como no POST: o id da linha ou o código ("A.5.1"). Controle que não resolve cai no 404 de "não está ligado".
+    const controlId = (await idDoControle(c.env.DB, ev.project_id, c.req.param('controlId'))) ?? c.req.param('controlId');
     const desligou = await desligarControle(c.env.DB, id, controlId);
     if (!desligou) return c.json({ error: 'A evidência não está ligada a este controle' }, 404);
     const quem = c.get('user')?.email ?? 'system';

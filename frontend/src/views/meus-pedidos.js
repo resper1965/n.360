@@ -5,7 +5,7 @@
 import { api } from '../api.js';
 import { S } from '../state.js';
 import { produtoAtual } from '../produto.js';
-import { openModal, forceCloseModal, showToast, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
+import { openModal, forceCloseModal, showToast, escapeHTML, formatarData, tituloDaTela, pedirTexto } from '../ui.js';
 
 const PAPEIS = {
     ciso: 'Aprovação do Líder SGSI / DPO',
@@ -370,6 +370,7 @@ window.abrirAcompanhamento = async function abrirAcompanhamento(projectId, id) {
             </div>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
                 <button type="button" class="btn btn-secondary" data-action="forceCloseModal">Fechar</button>
+                ${aberto && r.pode_cancelar ? `<button type="button" class="btn btn-secondary" data-action="cancelarPedido" data-args='${args(projectId, p.id)}'>Cancelar pedido</button>` : ''}
                 ${aberto && p.papel_exigido === 'ciente' ? `<button type="button" class="btn btn-primary" data-action="reenviarCiencia" data-args='${args(projectId, p.id)}'>Reenviar aos pendentes</button>` : ''}
             </div>
         </div>`);
@@ -383,5 +384,21 @@ window.reenviarCiencia = async function reenviarCiencia(projectId, id) {
         showToast('Erro ao reenviar: ' + e.message, 'error');
         return;
     }
+    await window.abrirAcompanhamento(projectId, id);
+};
+
+// Cancelar pedido aberto (o autor ou o consultor designado: o servidor diz em `pode_cancelar` e decide de novo). Motivo de 3 a 500.
+window.cancelarPedido = async function cancelarPedido(projectId, id) {
+    const motivo = await pedirTexto('Motivo do cancelamento (vai para a trilha de auditoria). Os destinatários não poderão mais decidir este pedido.',
+        { titulo: 'Cancelar pedido', rotulo: 'Cancelar pedido', perigo: true });
+    if (motivo === null) return;
+    if (motivo.length < 3 || motivo.length > 500) { showToast('Informe o motivo do cancelamento (3 a 500 caracteres).', 'error'); return; }
+    try {
+        await api('POST', `/api/v1/projects/${encodeURIComponent(projectId)}/pedidos/${encodeURIComponent(id)}/cancelar`, { motivo });
+    } catch (e) {
+        showToast('Erro ao cancelar: ' + e.message, 'error');
+        return;
+    }
+    showToast('Pedido cancelado. Ele saiu de Minhas aprovações dos destinatários.');
     await window.abrirAcompanhamento(projectId, id);
 };
