@@ -2,7 +2,7 @@
 // nem site por conta própria: perguntam aqui.
 import { PROJETOS_DO_CONSULTOR_SQL, ehConsultor } from '../helpers';
 import { aadOt, decifrarOt, mascararMac, type ChavesOt } from './ot-cifra';
-import { adminDireto } from './organizacao';
+import { adminDireto, orgDoUsuario } from './organizacao';
 
 /** LIMIT explícito das leituras que decidem (acesso, deduplicação, confronto, zonas): sem ele o query-cap corta em 500 em silêncio.
  *  shortcut: um site (ou projeto) com mais de 20.000 linhas fica cortado aqui; ao chegar perto disso, paginar ou indexar no banco. */
@@ -43,11 +43,23 @@ export const podeCriarLote = (u: AtorOt) => podeEditarOt(u) || (!naoEhPessoa(u) 
  * por `ehEquipeNess` (o agente com decisão passaria). O consultor só chega aqui designado (requireProjectAccess).
  */
 export async function podeVerCompleto(db: D1Database, u: AtorOt, projectId: string): Promise<boolean> {
+  const e = escopoVerCompleto(u);
+  if (typeof e === 'boolean') return e;
+  return !!await db.prepare(`SELECT 1 FROM projects WHERE id = ? AND id IN (${e.sql})`).bind(projectId, ...e.bind).first();
+}
+
+/**
+ * A regra de `podeVerCompleto` para vários projetos numa consulta só (a carteira): true/false vale para todo projeto; o objeto é o SQL dos
+ * ids em que o consultoria_admin vê completo, admin direto (a mesma condição de `adminDireto`) ou designado (PROJETOS_DO_CONSULTOR_SQL).
+ */
+export function escopoVerCompleto(u: AtorOt): boolean | { sql: string; bind: string[] } {
   if (naoEhPessoa(u)) return false;
   if (u.role === 'org_admin' || ehConsultor(u)) return true;
   if (u.role !== 'consultoria_admin') return false;
-  if (await adminDireto(db, u, projectId)) return true;
-  return !!await db.prepare(`SELECT 1 FROM projects WHERE id = ? AND id IN (${PROJETOS_DO_CONSULTOR_SQL})`).bind(projectId, u.email).first();
+  return {
+    sql: `SELECT p.id FROM organizations o JOIN projects p ON p.org_id = o.id WHERE o.id = ? AND o.tipo = 'direta' AND o.status = 'Active' UNION ${PROJETOS_DO_CONSULTOR_SQL}`,
+    bind: [orgDoUsuario(u) ?? '', u.email],
+  };
 }
 
 /**

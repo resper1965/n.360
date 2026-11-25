@@ -148,6 +148,10 @@ describe('carteira com o n.ot', () => {
       expect(d.projetos.find((p: any) => p.id === 'proj-a').situacao).toBe('1 desvio aberto');
       expect(JSON.stringify(d)).not.toMatch(/sonda|Sonda Exemplo/i);
     }
+    // consultoria_admin designado no projeto (caminho da consulta agrupada) vê a sonda parada
+    await designarConsultor('ca@ness.lat', 'proj-a');
+    const d = await (await chamar(cadm, '/api/v1/carteira')).json() as any;
+    expect(d.projetos.find((p: any) => p.id === 'proj-a').situacao).toBe('1 sonda parada');
     await env.DB.prepare(`DELETE FROM ot_sensores WHERE id = 'sn-c'`).run();
   });
 });

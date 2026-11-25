@@ -146,7 +146,9 @@ window.salvarParte = async function (projectId, id) {
         const tipo = document.getElementById('parte-e-tipo');
         const mudouTipo = tipo && !tipo.disabled && tipo.value !== tipo.querySelector('option[selected]')?.value;
         await api('PUT', `/api/v1/projects/${projectId}/partes/${id}`, { nome, email: email || null, status: document.getElementById('parte-e-status').value,
-            ...(campoCnpj ? { cnpj: campoCnpj.value.trim() || null } : {}), ...(mudouTipo ? { tipo: tipo.value } : {}) });
+            // virar pessoa limpa o CNPJ (o servidor recusa CNPJ fora de organização); fora disso, só o campo habilitado vai
+            ...(mudouTipo && tipo.value === 'pessoa' ? { cnpj: null } : campoCnpj && !campoCnpj.disabled ? { cnpj: campoCnpj.value.trim() || null } : {}),
+            ...(mudouTipo ? { tipo: tipo.value } : {}) });
         window.forceCloseModal();
         window.render();
     } catch (e) { falha(e, 'Não foi possível salvar a parte'); }
