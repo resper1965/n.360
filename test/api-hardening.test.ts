@@ -65,14 +65,15 @@ describe('API hardening (triagem de defeitos)', () => {
     expect(b.error).not.toMatch(/Nothing to update/i);
   });
 
-  it('5) PUT /evidence/:id re-associa a evidência e reseta a avaliação', async () => {
+  // Tarefa 3: a avaliação e a aprovação valem para o conteúdo (hash), não para o vínculo; trocar o controle as mantém.
+  it('5) PUT /evidence/:id re-associa a evidência: mantém a situação da avaliação e zera a nota da IA', async () => {
     const res = await req('PUT', '/api/v1/evidence/ev-1', { control_id: 'ctrl-2' });
     expect(res.status).toBe(200);
     const b = (await res.json()) as any;
     expect(b.relinked).toBe(true);
     const ev = await env.DB.prepare("SELECT control_id, evaluation_status, evaluation_score FROM evidence WHERE id='ev-1'").first<any>();
     expect(ev.control_id).toBe('ctrl-2');
-    expect(ev.evaluation_status).toBe('pending'); // avaliação anterior invalidada
+    expect(ev.evaluation_status).toBe('conforming');
     expect(ev.evaluation_score).toBeNull();
   });
 

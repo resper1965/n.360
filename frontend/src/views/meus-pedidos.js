@@ -36,6 +36,10 @@ const CAMPOS_EXCECAO = [['escopo', 'Escopo'], ['motivo', 'Motivo'], ['vence_em',
 const CAMPOS_TRATAMENTO = [['finalidade', 'Finalidade'], ['titulares', 'Titulares'], ['categorias', 'Categorias de dados'], ['base_legal_texto', 'Base legal'],
     ['retencao', 'Retenção'], ['destinatarios', 'Destinatários'], ['transferencia_internacional', 'Transferência internacional'], ['salvaguardas', 'Salvaguardas'],
     ['dpia_requerido', 'DPIA requerido'], ['dados_sensiveis', 'Dados sensíveis (art. 11)'], ['criancas_adolescentes', 'Crianças e adolescentes (art. 14)'], ['itens', 'Sistemas, bases e processos'], ['departamentos', 'Departamentos'], ['partes', 'Partes'], ['transferencias', 'Transferências']];
+// Aceite do risco residual (migration 0120): o estado do risco congelado no pedido.
+const CAMPOS_RISCO = [['ameaca', 'Ameaça'], ['ativo', 'Ativo'], ['nivel', 'Nível do risco'], ['impacto', 'Impacto'], ['probabilidade', 'Probabilidade'],
+    ['nivel_residual', 'Nível do risco residual'], ['impacto_residual', 'Impacto residual'], ['probabilidade_residual', 'Probabilidade residual'],
+    ['estrategia', 'Estratégia de tratamento'], ['plano', 'Plano de tratamento'], ['controle', 'Controle vinculado']];
 const SIM_NAO = ['transferencia_internacional', 'dpia_requerido', 'dados_sensiveis', 'criancas_adolescentes'];
 const textoDoCampo = (k, v) => (Array.isArray(v) ? v.join('\n') : SIM_NAO.includes(k) ? (v ? 'Sim' : 'Não') : String(v));
 
@@ -61,7 +65,9 @@ window.renderMeusPedidos = async function renderMeusPedidos(c, h, a) {
     c.innerHTML = `<div class="fade-in" style="display:flex;flex-direction:column;gap:10px;max-width:820px">
         ${pedidos.map((p) => `
         <div style="display:flex;align-items:stretch;gap:10px">
-        ${p.meu_status === 'pendente' && p.status === 'aberto'
+        ${p.meu_status === 'pendente' && p.status === 'aberto' && p.tipo === 'risco'
+            ? `<span class="t-xs t-dim">Aceite de risco: um por vez, fora do lote</span>`
+            : p.meu_status === 'pendente' && p.status === 'aberto'
             ? `<span style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:84px">
                 <input type="checkbox" data-pl="${escapeHTML(p.id)}" disabled aria-label="Selecionar ${escapeHTML(p.titulo)}" aria-describedby="pl-motivo-${escapeHTML(p.id)}">
                 <span id="pl-motivo-${escapeHTML(p.id)}" style="font-size:11px;line-height:1.3;color:var(--text-dim);text-align:center">Abra o pedido para marcar</span></span>` : ''}
@@ -79,7 +85,7 @@ window.renderMeusPedidos = async function renderMeusPedidos(c, h, a) {
 };
 
 function conteudoHtml(tipo, conteudo) {
-    const campos = tipo === 'dpia' ? CAMPOS_DPIA : tipo === 'politica' ? CAMPOS_POLITICA : tipo === 'documento' ? CAMPOS_DOCUMENTO : tipo === 'excecao' ? CAMPOS_EXCECAO : tipo === 'tratamento' ? CAMPOS_TRATAMENTO : Object.keys(conteudo).map((k) => [k, k]);
+    const campos = tipo === 'dpia' ? CAMPOS_DPIA : tipo === 'politica' ? CAMPOS_POLITICA : tipo === 'documento' ? CAMPOS_DOCUMENTO : tipo === 'excecao' ? CAMPOS_EXCECAO : tipo === 'tratamento' ? CAMPOS_TRATAMENTO : tipo === 'risco' ? CAMPOS_RISCO : Object.keys(conteudo).map((k) => [k, k]);
     return campos.filter(([k]) => conteudo[k] !== null && conteudo[k] !== undefined && conteudo[k] !== '' && !(Array.isArray(conteudo[k]) && !conteudo[k].length))
         .map(([k, rotulo]) => `<div style="margin-bottom:12px">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);margin-bottom:4px">${escapeHTML(rotulo)}</div>
@@ -171,7 +177,8 @@ window.recusarPedido = (id) => enviarDecisao(id, 'recusar');
 /** Papéis que pedem (o servidor decide de novo: `PODE_PEDIR` em routes/pedidos.ts). */
 window.podePedirAprovacao = (user) => ['org_admin', 'consultor', 'consultant', 'consultoria_admin'].includes(user?.role);
 
-window.abrirPedidoAprovacao = async function abrirPedidoAprovacao(projectId, tipo, refId) {
+// `papelFixo`: o pedido de aceite de risco vai com o papel da alçada do nível residual, sem escolha.
+window.abrirPedidoAprovacao = async function abrirPedidoAprovacao(projectId, tipo, refId, papelFixo) {
     let membros = [];
     try {
         membros = (await api('GET', `/api/v1/projects/${encodeURIComponent(projectId)}/governance`)) || [];
@@ -182,11 +189,11 @@ window.abrirPedidoAprovacao = async function abrirPedidoAprovacao(projectId, tip
     const comEmail = membros.filter((m) => m.email && m.role_category !== 'consultor');
     openModal(`
         <form id="pn-form" data-action-submit="enviarPedidoAprovacao" data-arg-event data-args='${args(projectId, tipo, refId)}' data-prevent style="padding:1.5rem 1.75rem;max-width:520px" novalidate>
-            <h3 style="font-family:var(--font-head);font-weight:600;font-size:17px;margin:0 0 16px">Pedir aprovação</h3>
+            <h3 style="font-family:var(--font-head);font-weight:600;font-size:17px;margin:0 0 16px">${tipo === 'risco' ? 'Pedir aceite do risco residual' : 'Pedir aprovação'}</h3>
             <div class="form-group">
                 <label class="form-label" for="pn-papel">O que é pedido</label>
                 <select class="form-input" id="pn-papel">
-                    ${Object.entries(papeisDoModulo()).filter(([v]) => !['politica', 'documento', 'excecao', 'tratamento'].includes(tipo) || v !== 'ciente').map(([v, r]) => `<option value="${v}">${escapeHTML(r)}</option>`).join('')}
+                    ${Object.entries(papeisDoModulo()).filter(([v]) => (papelFixo ? v === papelFixo : !['politica', 'documento', 'excecao', 'tratamento', 'risco'].includes(tipo) || v !== 'ciente')).map(([v, r]) => `<option value="${v}">${escapeHTML(r)}</option>`).join('')}
                 </select>
             </div>
             <fieldset class="form-group" style="border:0;padding:0;margin:0 0 12px">

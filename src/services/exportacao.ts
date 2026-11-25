@@ -3,6 +3,7 @@ import { cicloEmTexto, etapasDe, type EtapaLida } from './ciclo';
 import { aprovacoesDoProjeto } from './documentos';
 import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO, sqlAreaDaAtividade, type FaixaPrazo } from './riscos-atividade';
+import { ultimosAceites, colunasDoAceite, CABECALHO_ACEITE } from './aceite-risco';
 import { hojeEmSaoPaulo } from './hoje';
 import { listarPedidos } from './titular-pedidos';
 
@@ -111,12 +112,12 @@ async function riscos(db: D1Database, projectId: string, f: FiltroExportacao): P
     projectId, f.probabilidade ?? null, f.impacto ?? null, f.motivo || null, f.nivel || null, f.status || null, f.area || null, TETO_LINHAS + 1);
   return {
     cabecalho: ['Atividade', 'Ameaça', 'Vulnerabilidade', 'Ativo', 'Impacto', 'Probabilidade', 'Nível', 'Estratégia', 'Plano de tratamento',
-      'Impacto residual', 'Probabilidade residual', 'Nível residual', 'Prazo', 'Responsável', 'Situação', 'Criado em'],
-    linhas: regs.map((r) => [
+      'Impacto residual', 'Probabilidade residual', 'Nível residual', 'Prazo', 'Responsável', 'Situação', 'Criado em', ...CABECALHO_ACEITE],
+    linhas: await (async () => { const ultimos = await ultimosAceites(db, projectId); return regs.map((r) => [
       r.atividade, r.threat, r.vulnerability, r.asset, r.impact, r.probability, traduz(NIVEL, r.risk_level), traduz(ESTRATEGIA, r.treatment),
       r.treatment_plan, r.residual_impact, r.residual_probability, traduz(NIVEL, r.residual_level), r.treatment_due_date, r.responsavel, traduz(STATUS, r.status || 'Open'),
-      r.created_at,
-    ]),
+      r.created_at, ...colunasDoAceite(r, ultimos),
+    ]); })(),
   };
 }
 

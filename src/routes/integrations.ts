@@ -7,6 +7,7 @@ import { listarAtivos } from '../services/itens';
 import { SQL_VENDORS_VISIVEIS, comIndiceAtual } from './vendors';
 import { podeVerCompleto } from '../services/ot-inventario';
 import { enviarUmaVez, montarCorpo } from '../services/webhook-entrega';
+import { ultimosAceites, colunasDoAceite, CABECALHO_ACEITE } from '../services/aceite-risco';
 import { montarCsv, traduz, simNao, STATUS, NIVEL, ESTRATEGIA, CLASSIFICACAO, TREINAMENTO } from '../services/exportacao';
 
 const integrations = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -327,9 +328,10 @@ integrations.get('/api/v1/projects/:projectId/export/risks', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT r.*, pa.nome AS responsavel FROM risks r LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
       WHERE r.project_id = ?`).bind(c.req.param('projectId')).all<Linha>();
-  return csvComTrilha(c, 'riscos', ['Ativo', 'Ameaça', 'Vulnerabilidade', 'Impacto', 'Probabilidade', 'Nível', 'Tratamento', 'Responsável', 'Status'],
+  const ultimos = await ultimosAceites(c.env.DB, c.req.param('projectId') ?? '');
+  return csvComTrilha(c, 'riscos', ['Ativo', 'Ameaça', 'Vulnerabilidade', 'Impacto', 'Probabilidade', 'Nível', 'Tratamento', 'Nível residual', 'Responsável', 'Status', ...CABECALHO_ACEITE],
     results.map((r) => [r.asset, r.threat, r.vulnerability, r.impact, r.probability, traduz(NIVEL, r.risk_level), traduz(ESTRATEGIA, r.treatment),
-      r.responsavel || r.owner, traduz(STATUS, r.status)]), 'risks.csv');
+      traduz(NIVEL, r.residual_level), r.responsavel || r.owner, traduz(STATUS, r.status), ...colunasDoAceite(r, ultimos)]), 'risks.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {

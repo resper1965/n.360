@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Riscos: aceite do risco residual com senha e alçada (ISO 27001, 6.1.3 e)
+- **Aceite do risco residual:** quem tem a alçada do nível residual (a Direção por padrão, configurável por nível pelo administrador do cliente) aceita o risco no detalhe, com a senha. O aceite congela o estado do risco com um hash e registra quem, quando, a alçada, a estratégia e os controles. Mudar o residual, a estratégia, o plano ou o controle invalida o aceite e o risco volta a "aceite pendente".
+- **Pedido de aceite** em "Minhas aprovações": o consultor envia o pedido a uma pessoa com a alçada, e aprovar com senha é o aceite. A revogação é só de quem aceitou, com senha e motivo.
+- **Mudança de comportamento:** o status "Aceito" não se grava mais pela edição do risco, e o agente não aceita risco. Risco com aceite registrado não se exclui (409). A lista de riscos ganha a coluna "Aceite" e o filtro; os CSVs e o pacote de auditoria trazem o aceite.
+
 ### Incidentes: reavaliação do risco depois do prazo e ciência às 21h de Brasília
 - **Risco rebaixado depois do prazo vencido:** reavaliar o risco de "relevante" ou "não avaliado" para "sem risco" ou "baixo" quando o prazo de comunicação à ANPD ou aos titulares já venceu, e essa comunicação não foi feita, agora exige a justificativa na avaliação. Sem ela, o servidor recusa com a mensagem "Para reavaliar o risco depois do prazo de comunicação vencido, registre a justificativa na avaliação.". Vale para a tela e para o agente; a importação não muda.
 - Nesses casos a comunicação aparece como "Não exigida (reavaliado após o prazo de DD/MM)" na lista, na página do incidente, na faixa da ANPD e no Word. A data da reavaliação vem do histórico do incidente. Regravar um risco que já era baixo (por exemplo, só para editar o texto) não é rebaixamento: não pede justificativa nem mostra a marca. Incidente importado já com risco baixo continua como "Não exigida (risco …)".

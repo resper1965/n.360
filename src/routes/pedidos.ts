@@ -12,6 +12,7 @@ import { remetente } from '../services/email-layout';
 import { emailCiencia, emailPedidoAprovacao, type QuemPede } from '../services/emails';
 import { log } from '../observability';
 import { assinarEvidencia } from './evidence';
+import { alcadasDoProjeto, type NivelRisco } from '../services/aceite-risco';
 import {
   criarPedido, recusaDeDestinatarios, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
   substituirPedidosDoDocumento, type TipoPedido, type Vigencia,
@@ -108,10 +109,28 @@ projectPedidosApp.post('/', async (c) => {
     if (recusa) return recusa;
     const user = c.get('user');
     const projectId = c.req.param('projectId') ?? '';
+    // Pedido de aceite de risco é só pela interface: o agente pede aprovação e ciência, não aceite de risco (decisão do dono, 25/11).
+    if (b.tipo === 'risco' && user?.agente) return c.json({ error: 'Pedir o aceite do risco residual é pela interface, não pelo agente.' }, 403);
     if ((b.tipo === 'documento' || b.tipo === 'excecao' || b.tipo === 'tratamento') && b.papel_exigido === 'ciente') {
       return c.json({ error: 'Ciência de política ou documento é pelo envio por link ("Nova ciência por link"). Este pedido é de aprovação: escolha Líder SGSI ou Direção.' }, 400);
     }
     const refId = b.ref_id;
+    // Pedido de aceite de risco: um risco por pedido, residual avaliado, ainda não aceito; o papel é a alçada do nível residual.
+    if (b.tipo === 'risco') {
+      const risco = await c.env.DB.prepare('SELECT status, residual_level FROM risks WHERE id = ? AND project_id = ?').bind(refId, projectId)
+        .first<{ status: string | null; residual_level: NivelRisco | null }>();
+      if (!risco) return c.json({ error: 'Risco não encontrado neste projeto' }, 404);
+      if (risco.status === 'Accepted' || risco.status === 'Closed') return c.json({ error: 'Este risco já está aceito ou encerrado.' }, 409);
+      if (!risco.residual_level) return c.json({ error: 'Avalie o risco residual (impacto e probabilidade residuais) antes de pedir o aceite.' }, 400);
+      const alcada = (await alcadasDoProjeto(c.env.DB, projectId))[risco.residual_level] ?? 'ceo';
+      // Um destinatário: o primeiro "aprovar" é o aceite e fecha o risco; um segundo destinatário ficaria pendente para sempre.
+      if (new Set(b.destinatarios.map((d) => d.email.trim().toLowerCase())).size !== 1) {
+        return c.json({ error: 'O pedido de aceite de risco vai a uma pessoa só: quem tem a alçada e vai aceitar.' }, 400);
+      }
+      if (b.papel_exigido !== alcada) {
+        return c.json({ error: `O aceite de risco residual ${risco.residual_level} é da ${alcada === 'ceo' ? 'Direção (CEO)' : 'Liderança do SGSI'}: peça com esse papel.`, alcada }, 400);
+      }
+    }
 
     const projeto = await c.env.DB.prepare('SELECT org_id FROM projects WHERE id = ?').bind(projectId).first<{ org_id: string }>();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
@@ -233,12 +252,22 @@ export type DbUser = { password_hash: string; name: string | null; totp_enabled:
  */
 export async function decidirPedido(
   c: Context<Ctx>, user: Usuario, pedidoId: string, decisao: 'aprovar' | 'recusar',
-  a: { senha: string | null; dbUser?: DbUser; motivo?: string | null; hashVisto?: string },
+  a: { senha: string | null; dbUser?: DbUser; motivo?: string | null; hashVisto?: string; emLote?: boolean },
 ): Promise<Resultado> {
   const db: D1Database = c.env.DB;
   const meu = await meuPedido(db, user, pedidoId);
   if (!meu) return { status: 404, corpo: { error: 'Pedido não encontrado' } };
   const { pedido, dest } = meu;
+  // Aceite de risco é um ato por risco: nunca em lote.
+  if (a.emLote && pedido.tipo === 'risco') return { status: 409, corpo: { error: 'Aceite de risco é um por vez: abra o pedido e decida.' } };
+  // A alçada pode ter mudado depois do pedido: aprovar com o papel antigo seria aceitar sem a alçada de agora.
+  if (pedido.tipo === 'risco' && decisao === 'aprovar') {
+    const r = await db.prepare('SELECT residual_level FROM risks WHERE id = ? AND project_id = ?').bind(pedido.ref_id, pedido.project_id).first<{ residual_level: NivelRisco | null }>();
+    const alcada = r?.residual_level ? (await alcadasDoProjeto(db, pedido.project_id))[r.residual_level] ?? 'ceo' : null;
+    if (alcada && alcada !== pedido.papel_exigido) {
+      return { status: 409, corpo: { error: 'A alçada de aceite deste nível de risco mudou depois do pedido. Peça o aceite de novo, a quem tem a alçada agora.' } };
+    }
+  }
   // Segregação de funções (spec onda 1): quem pediu não decide o que pediu. `criado_por` é o e-mail de quem criou.
   if (pedido.criado_por.toLowerCase() === (user.email ?? '').toLowerCase()) {
     return { status: 403, corpo: { error: 'Quem pediu a aprovação não a decide. Peça a outra pessoa.' } };
@@ -273,7 +302,7 @@ export async function decidirPedido(
   const ua = c.req.header('User-Agent') || null;
   const motivo = decisao === 'recusar' ? a.motivo ?? null : null;
   const pegou = await registrarDecisao(db, {
-    pedido, destId: dest.id, status: novoStatus, ip, ua, mfa: dbUser.totp_enabled === 1, nome, motivo, assinar,
+    pedido, destId: dest.id, status: novoStatus, ip, ua, mfa: dbUser.totp_enabled === 1, nome, motivo, assinar, email: user.email, userId: user.id,
   });
   if (!pegou) {
     // Algo mudou entre a conferência e a gravação (documento, pedido ou outra decisão): nada foi
@@ -286,6 +315,10 @@ export async function decidirPedido(
     return { status: 409, corpo: { error: 'Você já decidiu este pedido.' } };
   }
 
+  if (pedido.tipo === 'risco' && novoStatus === 'aprovado') {
+    await logAudit(db, 'risk.aceite_residual', user.email,
+      `Risco ${pedido.ref_id}: risco residual aceito por ${nome} pelo pedido ${pedido.id}; estado ${pedido.hash}`, '', ip ?? '', pedido.project_id);
+  }
   await logAudit(db, decisao === 'recusar' ? 'pedido.recusado' : 'pedido.aprovado', user.email,
     `Pedido ${pedido.id} (${pedido.tipo} ${pedido.ref_id}, papel ${pedido.papel_exigido}): ${novoStatus} por ${nome}; hash lido ${pedido.hash}`,
     decisao === 'recusar' ? a.motivo ?? '' : '', ip ?? '', pedido.project_id);
@@ -334,7 +367,7 @@ pedidosApp.post('/lote', async (c) => {
       let r: Resultado;
       try {
         r = it.tipo === 'pedido'
-          ? await decidirPedido(c, user, it.id, 'aprovar', { senha: null, dbUser, hashVisto: it.hash_visto })
+          ? await decidirPedido(c, user, it.id, 'aprovar', { senha: null, dbUser, hashVisto: it.hash_visto, emLote: true })
           : await assinarEvidencia(c, user, it.id, { password: null, dbUser, fileHash: it.hash_visto });
       } catch (e) {
         registraErro(c, e);

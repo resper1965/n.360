@@ -65,6 +65,14 @@ describe('agente do consultor e os pedidos', () => {
     expect((await comoAgente('GET', `/api/v1/projects/${P}/pedidos/${id}`)).status).toBe(200);
   });
 
+  it('o agente não pede o aceite de risco, nem com a decisão', async () => {
+    await env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, residual_level, status) VALUES ('rk-agped', ?, 'Ativo', 'Ameaça', 'Low', 'Open')`).bind(P).run();
+    const r = await comoAgente('POST', `/api/v1/projects/${P}/pedidos`, DECISAO, { ...pedido, tipo: 'risco', ref_id: 'rk-agped' });
+    expect(r.status).toBe(403);
+    expect((await r.json<any>()).error).toContain('interface');
+    expect((await env.DB.prepare(`SELECT COUNT(*) n FROM pedidos WHERE tipo = 'risco'`).first<any>()).n).toBe(0);
+  });
+
   it('o agente não aprova nem recusa em nome de ninguém, nem com a decisão', async () => {
     const { id } = await (await comoAgente('POST', `/api/v1/projects/${P}/pedidos`, DECISAO, pedido)).json<any>();
     for (const acao of ['aprovar', 'recusar']) {

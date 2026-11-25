@@ -192,12 +192,12 @@ describe('faixas e agente', () => {
     expect((await ag('PUT', `/api/v1/risks/${id}`, { treatment_plan: 'Rascunho' })).status).toBe(200);
   });
 
-  it('aceite humano grava quem aceitou e quando', async () => {
+  // Aceite do risco residual (migration 0120): só pela rota de aceite, com senha e alçada (test/risco-aceite-residual.test.ts).
+  it('o PUT da atividade não aceita o risco: Accepted é recusado e nada é carimbado', async () => {
     const id = await novoRisco('ra-r1', { treatment: 'Accept' });
-    expect((await chamar(consultor, 'PUT', `${base('ra-r1')}/riscos/${id}`, { status: 'Accepted' })).status).toBe(200);
-    const l = await env.DB.prepare('SELECT status, accepted_by, accepted_at FROM risks WHERE id = ?').bind(id).first<{ status: string; accepted_by: string; accepted_at: string | null }>();
-    expect(l).toMatchObject({ status: 'Accepted', accepted_by: 'cons@ness.lat' });
-    expect(l!.accepted_at).not.toBeNull();
+    expect((await chamar(consultor, 'PUT', `${base('ra-r1')}/riscos/${id}`, { status: 'Accepted' })).status).toBe(403);
+    const l = await env.DB.prepare('SELECT status, accepted_by, accepted_at FROM risks WHERE id = ?').bind(id).first<{ status: string; accepted_by: string | null; accepted_at: string | null }>();
+    expect(l).toMatchObject({ status: 'Open', accepted_by: null, accepted_at: null });
   });
 });
 

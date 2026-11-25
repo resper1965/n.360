@@ -239,3 +239,22 @@ export const evidenciaAssinarSchema = z.object({
   password: z.string().max(500).optional(),
   role: z.string().max(20).optional().nullable(),
 });
+
+// Aceite do risco residual (migration 0120): a senha de quem aceita, o hash do estado que a tela mostrou e a justificativa opcional.
+export const riscoAceiteSchema = z.object({
+  senha: z.string().min(1).max(200),
+  hash_visto: z.string().regex(/^[0-9a-f]{64}$/),
+  justificativa: z.string().trim().max(2000).nullable().optional(),
+}).strict();
+
+// Revogar o próprio aceite: a senha de quem aceitou e o motivo, obrigatórios.
+export const riscoRevogarAceiteSchema = z.object({
+  senha: z.string().min(1).max(200),
+  motivo: z.string().trim().min(5).max(2000),
+}).strict();
+
+// Alçada de aceite por nível do risco residual: 'ceo' (Direção) ou 'ciso' (Líder SGSI). Nível ausente fica como está.
+const papelAlcada = z.enum(['ceo', 'ciso']);
+export const riscoAlcadasSchema = z.object({
+  alcadas: z.object({ Low: papelAlcada, Medium: papelAlcada, High: papelAlcada, Critical: papelAlcada }).partial().strict(),
+}).strict();
