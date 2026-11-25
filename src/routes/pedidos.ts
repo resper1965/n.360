@@ -15,7 +15,7 @@ import { assinarEvidencia } from './evidence';
 import { alcadasDoProjeto, type NivelRisco } from '../services/aceite-risco';
 import {
   criarPedido, recusaDeDestinatarios, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
-  substituirPedidosDoDocumento, type TipoPedido, type Vigencia,
+  substituirPedidosDoDocumento, CONTEINER_PORTAL, type TipoPedido, type Vigencia,
 } from '../services/pedidos';
 
 /**
@@ -609,6 +609,8 @@ projectPedidosApp.post('/:id/reenviar', async (c) => {
  */
 async function recusaCancelar(c: Context<Ctx>, p: PedidoRow): Promise<string | null> {
   const user = c.get('user');
+  // O pedido "em pé" do portal guarda as ciências de quem entra sem convite: não é pedido de alguém, não se cancela.
+  if (p.criado_por === CONTEINER_PORTAL) return 'Este é o registro das ciências do portal público, não um pedido: não se cancela.';
   if (user.agente === true && user.agente_papel !== 'consultor') return 'O agente auditor não cancela pedido.';
   if (p.criado_por.toLowerCase() === quemPede(user).toLowerCase()) return null;
   const consultor = ehConsultor(user) || user.agente === true;

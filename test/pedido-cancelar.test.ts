@@ -107,10 +107,47 @@ describe('cancelar pedido de aprovação', () => {
     const r = await comoPessoa(adm, 'POST', `/api/v1/projects/${P}/pedidos`, { ...pedido, papel_exigido: 'ciente', destinatarios: [{ email: 'cons2@ness.lat' }] });
     const outro = (await r.json<any>()).id;
     expect((await comoPessoa(adm, 'POST', cancelar(outro), MOTIVO)).status).toBe(200);
+    // Item de controle no mesmo lote: um pedido aberto igual, que é aprovado (o lote funciona; só o cancelado fica de fora).
+    const vivo = (await (await comoPessoa(adm, 'POST', `/api/v1/projects/${P}/pedidos`, { ...pedido, papel_exigido: 'ciente', destinatarios: [{ email: 'cons2@ness.lat' }] })).json<any>()).id;
     const hash = (await env.DB.prepare('SELECT hash FROM pedidos WHERE id = ?').bind(outro).first<any>()).hash;
-    const lote = await (await comoPessoa(cons2, 'POST', '/api/v1/pedidos/lote', { senha: SENHA, itens: [{ tipo: 'pedido', id: outro, hash_visto: hash }] })).json<any>();
-    expect(lote, JSON.stringify(lote)).toMatchObject({ aprovados: 0, resultados: [{ id: outro, resultado: 'ignorado' }] });
+    const lote = await (await comoPessoa(cons2, 'POST', '/api/v1/pedidos/lote', { senha: SENHA, itens: [
+      { tipo: 'pedido', id: outro, hash_visto: hash }, { tipo: 'pedido', id: vivo, hash_visto: hash }] })).json<any>();
+    expect(lote, JSON.stringify(lote)).toMatchObject({ aprovados: 1, resultados: [
+      { id: outro, resultado: 'ignorado', motivo: 'Este pedido não está mais aberto.' }, { id: vivo, resultado: 'aprovado' }] });
     expect((await env.DB.prepare('SELECT status FROM pedido_destinatarios WHERE pedido_id = ?').bind(id).first<any>()).status).toBe('pendente');
+  });
+
+  it('pelo caminho de outro projeto é 404, mesmo para o consultor designado nos dois', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-pcan-2', 'Outro', 'ISO 27701', 'controller', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p-pcan-2', 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`),
+    ]);
+    const id = await criar(cons);
+    expect((await comoPessoa(cons, 'POST', `/api/v1/projects/p-pcan-2/pedidos/${id}/cancelar`, MOTIVO)).status).toBe(404);
+    expect(await status(id)).toBe('aberto');
+  });
+
+  it('cancelar o pedido de aceite de risco deixa o risco sem aceite', async () => {
+    await env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level, treatment, status, residual_impact, residual_probability, residual_level)
+      VALUES ('rk-c', ?, 'ERP', 'Indisponibilidade', 4, 4, 'High', 'Mitigate', 'Open', 2, 2, 'Low')`).bind(P).run();
+    const r = await comoPessoa(cons, 'POST', `/api/v1/projects/${P}/pedidos`, { ...pedido, tipo: 'risco', ref_id: 'rk-c' });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const id = (await r.json<any>()).id;
+    expect((await comoPessoa(cons, 'POST', cancelar(id), MOTIVO)).status).toBe(200);
+    expect(await status(id)).toBe('cancelado');
+    expect((await env.DB.prepare(`SELECT status FROM risks WHERE id = 'rk-c'`).first<any>()).status).toBe('Open');
+    expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM risco_aceites WHERE risk_id = 'rk-c'`).first<any>()).n).toBe(0);
+    expect((await comoPessoa(ceo, 'POST', `/api/v1/pedidos/${id}/aprovar`, { senha: SENHA })).status).toBe(409);
+  });
+
+  it('o registro das ciências do portal (pedido "em pé") não se cancela', async () => {
+    await env.DB.prepare(`INSERT INTO pedidos (id, org_id, project_id, tipo, ref_id, titulo, papel_exigido, conteudo_json, hash, criado_por)
+      VALUES ('pd-portal', 'org_ness', ?, 'documento', 'doc-1', 'Política', 'ciente', '{}', 'h', 'sistema:portal')`).bind(P).run();
+    const r = await comoPessoa(cons, 'POST', cancelar('pd-portal'), MOTIVO);
+    expect(r.status).toBe(403);
+    expect((await r.json<any>()).error).toContain('portal');
+    expect(await status('pd-portal')).toBe('aberto');
+    expect((await (await comoPessoa(cons, 'GET', `/api/v1/projects/${P}/pedidos/pd-portal`)).json<any>()).pode_cancelar).toBe(false);
   });
 
   it('o acompanhamento diz a quem pode cancelar', async () => {
@@ -136,7 +173,7 @@ describe('o agente cancela pela decisão niso_pedir_aprovacao', () => {
 
   it('o agente auditor não cancela', async () => {
     const id = await criar(cons);
-    expect((await comoAgente(AGENTE_AUD, {}, cancelar(id), MOTIVO)).status).toBe(403);
+    expect((await comoAgente(AGENTE_AUD, DECISAO, cancelar(id), MOTIVO)).status).toBe(403);
     expect(await status(id)).toBe('aberto');
   });
 });
