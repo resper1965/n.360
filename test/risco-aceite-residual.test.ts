@@ -170,6 +170,15 @@ describe('aceite direto, com senha', () => {
     expect((await aceitar(ceo, 'rk-2')).status).toBe(200);
     expect((await doRisco(cons, 'rk-2')).aceite).toMatchObject({ situacao: 'aceito', legado: false, com_senha: true, por: 'Carla Ceo' });
     expect((await risco('rk-2')).status).toBe('Accepted');
+    // Revogado: não volta a "aceito" legado pelo status (legado é só o risco sem NENHUMA linha de aceite).
+    expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-2/aceite/revogar', { motivo: 'Revisão do residual', senha: SENHA })).status).toBe(200);
+    expect((await doRisco(cons, 'rk-2')).aceite).toMatchObject({ situacao: 'revogado', legado: false });
+    expect(await risco('rk-2')).toEqual({ status: 'Accepted', accepted_by: null, accepted_at: null });
+    // E o PUT não o trata como legado: mudar as notas não o devolve a Open.
+    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-2', { impact: 3 })).status).toBe(200);
+    expect((await risco('rk-2')).status).toBe('Accepted');
+    const csv = await (await chamar(cons, 'GET', `/api/v1/projects/${P}/export/risks`)).text();
+    expect(csv.split('\n').find((l) => l.includes('Indisponibilidade'))).toContain('"Aceite revogado"');
   });
 });
 

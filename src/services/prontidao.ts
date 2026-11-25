@@ -2,6 +2,7 @@ import { SQL_CLASSE_CONTROLE, SQL_ESCOPO_DEFINIDO, SQL_EVIDENCIA_RUIM } from './
 import { diaMes } from './encarregado';
 import { hojeEmSaoPaulo } from './hoje';
 import { escopoRopa } from './escopo-itens';
+import { SQL_RISCO_TRATADO } from './aceite-risco';
 import { ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 
@@ -197,7 +198,7 @@ export async function contagensDoProjeto(db: D1Database, projectId: string): Pro
     db.prepare(`SELECT count(*) AS n FROM compliance_controls WHERE project_id = ?1 AND substr(title, 1, instr(title || ' ', ' ') - 1) = 'A.5.1'
       AND (ciso_approved_by IS NOT NULL OR ceo_approved_by IS NOT NULL)`).bind(projectId),
     // Riscos do n.iso: o mesmo recorte do Painel (sem atividade de tratamento do n.privacy).
-    db.prepare(`SELECT count(*) AS total, sum(CASE WHEN COALESCE(status, 'Open') NOT IN ('Mitigated', 'Accepted', 'Closed') AND trim(COALESCE(treatment_plan, '')) = '' THEN 1 ELSE 0 END) AS sem
+    db.prepare(`SELECT count(*) AS total, sum(CASE WHEN NOT ${SQL_RISCO_TRATADO} AND trim(COALESCE(treatment_plan, '')) = '' THEN 1 ELSE 0 END) AS sem
       FROM risks WHERE project_id = ?1${escopoRopa('programa')}`).bind(projectId),
     db.prepare(`SELECT sum(CASE WHEN tipo = 'politica' AND status = 'vigente' THEN 1 ELSE 0 END) AS politicas,
         sum(CASE WHEN status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2 THEN 1 ELSE 0 END) AS vencidos

@@ -828,13 +828,15 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Responsividade fora de escopo** ate segunda ordem.
 - **Equalizacao n.iso x n.privacy (20/10/2026, `docs/arquivo/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e
   aparece do mesmo jeito nos dois modulos: (1) RIPD aprovado PERDE a aprovacao quando o conteudo muda, como atividade e documento;
-  (2) aceite de risco e um modelo so, `status = Accepted` carimbado no servidor (quem e quando), nos dois modulos; (3) o DPA do
+  (2) aceite de risco e um modelo so, `status = Accepted` carimbado no servidor (quem e quando), nos dois modulos (revisto: desde a 0121, 25/11/2026,
+  o aceite com senha nao muda o status; ver a regra do aceite do risco residual abaixo); (3) o DPA do
   fornecedor tem fonte unica, o documento ligado em `documento_partes` (papel `dpa`), e `vendors.dpa_signed` passa a ser derivado
   dele; (4) as telas do n.iso deixam de ser congeladas: listas, rotulos e vocabulario de status sao os mesmos dos dois modulos.
 - **Decisoes de 20/10/2026 (Frente 2B da equalizacao n.iso x n.privacy; spec `docs/superpowers/specs/2026-10-20-frente2-regras-unicas-design.md`).**
   (1) RIPD: uma assinatura (DPO ou Direcao) aprova (`assinaturaDpia`); mudar coluna de conteudo (`COLUNAS_DPIA`) num RIPD assinado zera as
   assinaturas, volta a `Draft` e grava `dpia.aprovacao_invalidada` (`PUT /dpia/:id`, `src/routes/platform.ts`). (2) Aceite de risco e um
-  modelo so: `status = Accepted`, com `accepted_by`/`accepted_at` carimbados pela sessao na transicao (`carimboDeAceite` em
+  modelo so (revisto em 25/11/2026, migration 0121: o aceite com senha nao muda mais o status; o texto a seguir vale para o aceite
+  legado): `status = Accepted`, com `accepted_by`/`accepted_at` carimbados pela sessao na transicao (`carimboDeAceite` em
   `src/services/riscos-atividade.ts`, usado por `/risks` e pelas sub-rotas da atividade); o corpo nunca define quem nem quando; mudar
   impacto, probabilidade ou residual de risco aceito o devolve a `Open` sem o aceite (`aceiteCaiu`, trilha `risk.aceite_invalidado`); sair de `Accepted` por `status` tambem limpa `accepted_by`, `accepted_at` e `aceite_manual` e grava `risk.aceite_invalidado`; botao
   "Aceitar risco" nos dois modulos (`frontend/src/aceite-risco.js`); a migration 0082 levou o aceite digitado antigo a `Accepted` com
@@ -850,10 +852,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   invalidar encerram a linha e tiram o carimbo; nenhum dos tres mexe em `status`. O status (Open, Mitigated, Closed) muda livremente pelo
   PUT e nao derruba o aceite (fechar o risco mantem o aceite, salvo se um campo do hash mudar); `Accepted` segue nao gravavel pelo PUT
   (403, as duas portas, `recusaDoStatus`). A situacao vem da linha vigente (`situacaoDoAceite`): aceito (vigente, ou o legado `Accepted`
-  sem linha, `legado: true`), revogado, `nao_se_aplica` (Closed sem residual e sem aceite; rotulo "Nao se aplica" na lista, no filtro e no
+  sem NENHUMA linha em `risco_aceites`, `legado: true`), revogado, `nao_se_aplica` (Closed sem residual e sem aceite; rotulo "Nao se aplica" na lista, no filtro e no
   CSV) ou pendente. Aceitavel (`SQL_RISCO_ACEITAVEL`, aceite direto e pedido) = nao Closed, com residual, sem aceite vigente. Com aceite
   vigente, o bloco `aceite` traz `hash` (o gravado) e `estado_aceito` (o `conteudo_json`); sem, `hash` e o do estado atual, so para quem
-  pode aceitar (o `hash_visto`). `caiu`/`saiu` (notas mudadas, saida de `Accepted`) valem so para o aceite legado. A 0121 devolveu ao
+  pode aceitar (o `hash_visto`). `caiu`/`saiu` (notas mudadas, saida de `Accepted`) valem so para o aceite legado (sem nenhuma linha; `temAceiteRegistrado`).
+  Risco tratado no Painel e na Prontidao e `SQL_RISCO_TRATADO`: Mitigated ou Closed, o legado, ou `treatment = 'Accept'` com aceite
+  vigente; o aceite do residual de risco de outra estrategia nao o trata. A 0121 devolve (ao ser aplicada) ao
   `status_anterior` os riscos `Accepted` com aceite vigente (trilha `risk.status_corrigido_aceite`). A alcada e conferida de novo dentro do INSERT; o pedido de aceite vai a uma pessoa so e e
   cancelado (nao substituido) se o residual passar a outra alcada; risco que ja teve aceite nao se exclui (409), para a prova nao cair na cascata. Lista com `aceite` (situacao aceito/pendente/revogado/nao_se_aplica, quem, quando, `pode_aceitar`), CSV e pacote de auditoria (`risk_acceptances`)
   com o aceite; servico `src/services/aceite-risco.ts`, teste `test/risco-aceite-residual.test.ts`. O aceite antigo (sem linha em

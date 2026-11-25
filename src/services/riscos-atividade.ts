@@ -119,7 +119,7 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
   const aceite = carimboDeAceite(atual.status, corpo.status, ator);
   // `caiu` e `saiu` são do aceite ANTIGO (Accepted sem senha): o aceite com senha não depende do status (migration 0121).
   const legado = atual.status === 'Accepted'
-    && !(await db.prepare(`SELECT 1 FROM risco_aceites WHERE risk_id = ? AND situacao = 'vigente'`).bind(id).first());
+    && !(await db.prepare('SELECT 1 FROM risco_aceites WHERE risk_id = ? LIMIT 1').bind(id).first());
   const caiu = legado && aceiteCaiu(atual, { impact: impacto, probability: prob, residual_impact: resI, residual_probability: resP, status: corpo.status ?? atual.status });
   if (caiu) corpo = { ...corpo, status: 'Open' };
   const p = setParcial(corpo, {

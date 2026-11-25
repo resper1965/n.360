@@ -25,21 +25,25 @@ describe('migration 0121 — o aceite do residual não muda o status', () => {
     await env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level, status, residual_impact, residual_probability, residual_level) VALUES
       ('r-a', 'm121', 'A', 'T', 3, 3, 'Medium', 'Accepted', 1, 1, 'Low'), ('r-b', 'm121', 'B', 'T', 3, 3, 'Medium', 'Accepted', 1, 1, 'Low'),
       ('r-legado', 'm121', 'C', 'T', 3, 3, 'Medium', 'Accepted', 1, 1, 'Low'), ('r-revogado', 'm121', 'D', 'T', 3, 3, 'Medium', 'Accepted', 1, 1, 'Low'),
-      ('r-aberto', 'm121', 'E', 'T', 3, 3, 'Medium', 'Open', 1, 1, 'Low')`).run();
+      ('r-aberto', 'm121', 'E', 'T', 3, 3, 'Medium', 'Open', 1, 1, 'Low'),
+      ('r-legado-aceito', 'm121', 'F', 'T', 3, 3, 'Medium', 'Accepted', 1, 1, 'Low')`).run();
     await env.DB.batch([aceite('a1', 'r-a', 'vigente', 'Open'), aceite('a22', 'r-b', 'vigente', 'Mitigated'), aceite('a333', 'r-revogado', 'revogado', 'Open'),
-      aceite('a4444', 'r-aberto', 'vigente', 'Open')]);
+      aceite('a4444', 'r-aberto', 'vigente', 'Open'),
+      // Legado aceito de novo com senha: o status de antes já era Accepted; nada a devolver, nenhuma trilha.
+      aceite('a55555', 'r-legado-aceito', 'vigente', 'Accepted')]);
     provas = (await env.DB.prepare('SELECT * FROM risco_aceites ORDER BY id').all()).results;
   });
 
   it('volta ao status anterior só o Accepted com aceite vigente; uma trilha por risco; risco_aceites intacto; repetível', async () => {
     await execSql(migration0121);
-    expect(await status()).toEqual({ 'r-a': 'Open', 'r-aberto': 'Open', 'r-b': 'Mitigated', 'r-legado': 'Accepted', 'r-revogado': 'Accepted' });
+    expect(await status()).toEqual({ 'r-a': 'Open', 'r-aberto': 'Open', 'r-b': 'Mitigated', 'r-legado': 'Accepted', 'r-legado-aceito': 'Accepted', 'r-revogado': 'Accepted' });
     expect(await trilhas()).toEqual([
       { actor: 'sistema:migration-0121', details: 'Risco r-a: status Accepted -> Open; o aceite do residual não muda o status (migration 0121)', project_id: 'm121', entity_id: 'r-a', old_value: 'Accepted', new_value: 'Open' },
       { actor: 'sistema:migration-0121', details: 'Risco r-b: status Accepted -> Mitigated; o aceite do residual não muda o status (migration 0121)', project_id: 'm121', entity_id: 'r-b', old_value: 'Accepted', new_value: 'Mitigated' },
     ]);
     expect((await env.DB.prepare('SELECT * FROM risco_aceites ORDER BY id').all()).results).toEqual(provas);
-    expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM risks r WHERE r.status = 'Accepted' AND EXISTS (SELECT 1 FROM risco_aceites a WHERE a.risk_id = r.id AND a.situacao = 'vigente')`).first<{ n: number }>())!.n).toBe(0);
+    expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM risks r WHERE r.status = 'Accepted' AND EXISTS (SELECT 1 FROM risco_aceites a WHERE a.risk_id = r.id
+      AND a.situacao = 'vigente' AND a.status_anterior <> 'Accepted')`).first<{ n: number }>())!.n).toBe(0);
     await execSql(migration0121);
     expect(await trilhas()).toHaveLength(2);
   });

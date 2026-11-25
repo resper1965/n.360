@@ -29,7 +29,15 @@ export const RECUSA_EXCLUIR_COM_ACEITE = 'Este risco tem aceite registrado (vige
 export const temAceiteRegistrado = async (db: D1Database, riskId: string) =>
   !!(await db.prepare('SELECT 1 FROM risco_aceites WHERE risk_id = ? LIMIT 1').bind(riskId).first());
 
-/** O risco tem aceite vigente (com senha)? Status `Accepted` sem isto é o aceite antigo (legado). */
+/**
+ * Risco tratado, para painel e prontidão (SQL sobre `risks` sem alias): mitigado ou encerrado; o aceite legado (Accepted sem nenhuma
+ * linha em risco_aceites); ou estratégia "aceitar" com aceite vigente. O aceite do residual de um risco a mitigar não o trata.
+ */
+export const SQL_RISCO_TRATADO = `(COALESCE(risks.status, 'Open') IN ('Mitigated', 'Closed')
+  OR (risks.status = 'Accepted' AND NOT EXISTS (SELECT 1 FROM risco_aceites ra WHERE ra.risk_id = risks.id))
+  OR (risks.treatment = 'Accept' AND EXISTS (SELECT 1 FROM risco_aceites ra WHERE ra.risk_id = risks.id AND ra.situacao = 'vigente')))`;
+
+/** O risco tem aceite vigente (com senha)? */
 export const temAceiteVigente = async (db: D1Database, riskId: string) =>
   !!(await db.prepare(`SELECT 1 FROM risco_aceites WHERE risk_id = ? AND situacao = 'vigente'`).bind(riskId).first());
 
@@ -192,11 +200,12 @@ export function recusaDoStatus(atual: string | null, novo: string | undefined): 
 }
 
 /**
- * Situação do aceite: aceito (linha vigente, ou o legado: status `Accepted` sem linha), revogado (o último aceite foi revogado),
+ * Situação do aceite: aceito (linha vigente, ou o legado: status `Accepted` sem nenhuma linha), revogado (o último aceite foi revogado),
  * não se aplica (encerrado sem residual) ou pendente.
  */
 export function situacaoDoAceite(r: Pick<RiscoBase, 'status' | 'residual_level'>, ultimo: Pick<AceiteRow, 'situacao'> | undefined): SituacaoAceite {
-  if (ultimo?.situacao === 'vigente' || r.status === 'Accepted') return 'aceito';
+  // Legado só sem NENHUMA linha: legado aceito com senha e depois revogado/invalidado não volta a "aceito" pelo status.
+  if (ultimo?.situacao === 'vigente' || (!ultimo && r.status === 'Accepted')) return 'aceito';
   if (r.status === 'Closed' && !r.residual_level) return 'nao_se_aplica';
   return ultimo?.situacao === 'revogado' ? 'revogado' : 'pendente';
 }

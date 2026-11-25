@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { genId, logAudit, requireResourceAccess, erro500, ForbiddenError, refForaDoProjeto, podeMexerEmAssinaturaDe } from '../helpers';
 import { validateBody, createRiskSchema, riskUpdateSchema, riscoAceiteSchema, riscoRevogarAceiteSchema, riscoAlcadasSchema } from '../schemas';
-import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, alcadasDoProjeto, NIVEIS_RISCO, RECUSA_STATUS_ACEITO, RECUSA_EXCLUIR_COM_ACEITE, temAceiteRegistrado, temAceiteVigente, type RiscoBase } from '../services/aceite-risco';
+import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, alcadasDoProjeto, NIVEIS_RISCO, RECUSA_STATUS_ACEITO, RECUSA_EXCLUIR_COM_ACEITE, temAceiteRegistrado, type RiscoBase } from '../services/aceite-risco';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { escopoRopa } from '../services/escopo-itens';
 import { riskLevel, residualLevel, carimboDeAceite, aceiteCaiu } from '../services/riscos-atividade';
@@ -131,7 +131,8 @@ risks.put('/api/v1/risks/:id', async (c) => {
     // livremente e o aceite só cai se o estado aceito mudar (conferirAceite, abaixo). `caiu` e `saiu` são do aceite ANTIGO (status
     // Accepted sem senha, de antes da 0120): notas mudadas ou saída de Accepted o desfazem, como antes.
     const email = c.get('user')?.email ?? 'system';
-    const legado = atual.status === 'Accepted' && !(await temAceiteVigente(c.env.DB, id));
+    // Legado = Accepted sem NENHUMA linha de aceite (o que já teve aceite com senha segue a regra do aceite com senha).
+    const legado = atual.status === 'Accepted' && !(await temAceiteRegistrado(c.env.DB, id));
     const caiu = legado && aceiteCaiu(atual as Parameters<typeof aceiteCaiu>[0], { impact, probability, residual_impact: residualImpact, residual_probability: residualProbability, status: obrigatoria('status') });
     const status = caiu ? 'Open' : obrigatoria('status');
     const aceite = carimboDeAceite(atual.status, status, email);

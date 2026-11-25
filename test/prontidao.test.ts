@@ -144,6 +144,27 @@ describe('GET /projects/:id/prontidao (D1 real)', () => {
     expect(corpo.veredito.frase).toMatch(/^Faltam \d+ itens para o estágio 1\.$/);
   });
 
+  it('risco tratado (migration 0121): estratégia "aceitar" com aceite vigente e o aceite legado contam; aceite do residual de risco a mitigar não', async () => {
+    const aceite = (id: string, risco: string, situacao: string) => db().prepare(`INSERT INTO risco_aceites (id, project_id, risk_id, aceito_por, papel, aceito_em,
+        nivel_residual, controles_json, conteudo_json, hash, status_anterior, situacao, encerrado_em, encerrado_por, motivo)
+      VALUES (?1, 'pa', ?2, 'ceo@x.com', 'ceo', '2026-11-20T10:00:00Z', 'Low', '[]', '{}', ?3, 'Open', ?4, ?5, ?6, ?6)`)
+      .bind(id, risco, 'h'.repeat(64), situacao, situacao === 'vigente' ? null : '2026-11-21T10:00:00Z', situacao === 'vigente' ? null : 'ceo@x.com');
+    await db().batch([
+      db().prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level, status, treatment, treatment_plan) VALUES
+        ('r3', 'pa', 'A', 'Aceito formalmente', 5, 4, 'High', 'Open', 'Accept', ''), ('r4', 'pa', 'B', 'Residual aceito a mitigar', 5, 4, 'High', 'Open', 'Mitigate', ''),
+        ('r5', 'pa', 'C', 'Legado', 3, 3, 'Medium', 'Accepted', 'Mitigate', ''), ('r6', 'pa', 'D', 'Revogado', 3, 3, 'Medium', 'Accepted', 'Mitigate', '')`),
+    ]);
+    await db().batch([aceite('ra3', 'r3', 'vigente'), aceite('ra4', 'r4', 'vigente'), aceite('ra6', 'r6', 'revogado')]);
+    const { corpo } = await prontidao(consultor);
+    // Sem tratamento: r1 (sem plano), r4 (aceite do residual não trata quem é para mitigar) e r6 (Accepted com aceite revogado).
+    expect(corpo.criterios.find((x: any) => x.id === 'tratamento')).toMatchObject({ numero: '3 de 6 sem tratamento' });
+    const iso = ((await (await chamar(consultor, '/api/v1/projects/pa/painel?modulo=iso')).json()) as any).modulos.iso;
+    expect(iso.cobertura.find((x: any) => x.tema === 'Riscos')).toMatchObject({ feito: 2, andamento: 1, falta: 3 });
+    const altos = iso.fazer.find((x: any) => /riscos? altos? sem tratamento/.test(x.texto));
+    expect(altos.contexto).toContain('Residual aceito a mitigar');
+    expect(altos.contexto).not.toContain('Aceito formalmente');
+  });
+
   it('o número de controles é o mesmo do Painel do n.iso, para os mesmos dados', async () => {
     const { corpo } = await prontidao(consultor);
     const r = await chamar(consultor, '/api/v1/projects/pa/painel?modulo=iso');
