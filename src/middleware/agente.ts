@@ -119,6 +119,7 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/approve-document$/, 'aceitar documento e concluir item do checklist é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/pedidos\/[^/]+\/(aprovar|recusar)$/, 'aprovar ou recusar pedido é ato do destinatário, com a senha dele', ['POST']],
   [/^\/api\/v1\/pedidos\/lote$/, 'aprovar em lote é ato humano, com a senha de quem aprova', ['POST']],
+  [/^\/api\/v1\/projects\/[^/]+\/pedidos\/[^/]+\/reenviar$/, 'reenviar o link de ciência é pela interface', ['POST']],
   [/^\/api\/v1\/risks\/[^/]+\/aceite(\/revogar)?$/, 'aceitar ou revogar o aceite do risco residual é ato de quem tem a alçada, com a senha dela', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/riscos\/[^/]+\/aceite(\/revogar)?$/, 'aceitar ou revogar o aceite do risco residual é ato de quem tem a alçada, com a senha dela', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/risco-alcadas$/, 'a alçada de aceite de risco é do cliente, pela interface', ['PUT']],

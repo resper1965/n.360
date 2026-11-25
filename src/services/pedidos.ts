@@ -35,8 +35,11 @@ const PAPEIS_QUE_PEDEM = new Set(['org_admin', 'consultor', 'consultant', 'consu
  * `client_project_id`), a mesma regra do `projectAccessMiddleware`, aqui de novo para a regra não
  * depender de onde o router foi montado. Devolve o motivo da recusa, ou `null` se pode.
  */
-export async function podePedir(db: D1Database, user: { role?: string; email?: string; client_project_id?: string | null; org_id?: string | null }, projectId: string): Promise<string | null> {
-  if (!PAPEIS_QUE_PEDEM.has(user?.role ?? '')) {
+export async function podePedir(db: D1Database, user: { role?: string; email?: string; client_project_id?: string | null; org_id?: string | null; agente?: boolean; agente_papel?: string }, projectId: string): Promise<string | null> {
+  // O agente do consultor (MCP) pede como quem o concedeu: a concessão já conferiu a designação, e criar é a decisão
+  // niso_pedir_aprovacao (confirmação e motivo, no middleware). O agente auditor não pede.
+  const agenteConsultor = user?.agente === true && user.agente_papel === 'consultor';
+  if (!agenteConsultor && !PAPEIS_QUE_PEDEM.has(user?.role ?? '')) {
     return 'Só o administrador da empresa no projeto, o consultor designado no projeto ou o administrador da consultoria pedem aprovação ou ciência.';
   }
   const alcanca = await requireProjectAccess(db, user as any, projectId).then(() => true, () => false);
