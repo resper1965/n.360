@@ -12,7 +12,7 @@ const CHAVE = 'chave-trilha-ot-leitura';
 const ID = 'DESVIO-ID-123';
 const OT = 'ot.desvio.tratado';
 let comOt: Record<string, string>, semOt: Record<string, string>, tecnico: Record<string, string>, comOtSemModuloNoProjeto: Record<string, string>;
-let chave: Record<string, string>;
+let chave: Record<string, string>, pa: Record<string, string>;
 
 const linha = (id: string, acao: string, projeto: string, tipo: string, entidade: string) =>
   env.DB.prepare(`INSERT INTO audit_logs (id, action, actor, details, project_id, entity_type, entity_id) VALUES (?, ?, 'x@y.z', 'detalhe', ?, ?, ?)`).bind(id, acao, projeto, tipo, entidade);
@@ -35,6 +35,8 @@ beforeAll(async () => {
   ]);
   await concederModulos(['t-ot', 't-b'], ['iso', 'ot']);
   await concederModulos(['t-sem', 't-tec'], ['iso']);
+  await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id, ativo) VALUES ('t-pa','t-pa@ness.lat','x','PA','platform_admin','org_ness',1)`).run();
+  pa = await sessionFor({ id: 't-pa', email: 't-pa@ness.lat', role: 'platform_admin' });
   const s = (id: string, p: string) => sessionFor({ id, email: `${id}@c.teste`, role: 'org_user', client_project_id: p });
   comOt = await s('t-ot', 'proj-a'); semOt = await s('t-sem', 'proj-a'); tecnico = await s('t-tec', 'proj-a');
   comOtSemModuloNoProjeto = await s('t-b', 'proj-b');
@@ -65,6 +67,10 @@ describe('audit-trail, audit-pack, CSV e exportação sem ot.% para quem não te
       expect(t).toContain('capa_created');
     });
   }
+  it('platform_admin (todos os módulos) vê as linhas ot.% de um projeto com ot; e do projeto sem ot não vê nenhuma', async () => {
+    expect(await texto(await chamar(pa, '/api/v1/projects/proj-a/audit-trail'))).toContain(ID);
+    expect(await texto(await chamar(pa, '/api/v1/projects/proj-b/audit-trail'))).not.toContain(ID + '-B');
+  });
   it('export: pessoa sem ot no projeto com ot é recusada (403) sem vazar o id', async () => {
     for (const h of [semOt, tecnico]) {
       const r = await chamar(h, '/api/v1/projects/proj-a/export');
