@@ -18,6 +18,9 @@ const achado = (id: string, lv = 'lv1') => run(`INSERT INTO ot_achados (id, proj
 const lote = (id: string, status = 'em_revisao', criado = '2026-11-01 10:00:00') =>
   run(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, status, criado_por, created_at) VALUES (?, ?, ?, 'manual', ?, 'u', ?)`, id, P, S, status, criado);
 const tresZonas = async () => { await zona('z2', 2); await zona('z3', 3); await zona('z4', 4); };
+const ativo = (id = 'at1', site = S) => run(`INSERT INTO ot_ativos (id, project_id, site_id, nome) VALUES (?, ?, ?, 'RTU')`, id, P, site);
+/** Decisão 2 do dono (spec 2026-11-26): a base exige ao menos um ativo, além das zonas. */
+const prontoParaBase = async () => { await tresZonas(); await ativo(); };
 const passo = async () => (await situacaoDoSite(env.DB, P, S))!.proximo_passo;
 const fase = async () => (await env.DB.prepare(`SELECT fase FROM ot_sites WHERE id = ?`).bind(S).first<{ fase: string }>())!.fase;
 
@@ -94,13 +97,23 @@ describe('ot-fase: fase do site e condições da base', () => {
       expect(await pedirBase(env.DB, ator, P, S)).toMatchObject({ ok: false, status: 409, error: expect.stringMatching(/zonas/i) });
     });
     it('409 fora de em_levantamento; 404 para site de outro projeto', async () => {
-      await tresZonas();
+      await prontoParaBase();
       expect(await pedirBase(env.DB, ator, P, S)).toEqual({ ok: true });
       expect(await pedirBase(env.DB, ator, P, S)).toMatchObject({ ok: false, status: 409 });
       expect(await pedirBase(env.DB, ator, 'proj-b', S)).toMatchObject({ ok: false, status: 404 });
     });
+    it('pedir a base sem nenhum ativo: 409 "Nenhum ativo no inventário do site"', async () => {
+      await zona('z2', 2); await zona('z3', 3); await zona('z4', 4);
+      expect(await pedirBase(env.DB, ator, P, S)).toEqual({ ok: false, status: 409, error: 'Nenhum ativo no inventário do site' });
+      await run(`INSERT INTO ot_ativos (id, project_id, site_id, nome, status) VALUES ('at-rem', ?, ?, 'RTU', 'removido')`, P, S);
+      expect(await pedirBase(env.DB, ator, P, S), 'ativo removido não conta').toMatchObject({ ok: false, error: 'Nenhum ativo no inventário do site' });
+    });
+    it('sem ativo e sem zonas: a mensagem de hoje (zonas) vem primeiro; o ativo é a última condição', async () => {
+      await zona('z2', 2);
+      expect(await pedirBase(env.DB, ator, P, S)).toMatchObject({ ok: false, status: 409, error: 'Faltam zonas nos níveis Purdue 2, 3 e 4' });
+    });
     it('com as condições atendidas muda a fase e grava quem e quando', async () => {
-      await tresZonas();
+      await prontoParaBase();
       expect(await pedirBase(env.DB, ator, P, S)).toEqual({ ok: true });
       const r = await env.DB.prepare(`SELECT fase, base_pedida_em, base_pedida_por FROM ot_sites WHERE id = ?`).bind(S).first<any>();
       expect(r.fase).toBe('base_em_aprovacao'); expect(r.base_pedida_por).toBe('u-gestor'); expect(r.base_pedida_em).toBeTruthy();
@@ -108,33 +121,40 @@ describe('ot-fase: fase do site e condições da base', () => {
   });
 
   describe('aprovarBase', () => {
+    it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômico)', async () => {
+      await prontoParaBase();
+      expect(await pedirBase(env.DB, ator, P, S)).toEqual({ ok: true });
+      await run(`UPDATE ot_ativos SET status = 'removido' WHERE id = 'at1'`);
+      expect(await aprovarBase(env.DB, aprov, P, S)).toEqual({ ok: false, status: 409, error: 'As condições da base mudaram desde o pedido' });
+      expect(await fase()).toBe('base_em_aprovacao');
+    });
     it('passa para em_operacao e grava quem e quando', async () => {
-      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await prontoParaBase(); await pedirBase(env.DB, ator, P, S);
       expect(await aprovarBase(env.DB, { id: 'u-aprov' }, P, S)).toEqual({ ok: true, fechouObra: false });
       const r = await env.DB.prepare(`SELECT fase, base_aprovada_em, base_aprovada_por FROM ot_sites WHERE id = ?`).bind(S).first<any>();
       expect(r.fase).toBe('em_operacao'); expect(r.base_aprovada_por).toBe('u-aprov'); expect(r.base_aprovada_em).toBeTruthy();
     });
     it('409 se entrou rascunho depois do pedido', async () => {
-      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await prontoParaBase(); await pedirBase(env.DB, ator, P, S);
       await levantamento(); await achado('a1');
       expect(await aprovarBase(env.DB, aprov, P, S)).toEqual({ ok: false, status: 409, error: 'As condições da base mudaram desde o pedido' });
       expect(await fase()).toBe('base_em_aprovacao');
     });
     it('um rascunho inserido logo antes do UPDATE também barra (condições no WHERE, sem checagem prévia)', async () => {
-      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await prontoParaBase(); await pedirBase(env.DB, ator, P, S);
       await levantamento(); await achado('a2');
       const r = await aprovarBase(env.DB, aprov, P, S);
       expect(r).toMatchObject({ ok: false, status: 409 });
       expect(await fase()).toBe('base_em_aprovacao');
     });
     it('409 se entrou lote em revisão depois do pedido', async () => {
-      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await prontoParaBase(); await pedirBase(env.DB, ator, P, S);
       await lote('l1');
       expect(await aprovarBase(env.DB, aprov, P, S)).toEqual({ ok: false, status: 409, error: 'As condições da base mudaram desde o pedido' });
       expect(await fase()).toBe('base_em_aprovacao');
     });
     it('rascunho da sonda (chave_sensor) não trava pedir nem aprovar; o do consultor trava', async () => {
-      await tresZonas(); await levantamento();
+      await prontoParaBase(); await levantamento();
       await run(`INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por, chave_sensor) VALUES ('sonda1', ?, 'lv1', 'u', 'k1')`, P);
       const s = (await situacaoDoSite(env.DB, P, S))!;
       expect([s.rascunhos, s.rascunhos_bloqueiam, s.proximo_passo]).toEqual([1, 0, 'pedir_base']);
@@ -151,7 +171,7 @@ describe('ot-fase: fase do site e condições da base', () => {
       expect(await aprovarBase(env.DB, aprov, 'proj-b', S)).toMatchObject({ ok: false, status: 404 });
     });
     it('duas aprovações simultâneas: uma muda, a outra dá 409', async () => {
-      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await prontoParaBase(); await pedirBase(env.DB, ator, P, S);
       const rs = await Promise.all([aprovarBase(env.DB, aprov, P, S), aprovarBase(env.DB, aprov, P, S)]);
       expect(rs.filter((r) => r.ok)).toHaveLength(1);
       expect(rs.filter((r) => !r.ok)).toMatchObject([{ status: 409 }]);
@@ -160,7 +180,7 @@ describe('ot-fase: fase do site e condições da base', () => {
 
   describe('devolverBase', () => {
     it('volta para em_levantamento e limpa base_pedida_*', async () => {
-      await tresZonas(); await pedirBase(env.DB, ator, P, S);
+      await prontoParaBase(); await pedirBase(env.DB, ator, P, S);
       expect(await devolverBase(env.DB, ator, P, S)).toEqual({ ok: true });
       const r = await env.DB.prepare(`SELECT fase, base_pedida_em, base_pedida_por FROM ot_sites WHERE id = ?`).bind(S).first();
       expect(r).toEqual({ fase: 'em_levantamento', base_pedida_em: null, base_pedida_por: null });
@@ -203,7 +223,7 @@ describe('ot-fase: fase do site e condições da base', () => {
       expect(await renovarObra(env.DB, ator, P, S, d(diaMaisSP(105)))).toMatchObject({ ok: false, status: 409 });
     });
     it('pedirBase funciona de em_obra; devolverBase volta para em_obra; aprovarBase limpa a obra', async () => {
-      await tresZonas(); await emOperacao(); await abrirObra(env.DB, ator, P, S, d(diaMaisSP(10)));
+      await prontoParaBase(); await emOperacao(); await abrirObra(env.DB, ator, P, S, d(diaMaisSP(10)));
       expect(await pedirBase(env.DB, ator, P, S)).toEqual({ ok: true });
       expect(await fase()).toBe('base_em_aprovacao');
       expect(await devolverBase(env.DB, ator, P, S)).toEqual({ ok: true });
@@ -213,7 +233,7 @@ describe('ot-fase: fase do site e condições da base', () => {
       expect(await obraSql()).toMatchObject({ fase: 'em_operacao', obra_ate: null, obra_justificativa: null, obra_renovada: 0, obra_aberta_por: null });
     });
     it('vencerObras: move o vencido (limpando a base pedida) e não toca a obra vigente', async () => {
-      await tresZonas(); await run(`INSERT INTO ot_sites (id, project_id, nome, fase, obra_ate) VALUES ('s2', ?, 'SE B', 'em_obra', ?)`, P, diaMaisSP(5));
+      await prontoParaBase(); await run(`INSERT INTO ot_sites (id, project_id, nome, fase, obra_ate) VALUES ('s2', ?, 'SE B', 'em_obra', ?)`, P, diaMaisSP(5));
       await run(`UPDATE ot_sites SET fase = 'base_em_aprovacao', obra_ate = ?, base_pedida_em = CURRENT_TIMESTAMP WHERE id = ?`, diaMaisSP(-1), S);
       expect(await vencerObras(env.DB, diaMaisSP(0))).toEqual([{ siteId: S, projectId: P }]);
       expect(await obraSql()).toMatchObject({ fase: 'em_operacao', obra_ate: null });
@@ -224,7 +244,7 @@ describe('ot-fase: fase do site e condições da base', () => {
       let s = (await situacaoDoSite(env.DB, P, S))!;
       expect(s.obra).toEqual({ ate: diaMaisSP(10), renovada: false, justificativa: 'troca de painel' });
       expect(s.proximo_passo).toBe('comecar');
-      await tresZonas();
+      await prontoParaBase();
       expect(await passo()).toBe('pedir_base');
       await levantamento(); await achado('a1');
       expect(await passo()).toBe('revisar');

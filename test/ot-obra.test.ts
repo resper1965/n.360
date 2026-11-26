@@ -86,6 +86,7 @@ describe('obra do site', () => {
 
   it('aprovar a base depois de obra: fecha a obra, trilha extra e um POST com os desvios abertos', async () => {
     await Promise.all([2, 3, 4].map((n) => run(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES (?, 'proj-a', 's1', 'z', ?)`, `z${n}`, n)));
+    await run(`INSERT INTO ot_ativos (id, project_id, site_id, nome) VALUES ('at1', 'proj-a', 's1', 'RTU')`); // a base exige ativo (spec 2026-11-26, decisão 2)
     await run(`UPDATE ot_sites SET fase = 'base_em_aprovacao', obra_ate = ? WHERE id = 's1'`, diaMaisSP(5));
     await Promise.all([desvio('d1'), desvio('d2')]);
     await run(`UPDATE ot_desvios SET situacao = 'tratado' WHERE id = 'd2'`);
@@ -98,6 +99,7 @@ describe('obra do site', () => {
 
   it('aprovar a base sem obra: nenhum POST', async () => {
     await Promise.all([2, 3, 4].map((n) => run(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES (?, 'proj-a', 's1', 'z', ?)`, `z${n}`, n)));
+    await run(`INSERT INTO ot_ativos (id, project_id, site_id, nome) VALUES ('at1', 'proj-a', 's1', 'RTU')`); // a base exige ativo (spec 2026-11-26, decisão 2)
     await run(`UPDATE ot_sites SET fase = 'base_em_aprovacao' WHERE id = 's1'`);
     await desvio('d1');
     expect((await chamar(gestor, 'POST', `${P}/sites/s1/base/aprovar`, { declaracao: true })).status).toBe(200);
