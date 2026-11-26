@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, formatarData, falhaDeCarga } from '../ui.js';
-import { SITUACAO, AVALIACAO, AGUARDANDO_BASE, FASE, dataDoSqlite } from '../ot-comum.js';
+import { SITUACAO, AVALIACAO, AGUARDANDO_BASE, AREA, areaDaFase, dataDoSqlite } from '../ot-comum.js';
 
 // n.ot, relatório de conformidade da RO-CB.BR.01 (spec fluidez §5) sobre GET /ot/relatorio/conformidade. Página para imprimir ou salvar
 // em PDF: o @media print esconde o resto da aplicação. O servidor já mascarou IP e MAC; aqui só se desenha e escapa.
@@ -34,7 +34,7 @@ export async function montarRelatorio(c, a, p) {
         <h2>Relatório de conformidade RO-CB.BR.01</h2>
         <p class="org-header-intro">Projeto: <strong>${escapeHTML(r.projeto || '—')}</strong> · Gerado em ${instante(r.gerado_em)} por ${escapeHTML(r.gerado_por || '—')}</p>
         <h3 class="mt-6 mb-3">Sites</h3>
-        ${renderDataTable(['Site', 'Fase', 'Base aprovada em'], (r.sites || []).map((s) => [escapeHTML(s.nome), escapeHTML(FASE[s.fase] || s.fase), s.base_aprovada_em ? instante(s.base_aprovada_em) : '—']),
+        ${renderDataTable(['Site', 'Área', 'Base aprovada em'], (r.sites || []).map((s) => [escapeHTML(s.nome), escapeHTML(AREA[areaDaFase(s.fase)]), s.base_aprovada_em ? instante(s.base_aprovada_em) : '—']),
         { emptyMessage: 'Nenhum site no inventário.' })}
         <h3 class="mt-6 mb-3">Itens</h3>
         ${renderDataTable(['Código', 'Requisito', 'Situação', 'Prazo ONS', 'Justificativa ou inventário', 'Evidências', 'Responsável', 'Confirmado por', 'Próxima revisão'], (r.itens || []).map(linha),

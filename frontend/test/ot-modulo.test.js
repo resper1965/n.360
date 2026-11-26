@@ -212,13 +212,13 @@ describe('casca por subtela', () => {
         expect(S.otTela).toBe('inicio');
         expect(el('h').textContent).toBe('n.ot · Início');
     });
-    it('trocar de projeto zera site, subtela e modo', async () => {
+    it('trocar de projeto zera site, subtela e aba', async () => {
         servir({});
         S.otTela = 'site'; S.otSite = 's1'; S.otModo = 'operacao'; S.otSub = 'desvios';
         S.activeProject = { id: 'p8', modulos: ['ot'] };
         ir('/ot');
         await abrir();
-        expect([S.otSite, S.otModo, S.otSub]).toEqual([null, 'projeto', null]);
+        expect([S.otSite, S.otModo, S.otSub]).toEqual([null, null, null]);
         expect(S.otTela).toBe('inicio');
     });
     it('trocar de projeto não lê o endereço velho: abre o Início e limpa ?ot=', async () => {

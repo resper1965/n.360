@@ -73,8 +73,8 @@ async function carregar(c, a, p, { siteFixo, semPrimario } = {}) {
 const redesenhar = () => carregar(ctx.c, ctx.a, ctx.p, { siteFixo: ctx.site, semPrimario: semPri });
 window.otRevFiltro = (campo, v) => { filtro = { ...filtro, [campo]: v }; desenharFila(); };
 window.otRevMarcar = (id, caixa) => { sel[caixa.checked ? 'add' : 'delete'](id); desenharFila(); };
-window.otRevNovoLevantamento = (site) => window.otTela('site', site, 'projeto', { otSub: 'levantamento' });
-window.otRevAbrirLevantamento = (site, id) => window.otTela('site', site, 'projeto', { otSub: 'levantamento', otLevantamento: id });
+window.otRevNovoLevantamento = (site) => window.otTela('site', site, 'levantamento');
+window.otRevAbrirLevantamento = (site, id) => window.otTela('site', site, 'levantamento', { otLevantamento: id });
 const url = (lev, id) => `/api/v1/projects/${ctx.p.id}/ot/levantamentos/${encodeURIComponent(lev)}/achados/${encodeURIComponent(id)}`;
 window.otRevDescartar = async (lev, id) => {
     try { await api('PUT', url(lev, id), { situacao: 'descartado' }); showToast('Achado descartado.', 'success'); await redesenhar(); } catch (e) { falhou(e, 'Não foi possível descartar o achado.'); }

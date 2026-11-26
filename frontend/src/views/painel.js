@@ -6,7 +6,7 @@ import { montarLista } from '../lista.js';
 import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
 import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, ligarDicas } from './painel-graficos.js';
-import { FASE } from '../ot-comum.js';
+import { rotuloDaArea, areaDaFase } from '../ot-comum.js';
 
 // Painel de entrada do n.360, do n.iso, do n.privacy e do n.ot (estudo docs/design/diagnostico-2026-10-14/dashboard-entrada.md, direção A).
 // Uma chamada por entrada (`GET /projects/:id/painel`, com `?modulo=` no módulo); a frase, a lista e a visão por papel vêm do
@@ -109,7 +109,7 @@ function listaFazer(itens, comModulo) {
         if (!doGrupo.length) return '';
         return `<p class="pn-gt">${estado(g, ROTULO_ESTADO[g])}<span class="pn-num">${doGrupo.length}</span></p><ul class="pn-grupo">${doGrupo.map((i) => `
             <li><span class="pn-meta">${e(i.quando)}</span><div><div class="pn-tx">${comModulo && i.modulo ? `<span class="pn-tag">${e(NOME[i.modulo] || i.modulo)}</span>` : ''}${e(i.texto)}</div>${i.contexto ? `<div class="pn-cx">${e(i.contexto)}</div>` : ''}</div>
-            <button type="button" class="btn btn-sm${i === primeiro ? ' btn-primary' : ''}" data-action="painelAbrir" data-args='${args(i.tela, i.aba || null, i.filtro || null)}' aria-label="${e(`${i.acao}: ${i.texto}${comModulo && i.modulo ? ` (${NOME[i.modulo] || i.modulo})` : ''}`)}">${e(i.acao)}</button></li>`).join('')}</ul>`;
+            <button type="button" class="btn btn-sm${i === primeiro ? ' btn-primary' : ''}" data-action="painelAbrir" data-args='${args(i.tela, i.aba || null, i.filtro || null, ...(i.site ? [i.site] : []))}' aria-label="${e(`${i.acao}: ${i.texto}${comModulo && i.modulo ? ` (${NOME[i.modulo] || i.modulo})` : ''}`)}">${e(i.acao)}</button></li>`).join('')}</ul>`;
     }).join('');
 }
 
@@ -134,7 +134,7 @@ function regua(m, p, projectId, podeAbrir) {
         return `<li class="pn-regua-etapa pn-regua-${situacao}"${et.id === p.etapa ? ' aria-current="step"' : ''} aria-label="${e(`${et.rotulo}: ${et.feitos} feitos de ${et.total}`)}"><span class="pn-regua-nome">${e(et.rotulo)}</span><span class="pn-meta">${e(`${et.feitos} de ${et.total}`)}</span></li>`;
     }).join('');
     const x = p.proximo;
-    const botao = x && podeAbrir && TELAS_DO_PAINEL.has(x.tela) ? ` <button type="button" class="btn btn-sm" data-action="painelAbrirProximo" data-args='${args(projectId, x.tela, x.aba || null, x.fase ?? null, x.passo || null)}' aria-label="${e(`Abrir próximo passo: ${x.texto} (${NOME[m]})`)}">Abrir</button>` : '';
+    const botao = x && podeAbrir && TELAS_DO_PAINEL.has(x.tela) ? ` <button type="button" class="btn btn-sm" data-action="painelAbrirProximo" data-args='${args(projectId, x.tela, x.aba || null, x.fase ?? null, x.passo || null, ...(x.site ? [x.site] : []))}' aria-label="${e(`Abrir próximo passo: ${x.texto} (${NOME[m]})`)}">Abrir</button>` : '';
     const prox = x ? `<p class="pn-regua-prox"><span class="pn-meta">Próximo:</span> ${e(x.texto)}${botao}</p>` : '';
     return `<div class="pn-regua-bloco"><ol class="pn-regua" aria-label="${e(`Jornada do ${NOME[m]}`)}">${itens}</ol>${prox}</div>`;
 }
@@ -205,12 +205,12 @@ function jornadaDoCliente(j) {
 const SONDA = { em_dia: 'Em dia', atrasada: 'Atrasada', parada: 'Parada' };
 const dataBr = (s) => (s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—');
 
-/** Uma linha por site permitido (P0-4): fase, próximo passo, desvios, sonda (só quando o servidor mandou: quem abre a sonda), revalidar e obra. */
+/** Uma linha por site permitido (P0-4): área e etapa, próximo passo, desvios, sonda (só quando o servidor mandou: quem abre a sonda), revalidar e obra. */
 function quadroPorSite(linhas) {
     if (!linhas.length) return quadro('pn-ot-sites', 'Por site', '<p class="pn-vazio-tx">Nenhum site neste painel. O inventário do n.ot começa pelo site, na aba Sites.</p>');
     const comSonda = linhas.some((l) => 'sonda' in l);
-    const cab = ['Site', 'Fase', 'Próximo passo', 'Desvios abertos', ...(comSonda ? ['Sonda'] : []), 'Revalidar até', 'Obra até', 'Abrir'];
-    const corpo = linhas.map((l) => [e(l.nome), e(FASE[l.fase] || l.fase), e(l.proximo), e(l.desvios_abertos), ...(comSonda ? [e(SONDA[l.sonda] || '—')] : []),
+    const cab = ['Site', 'Área', 'Próximo passo', 'Desvios abertos', ...(comSonda ? ['Sonda'] : []), 'Revalidar até', 'Obra até', 'Abrir'];
+    const corpo = linhas.map((l) => [e(l.nome), e(rotuloDaArea(l.area ?? areaDaFase(l.fase), l.etapa)), e(l.proximo), e(l.desvios_abertos), ...(comSonda ? [e(SONDA[l.sonda] || '—')] : []),
         e(dataBr(l.revalidar_em)), e(dataBr(l.obra_ate)),
         `<button type="button" class="btn btn-sm" data-action="otTela" data-args='${args('site', l.id, null)}' aria-label="${e(`Abrir ${l.nome}`)}">Abrir</button>`]);
     return quadro('pn-ot-sites', 'Por site', renderDataTable(cab, corpo));
@@ -252,9 +252,9 @@ function quadroVencimentosOt(linhas) {
 
 const PAPEL_FORNECEDOR = { integrador: 'Integrador', fabricante: 'Fabricante', acesso_remoto: 'Acesso remoto' };
 
-/** Fornecedores de OT por papel (só contagem; a lista com nomes fica em "Fornecedores do n.ot"). "Sem VPN" só vale para acesso remoto. */
+/** Fornecedores de OT por papel (só contagem; a lista com nomes fica em "Fornecedores de OT"). "Sem VPN" só vale para acesso remoto. */
 function quadroFornecedores(lista) {
-    if (!lista.length) return quadro('pn-ot-forn', 'Fornecedores de OT', '<p class="pn-vazio-tx">Nenhum fornecedor de OT. Ligue um fornecedor a um site ou fluxo em Fornecedores do n.ot.</p>');
+    if (!lista.length) return quadro('pn-ot-forn', 'Fornecedores de OT', '<p class="pn-vazio-tx">Nenhum fornecedor de OT. Ligue um fornecedor a um site ou fluxo em Fornecedores de OT.</p>');
     const linhas = lista.map((p) => [e(PAPEL_FORNECEDOR[p.papel] || p.papel), e(p.total), e(p.vigentes), e(p.pendentes), e(p.vencidos), e(p.papel === 'acesso_remoto' ? p.sem_vpn : '—')]);
     return quadro('pn-ot-forn', 'Fornecedores de OT', renderDataTable(['Papel', 'Fornecedores', 'Avaliação vigente', 'Pendente', 'Vencida ou reprovada', 'Em fluxo externo sem VPN'], linhas));
 }
@@ -356,7 +356,7 @@ function linhaSituacao(m, d, projectId) {
     const lista = Array.isArray(b.fazer) ? b.fazer : [];
     const i = ['atraso', 'semana', 'plano'].map((g) => lista.find((x) => x.grupo === g)).find(Boolean);
     const urgente = i ? `<div class="pn-cx">Mais urgente: ${e(i.texto)}</div>` : '';
-    const botao = i ? `<button type="button" class="btn btn-sm" data-action="painelAbrirItem" data-args='${args(projectId, i.tela, i.aba || null, i.filtro || null)}' aria-label="${e(`${i.acao}: ${i.texto} (${NOME[m]})`)}">${e(i.acao)}</button>` : '<div></div>';
+    const botao = i ? `<button type="button" class="btn btn-sm" data-action="painelAbrirItem" data-args='${args(projectId, i.tela, i.aba || null, i.filtro || null, ...(i.site ? [i.site] : []))}' aria-label="${e(`${i.acao}: ${i.texto} (${NOME[m]})`)}">${e(i.acao)}</button>` : '<div></div>';
     return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado(sd.tom, sd.rotulo)}<div class="pn-m-frase">${e(sd.frase)}</div>${urgente}</div>${figuras(b, d.visao === 'cliente')}${botao}</div>${reguaDe(m, d, projectId)}`;
 }
 
@@ -483,19 +483,19 @@ window.painelAbrirProjeto = function (projectId, modulo) {
 };
 
 /** O item mais urgente da situação: entra no projeto (como "Abrir no") e vai à tela, já filtrada (`painelAbrir`). */
-window.painelAbrirItem = function (projectId, tela, aba, filtro) {
+window.painelAbrirItem = function (projectId, tela, aba, filtro, site = null) {
     if (!TELAS_DO_PAINEL.has(tela) || !entrarNoProjeto(projectId)) return;
     // "Indicar o encarregado" não abre o modal no hub: o n.privacy o oferece no Painel dele.
     if (tela === 'encarregado') { window.navigate('encarregado'); return; }
-    window.painelAbrir(tela, aba, filtro);
+    window.painelAbrir(tela, aba, filtro, site);
 };
 
 /** "Abrir" do próximo passo da régua: entra no projeto (no Início não há ativo) e vai à Bancada na fase/passo ou à tela da lista fechada. */
-window.painelAbrirProximo = function (projectId, tela, aba, fase, passo) {
+window.painelAbrirProximo = function (projectId, tela, aba, fase, passo, site = null) {
     if (!TELAS_DO_PAINEL.has(tela)) return;
     if (projectId && !entrarNoProjeto(projectId)) return;
     if (tela === 'project-detail' && (fase !== null || passo)) { window.navigate('project-detail', { bancadaAlvo: { fase, passo } }); return; }
-    window.painelAbrir(tela, aba, null);
+    window.painelAbrir(tela, aba, null, site);
 };
 
 // ─── Desenho e dados ───────────────────────────────────────────────────────────────────────────────────
@@ -621,7 +621,7 @@ window.recarregarInicio = async function () {
  * (filtro-painel.js; chave desconhecida não filtra). "Indicar o encarregado" abre o modal ali mesmo; as ações vencidas das
  * atividades abrem a faixa "vencidas" das ações por prazo, que é a lista delas.
  */
-window.painelAbrir = function (tela, aba, filtro) {
+window.painelAbrir = function (tela, aba, filtro, site = null) {
     if (!TELAS_DO_PAINEL.has(tela)) return;
     const proj = S.activeProject;
     if (tela === 'encarregado' && proj && typeof window.abrirIndicarEncarregado === 'function' && window.podeIndicarEncarregado && window.podeIndicarEncarregado()) {
@@ -630,8 +630,14 @@ window.painelAbrir = function (tela, aba, filtro) {
     }
     // As faixas são as do painel do n.privacy desenhado agora (encarregado.js as guarda); em outra entrada, a tela das atividades.
     if (filtro === 'acoes_vencidas' && proj && S.view === 'encarregado' && typeof window.abrirFaixaPrazo === 'function' && window.abrirFaixaPrazo(proj.id, 'vencidas')) return;
-    // O hub navega por recarga: a aba do n.ot vai no endereço (?ot=, lido por ot-navegacao.js), não em S.otTela.
-    if (tela === 'ot') { irPara(['sites', 'assessment', 'acessos'].includes(aba) ? `${enderecoDoProduto('ot')}?ot=${aba}` : enderecoDoProduto('ot')); return; }
+    // O hub navega por recarga: tela, site e aba do n.ot vão no endereço (lido por ot-navegacao.js), não em S.otTela. Com site, o
+    // site na aba (a tela do site confere a aba contra a área); sem site, a tela da aba, e o resto (desvios, revisar, base,
+    // implantacao) na lista Sites até o PR5, que troca este mapa pelas telas novas.
+    if (tela === 'ot') {
+        const SEM_SITE = { assessment: 'assessment', sondas: 'acessos', acessos: 'acessos' };
+        irPara(site ? `${enderecoDoProduto('ot')}?ot=site&site=${encodeURIComponent(site)}${aba ? `&aba=${encodeURIComponent(aba)}` : ''}` : `${enderecoDoProduto('ot')}?ot=${SEM_SITE[aba] || 'sites'}`);
+        return;
+    }
     if (aba === 'pedidos' || aba === 'incidentes' || aba === 'consentimentos') S.titularAba = aba;
     const filtroPainel = filtro ? filtroValido(tela, aba, filtro) : null;
     if (typeof window.navigate === 'function') { if (filtroPainel) window.navigate(tela, { filtroPainel }); else window.navigate(tela); }

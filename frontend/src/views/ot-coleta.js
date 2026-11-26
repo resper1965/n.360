@@ -191,4 +191,4 @@ window.otRecusarItem = async (id, item) => {
         showToast('Item recusado.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível recusar o item.'); window.render(); }
 };
-window.otVerNoInventario = (site) => window.otTela('site', site, 'projeto', { otSub: 'base' });
+window.otVerNoInventario = (site) => window.otTela('site', site, 'base');

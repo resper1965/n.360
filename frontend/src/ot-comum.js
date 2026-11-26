@@ -137,7 +137,12 @@ export function lerCamposDoAtivo({ vazio = 'nulo' } = {}) {
     return { dados: d };
 }
 
-export const FASE = { em_levantamento: 'Em levantamento', base_em_aprovacao: 'Base em aprovação', em_operacao: 'Em operação', em_obra: 'Em obra' };
+/** Vocabulário do site (spec 2026-11-26 §1): a área e, na Implantação e na Obra, a etapa. A fase do banco só dá o nome. */
+export const AREA = { implantacao: 'Implantação', operacao: 'Operação', obra: 'Obra' };
+export const ETAPAS_IMPLANTACAO = ['Cadastrar', 'Levantar', 'Revisar', 'Aprovar a base'];
+export const areaDaFase = (f) => (f === 'em_operacao' ? 'operacao' : f === 'em_obra' ? 'obra' : 'implantacao');
+/** "Implantação · 3. Revisar", "Operação"; área desconhecida, um traço. */
+export const rotuloDaArea = (area, etapa) => (AREA[area] ? `${AREA[area]}${ETAPAS_IMPLANTACAO[etapa - 1] ? ` · ${etapa}. ${ETAPAS_IMPLANTACAO[etapa - 1]}` : ''}` : '—');
 
 /** Autoavaliação de um item de política do assessment (a do Gestor e da consultoria, não a do inventário). */
 export const AVALIACAO = { atende: ['success', 'Atende'], parcial: ['warning', 'Parcial'], nao_atende: ['danger', 'Não atende'], nao_se_aplica: ['neutral', 'Não se aplica'] };

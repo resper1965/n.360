@@ -12,7 +12,7 @@ import { cartaoIntegracao } from './ot-integracao.js';
 import { montarAssessment } from './ot-assessment.js';
 import { montarFornecedoresOt } from './ot-fornecedores.js';
 import { montarInicio } from './ot-inicio.js';
-import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
+import { montarSites, montarSite, resolverDesvio, modoDaAba } from './ot-site.js';
 import { itemVisivel, enderecoDoProduto, modulosVisiveis } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
 import { renderPainel } from './painel.js';
@@ -30,7 +30,7 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const TITULOS = { inicio: 'n.ot · Início', painel: 'Painel', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores do n.ot', acessos: 'Acessos e sondas' };
+const TITULOS = { inicio: 'n.ot · Início', painel: 'Painel', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores de OT', acessos: 'Acessos e sondas' };
 // O Painel do n.ot é o mesmo painel do n.iso e do n.privacy (views/painel.js), pelo `?modulo=ot`; o título fica o desta casca.
 const MONTAR = { inicio: montarInicio, painel: (c, a) => renderPainel(c, null, a, 'ot'), sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, acessos: (c, a, p) => montarAcessos(c, a, p) };
 
@@ -46,17 +46,17 @@ async function renderOt(c, h, a) {
         S.otTela = null; S.otModo = null; S.otSub = null;
     }
     // Pedido de uma só vez (sino): vence o endereço velho e sobrevive à troca de projeto.
-    // O site vai com modo nulo (a fase decide, montarSite); o desvio segue o caminho do endereço /ot/desvios/<id>, logo abaixo.
+    // O site vai com modo nulo (a área decide, montarSite); o desvio segue o caminho do endereço /ot/desvios/<id>, logo abaixo.
     let desvioPedido = null;
     if (S.otPedido) {
         const p = S.otPedido; S.otPedido = null;
         if (p.desvio) { desvioPedido = p.desvio; S.otTela = null; }
-        else Object.assign(S, { otTela: p.tela, otSite: p.site ?? null, otModo: p.site ? null : 'projeto' });
-    } else if (trocou) { S.otTela = 'inicio'; S.otModo = 'projeto'; } // o endereço ainda é o do projeto anterior
+        else Object.assign(S, { otTela: p.tela, otSite: p.site ?? null, otModo: null, otSub: null });
+    } else if (trocou) { S.otTela = 'inicio'; S.otModo = null; S.otSub = null; } // o endereço ainda é o do projeto anterior
     let desvio = null;
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
-        const e = desvioPedido ? { tela: 'inicio', site: null, modo: 'projeto', desvio: desvioPedido } : lerEndereco();
-        Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: e.modo });
+        const e = desvioPedido ? { tela: 'inicio', site: null, aba: null, desvio: desvioPedido } : lerEndereco();
+        Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: null, otSub: e.aba }); // a área do site decide o modo e confere a aba
         if (e.desvio) {
             let r = await resolverDesvio(proj(), e.desvio);
             // O link não traz o projeto: se não está no ativo, procura nos outros n.ot (um a um) e troca para o que o tem.
@@ -74,27 +74,26 @@ async function renderOt(c, h, a) {
     }
     if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'inicio';
     const tela = S.otTela;
-    escreverEndereco({ tela, site: S.otSite, modo: S.otModo || 'projeto' });
+    escreverEndereco({ tela, site: S.otSite, aba: S.otSub });
     for (const t of ['inicio', 'painel', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
     h.textContent = TITULOS[tela];
     c.innerHTML = '<div class="loading"></div>';
     if (tela === 'site') {
         await montarSite(c, a, proj(), { site: S.otSite, modo: S.otModo, sub: S.otSub, desvio });
-        escreverEndereco({ tela, site: S.otSite, modo: S.otModo || 'projeto' }); // o modo pode ter vindo da fase do site
         const nome = c.querySelector('h2')?.textContent;
         if (nome) h.textContent = nome;
     } else await MONTAR[tela](c, a, proj());
 }
 
 /** Despacho do menu e dos botões. `extra` (salto de dentro de uma tela: lote, levantamento) vale DEPOIS do zerar, para não ser apagado. */
-// `modo` nulo no site: a fase decide (montarSite)
-window.otTela = async (tela, site = null, modo = 'projeto', extra = {}) => {
+// `aba` nula no site: a área decide (montarSite); a aba pedida aqui leva o modo dela (o endereço, não: lá a área manda)
+window.otTela = async (tela, site = null, aba = null, extra = {}) => {
     await esvaziarNotas();
-    Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modo, otSub: null, otZona: null, otLote: null, otLevantamento: null }, extra);
+    Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modoDaAba(aba), otSub: aba, otZona: null, otLote: null, otLevantamento: null }, extra);
     window.render();
 };
 // Abre o lote de um site vindo de fora (Início): sub-aba Lote de aprovação.
-window.otIrParaLote = (site, lote) => window.otTela('site', site, 'projeto', { otSub: 'aprovacao', otLote: lote });
+window.otIrParaLote = (site, lote) => window.otTela('site', site, 'aprovacao', { otLote: lote });
 
 // ─── inventário (N2) ────────────────────────────────────────────────────────
 const doSite = () => (S.otSite ? `?site_id=${encodeURIComponent(S.otSite)}` : '');

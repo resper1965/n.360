@@ -40,11 +40,11 @@ async function abrirOt(page) {
   await page.goto('/ot');
 }
 
-// Navegação nova: menu (Início, Sites, Assessment, Relatórios, Acessos e sondas) e, dentro do site, modo + sub-aba.
+// Navegação nova: menu (Início, Sites, Assessment, Relatórios, Acessos e sondas) e, dentro do site, área (Implantação, Operação) + sub-aba.
 async function noSite(page, modo, sub) {
   await page.locator('#nav-ot-sites').click();
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
-  if (modo === 'operacao') await page.getByRole('tab', { name: 'Modo operação' }).click();
+  if (modo === 'operacao') await page.getByRole('tab', { name: 'Operação', exact: true }).click();
   await page.getByRole('tab', { name: sub, exact: true }).click();
 }
 
@@ -77,7 +77,7 @@ test('pessoa sem o n.ot (projeto com ele): a linha não oferece o n.ot', async (
 const B = '/api/v1/projects/proj-e2e/ot';
 const ABAS_OT = {
   [`${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte', tipo: 'subestacao', criticidade: 'alta', localizacao: null, status: 'ativo' }] },
-  [`${B}/sites/s1/situacao`]: { fase: 'em_levantamento', base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 1, zonas_4_1_1: false, tem_conteudo: true, proximo_passo: 'revisar', lote_em_revisao_id: null },
+  [`${B}/sites/s1/situacao`]: { fase: 'em_levantamento', area: 'implantacao', etapa: 3, falta: [], base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 1, zonas_4_1_1: false, tem_conteudo: true, proximo_passo: 'revisar', lote_em_revisao_id: null },
   [`${B}/zonas`]: { zonas: [{ id: 'z2', site_id: 's1', nome: 'Supervisão', nivel_purdue: 2, tipo: 'supervisao', descricao: null, status: 'ativo' }] },
   [`${B}/ativos`]: { ativos: [{ id: 'a1', project_id: 'proj-e2e', site_id: 's1', zona_id: 'z2', nome: 'RTU-01', no_arciber: true, categoria_arciber: 'centro_operacao',
     tipo_dispositivo: 'RTU', fabricante: 'ACME', modelo: 'X1', funcao: 'Telecontrole', firmware_so_versao: '1.2', firmware_nao_aplicavel: false, status: 'ativo',
@@ -263,7 +263,7 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
 });
 
 // L3 (sensor de rede, src/routes/ot-depara.ts POST …/depara/rede): o .json do resumo é conferido na tela, vai inteiro à API e os achados
-// voltam com o selo "Sensor de rede" (pela evidência). API mockada.
+// voltam com o selo "Sonda de rede" (pela evidência). API mockada.
 test('levantamento documento: importa o resumo do sensor de rede e os achados aparecem com o selo', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0], tipo: 'documento', documento_titulo: 'Captura Zeek', funcao: null, turno: null };
@@ -302,7 +302,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
   await page.locator('#modal').getByRole('button', { name: 'Criar achados' }).click();
   await expect(page.locator('body')).toContainText('1 ativo novo');
   await expect(page.locator('body')).toContainText('1 fluxo aguardando ativo');
-  await expect(conteudo.locator('tr', { hasText: 'Ativo 10.1.1.10' }).locator('.badge', { hasText: 'Sensor de rede' })).toBeVisible();
+  await expect(conteudo.locator('tr', { hasText: 'Ativo 10.1.1.10' }).locator('.badge', { hasText: 'Sonda de rede' })).toBeVisible();
   expect(enviados).toHaveLength(1);
   expect(enviados[0]).toContain('"formato":"n.ot-resumo-rede/1"');
 });
@@ -431,7 +431,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('1 de 1');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Último resumo há 2 h');
 
-  // Os pontos que a sonda trouxe seguem no topo do Levantamento (Modo projeto).
+  // Os pontos que a sonda trouxe seguem no topo do Levantamento (Implantação).
   await noSite(page, 'projeto', 'Levantamento');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Achados da sonda para revisar');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
@@ -503,7 +503,7 @@ test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abr
   await expect(conteudo).toContainText('Em revisão');
 });
 
-// Deep link /ot/desvios/<id>: abre o site do desvio, em Modo operação, na sub-aba Desvios, com a linha marcada.
+// Deep link /ot/desvios/<id>: abre o site do desvio, na Operação, na sub-aba Desvios, com a linha marcada; recarregar mantém a aba.
 test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a linha marcada', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
   const desvio = (id, ativo) => ({ id, site_id: 's1', site_nome: 'SE Norte', tipo: 'fluxo', situacao: 'aberto', protocolo: 'modbus', porta: 502, externo: false,
@@ -512,17 +512,22 @@ test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a
     const path = new URL(route.request().url()).pathname;
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (path === `${B}/desvios`) return json({ desvios: [desvio('d0', 'CLP-00'), desvio('d1', 'CLP-01')] });
+    if (path === `${B}/sites/s1/situacao`) return json({ ...ABAS_OT[path], fase: 'em_operacao', area: 'operacao', etapa: null, proximo_passo: 'em_operacao', base_aprovada_em: '2026-11-10 10:00:00' });
     if (path in ABAS_OT) return json(ABAS_OT[path]);
     return route.fallback();
   });
   await entrar(page);
   await expect(page.getByRole('button', { name: 'Ver situação de Cliente E2E' })).toBeVisible();
   await page.goto('/ot/desvios/d1');
-  await expect(page.getByRole('tab', { name: 'Modo operação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Operação', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('tbody tr[aria-current="true"]')).toContainText('CLP-01');
   await expect(page.locator('tbody tr[aria-current="true"]')).toHaveCount(1);
-  await expect(page).toHaveURL(/modo=operacao/);
+  await expect(page).toHaveURL(/aba=desvios/);
+  await expect(page).not.toHaveURL(/modo=/);
+  await page.reload(); // a aba vive no endereço
+  await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Operação', exact: true })).toHaveAttribute('aria-selected', 'true');
 });
 
 // Fluidez E2: na Revisão e aprovação do site, marcar achados de levantamentos diferentes e enviar de uma vez; o lote abre.
@@ -623,10 +628,10 @@ test('decisão: o gestor recusa um item com motivo, aprova o restante e o levant
   await expect(conteudo).toContainText('No inventário');
 });
 
-// Fluidez E3: a base do site. O consultor pede a aprovação; o Gestor aprova com a declaração e o site passa a "Em operação".
-test('base: o consultor pede a aprovação e o gestor aprova; o site abre no Modo operação', async ({ page }) => {
+// Fluidez E3: a base do site. O consultor pede a aprovação; o Gestor aprova com a declaração e o site passa à Operação.
+test('base: o consultor pede a aprovação e o gestor aprova; o site abre na Operação', async ({ page }) => {
   let papel = 'consultor';
-  const sit = { ...ABAS_OT[`${B}/sites/s1/situacao`], lotes_em_revisao: 0, zonas_4_1_1: true, proximo_passo: 'pedir_base' };
+  const sit = { ...ABAS_OT[`${B}/sites/s1/situacao`], lotes_em_revisao: 0, zonas_4_1_1: true, proximo_passo: 'pedir_base', etapa: 4 };
   const posts = [];
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   await page.route(`**${B}/**`, async (route) => {
@@ -637,7 +642,7 @@ test('base: o consultor pede a aprovação e o gestor aprova; o site abre no Mod
       const acao = path.split('/').pop();
       posts.push([acao, req.postDataJSON()]);
       if (acao === 'pedir') Object.assign(sit, { fase: 'base_em_aprovacao', proximo_passo: 'aguardar_base' });
-      else Object.assign(sit, { fase: 'em_operacao', proximo_passo: 'em_operacao', base_aprovada_em: '2026-11-12 10:00:00' });
+      else Object.assign(sit, { fase: 'em_operacao', area: 'operacao', etapa: null, proximo_passo: 'em_operacao', base_aprovada_em: '2026-11-12 10:00:00' });
       return json({ ok: true });
     }
     if (path === `${B}/sites/s1/situacao`) return json(sit);
@@ -661,8 +666,10 @@ test('base: o consultor pede a aprovação e o gestor aprova; o site abre no Mod
   await page.getByRole('button', { name: 'Aprovar a base' }).click();
   await expect(page.getByRole('alertdialog')).toContainText('Confirmo que este inventário representa o site.');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Aprovar a base' }).click();
-  await expect(conteudo).toContainText('Em operação');
-  await expect(page.getByRole('tab', { name: 'Modo operação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(conteudo).toContainText('Operação desde');
+  await expect(page.getByRole('tab', { name: 'Operação', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(conteudo).not.toContainText('Modo operação');
   expect(posts[1]).toEqual(['aprovar', { declaracao: true }]);
 });
 
@@ -711,7 +718,7 @@ test('obra: o gestor abre a obra, o selo aparece e Renovar obra fica disponível
   await page.getByLabel('Justificativa').fill('Troca do painel de controle');
   await page.getByLabel('Fim da obra').fill(await page.locator('#obra-ate').getAttribute('max'));
   await page.locator('#modal-content').getByRole('button', { name: 'Abrir obra' }).click();
-  await expect(page.locator('#content')).toContainText('Obra em andamento até');
+  await expect(page.locator('#content')).toContainText('Obra até');
   await expect(page.getByRole('button', { name: 'Renovar obra' })).toBeVisible();
   expect(posts).toHaveLength(1);
   expect(posts[0].justificativa).toBe('Troca do painel de controle');

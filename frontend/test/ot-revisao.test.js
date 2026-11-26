@@ -116,7 +116,7 @@ describe('montarRevisao', () => {
         const l = el('c').querySelector('[data-action="otRevAbrirLevantamento"]');
         expect(JSON.parse(l.getAttribute('data-args'))).toEqual(['s1', 'v1']);
         await window.otRevAbrirLevantamento('s1', 'v1');
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'levantamento', otLevantamento: 'v1' });
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantamento', { otLevantamento: 'v1' });
         rotas[`PUT ${B}/levantamentos/v1/achados/a1`] = { ok: true };
         await window.otRevDescartar('v1', 'a1');
         const put = chamadas.find((x) => x.k === `PUT ${B}/levantamentos/v1/achados/a1`);

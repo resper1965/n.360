@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: Implantação e Operação, com o site e a aba no endereço
+- n.ot: o site está em Implantação (1 Cadastrar, 2 Levantar, 3 Revisar, 4 Aprovar a base), Operação ou Obra; a aba do site fica no endereço; os itens do Painel, a jornada e os avisos de obra e de aceite abrem o site e a aba exatos.
+
 ### Riscos: ligar e desligar a evidência do tratamento pela tela
 - **Detalhe do risco (n.iso):** "Ligar evidência" escolhe uma evidência do projeto que ainda não está ligada e chama `POST /api/v1/evidence/:id/riscos`; cada evidência da lista tem "Desligar", com confirmação (`DELETE /api/v1/evidence/:id/riscos/:riskId`). Só quem edita risco vê os botões; quem só lê vê a lista. Ligar e desligar não mudam o risco nem o aceite. Sem migration.
 

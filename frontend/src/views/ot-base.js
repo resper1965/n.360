@@ -2,13 +2,12 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, confirmar, pedirTexto, showToast, formatarData, openModal } from '../ui.js';
 import { emDiasSP } from '../hoje.js';
-import { podeEditarOt, podeCriarLote, ehGestor, classePrimario, mensagemDeErro, dataDoSqlite } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, ehGestor, classePrimario, mensagemDeErro, dataDoSqlite, AREA, ETAPAS_IMPLANTACAO, areaDaFase } from '../ot-comum.js';
 
-// n.ot, cabeçalho do site (spec 2026-11-12 E3): régua Levantar → Revisar e aprovar → Base aprovada e o cartão "Próximo passo", que
-// leva o único .btn-primary da tela. Lê GET .../sites/:id/situacao; pedir, aprovar e devolver a base são POSTs do Gestor/equipe.
+// n.ot, cabeçalho do site (spec 2026-11-26 §1 e §4): na Implantação e na Obra, a régua das 4 etapas (a etapa vem do servidor) e o
+// cartão "Para avançar" com o que falta (`falta`); na Operação, desde quando. O cartão leva o único .btn-primary da tela.
+// Lê GET .../sites/:id/situacao; pedir, aprovar e devolver a base são POSTs do Gestor/equipe.
 
-const ETAPAS = ['Levantar', 'Revisar e aprovar', 'Base aprovada'];
-const ETAPA_DO_PASSO = { comecar: 0, revisar: 1, aguardar_lote: 1, pedir_base: 1, aguardar_base: 1, em_operacao: 2, revalidar: 2 };
 const OBRA_MAX_DIAS = 90; // o mesmo teto do servidor
 const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
@@ -22,7 +21,7 @@ export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPri
         case 'comecar': return { texto: 'Comece o levantamento', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
         case 'revisar': {
             const n = sit.rascunhos || 0;
-            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Abrir Revisão e aprovação', 'otSiteSub', 'aprovacao') }
+            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Revisar', 'otSiteSub', 'aprovacao') }
                 : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Abrir Base', 'otSiteSub', 'base') };
         }
         case 'aguardar_lote': return { texto: 'Aguardando o Gestor decidir o lote', acao: sit.lote_em_revisao_id ? botao('Abrir o lote', 'otIrParaLote', site, sit.lote_em_revisao_id) : '' };
@@ -31,7 +30,7 @@ export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPri
             ? { texto: 'Aguardando o Gestor aprovar a base', acao: `${sit.eu_pedi_a_base ? '<p class="org-dica">Quem pediu a base não a aprova: peça a outra pessoa.</p>' : botao('Aprovar a base', 'otAprovarBase', site)}<button class="btn" data-action="otDevolverBase" data-args='${args(site)}'>Devolver</button>` }
             : { texto: 'Aguardando o Gestor aprovar a base', acao: '' };
         case 'revalidar': return { texto: `Revalide o inventário até ${sit.revalidar_em ? ddmm(sit.revalidar_em) : 'o prazo'}`, acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
-        case 'em_operacao': return { texto: 'Em operação', acao: botao('Abrir Modo operação', 'otSiteModo', 'operacao') };
+        case 'em_operacao': return { texto: 'Acompanhe a operação do site', acao: botao('Abrir a operação', 'otSiteModo', 'operacao') };
         default: return { texto: 'Situação do site indisponível', acao: '' };
     }
 }
@@ -39,16 +38,19 @@ export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPri
 /** Régua + cartão. `sit` é o corpo de /situacao, ou null quando a leitura falhou. */
 export function cabecalhoDoSite(sit, site, papeis = { gestor: ehGestor(), editar: podeEditarOt(), criar: podeCriarLote() }) {
     if (!sit) return '<section class="card mb-4"><p class="org-dica" role="alert">Não foi possível carregar a situação do site.</p></section>';
-    const atual = ETAPA_DO_PASSO[sit.proximo_passo] ?? 0;
+    const area = AREA[sit.area] ? sit.area : areaDaFase(sit.fase); // situação sem `area` (servidor antigo): a fase dá o nome
     const desde = sit.base_aprovada_em ? formatarData(dataDoSqlite(sit.base_aprovada_em)) : '';
     const { texto, acao } = proximoPasso(sit, site, papeis);
-    const obra = sit.obra ? `<span class="badge" title="${escapeHTML(sit.obra.justificativa || '')}">Obra em andamento até ${escapeHTML(ddmm(sit.obra.ate))}</span>` : '';
+    const falta = Array.isArray(sit.falta) ? sit.falta : [];
+    const obra = sit.obra ? `<span class="badge" title="${escapeHTML(sit.obra.justificativa || '')}">Obra até ${escapeHTML(ddmm(sit.obra.ate))}</span>` : '';
     const btnObra = !papeis.gestor ? '' : sit.obra ? (sit.obra.renovada ? '' : `<button class="btn" data-action="otObra" data-args='${args('renovar', site, sit.obra.ate)}'>Renovar obra</button>`)
         : sit.fase === 'em_operacao' ? `<button class="btn" data-action="otObra" data-args='${args('abrir', site)}'>Abrir obra</button>` : '';
-    return `<section class="card mb-4"><ol class="ot-regua" aria-label="Etapas do site">${ETAPAS.map((e, i) =>
-        `<li${i === atual ? ' aria-current="step"' : ''}>${i === atual ? '<strong>' : ''}${i + 1}. ${e}${i === atual ? '</strong>' : ''}</li>`).join('')}</ol>
-        ${sit.fase === 'em_operacao' && desde ? `<p class="org-dica mb-3">Em operação desde ${escapeHTML(desde)}</p>` : ''}
-        <h3 class="mb-2">Próximo passo</h3><div class="d-flex gap-4 items-center flex-wrap">${obra}<span>${escapeHTML(texto)}</span>${acao}${btnObra}</div></section>`;
+    const topo = area === 'operacao' ? (desde ? `<p class="org-dica mb-3">Operação desde ${escapeHTML(desde)}</p>` : '')
+        : `<ol class="ot-regua" aria-label="Etapas da implantação">${ETAPAS_IMPLANTACAO.map((e, i) => (i + 1 === sit.etapa
+            ? `<li aria-current="step"><strong>${i + 1}. ${e}</strong></li>` : `<li>${i + 1}. ${e}</li>`)).join('')}</ol>`;
+    const corpo = falta.length ? `<ul>${falta.map((f) => `<li>${escapeHTML(f)}</li>`).join('')}</ul>` : `<span>${escapeHTML(texto)}</span>`;
+    return `<section class="card mb-4">${topo}
+        <h3 class="mb-2">${area === 'operacao' ? 'Operação' : 'Para avançar'}</h3><div class="d-flex gap-4 items-center flex-wrap">${obra}${corpo}${acao}${btnObra}</div></section>`;
 }
 
 let ocupado = false;
@@ -71,7 +73,7 @@ window.otPedirBase = async (site) => {
 };
 window.otAprovarBase = async (site) => {
     if (!(await confirmar('Confirmo que este inventário representa o site.', { titulo: 'Aprovar a base', rotulo: 'Aprovar a base' }))) return;
-    await enviar(() => api('POST', `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(site)}/base/aprovar`, { declaracao: true }), 'Base aprovada.', 'Não foi possível aprovar a base.', () => window.otTela('site', site, 'operacao')); // aprovada, o site abre em operação
+    await enviar(() => api('POST', `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(site)}/base/aprovar`, { declaracao: true }), 'Base aprovada.', 'Não foi possível aprovar a base.', () => window.otTela('site', site, 'desvios')); // aprovada, o site abre na Operação, em Desvios
 };
 window.otDevolverBase = async (site) => {
     const motivo = await pedirTexto('Diga o que precisa ser corrigido (3 a 500 caracteres; sem IP ou MAC).', { titulo: 'Devolver a base', rotulo: 'Devolver' });

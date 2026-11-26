@@ -18,13 +18,13 @@ describe('pendenciasDoPapel', () => {
             { id: 'l2', status: 'em_revisao', criado_por: 'u1', site_id: 's1', created_at: '2026-11-10T12:00:00Z' }];
         const p = pendenciasDoPapel({ ...base, lotes }, { id: 'u1', podeAprovar: true, podeEditar: true });
         expect(p.filter((x) => x.tipo === 'lote').map((x) => x.acao.lote)).toEqual(['l1']);
-        expect(p[0].acao).toMatchObject({ tela: 'site', site: 's1', modo: 'projeto' });
+        expect(p[0].acao).toMatchObject({ tela: 'site', site: 's1', lote: 'l1' });
         expect(p[0].texto).toBe('Lote de aprovação em SE Norte: decidir até 17/11');
     });
-    it('desvios abertos agrupam por site e levam ao modo operação', () => {
+    it('desvios abertos agrupam por site e levam à aba Desvios', () => {
         const desvios = [{ site_id: 's1' }, { site_id: 's1' }];
         const p = pendenciasDoPapel({ ...base, desvios }, { id: 'u1', podeAprovar: true, podeEditar: false });
-        expect(p).toEqual([expect.objectContaining({ tipo: 'desvio', texto: '2 desvios abertos em SE Norte', acao: { tela: 'site', site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } } })]);
+        expect(p).toEqual([expect.objectContaining({ tipo: 'desvio', texto: '2 desvios abertos em SE Norte', acao: { tela: 'site', site: 's1', aba: 'desvios' } })]);
     });
     it('desvio de site em obra não entra em Espera por você', () => {
         const desvios = [{ site_id: 's1' }, { site_id: 's2' }];
@@ -48,8 +48,8 @@ describe('pendenciasDoPapel', () => {
             situacoes: { s1: { obra: { ate: perto, renovada: false } }, s2: { obra: { ate: longe } } } };
         const p = pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: true });
         expect(p.map((x) => x.texto)).toEqual([`Obra em SE Norte vence em ${dm(perto)}`, `Aceite de desvio vence em ${dm(perto)} (SE Norte)`]);
-        expect(p[0].acao).toMatchObject({ site: 's1', modo: 'projeto' });
-        expect(p[1].acao).toMatchObject({ site: 's1', modo: 'operacao', extra: { otSub: 'desvios' } });
+        expect(p[0].acao).toMatchObject({ site: 's1', aba: null });
+        expect(p[1].acao).toMatchObject({ site: 's1', aba: 'desvios' });
         expect(pendenciasDoPapel(dados, { id: 'u1', podeAprovar: false, podeEditar: false, gestor: false })).toEqual([]);
     });
     it('prazo já passado diz "venceu"', () => {
@@ -131,9 +131,9 @@ describe('montarInicio', () => {
         const postura = [...c.querySelectorAll('section')][2].textContent;
         for (const x of ['Atende: 1', 'Parcial: 2', 'Não atende: 3', 'Não avaliado: 4', '2 a confirmar']) expect(postura).toContain(x);
         const li = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('2 itens do assessment para confirmar'));
-        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['assessment', null, 'projeto', { otAssFiltro: 'meus' }]);
+        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['assessment', null, null, { otAssFiltro: 'meus' }]);
         const rev = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('1 item do assessment para revisar'));
-        expect(JSON.parse(rev.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['assessment', null, 'projeto', { otAssFiltro: 'revisar' }]);
+        expect(JSON.parse(rev.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['assessment', null, null, { otAssFiltro: 'revisar' }]);
     });
     it('assessment que falha: aviso de carga parcial e postura indisponível', async () => {
         delete rotas[`GET ${B}/assessment`]; rotas[`GET ${B}/lotes`] = { lotes: [] }; rotas[`GET ${B}/desvios`] = { desvios: [] };
@@ -199,17 +199,17 @@ describe('montarInicio', () => {
         expect(c.textContent).not.toContain('em rascunho em SE Sul');
         expect(c.textContent).toContain('Não foi possível carregar tudo o que espera por você.');
     });
-    it('"achados em rascunho" leva à sub-aba aprovacao do modo projeto', async () => {
+    it('"achados em rascunho" leva à sub-aba aprovacao', async () => {
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
         const li = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('achados em rascunho'));
-        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['site', 's1', 'projeto', { otSub: 'aprovacao' }]);
+        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['site', 's1', 'aprovacao']);
     });
     it('linha de desvio aberto passa a sub-aba desvios pelo data-args', async () => {
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
-        const b = [...c.querySelectorAll('[data-action="otTela"]')].map((x) => JSON.parse(x.getAttribute('data-args'))).find((x) => x[2] === 'operacao');
-        expect(b).toEqual(['site', 's1', 'operacao', { otSub: 'desvios' }]);
+        const b = [...c.querySelectorAll('[data-action="otTela"]')].map((x) => JSON.parse(x.getAttribute('data-args'))).find((x) => x[2] === 'desvios');
+        expect(b).toEqual(['site', 's1', 'desvios']);
     });
     it('sonda parada vence atrasada na coluna Sonda do site', async () => {
         rotas[`GET ${B}/sites/s1/sensores`] = { sensores: [{ id: 'a', nome: 'A', saude: 'atrasada' }, { id: 'b', nome: 'B', saude: 'parada' }] };
@@ -224,13 +224,13 @@ describe('montarInicio', () => {
         await montarInicio(c, null, { id: 'p9' });
         expect([...c.querySelectorAll('tbody tr')][0].children[2].textContent).toBe('Revalidar');
     });
-    it('colunas Fase e Próximo passo; o Gestor vê a base aguardando e o botão leva ao site', async () => {
+    it('colunas Área e Próximo passo; o Gestor vê a base aguardando e o botão leva ao site', async () => {
         const c = document.getElementById('c');
         await montarInicio(c, null, { id: 'p9' });
         const cels = [...c.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent));
-        expect(cels[0].slice(1, 3)).toEqual(['Base em aprovação', 'Aguardar a base']);
+        expect(cels[0].slice(1, 3)).toEqual(['Implantação', 'Aguardar a base']);
         const li = [...c.querySelectorAll('li')].find((x) => x.textContent.includes('Base de SE <b>Norte</b> aguardando sua aprovação'));
-        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['site', 's1', 'projeto']);
+        expect(JSON.parse(li.querySelector('[data-action="otTela"]').getAttribute('data-args'))).toEqual(['site', 's1', null]);
     });
     it('consultor não vê a base aguardando; situação que falha deixa "—"', async () => {
         S.user = { id: 'u1', role: 'consultor' };

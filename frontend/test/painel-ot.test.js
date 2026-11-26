@@ -13,14 +13,14 @@ import { graficoCobertura, graficoPedidos } from '../src/views/painel-graficos.j
 
 const ETAPAS = [['comecar', 'Começar'], ['levantar', 'Levantar'], ['avaliar', 'Avaliar'], ['tratar', 'Tratar'], ['operar', 'Operar']]
     .map(([id, rotulo]) => ({ id, rotulo, feitos: 0, total: 2 }));
-const OT = { etapa: 'levantar', feitos: 0, total: 2, proximo: { texto: 'Revisar os achados do levantamento', tela: 'ot', aba: 'sites' }, etapas: ETAPAS };
+const OT = { etapa: 'levantar', feitos: 0, total: 2, proximo: { texto: 'Implantação: revisar os achados', tela: 'ot', aba: 'revisar' }, etapas: ETAPAS };
 const EM_DIA = { tom: 'ok', rotulo: 'Em dia', frase: 'Nada vencido nem vencendo nos próximos 7 dias.', apoio: '' };
 const ATENCAO = { tom: 'semana', rotulo: 'Atenção', frase: '1 desvio aberto.', apoio: '' };
-const FAZER = [{ grupo: 'semana', quando: 'Nesta semana', texto: '1 desvio aberto', contexto: 'O sensor viu o que não está na base aprovada', acao: 'Ver os desvios', tela: 'ot', aba: 'sites', modulo: 'ot' }];
+const FAZER = [{ grupo: 'semana', quando: 'Nesta semana', texto: '1 desvio aberto', contexto: 'O sensor viu o que não está na base aprovada', acao: 'Ver os desvios', tela: 'ot', aba: 'desvios', modulo: 'ot' }];
 const painelOt = (visao, bloco, saude = ATENCAO) => ({ gerado_em: '2026-11-20T10:00:00Z', visao, modulos_pedidos: ['ot'], empresa: null, encarregados: [],
     programa: { estado: 'implantacao', desde: null, rotulo: 'Em implantação', etapas: { ot: OT } }, saude, modulos: { ot: { saude, comecando: false, ...bloco } } });
-const SITES = [{ id: 's1', nome: 'SE <b>Norte</b>', fase: 'em_operacao', proximo: 'Tratar os desvios abertos', desvios_abertos: 1, revalidar_em: '2027-01-10', obra_ate: null, sonda: 'parada' },
-    { id: 's2', nome: 'SE Sul', fase: 'em_levantamento', proximo: 'Começar o levantamento do site', desvios_abertos: 0, revalidar_em: null, obra_ate: null, sonda: null }];
+const SITES = [{ id: 's1', nome: 'SE <b>Norte</b>', fase: 'em_operacao', area: 'operacao', etapa: null, proximo: 'Tratar os desvios abertos', desvios_abertos: 1, revalidar_em: '2027-01-10', obra_ate: null, sonda: 'parada' },
+    { id: 's2', nome: 'SE Sul', fase: 'em_levantamento', area: 'implantacao', etapa: 3, proximo: 'Começar o levantamento do site', desvios_abertos: 0, revalidar_em: null, obra_ate: null, sonda: null }];
 const EQUIPE = { numeros: [['0 de 2', 'sites em operação'], ['1', 'desvios abertos']], fazer: FAZER, passos: [], por_site: [] };
 const el = (id) => document.getElementById(id);
 const montar = () => { document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>'; };
@@ -83,6 +83,34 @@ describe('Painel do n.ot: cliente', () => {
     });
 });
 
+describe('Painel do n.ot: "Abrir" leva ao site e à aba (PR1b)', () => {
+    it('item de um site só abre o site na aba; sem site, a lista Sites (ou a tela da aba, quando há)', async () => {
+        const { irPara } = await import('../src/produto.js');
+        const fazer = [{ ...FAZER[0], aba: 'revisar', site: 's1' }, { ...FAZER[0], texto: '2 desvios abertos', aba: 'desvios' }];
+        await abrir(painelOt('equipe', { ...EQUIPE, fazer }));
+        const botoes = [...el('pn-fazer').closest('section').querySelectorAll('[data-action="painelAbrir"]')];
+        expect(JSON.parse(botoes[0].dataset.args)).toEqual(['ot', 'revisar', null, 's1']);
+        window.painelAbrir(...JSON.parse(botoes[0].dataset.args));
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s1&aba=revisar');
+        window.painelAbrir(...JSON.parse(botoes[1].dataset.args));
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
+        window.painelAbrir('ot', null, null, 's<1>');
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s%3C1%3E');
+        window.painelAbrir('ot', 'sondas', null);
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=acessos');
+        window.painelAbrir('ot', 'assessment', null);
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=assessment');
+    });
+    it('o próximo passo da régua leva o site quando o servidor o manda', async () => {
+        const { irPara } = await import('../src/produto.js');
+        const comSite = { ...painelOt('equipe', EQUIPE), programa: { estado: 'implantacao', desde: null, rotulo: 'Em implantação', etapas: { ot: { ...OT, proximo: { texto: 'Implantação: revisar os achados', tela: 'ot', aba: 'revisar', site: 's2' } } } } };
+        await abrir(comSite);
+        const b = el('c').querySelector('.pn-regua-prox button');
+        window.painelAbrirProximo(...JSON.parse(b.dataset.args));
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s2&aba=revisar');
+    });
+});
+
 describe('Painel do n.ot: Gestor ARCiber e Por site (PR2)', () => {
     it('Gestor (visão de cliente com "fazer") ganha "Abrir" na régua, "O que fazer" e Por site com Sonda', async () => {
         await abrir(painelOt('cliente', { numeros: [['1 de 2', 'sites em operação']], fazer: FAZER, passos: [], por_site: SITES }));
@@ -97,6 +125,11 @@ describe('Painel do n.ot: Gestor ARCiber e Por site (PR2)', () => {
         const b = t.querySelector('button[data-action="otTela"]');
         expect(JSON.parse(b.dataset.args)).toEqual(['site', 's1', null]);
         expect(b.getAttribute('aria-label')).toBe('Abrir SE <b>Norte</b>');
+        expect([...t.querySelectorAll('th')].map((th) => th.textContent.trim())).toContain('Área');
+        const linhas = [...t.querySelectorAll('tbody tr')].map((tr) => tr.textContent);
+        expect(linhas[0]).toContain('Operação');
+        expect(linhas[1]).toContain('Implantação · 3. Revisar');
+        for (const velho of ['Em operação', 'Em levantamento']) expect(t.textContent).not.toContain(velho);
     });
     it('técnico (Por site sem "sonda", sem "fazer"): sem "Abrir" na régua, sem coluna Sonda, sem "O que fazer"', async () => {
         const semSonda = SITES.slice(0, 1).map(({ sonda, ...s }) => s);
