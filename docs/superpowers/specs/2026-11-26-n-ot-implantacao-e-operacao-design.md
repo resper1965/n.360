@@ -96,8 +96,8 @@ endereço não guarda a sub-aba.
 Criar site termina na lista (`ot.js:193` só redesenha a tela atual); desvio vazio sem sonda leva a Acessos, tela global
 (`ot-desvios.js:46`); o técnico precisa de conta criada no n.360 antes de receber acesso (`ot.js:425`); vincular fornecedor de OT exige a
 parte já cadastrada (`ot-fornecedores.js:27,36`); "Criar ação corretiva" aparece sempre e só erra no envio se o projeto não tem n.iso
-(`ot-desvios.js:57`; `ot.ts:1149`); `AGENTS.md:668` diz que o n.ot não tem Painel (desatualizado); `docs/superpowers/INDEX.md:61,71` dá
-os painéis como "sem código" (desatualizado: #611, #616, #618 e #619 entregues).
+(`ot-desvios.js:57`; `ot.ts:1149`); `AGENTS.md:668` diz que o n.ot não tem Painel (desatualizado); `docs/superpowers/INDEX.md` dava os painéis
+como "sem código" em `origin/main` `e734f7a` (linhas 61 e 71; desatualizado: #611, #616, #618 e #619 entregues; corrigido junto com esta spec).
 
 ## Decisões do dono (aprovadas)
 
@@ -198,8 +198,10 @@ Criar site abre o site novo na etapa 1 (`POST /sites` já devolve `id`, `ot.ts:1
 
 Abas: **Desvios**, **Saúde da coleta**, **Inventário** (só leitura, com os fluxos), **Mudanças**, **Revalidação**.
 
-- **Mudanças:** a lista de lotes do site criados depois de `base_aprovada_em` (derivada; sem coluna nova) e "Registrar mudança", que
-  abre um levantamento de visita no site e leva ao formulário de achado. Mudar o inventário em operação é só por aqui (ou pelo
+- **Mudanças:** os lotes do site criados depois de `base_aprovada_em` (derivada; sem coluna nova), em duas listas: **abertas** (em
+  revisão) e **concluídas**; e "Registrar mudança", que abre um levantamento de visita no site e leva ao formulário de achado. A
+  retenção apaga todo lote não concluído com mais de 7 dias (`src/manutencao.ts:155`, P0-3): uma Mudança recusada some da lista em
+  7 dias, e o registro dela fica na trilha (`ot.lote.rejeitado`, com o motivo). Mudar o inventário em operação é só por aqui (ou pelo
   "Regularizar" do desvio, que já cria achado).
 - **Revalidação:** `revalidar_em` (`ot-fase.ts:58`), os ativos do ARCiber com verificação vencida ou a vencer em 60 dias (para quem vê
   completo, pela lista de ativos que já existe) e "Nova visita de revalidação" (levantamento).
@@ -225,19 +227,28 @@ O servidor passa a expor o que a pessoa pode, e a tela para de recalcular:
 | Aprovar/devolver base, abrir/renovar obra, aceitar desvio | **sim** (inclui admin direto no cargo) | não | só se for o Gestor da direta | não | não | não |
 | Configuração | sim | sim | sim | sim (Sondas: não, não vê completo) | não | não |
 
-Leitor no servidor: um middleware no `otApp` responde 403 ao `client` em toda rota do n.ot fora da lista fechada
+**Quem é o leitor:** a mesma regra do Painel (`painel-ot.ts:38`): papel de cliente (`PAPEIS_CLIENTE`, `src/helpers.ts:205`) que não é o
+Gestor ARCiber do projeto nem o técnico (`org_user`); na prática, `client`. Uma função só (`ehLeitorOt`) serve o Painel, as
+permissões e o middleware.
+
+Leitor no servidor: um middleware no `otApp` responde 403 ao leitor em toda rota do n.ot fora da lista fechada
 `ROTAS_DO_LEITOR` = `GET /requisitos`, `GET /assessment`, `GET /conformidade`, `GET /indicadores`, `GET /relatorio/conformidade`,
-`GET /permissoes`. `sitesPermitidos` não muda (os agregados dos relatórios seguem sobre todos os sites do projeto).
+`GET /permissoes`. `sitesPermitidos` não muda (os agregados dos relatórios seguem sobre todos os sites do projeto). Nessas rotas, o
+que é inventário sai da resposta do leitor: `por_zona` dos indicadores (nome e id de zona e site, `ot-indicadores.ts:24-27,54`; fica
+`por_nivel`) e o `subsidio` de cada item do assessment (`ot-avaliacao.ts:82-114`). O Relatório de conformidade mantém a tabela de
+sites (decisão 1). Na régua comum, o próximo passo do leitor não leva `site` (o Início do n.360 também o mostra, `painel.ts:477`).
 
 O técnico vê no Painel **Meus sites** (o "Por site" dele, já cortado por `sitesPermitidos`) e **Meu trabalho**: os achados em
-rascunho dos sites dele que ele criou e os lotes dele recusados nos últimos 30 dias, com link ao site e à etapa.
+rascunho dos sites dele que ele criou e os lotes dele recusados nos últimos 7 dias (depois disso a retenção já os apagou, `src/manutencao.ts:155`), com link ao site e à etapa.
 
 ### 7. Links profundos
 
 O endereço passa a guardar a aba: `/ot?ot=site&site=<id>&aba=<aba>` (`aba` validada contra a lista da área; inválida cai na
 primeira). Item de "O que fazer" e próximo passo da régua ganham `site` (quando o item é de um site só) e `aba`; com mais de um site,
-o item leva a Operação › Desvios ou a Implantação › Sites em implantação, já filtrados. O sino: aviso de obra leva a
-`/ot?ot=site&site=<id>`; de aceite, a `/ot/desvios/<id>` (que a casca já resolve, `ot.js:52-68`); de revisão do assessment, ao Assessment.
+o item leva a Operação › Desvios ou a Implantação › Sites em implantação, já filtrados. O sino: o link gravado no
+aviso passa a levar o alvo (`/projects/<id>/ot?site=<site>` na obra, `/projects/<id>/ot?desvio=<desvio>` no aceite,
+`/projects/<id>/ot?ot=assessment` na revisão); o clique abre o site, o desvio (pelo caminho que já resolve `/ot/desvios/<id>`,
+`ot.js:52-68`) ou o Assessment.
 
 ### Regras do servidor novas ou alteradas
 
@@ -247,6 +258,9 @@ o item leva a Operação › Desvios ou a Implantação › Sites em implantaç�
 | Pedir a base exige ao menos um ativo ativo no site | `faltaParaBase`, `aprovarBase` | **alterada** (decisão 2) |
 | Ativo e fluxo só entram, mudam ou saem por lote | rotas de escrita de `ativos` e `fluxos` saem; o item de lote ganha `alvo_id` e `remover` | alterada |
 | Lote aprovado remove ativo/fluxo (`remover: true` com `alvo_id` do mesmo site) | `aprovarLote` (`ot-coleta.ts:266`) | nova |
+| Alteração por `alvo_id`: o alvo é o do `alvo_id` (não o do índice), `duplicata_de = alvo_id` na criação do item (senão a trava P1-4, `ot-coleta.ts:320`, devolve "alvo mudou"); dispensa `nome` (`ot-coleta.ts:133`) e, no fluxo, as pontas (`ot-fluxo-achado.ts:62-63`); a regra do 4.3.1 (`toca431`, recoleta carimba) vale igual | `criarLote`, `prepararItem`, `prepararFluxo`, `aprovarLote` | nova |
+| O agente de coleta não manda `alvo_id` nem `remover` (recusa uniforme, como `zona`) | `registrarAchados` (`src/services/ot-agente.ts:142`) | nova |
+| Zona: criar, editar e remover só com o site em Implantação (`em_levantamento`) ou em Obra (`em_obra`); 409 em `em_operacao` e `base_em_aprovacao` (decisão 3) | rotas de zona (`src/routes/ot.ts:178-203` e o DELETE do laço `:375-386`) | nova |
 | Leitor só lê Painel, Assessment e Relatórios | middleware no `otApp` | nova |
 | Técnico tem "Meu trabalho" no Painel | `blocoOt` / `respostaDoOt` | nova |
 | Itens do Painel com `site` e `aba` | `ItemFazer` (`src/services/painel.ts:32`), `etapasDoOt` | alterada |
@@ -262,8 +276,11 @@ o item leva a Operação › Desvios ou a Implantação › Sites em implantaç�
 | `GET /ot/sites/:id/situacao` | alterado | ganha `area: 'implantacao' \| 'operacao' \| 'obra'`, `etapa: 1 \| 2 \| 3 \| 4 \| null`, `falta: string[]` |
 | `GET /painel?modulo=ot` | alterado | `por_site[]` ganha `area` e `etapa`; `fazer[]` ganha `site?` e `aba?`; técnico recebe `meu_trabalho: ItemFazer[]` |
 | `POST /levantamentos/:id/achados` e `PUT …/achados/:aid` | alterado | `dados` aceita `alvo_id` (ativo ou fluxo do site) e `remover: true` (só com `alvo_id`) |
+| `GET /ot/lotes/:id` | alterado | ganha `nomes_alvos: Record<id, string>` (nome do ativo ou rota do fluxo de cada `alvo_id`, só do site do lote), para a tela dizer "Remover: X" / "Alterar: X" |
+| `GET /ot/indicadores`, `GET /ot/assessment` | alterado | sem `por_zona` e sem `subsidio` para o leitor |
+| `POST /ot/zonas`, `PUT /ot/zonas/:id`, `DELETE /ot/zonas/:id` | alterado | 409 com o site em operação ou com a base em aprovação |
 | `POST/PUT /ot/ativos*`, `POST/PUT /ot/fluxos*`, `DELETE /ot/ativos/:id`, `DELETE /ot/fluxos/:id` | **somem** | o OpenAPI e `contrato-tela-api` acompanham |
-| `DELETE /ot/sites/:id`, zonas | ficam | estrutura do site (etapa 1); ver decisão 3 |
+| `DELETE /ot/sites/:id` | fica | estrutura do site |
 
 ### O que some
 
@@ -284,10 +301,15 @@ de modo; "Acessos e sondas" como tela única; as seis rotas de escrita direta de
 
 ## Riscos
 
-- **Fixtures dos testes** usam `POST /ot/ativos` e `POST /ot/fluxos` em ao menos 11 arquivos (`test/ot-*.test.ts`,
-  `test/isolamento-rotas-novas.test.ts`): o PR de "tudo por lote" troca isso por um ajudante que cria por lote e aprova com outra pessoa.
+- **Fixtures dos testes** usam `POST /ot/ativos` e `POST /ot/fluxos` em 9 arquivos (`test/ot-agente-mcp`, `ot-coleta`, `ot-inventario`,
+  `ot-levantamento`, `ot-levantamento-l2`, `ot-rede`, `ot-saidas`, `ot-stepup` e `ot-tecnico`): um ajudante cria por achado e lote,
+  aprovado por outra pessoa. O lote aprovado carimba a verificação do 4.3.1 quando o item é completo: números de verificação nos testes
+  de saídas mudam. Teto de 20 lotes por dia por pessoa (`ot-coleta.ts:17,196`): um lote por preparação, não um por ativo.
+- **E2E:** `frontend/e2e/ot.spec.js` roda no portão (`scripts/ci/gate.sh:103`) e trava Início, "Modo operação", "+ Novo ativo" e
+  "Acessos e sondas" (`ot.spec.js:43-47,120,335,434,484-521,627-665`): cada PR que muda esses textos atualiza o E2E junto.
 - **Renomear ativo sem IP nem MAC** não casa pelo `indice` (`ot-coleta.ts:154-160`): por isso o achado de alteração leva `alvo_id`.
-- **Pedir base com ativo obrigatório** muda testes de fase que aprovam base só com zonas (`test/ot-fase*.test.ts`).
+- **Pedir base com ativo obrigatório** muda testes de fase que aprovam base só com zonas (`test/ot-fase*.test.ts`). A ordem das
+  mensagens de `faltaParaAvancar` é a de hoje (rascunho, lote, zonas) com o ativo por último: o 409 dos casos atuais não muda.
 - **Leitor:** quem é `client` com `ot` hoje e abre Sites passa a receber 403; a tela some com o menu antes (mesmo PR).
 - **Lote de um só item** por "Editar" na operação gera muitos lotes: a tela agrupa os achados em rascunho e envia de uma vez (como hoje).
 - **Sondas por site** em Configuração continuam uma chamada por site (`ot-sensores.js:36`): fica como está (só quem edita, raro).
@@ -298,7 +320,7 @@ de modo; "Acessos e sondas" como tela única; as seis rotas de escrita direta de
 |---|---|---|
 | 1 | O Relatório de conformidade do leitor mostra a tabela de sites (nome e fase), como hoje (`ot-avaliacao.ts:185`)? | **Sim**: é o relatório formal entregue ao cliente; o Painel continua sem site |
 | 2 | Pedir a base passa a exigir ao menos um ativo no site? | **Sim** (a etapa 2 Levantar só faz sentido assim) |
-| 3 | Zona criada, editada ou removida em operação também só por Mudança? | **Não agora**: zona é estrutura (etapa 1); em operação, só em Obra. Fica registrado |
+| 3 | Zona criada, editada ou removida em operação também só por Mudança? | **Não por Mudança**: zona é estrutura (etapa 1); em operação, só em Obra, com trava no servidor (409 em operação e com a base em aprovação) |
 | 4 | O platform_admin vê a lista de verificação? | **Sim** (`podeEditarOt` já o inclui); Sondas continua fora dele |
 
 ## Fora de escopo
