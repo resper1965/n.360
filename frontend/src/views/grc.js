@@ -467,8 +467,9 @@ window.__grcCloseExecAudit = function (id) {
                     <div class="col-span-2">
                         <div class="rotulo-campo">Evidências do tratamento</div>
                         ${(r.evidencias_tratamento || []).length
-                            ? `<ul class="t-sm">${r.evidencias_tratamento.map((ev) => `<li>${escapeHTML(ev.file_name || ev.evidence_id)} <span class="t-dim">(ligada por ${escapeHTML(ev.ligado_por || '-')})</span></li>`).join('')}</ul>`
+                            ? `<ul class="t-sm">${r.evidencias_tratamento.map((ev) => `<li>${escapeHTML(ev.file_name || ev.evidence_id)} <span class="t-dim">(ligada por ${escapeHTML(ev.ligado_por || '-')})</span>${canCrud ? ` <button class="btn btn-ghost btn-sm" data-action="desligarEvidenciaRiscoIso" data-args='${escapeHTML(JSON.stringify([id, ev.evidence_id]))}'>Desligar</button>` : ''}</li>`).join('')}</ul>`
                             : '<div class="t-sm t-dim">Nenhuma evidência ligada a este risco.</div>'}
+                        ${canCrud ? `<button class="btn btn-sm mt-1" data-action="ligarEvidenciaRiscoIso" data-args='${escapeHTML(JSON.stringify([id]))}'>Ligar evidência</button>` : ''}
                     </div>
                 </div>
                 ${vinculoOtHTML(S.activeProject && S.activeProject.id)}
@@ -488,6 +489,42 @@ window.__grcCloseExecAudit = function (id) {
     window.aceitarRiscoIso = function(id) {
         const r = S.risks.find(x => x.id === id);
         if (r) aceitarRisco(api, `/api/v1/risks/${id}`, r, depoisDoAceite);
+    };
+    // Evidência do tratamento (migration 0122): liga e desliga sem tocar o risco, então o aceite vigente não cai.
+    window.ligarEvidenciaRiscoIso = async function(riskId) {
+        const proj = S.activeProject;
+        if (!proj) return;
+        let evidencias;
+        try { const r = await api('GET', `/api/v1/projects/${proj.id}/evidence`); evidencias = Array.isArray(r) ? r : []; }
+        catch (e) { showToast(e.message || 'Não foi possível carregar as evidências.', 'error'); return; }
+        const ligadas = new Set(((S.risks.find(x => x.id === riskId) || {}).evidencias_tratamento || []).map(ev => ev.evidence_id));
+        const livres = evidencias.filter(ev => !ligadas.has(ev.id));
+        openModal(`
+            <div class="modal-header"><span class="modal-title">Ligar evidência do tratamento</span></div>
+            <p class="t-dim mb-3">A evidência prova que o plano foi cumprido. Ligar não muda o risco nem o aceite.</p>
+            ${livres.length ? `<label class="rotulo-campo" for="risco-ev-sel">Evidência</label>
+                <select id="risco-ev-sel" class="form-input">${livres.map(ev => `<option value="${escapeHTML(ev.id)}">${escapeHTML(ev.file_name || ev.id)}</option>`).join('')}</select>`
+                : window.renderEmptyState({ titulo: 'Não há evidência para ligar. Envie a evidência em Evidências e volte aqui.', compacto: true })}
+            <div class="acoes-rodape">
+                <button class="btn" data-action="forceCloseModal">Fechar</button>
+                ${livres.length ? `<button class="btn btn-primary" data-action="confirmarEvidenciaRiscoIso" data-args='${escapeHTML(JSON.stringify([riskId]))}'>Ligar</button>` : ''}
+            </div>
+        `);
+    };
+    window.confirmarEvidenciaRiscoIso = async function(riskId) {
+        const evidenceId = document.getElementById('risco-ev-sel')?.value;
+        if (!evidenceId) return;
+        try { await api('POST', `/api/v1/evidence/${evidenceId}/riscos`, { risk_id: riskId }); }
+        catch (e) { showToast(e.message || 'Não foi possível ligar a evidência.', 'error'); return; }
+        showToast('Evidência ligada ao risco.', 'success');
+        forceCloseModal(); render();
+    };
+    window.desligarEvidenciaRiscoIso = async function(riskId, evidenceId) {
+        if (!(await window.confirmar('A evidência sai da lista do risco e continua em Evidências. O aceite do risco não muda.', { titulo: 'Desligar evidência', rotulo: 'Desligar' }))) return;
+        try { await api('DELETE', `/api/v1/evidence/${evidenceId}/riscos/${riskId}`); }
+        catch (e) { showToast(e.message || 'Não foi possível desligar a evidência.', 'error'); return; }
+        showToast('Evidência desligada do risco.', 'success');
+        forceCloseModal(); render();
     };
     window.revogarAceiteRiscoIso = function(id) { revogarAceiteRisco(api, `/api/v1/risks/${id}`, depoisDoAceite); };
     window.pedirAceiteRiscoIso = function(id) {
