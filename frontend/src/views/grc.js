@@ -464,6 +464,12 @@ window.__grcCloseExecAudit = function (id) {
                         ${r.aceite?.justificativa ? `<div class="t-sm t-dim">Justificativa: ${escapeHTML(r.aceite.justificativa)}</div>` : ''}
                         ${r.aceite?.situacao === 'revogado' && r.aceite.revogado ? `<div class="t-sm t-dim">Motivo: ${escapeHTML(r.aceite.revogado.motivo || '')}</div>` : ''}
                     </div>
+                    <div class="col-span-2">
+                        <div class="rotulo-campo">Evidências do tratamento</div>
+                        ${(r.evidencias_tratamento || []).length
+                            ? `<ul class="t-sm">${r.evidencias_tratamento.map((ev) => `<li>${escapeHTML(ev.file_name || ev.evidence_id)} <span class="t-dim">(ligada por ${escapeHTML(ev.ligado_por || '-')})</span></li>`).join('')}</ul>`
+                            : '<div class="t-sm t-dim">Nenhuma evidência ligada a este risco.</div>'}
+                    </div>
                 </div>
                 ${vinculoOtHTML(S.activeProject && S.activeProject.id)}
             </div>

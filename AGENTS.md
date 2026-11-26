@@ -297,9 +297,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, so o hash no banco.
   - Arquivo novo em `frontend/public/` e copiado como esta — mesmo padrao de
     `marked.min.js`, `favicon.svg`. Nao precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **142 tabelas** (2026-11-23: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **143 tabelas** (2026-11-26: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0120** em 121 arquivos (2026-11-23: `ls migrations/*.sql | tail -1`, `ls migrations/*.sql | wc -l`; ha tres 0002, de antes da numeracao estavel, e duas 0096, duas 0097 e duas 0101, de PRs paralelos: `ls migrations | cut -c1-4 | sort | uniq -d`). Procedimento
+  numeradas em `migrations/`, ultima a **0122** em 123 arquivos (2026-11-26: `ls migrations/*.sql | tail -1`, `ls migrations/*.sql | wc -l`; ha tres 0002, de antes da numeracao estavel, e duas 0096, duas 0097 e duas 0101, de PRs paralelos: `ls migrations | cut -c1-4 | sort | uniq -d`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
