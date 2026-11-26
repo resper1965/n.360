@@ -136,7 +136,9 @@ describe('P0-5: dedupe sem revelar o alvo, só no site do lote', () => {
     expect(r.status).toBe(201);
     const resposta = await json<{ id: string }>(r);
     const id = resposta.id;
-    for (const h of [tec, cli, plat]) {
+    // client (leitor) não lê lote: 403 (spec 2026-11-26, decisão 4)
+    expect((await chamar(cli, 'GET', `${P}/lotes/${id}`)).status).toBe(403);
+    for (const h of [tec, plat]) {
       const { itens, texto } = await lerLote(h, id);
       expect(texto).not.toContain('duplicata');
       // o IP existente (linha 2) e o novo (linha 4) saem com a mesma forma e os mesmos valores, fora id, linha e dados
@@ -209,9 +211,9 @@ describe('entrada manual pela mesma tubulação', () => {
 });
 
 describe('papéis', () => {
-  it('client só lê; chave de API e agente recebem 403; sem as chaves do n.ot, 503', async () => {
+  it('client não escreve nem lê lote (leitor, spec 2026-11-26 decisão 4); chave de API e agente recebem 403; sem as chaves do n.ot, 503', async () => {
     expect((await chamar(cli, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] })).status).toBe(403);
-    expect((await chamar(cli, 'GET', `${P}/lotes`)).status).toBe(200);
+    expect((await chamar(cli, 'GET', `${P}/lotes`)).status).toBe(403);
     const CHAVE = 'chave-ot-coleta';
     await env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-col', 'proj-a', ?, 'escrita', 'write', 'Active')`).bind(await sha256Hex(CHAVE)).run();
     for (const [m, c, corpo] of [['GET', `${P}/lotes`], ['POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] }]] as const) {

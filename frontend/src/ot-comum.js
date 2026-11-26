@@ -2,8 +2,8 @@ import { S } from './state.js';
 import { escapeHTML, pedirTexto } from './ui.js';
 import { api } from './api.js';
 
-// Peças comuns das abas do n.ot (views/ot.js, ot-coleta.js, ot-saidas.js). Os papéis aqui só ESCONDEM o que a API recusaria; a
-// barreira é o servidor (src/services/ot-inventario.ts: podeEditarOt, podeCriarLote, podeVerCompleto/podeAprovar).
+// Peças comuns das abas do n.ot (views/ot.js, ot-coleta.js, ot-saidas.js). Os papéis aqui vêm do servidor (GET /ot/permissoes) e só
+// ESCONDEM o que a API recusaria; a barreira é o servidor (src/services/ot-permissoes.ts).
 // IP e MAC aparecem como a API devolve (mascarados ou completos) e vivem só na memória da tela: nunca em localStorage,
 // sessionStorage, endereço ou cache.
 
@@ -14,15 +14,28 @@ const papel = () => S.user?.role || '';
 
 /** Classe do botão principal da tela: a tela do site tem um só primário (o cartão Próximo passo), as sub-abas pedem `semPrimario`. */
 export const classePrimario = (sem) => (sem ? 'btn' : 'btn btn-primary');
-/** O Gestor ARCiber (org_admin) aprova e devolve a base; o servidor confere de novo (`ehGestorArciber`). */
-export const ehGestor = () => papel() === 'org_admin';
-
-/** Cadastra e altera o inventário, exporta e pede rascunho à IA: Gestor ARCiber (org_admin) e a equipe. */
-export const podeEditarOt = () => ['org_admin', 'consultor', 'consultant', 'consultoria_admin', 'platform_admin'].includes(papel());
-/** Cria lote de coleta: quem edita e o técnico (org_user), este só nos sites concedidos. */
-export const podeCriarLote = () => podeEditarOt() || papel() === 'org_user';
-/** Aprova ou rejeita lote: quem vê o inventário em claro. O consultoria_admin só no projeto em que está designado (o servidor confere). */
-export const podeAprovarOt = () => ['org_admin', 'consultor', 'consultant', 'consultoria_admin'].includes(papel());
+const NADA = { editar: false, criar_lote: false, aprovar_lote: false, ver_sondas: false, gestor: false, leitor: true, tecnico: false, acao_corretiva: false, tela_inicial: 'painel' };
+/** As permissões guardadas valem para este projeto e esta conta (outra conta no mesmo navegador pede de novo). */
+export const permissoesCarregadas = (projectId = S.activeProject?.id) =>
+    !!S.otPermissoes && !S.otPermissoes.falhou && S.otPermissoes.projeto === projectId && S.otPermissoes.usuario === (S.user?.id ?? null);
+/** Spec 2026-11-26 §6: o que a pessoa pode vem do servidor (GET /ot/permissoes); a tela não recalcula papel. Falha fechada: o objeto
+ *  fechado vale para esta tela, marcado `falhou`, e a próxima tenta de novo. */
+export async function carregarPermissoes(projectId) {
+    if (permissoesCarregadas(projectId)) return S.otPermissoes;
+    const quem = { projeto: projectId, usuario: S.user?.id ?? null };
+    try { S.otPermissoes = { ...NADA, ...(await api('GET', `/api/v1/projects/${projectId}/ot/permissoes`)), ...quem }; }
+    catch { S.otPermissoes = { ...NADA, ...quem, falhou: true }; }
+    return S.otPermissoes;
+}
+export const pode = (chave) => !!(S.otPermissoes && S.otPermissoes[chave]);
+/** O Gestor ARCiber do projeto (org_admin dele ou admin direto no cargo): aprova a base, decide a obra e aceita desvio. */
+export const ehGestor = () => pode('gestor');
+/** Cadastra e altera o inventário, exporta e pede rascunho à IA. */
+export const podeEditarOt = () => pode('editar');
+/** Cria lote de coleta: quem edita e o técnico, este só nos sites concedidos. */
+export const podeCriarLote = () => pode('criar_lote');
+/** Aprova ou rejeita lote: quem vê o inventário em claro. */
+export const podeAprovarOt = () => pode('aprovar_lote');
 /** "Revelar" é do platform_admin, que vê mascarado por padrão; quem vê completo já recebe o valor (a API decide `mascarado`). */
 export const podeRevelar = (ativo) => !!ativo && ativo.mascarado === true && papel() === 'platform_admin';
 

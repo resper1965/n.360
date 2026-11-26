@@ -447,7 +447,7 @@ window.doLogin = async function doLogin() {
             const res = await api('POST', '/api/v1/auth/login', corpo);
             escondeDesafio();
             desafioResolvido = null;
-            S.token = res.token; S.user = res.user;
+            S.token = res.token; S.user = res.user; S.otPermissoes = null;
             localStorage.setItem('niso_token', res.token);
             localStorage.setItem('niso_user', JSON.stringify(res.user));
             
@@ -626,7 +626,7 @@ window.doLogout = function doLogout() {
         // Sem isto o poll seguia rodando apos o logout: cada ciclo tomava 401 e
         // chamava doLogout de novo.
         clearInterval(window._notifPoll);
-        S.token = null; S.user = null; S.activeProject = null; S.orgAtuacao = null; S.painel = {};
+        S.token = null; S.user = null; S.activeProject = null; S.orgAtuacao = null; S.painel = {}; S.otPermissoes = null;
         try { sessionStorage.removeItem('niso_orgAtuacao'); } catch { /* sem storage */ }
         localStorage.removeItem('niso_token');
         localStorage.removeItem('niso_user');
@@ -1779,7 +1779,7 @@ window.doForgotPasswordReset = async function() {
             const email = document.getElementById('forgot-email').value;
             await api('POST', '/api/v1/auth/reset-password', { email, token: code, newPassword: newPass });
             const res = await api('POST', '/api/v1/auth/login', { email, password: newPass });
-            S.token = res.token; S.user = res.user;
+            S.token = res.token; S.user = res.user; S.otPermissoes = null;
             localStorage.setItem('niso_token', res.token);
             localStorage.setItem('niso_user', JSON.stringify(res.user));
             

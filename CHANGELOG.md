@@ -14,6 +14,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ### n.ot: Implantação e Operação, com o site e a aba no endereço
 - n.ot: o site está em Implantação (1 Cadastrar, 2 Levantar, 3 Revisar, 4 Aprovar a base), Operação ou Obra; a aba do site fica no endereço; os itens do Painel, a jornada e os avisos de obra e de aceite abrem o site e a aba exatos.
+- n.ot: a tela mostra a cada pessoa o que o servidor permite (`GET /api/v1/projects/:id/ot/permissoes`); o Gestor ARCiber da organização direta passa a ver aprovar base, obra e aceite; o cliente leitor vê Painel, Assessment e Relatórios, e o servidor responde 403 a ele em sites, desvios e inventário (sem `por_zona` nos indicadores e sem `subsidio` no assessment). "Criar ação corretiva" só aparece com o n.iso no projeto. No assessment, o leitor vê nome e fase de cada site, sem o id do site, sem "Abrir site" e sem o subsídio do levantamento; as permissões guardadas na tela valem para a conta e o projeto (outra conta pede de novo) e uma falha na leitura não fica guardada.
 
 ### Riscos: ligar e desligar a evidência do tratamento pela tela
 - **Detalhe do risco (n.iso):** "Ligar evidência" escolhe uma evidência do projeto que ainda não está ligada e chama `POST /api/v1/evidence/:id/riscos`; cada evidência da lista tem "Desligar", com confirmação (`DELETE /api/v1/evidence/:id/riscos/:riskId`). Só quem edita risco vê os botões; quem só lê vê a lista. Ligar e desligar não mudam o risco nem o aceite. Sem migration.

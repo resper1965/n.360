@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, closeModal, showToast, confirmar, falhaDeCarga, renderEmptyState, formatarData } from '../ui.js';
-import { mensagemDeErro, podeEditarOt, ehGestor, lista, opcoes, SITUACAO, AVALIACAO, AGUARDANDO_BASE, AREA, areaDaFase } from '../ot-comum.js';
+import { mensagemDeErro, podeEditarOt, ehGestor, pode, lista, opcoes, SITUACAO, AVALIACAO, AGUARDANDO_BASE, AREA, areaDaFase } from '../ot-comum.js';
 import { moduloPara, enderecoDoProduto } from '../produto.js';
 
 // n.ot, tela Assessment (RO-CB.BR.01) sobre /ot/assessment (src/routes/ot.ts). Item técnico: só leitura, calculado do inventário.
@@ -71,8 +71,9 @@ window.otAssAbrir = (codigo) => {
 
 function corpoTecnico(i) {
     const sites = lista(i, 'por_site');
+    const leitor = pode('leitor'); // o leitor não abre site (spec 2026-11-26, decisão 4)
     return `<p class="org-dica">Calculado pelo inventário; não editável.</p>${renderDataTable(['Site', 'Área', 'Evidência', ''], sites.map((s) => [escapeHTML(s.site_nome), escapeHTML(s.fase ? AREA[areaDaFase(s.fase)] : '—'),
-        escapeHTML(s.evidencia || '—'), `<button class="btn btn-sm" data-action="otAssIrSite" data-args='${args(s.site_id)}' aria-label="${escapeHTML(`Abrir o site ${s.site_nome}`)}">Abrir site</button>`]),
+        escapeHTML(s.evidencia || '—'), leitor || !s.site_id ? '' : `<button class="btn btn-sm" data-action="otAssIrSite" data-args='${args(s.site_id)}' aria-label="${escapeHTML(`Abrir o site ${s.site_nome}`)}">Abrir site</button>`]),
     { emptyMessage: 'Nenhum site no inventário.' })}`;
 }
 window.otAssIrSite = (id) => { closeModal(); window.otTela('site', id, 'base'); };
@@ -99,7 +100,7 @@ function corpoPolitica(i) {
     const confirmacao = av.situacao && av.confirmado ? `<p class="org-dica">Confirmado por ${escapeHTML(av.confirmado_por_nome || '—')} em ${escapeHTML(formatarData(av.confirmado_em))}.</p>` : '';
     const confirmar_ = ehGestor() && av.situacao && !av.confirmado
         ? (av.eu_avaliei ? '<p class="org-dica">Quem avaliou o item não o confirma: peça a outra pessoa.</p>' : `<button class="btn" data-action="otAssConfirmar" data-args='${args(i.codigo)}'>Confirmar</button>`) : '';
-    return `${form}${confirmacao}${confirmar_}${evidencias}${subsidio}`;
+    return `${form}${confirmacao}${confirmar_}${evidencias}${pode('leitor') ? '' : subsidio}`;
 }
 window.otAssIrLevantamento = (site, lev) => { closeModal(); window.otTela('site', site, 'levantamento', { otLevantamento: lev }); };
 

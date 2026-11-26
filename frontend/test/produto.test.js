@@ -10,6 +10,10 @@ import '../src/ui.js';
 import html from '../login.html?raw';
 import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, atualizarItemOt, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida, pedidoDoHub, TELAS_DOS_MODULOS, TELAS_DO_HUB } from '../src/produto.js';
 import fonteRouter from '../src/router.js?raw';
+import { permissoesPeloPapel } from './ot-abrir.js';
+
+// GET /ot/permissoes: a tela lê do servidor (spec 2026-11-26 §6); aqui, a resposta que o servidor daria ao papel do teste.
+beforeEach(permissoesPeloPapel);
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
 const ir = (caminho) => history.replaceState(null, '', caminho);

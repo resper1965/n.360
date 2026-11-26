@@ -9,6 +9,10 @@ import { emDiasSP } from '../src/hoje.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
 import { desenhar } from './ot-abrir.js';
+import { permissoesPeloPapel } from './ot-abrir.js';
+
+// GET /ot/permissoes: a tela lê do servidor (spec 2026-11-26 §6); aqui, a resposta que o servidor daria ao papel do teste.
+beforeEach(permissoesPeloPapel);
 
 const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);
@@ -113,6 +117,15 @@ describe('aba Desvios', () => {
             S.user.role = 'org_user';
             await abrir('desvios');
             expect(el('c').querySelector('[data-action="otCriarAcaoDesvio"]')).toBeNull();
+        });
+        it('segue o servidor (GET /ot/permissoes): admin direto Gestor vê Aceitar; sem o n.iso no projeto, não vê Criar ação corretiva', async () => {
+            S.user = { id: 'u1', role: 'consultoria_admin' };
+            S.otPermissoes = { projeto: 'p9', gestor: true, editar: true, aprovar_lote: true, acao_corretiva: false, leitor: false };
+            await abrir('desvios');
+            const linha = el('c').querySelector('[data-action="otAceitarDesvio"]')?.closest('tr');
+            expect(linha?.textContent).toContain('Aceitar temporariamente');
+            expect(el('c').querySelector('[data-action="otCriarAcaoDesvio"]')).toBeNull();
+            expect(el('c').querySelector('[data-action="otTratarDesvio"]')).not.toBeNull();
         });
         it('formulário com ajuda, envia título, responsável e prazo; sucesso mostra Ação criada com o link', async () => {
             await abrir('desvios', { [ROTA]: [201, { ok: true, acao_id: 'a77', ja_existia: false }] });

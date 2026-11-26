@@ -1,7 +1,7 @@
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design, N1): o terceiro módulo do n.360 em /ot. Casca, item do menu (projeto E pessoa
 // com o módulo), a tela do catálogo RO-CB.BR.01 e a concessão sempre explícita (P0-1). api() REAL; só o fetch é dublado.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { servir } from './servir-api.js';
+import { servir, resposta } from './servir-api.js';
 
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
@@ -11,6 +11,10 @@ import html from '../login.html?raw';
 import { produtoAtual, aplicarCasca, enderecoDoProduto, atualizarItemOt, moduloPara, pedidoDoHub, TELAS_DOS_MODULOS, NAV_DO_HUB, produtoDaTela } from '../src/produto.js';
 import '../src/views/ot.js';
 import * as ui from '../src/ui.js';
+import { permissoesPeloPapel } from './ot-abrir.js';
+
+// GET /ot/permissoes: a tela lê do servidor (spec 2026-11-26 §6); aqui, a resposta que o servidor daria ao papel do teste.
+beforeEach(permissoesPeloPapel);
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
 const ir = (caminho) => history.replaceState(null, '', caminho);
@@ -121,6 +125,91 @@ describe('tela Assessment RO-CB.BR.01', () => {
         await abrir();
         expect(f).not.toHaveBeenCalled();
         expect(el('c').textContent).toContain('Sem projeto ativo');
+    });
+});
+
+describe('permissões do servidor na casca (spec 2026-11-26 §6, decisão 4)', () => {
+    const B = '/api/v1/projects/p9/ot';
+    const NAV = ['inicio', 'painel', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos'].map((t) => `<div id="nav-ot-${t}"></div>`).join('');
+    const SAUDE = { tom: 'plano', rotulo: 'Começando', frase: 'f', apoio: '' };
+    const PAINEL = { gerado_em: '2026-11-20T10:00:00Z', visao: 'cliente', modulos_pedidos: ['ot'], empresa: null, encarregados: [],
+        programa: { estado: 'comecando', desde: null, rotulo: 'Começando', etapas: {} }, saude: SAUDE, modulos: { ot: { saude: SAUDE, comecando: true } } };
+    const LEITOR = { editar: false, criar_lote: false, aprovar_lote: false, ver_sondas: false, gestor: false, leitor: true, tecnico: false, acao_corretiva: false, tela_inicial: 'painel' };
+    const abrir = (caminho) => { ir(caminho); document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`; return window.renderOt(el('c'), el('h'), el('a')); };
+    const doInventario = (f) => f.mock.calls.map(([u]) => String(u)).filter((u) => /\/ot\/(sites|lotes|desvios)/.test(u));
+    beforeEach(() => {
+        delete S.otPermissoes; S.otPermissoes = null; // aqui a tela pede GET /ot/permissoes de verdade (o fetch é dublado)
+        S.activeProject = { id: 'p9', modulos: ['ot'] }; S.user = { id: 'u', role: 'client', modulos: ['ot'] };
+        S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otModo = null; S.otSub = null; S.otPedido = null; S.painel = {};
+    });
+
+    it('leitor: /ot, ?ot=inicio e ?ot=sites desenham o Painel, sem pedir sites, lotes nem desvios', async () => {
+        for (const c of ['/ot', '/ot?ot=inicio', '/ot?ot=sites']) {
+            S.otTela = null;
+            const f = servir({ [`GET ${B}/permissoes`]: LEITOR, 'GET /api/v1/projects/p9/painel': PAINEL });
+            await abrir(c);
+            expect(S.otTela, c).toBe('painel');
+            expect(el('h').textContent).toBe('Painel');
+            expect(doInventario(f), c).toEqual([]);
+        }
+    });
+    it('leitor: o menu esconde Início, Sites, Fornecedores e Acessos; Painel, Assessment e Relatórios ficam', async () => {
+        servir({ [`GET ${B}/permissoes`]: LEITOR, 'GET /api/v1/projects/p9/painel': PAINEL });
+        await abrir('/ot');
+        for (const t of ['inicio', 'sites', 'fornecedores', 'acessos']) expect(el(`nav-ot-${t}`).hidden, t).toBe(true);
+        for (const t of ['painel', 'assessment', 'relatorios']) expect(el(`nav-ot-${t}`).hidden, t).toBe(false);
+    });
+    it('leitor: Relatórios desenha com indicadores e conformidade, sem pedir /ot/sites', async () => {
+        const f = servir({ [`GET ${B}/permissoes`]: LEITOR, [`GET ${B}/indicadores`]: { completude: {}, por_nivel: {}, prazos: [] }, [`GET ${B}/conformidade`]: { resumo: {}, itens: [] } });
+        await abrir('/ot?ot=relatorios');
+        expect(el('h').textContent).toBe('Relatórios');
+        expect(el('c').textContent).toContain('Indicadores do inventário');
+        expect(el('c').textContent).not.toContain('Exportação do inventário');
+        expect(doInventario(f)).toEqual([]);
+    });
+    it('troca de conta no mesmo projeto: o Gestor sai, o client entra e recebe o menu e a tela do leitor (o cache é da conta)', async () => {
+        const GESTOR = { ...LEITOR, editar: true, criar_lote: true, aprovar_lote: true, ver_sondas: true, gestor: true, leitor: false, acao_corretiva: true };
+        S.user = { id: 'u-g', role: 'org_admin', modulos: ['ot'] };
+        servir({ [`GET ${B}/permissoes`]: GESTOR, [`GET ${B}/sites`]: { sites: [] } });
+        await abrir('/ot?ot=sites');
+        expect(S.otTela).toBe('sites');
+        expect(el('nav-ot-sites').hidden).toBe(false);
+        S.user = { id: 'u-c', role: 'client', modulos: ['ot'] }; S.otTela = null;
+        const f = servir({ [`GET ${B}/permissoes`]: LEITOR, 'GET /api/v1/projects/p9/painel': PAINEL });
+        await abrir('/ot?ot=sites');
+        expect(f.mock.calls.some(([u]) => String(u).includes('/ot/permissoes'))).toBe(true);
+        expect(S.otTela).toBe('painel');
+        expect(el('nav-ot-sites').hidden).toBe(true);
+        expect(doInventario(f)).toEqual([]);
+    });
+    it('a falha fechada não fica guardada: a próxima tela pede as permissões de novo', async () => {
+        S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
+        vi.stubGlobal('fetch', vi.fn(async (url) => (String(url).includes('/permissoes') ? resposta({ error: 'falhou' }, 500) : resposta(PAINEL))));
+        await abrir('/ot?ot=sites');
+        expect(S.otTela).toBe('painel');
+        S.otTela = null;
+        const f = servir({ [`GET ${B}/permissoes`]: { ...LEITOR, editar: true, leitor: false }, [`GET ${B}/sites`]: { sites: [] } });
+        await abrir('/ot?ot=sites');
+        expect(f.mock.calls.some(([u]) => String(u).includes('/ot/permissoes'))).toBe(true);
+        expect(S.otTela).toBe('sites');
+        expect(S.otPermissoes.editar).toBe(true);
+    });
+    it('menu desenhado fora do renderOt, antes de as permissões chegarem: estado fechado (sem Início, Sites, Fornecedores e Acessos)', () => {
+        S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
+        ir('/ot'); document.body.innerHTML = NAV;
+        atualizarItemOt();
+        for (const t of ['inicio', 'sites', 'fornecedores', 'acessos']) expect(el(`nav-ot-${t}`).hidden, t).toBe(true);
+        for (const t of ['painel', 'assessment', 'relatorios']) expect(el(`nav-ot-${t}`).hidden, t).toBe(false);
+    });
+    it('a leitura das permissões falha (500): falha fechada, Painel e nenhum botão de escrita', async () => {
+        S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
+        vi.stubGlobal('fetch', vi.fn(async (url) => (String(url).includes('/permissoes') ? resposta({ error: 'falhou' }, 500)
+            : String(url).includes('/painel') ? resposta(PAINEL) : resposta({ error: 'não' }, 404))));
+        await abrir('/ot?ot=sites');
+        expect(S.otTela).toBe('painel');
+        expect(S.otPermissoes).toMatchObject({ editar: false, gestor: false, aprovar_lote: false });
+        expect(el('nav-ot-acessos').hidden).toBe(true);
+        expect(document.body.innerHTML).not.toMatch(/data-action="ot(Novo|Aprovar|Aceitar|Criar)/);
     });
 });
 
@@ -252,11 +341,11 @@ describe('casca por subtela', () => {
         await abrir();
         expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
     });
-    it('otTela("acessos") para client cai no Início', async () => {
+    it('otTela("acessos") para client (leitor) cai no Painel (spec 2026-11-26, decisão 4)', async () => {
         S.user = { id: 'u', role: 'client' };
         servir({});
         await window.otTela('acessos'); await abrir();
-        expect(S.otTela).toBe('inicio');
+        expect(S.otTela).toBe('painel');
     });
     it('?ot=assessment e ?ot=acessos (quem edita) desenham a própria tela', async () => {
         servir({ [`GET ${B}/assessment`]: { resumo: {}, itens: [] } });

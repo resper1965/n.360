@@ -4,6 +4,10 @@ import { pendenciasDoPapel, montarInicio } from '../src/views/ot-inicio.js';
 import { emDiasSP } from '../src/hoje.js';
 import { S } from '../src/state.js';
 import '../src/ui.js';
+import { permissoesPeloPapel } from './ot-abrir.js';
+
+// GET /ot/permissoes: a tela lê do servidor (spec 2026-11-26 §6); aqui, a resposta que o servidor daria ao papel do teste.
+beforeEach(permissoesPeloPapel);
 
 const sites = { s1: 'SE Norte' };
 const base = { lotes: [], desvios: [], rascunhosPorSite: {}, sondas: [], sites };
@@ -240,9 +244,12 @@ describe('montarInicio', () => {
         expect(c.textContent).not.toContain('aguardando sua aprovação');
         expect([...c.querySelectorAll('tbody tr')][0].children[1].textContent).toBe('—');
     });
-    it('consultoria_admin não vê lote para aprovar', async () => {
+    it('lote para aprovar segue o aprovar_lote do servidor (spec 2026-11-26 §6): consultoria_admin designado vê; sem a permissão, não', async () => {
         S.user = { id: 'u1', role: 'consultoria_admin' };
         const c = document.getElementById('c');
+        await montarInicio(c, null, { id: 'p9' });
+        expect(c.textContent).toContain('Lote de aprovação em');
+        S.otPermissoes = { projeto: 'p9', editar: true, aprovar_lote: false };
         await montarInicio(c, null, { id: 'p9' });
         expect(c.textContent).not.toContain('Lote de aprovação em');
     });

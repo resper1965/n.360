@@ -10,6 +10,10 @@ import '../src/ui.js';
 import '../src/views/ot.js';
 import { montarSite, montarSites, resolverDesvio, SUBS } from '../src/views/ot-site.js';
 import { desenhar } from './ot-abrir.js';
+import { permissoesPeloPapel } from './ot-abrir.js';
+
+// GET /ot/permissoes: a tela lê do servidor (spec 2026-11-26 §6); aqui, a resposta que o servidor daria ao papel do teste.
+beforeEach(permissoesPeloPapel);
 
 const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);

@@ -1,4 +1,5 @@
-import { ehConsultor, ehPapelCliente } from '../helpers';
+import { ehConsultor } from '../helpers';
+import { ehLeitorOt } from './ot-permissoes';
 import { adminDireto } from './organizacao';
 import { gestorArciberDireto, podeVerCompleto, sitesPermitidos, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
 import { areaEEtapa, proximoPassoDe, sitesComZonas411, type Area, type Fase } from './ot-fase';
@@ -35,7 +36,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   // Sondas (item e coluna Sonda): só quem abre a rota de sonda (`podeVerCompleto`, como `/sites/:sid/sensores` em routes/ot.ts).
   // Com `podeEditarOt`, o platform_admin e o consultoria_admin não designado viam um número que não abrem (spec 2026-11-19).
   const veSondas = await podeVerCompleto(db, ator, projectId);
-  const papel: PapelPainelOt = gestor ? 'gestor' : ator.role === 'org_user' ? 'tecnico' : ehPapelCliente(ator) ? 'leitor' : 'equipe';
+  const papel: PapelPainelOt = gestor ? 'gestor' : ator.role === 'org_user' ? 'tecnico' : ehLeitorOt(ator, projectId) ? 'leitor' : 'equipe';
   const NO_SITE = 'site_id IN (SELECT value FROM json_each(?2))';
   const [sts, cont, sondas, creds, rasc, lotesRev, zonas, conteudo, revalid, desv, ativosPorSite] = await db.batch([
     db.prepare(`SELECT id, nome, fase, substr(obra_ate, 1, 10) AS obra_ate, base_aprovada_em FROM ot_sites

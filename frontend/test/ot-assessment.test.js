@@ -8,6 +8,10 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
 import { montarAssessment } from '../src/views/ot-assessment.js';
+import { permissoesPeloPapel } from './ot-abrir.js';
+
+// GET /ot/permissoes: a tela lê do servidor (spec 2026-11-26 §6); aqui, a resposta que o servidor daria ao papel do teste.
+beforeEach(permissoesPeloPapel);
 
 const B = '/api/v1/projects/p9/ot/assessment';
 const el = (id) => document.getElementById(id);
@@ -44,6 +48,20 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('tela Assessment', () => {
+    it('leitor (spec 2026-11-26, decisão 4): sem "Abrir site" no item técnico e sem o bloco "Subsídio do levantamento"', async () => {
+        await abrir('client');
+        window.otAssAbrir('4.1.1');
+        expect(el('modal-content').textContent).toContain('1 de 1 sem VPN');
+        expect(el('modal-content').querySelector('[data-action="otAssIrSite"]')).toBeNull();
+        window.otAssAbrir('4.2.1');
+        expect(el('modal-content').textContent).not.toContain('Subsídio do levantamento');
+        expect(el('modal-content').querySelector('[data-action="otAssIrLevantamento"]')).toBeNull();
+        await abrir('consultor');
+        window.otAssAbrir('4.1.1');
+        expect(el('modal-content').querySelector('[data-action="otAssIrSite"]')).not.toBeNull();
+        window.otAssAbrir('4.2.1');
+        expect(el('modal-content').textContent).toContain('Subsídio do levantamento');
+    });
     it('item técnico sem site com base aprovada diz "Aguardando base aprovada", não "Não avaliado"', async () => {
         const tec = { codigo: '4.1.1', titulo: 'Zonas', categoria: 'Rede', prazo: null, tipo: 'tecnico', situacao_org: 'nao_avaliado',
             por_site: [{ site_id: 's1', site_nome: 'SE Norte', fase: 'em_levantamento', situacao: 'nao_atende', evidencia: 'sem zonas' }] };

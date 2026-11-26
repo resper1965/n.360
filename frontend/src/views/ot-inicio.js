@@ -95,7 +95,7 @@ export async function montarInicio(c, a, p) {
     const desvios = v(rD, 'desvios');
     const assessment = rC.status === 'fulfilled' ? { resumo: rC.value?.resumo || {}, itens: lista(rC.value, 'itens') } : null;
     const pend = pendenciasDoPapel({ lotes: v(rL, 'lotes'), desvios, aceitos: v(rA, 'desvios'), rascunhosPorSite, sondas, sites, situacoes, assessment },
-        { id: S.user?.id, podeAprovar: podeAprovarOt() && S.user?.role !== 'consultoria_admin', podeEditar: podeEditarOt(), gestor: ehGestor() });
+        { id: S.user?.id, podeAprovar: podeAprovarOt(), podeEditar: podeEditarOt(), gestor: ehGestor() });
 
     const falhou = [rL, rD, rC, ...rQ].some((r) => r.status === 'rejected') ? '<p class="org-dica" role="alert">Não foi possível carregar tudo o que espera por você.</p>' : '';
     const espera = pend.length

@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, confirmar, formatarData } from '../ui.js';
-import { mensagemDeErro, podeEditarOt, lista, opcoes, semRepetir } from '../ot-comum.js';
+import { mensagemDeErro, podeEditarOt, ehGestor, pode, lista, opcoes, semRepetir } from '../ot-comum.js';
 import { hojeSP, emDiasSP } from '../hoje.js';
 import { navigate } from '../router.js';
 
@@ -15,7 +15,6 @@ const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const SITUACAO = { aberto: ['warning', 'Aberto'], tratado: ['info', 'Tratado'], aceito: ['neutral', 'Aceito'], regularizado: ['success', 'Regularizado'] };
 const TIPO = { fluxo: 'Fluxo', ativo: 'Ativo' };
 const PRAZO_MAXIMO = 90; // dias, o mesmo teto do servidor
-const podeAceitar = () => S.user?.role === 'org_admin';
 let desvios = [];
 
 const ponta = (p) => (p ? `${escapeHTML(p.ativo || '—')}${p.zona ? ` <span class="org-dica">(${escapeHTML(p.zona)})</span>` : ''}` : '—');
@@ -54,8 +53,8 @@ function linha(d) {
     const sub = [d.ip, d.fabricante, Array.isArray(d.protocolos_portas) ? d.protocolos_portas.map((x) => (x.porta == null ? x.protocolo : `${x.protocolo}:${x.porta}`)).join(', ') : null].filter(Boolean);
     const aberto = d.situacao === 'aberto';
     const acoes = [aberto && podeEditarOt() && `<button class="btn btn-sm" data-action="otTratarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Tratar ${nome}`)}">Tratar</button>`,
-        aberto && podeEditarOt() && `<button class="btn btn-sm" data-action="otCriarAcaoDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Criar ação corretiva para ${nome}`)}">Criar ação corretiva</button>`,
-        aberto && podeAceitar() && `<button class="btn btn-sm" data-action="otAceitarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Aceitar temporariamente ${nome}`)}">Aceitar temporariamente</button>`,
+        aberto && pode('acao_corretiva') && `<button class="btn btn-sm" data-action="otCriarAcaoDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Criar ação corretiva para ${nome}`)}">Criar ação corretiva</button>`,
+        aberto && ehGestor() && `<button class="btn btn-sm" data-action="otAceitarDesvio" data-args='${args(d.id)}' aria-label="${escapeHTML(`Aceitar temporariamente ${nome}`)}">Aceitar temporariamente</button>`,
         aberto && podeEditarOt() && (d.achado_id ? `<button class="btn btn-sm" data-action="otRegularizarDesvio" data-args='${args(d.site_id, d.achado_id)}' aria-label="${escapeHTML(`Regularizar ${nome}`)}">Regularizar</button>`
             : '<span class="org-dica">Sem achado ligado: registre num levantamento pontual.</span>'),
         d.achado_id && `<button class="btn btn-sm" data-action="otVerAchadoDesvio" data-args='${args(d.achado_levantamento_id, d.site_id)}' aria-label="${escapeHTML(`Ver achado de ${nome}`)}">Ver achado</button>`].filter(Boolean);
