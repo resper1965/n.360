@@ -467,9 +467,30 @@ otApp.get('/lotes/:id', async (c) => {
     const sensiveis = completo ? results.filter((i) => /"(ip|mac)_cifrado":"ot1:/.test(i.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} item(ns) do lote ${lote.id} com IP/MAC sem máscara`, { tipo: 'ot_lote', id: lote.id as string });
     const nomes_pontas = await nomesDasPontas(db, projectId, lote.site_id as string, itens.filter((i) => i.entidade === 'fluxo').map((i) => i.dados));
-    return c.json({ lote, itens, nomes_pontas });
+    return c.json({ lote, itens, nomes_pontas, nomes_alvos: await nomesDosAlvos(db, projectId, lote.site_id as string, results) });
   } catch (e) { return erro500(c, 'Falha ao ler o lote', e); }
 });
+
+/**
+ * id → nome do que o item vai alterar ou remover (`alvo_id`): o nome do ativo ou "origem → destino" do fluxo. Só do site do lote (P0-4:
+ * alvo de outro site não aparece); sem filtro de status, para o lote já gravado continuar dizendo o que removeu. Só nomes, nunca IP/MAC.
+ */
+async function nomesDosAlvos(db: D1Database, projectId: string, siteId: string, itens: LinhaItem[]): Promise<Record<string, string>> {
+  const ids = JSON.stringify([...new Set(itens.map((i) => (JSON.parse(i.dados) as { alvo_id?: unknown }).alvo_id).filter((x) => typeof x === 'string'))]);
+  if (ids === '[]') return {};
+  const [ativos, fluxos] = await Promise.all([
+    db.prepare(`SELECT id, nome FROM ot_ativos WHERE project_id = ? AND site_id = ? AND id IN (SELECT value FROM json_each(?)) LIMIT ${TETO_ITENS}`)
+      .bind(projectId, siteId, ids).all<{ id: string; nome: string }>(),
+    db.prepare(`SELECT id, origem_ativo_id, origem_zona_id, destino_ativo_id, destino_zona_id FROM ot_fluxos WHERE project_id = ? AND site_id = ?
+      AND id IN (SELECT value FROM json_each(?)) LIMIT ${TETO_ITENS}`).bind(projectId, siteId, ids).all<Record<string, string | null>>(),
+  ]);
+  const pontas = await nomesDasPontas(db, projectId, siteId, fluxos.results);
+  const ponta = (f: Record<string, string | null>, lado: string) => {
+    const id = f[`${lado}_ativo_id`] ?? f[`${lado}_zona_id`];
+    return id ? pontas[id] ?? 'ponta removida' : 'externo';
+  };
+  return Object.fromEntries([...ativos.results.map((a) => [a.id, a.nome]), ...fluxos.results.map((f) => [f.id, `${ponta(f, 'origem')} → ${ponta(f, 'destino')}`])]);
+}
 
 async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, projectId: string, site: string, extra: Record<string, unknown> = {}) {
   if (!r.ok) return c.json({ error: r.error }, r.status);

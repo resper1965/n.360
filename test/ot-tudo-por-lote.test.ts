@@ -146,3 +146,14 @@ describe('alvo_id e remover no achado e no lote', () => {
     expect((await lerLote(gestor, l)).lote.status).toBe('concluido');
   });
 });
+
+describe('nomes_alvos em GET /lotes/:id', () => {
+  it('nome do ativo e rota do fluxo de cada alvo_id; alvo de outro site não aparece (P0-4)', async () => {
+    await semTeto();
+    const [a, b, c] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Switch velho' } }, { dados: { nome: 'A' } }, { dados: { nome: 'B' } }] });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: b, destino_ativo_id: c } }] });
+    const [outro] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'Do outro site' } }] });
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }, { entidade: 'fluxo', dados: { alvo_id: f, porta: 1 } }, { dados: { alvo_id: outro, nome: 'X' } }]);
+    for (const h of [gestor, cons]) expect((await lerLote(h, l)).nomes_alvos).toEqual({ [a]: 'Switch velho', [f]: 'A → B' });
+  });
+});
