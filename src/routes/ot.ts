@@ -11,8 +11,9 @@ import {
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
-import { gestorArciberDireto, ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
+import { ehGestorArciberOt, ehLeitorOt, permissoesOt } from '../services/ot-permissoes';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
@@ -83,6 +84,8 @@ const contexto = async (c: C) => {
   return { db: c.env.DB, user, projectId, sites: await sitesPermitidos(c.env.DB, user, projectId) };
 };
 const NO_SITE = 'site_id IN (SELECT value FROM json_each(?))';
+/** Gestor ARCiber do projeto (org_admin dele ou admin direto no cargo): a mesma regra de `GET /permissoes`. */
+const ehGestorArciber = (c: C, projectId: string) => ehGestorArciberOt(c.env.DB, c.get('user'), projectId);
 const NAO_ENCONTRADO = (c: C, o: string) => c.json({ error: `${o} não encontrado` }, 404);
 const daLista = (sites: string, id: unknown) => typeof id === 'string' && (JSON.parse(sites) as string[]).includes(id);
 
@@ -127,6 +130,14 @@ function recusaDoBanco(c: C, e: unknown) {
 /** P1-7: a trilha do n.ot leva só ids e contagens, nunca nome, IP ou MAC. */
 const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade?: { tipo: string; id: string }, justificativa = '') =>
   logAudit(c.env.DB, acao, c.get('user').email, detalhe, justificativa, c.req.header('CF-Connecting-IP') ?? '', projectId, entidade);
+
+// ─── permissões (spec 2026-11-26 §6): a tela lê daqui o que a pessoa pode ─────
+otApp.get('/permissoes', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    return c.json(await permissoesOt(db, user, projectId));
+  } catch (e) { return erro500(c, 'Falha ao ler as permissões do n.ot', e); }
+});
 
 // ─── sites ──────────────────────────────────────────────────────────────────
 otApp.get('/sites', async (c) => {
@@ -817,11 +828,6 @@ otApp.get('/relatorio/conformidade', async (c) => {
 
 // ─── agente de coleta (L5, plano 2026-11-04) ───────────────────────────────────────────
 // Ligar é a autorização do cliente: só o Gestor ARCiber do projeto. Emitir/revogar: quem vê o inventário completo.
-const ehGestorArciber = async (c: C, projectId: string) => {
-  const u = c.get('user');
-  if (u.role === 'org_admin' && u.client_project_id === projectId) return true;
-  return gestorArciberDireto(c.env.DB, u, projectId);
-};
 const SO_COMPLETO = (c: C) => c.json({ error: 'Forbidden: só o Gestor ARCiber e a consultoria designada gerenciam as chaves do agente' }, 403);
 
 otApp.get('/agente', async (c) => {
