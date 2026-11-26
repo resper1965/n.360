@@ -131,65 +131,20 @@ describe('inventário', () => {
             servirOt(INVENTARIO);
             await abrir('inventario');
             const todas = [...acoes(el('a')), ...acoes(el('c'))];
-            for (const a of ['otNovoAtivo', 'otNovoSite', 'otNovaZona', 'otEditarAtivo', 'otRemover', 'otRevelar', 'otSugerirZona']) expect(todas, `${role} ${a}`).not.toContain(a);
+            for (const a of ['otRegistrarAtivo', 'otNovoSite', 'otNovaZona', 'otProporAlteracao', 'otProporRemocao', 'otRemover', 'otRevelar', 'otSugerirZona']) expect(todas, `${role} ${a}`).not.toContain(a);
         }
     });
 
-    it('quem edita tem novo ativo (principal) e, por linha, editar e o menu com remover', async () => {
+    // Registrar, alterar e remover viram achado: test/ot-achado-manual.test.js (PR3b).
+    it('quem edita tem registrar ativo (principal) e, por linha, propor alteração e o menu com propor remoção', async () => {
         servirOt(INVENTARIO);
         await abrir('inventario');
         expect(el('a').querySelectorAll('.btn-primary').length).toBe(1);
-        expect(acoes(el('a'))).toContain('otNovoAtivo');
-        expect(acoes(el('c'))).toContain('otEditarAtivo');
-        expect(acoes(el('c'))).toContain('otRemover');
+        expect(acoes(el('a'))).toContain('otRegistrarAtivo');
+        expect(acoes(el('c'))).toContain('otProporAlteracao');
+        expect(acoes(el('c'))).toContain('otProporRemocao');
     });
 
-    it('criar ativo manda só os campos do esquema (4.3.1), com protocolos lidos e IP/MAC só se digitados', async () => {
-        const f = servirOt({ ...INVENTARIO, [`POST ${B}/ativos`]: { ok: true, id: 'a9' } });
-        await abrir('inventario');
-        window.otNovoAtivo();
-        el('ot-f-site').value = 's1';
-        el('ot-f-nome').value = 'RTU-09';
-        el('ot-f-arciber').checked = true;
-        el('ot-f-categoria').value = 'centro_operacao';
-        el('ot-f-tipo').value = 'RTU';
-        el('ot-f-fabricante').value = 'ACME';
-        el('ot-f-funcao').value = 'Telecontrole';
-        el('ot-f-ip').value = '10.0.0.9';
-        el('ot-f-protocolos').value = 'DNP3:20000, Modbus';
-        el('ot-f-firmware-na').checked = true;
-        await window.otSalvarAtivo('');
-        const post = chamadas.find((x) => x.k === `POST ${B}/ativos`);
-        expect(JSON.parse(post.opts.body)).toEqual({
-            site_id: 's1', nome: 'RTU-09', zona_id: null, no_arciber: true, categoria_arciber: 'centro_operacao', tipo_dispositivo: 'RTU',
-            fabricante: 'ACME', modelo: null, funcao: 'Telecontrole', protocolos_portas: [{ protocolo: 'DNP3', porta: 20000 }, { protocolo: 'Modbus' }],
-            firmware_so_versao: null, firmware_nao_aplicavel: true, ip: '10.0.0.9',
-        });
-        expect(f).toHaveBeenCalled();
-    });
-
-    it('editar não preenche IP/MAC com o valor mascarado nem o devolve ao servidor', async () => {
-        servirOt({ ...INVENTARIO, [`PUT ${B}/ativos/a1`]: { ok: true } });
-        await abrir('inventario');
-        window.otEditarAtivo('a1');
-        expect(el('ot-f-ip').value).toBe('');
-        expect(el('ot-f-mac').value).toBe('');
-        await window.otSalvarAtivo('a1');
-        const corpo = JSON.parse(chamadas.find((x) => x.k === `PUT ${B}/ativos/a1`).opts.body);
-        expect(corpo).not.toHaveProperty('ip');
-        expect(corpo).not.toHaveProperty('mac');
-        expect(corpo.nome).toBe('RTU-01');
-    });
-
-    it('remover é exclusão lógica (DELETE) depois da confirmação', async () => {
-        servirOt({ ...INVENTARIO, [`DELETE ${B}/ativos/a1`]: { ok: true } });
-        await abrir('inventario');
-        const p = window.otRemover('ativos', 'a1');
-        await pausa();
-        document.querySelector('[data-confirmar="sim"]').click();
-        await p;
-        expect(chamadas.some((x) => x.k === `DELETE ${B}/ativos/a1`)).toBe(true);
-    });
 });
 
 describe('aviso de IP ou MAC faltando (decisão do dono: o 4.3.1 pede um dos dois)', () => {
@@ -272,37 +227,6 @@ describe('revelar IP/MAC', () => {
     });
 });
 
-describe('IA: rascunho que a pessoa confirma', () => {
-    it('sugestão de zona não grava; aplicar é um PUT só da zona, depois do clique', async () => {
-        servirOt({ ...INVENTARIO,
-            [`POST ${B}/ia/zona-sugerida`]: { rascunho: true, nivel_purdue: 3, zona_id: 'z3', zona_nome: 'DMZ', justificativa: 'Servidor de dados.' },
-            [`PUT ${B}/ativos/a1`]: { ok: true } });
-        await abrir('inventario');
-        await window.otSugerirZona('a1');
-        expect(el('modal-content').textContent).toContain('Rascunho');
-        expect(el('modal-content').textContent).toContain('DMZ');
-        expect(chamadas.some((x) => x.k === `PUT ${B}/ativos/a1`)).toBe(false);
-        await window.otAplicarZona('a1', 'z3');
-        expect(JSON.parse(chamadas.find((x) => x.k === `PUT ${B}/ativos/a1`).opts.body)).toEqual({ zona_id: 'z3' });
-    });
-
-    it('checagem de completude mostra o que falta e leva ao formulário sem salvar', async () => {
-        servirOt({ ...INVENTARIO, [`POST ${B}/ia/completude`]: { rascunho: true,
-            campos: { tipo_dispositivo: 'RTU', fabricante: 'ACME', modelo: null, funcao: null, ip: '10.0.0.5', mac: null, hostname: null, protocolos_portas: [{ protocolo: 'DNP3', porta: 20000 }], firmware_so_versao: null },
-            faltando: ['Função', 'Firmware/SO'], completo: false, texto_apoio: 'Colete a função e o firmware.' } });
-        await abrir('inventario');
-        window.otRascunhoIa();
-        el('ot-ia-desc').value = 'RTU ACME em 10.0.0.5 falando DNP3 na 20000';
-        await window.otChecarCompletude();
-        expect(el('modal-content').textContent).toContain('Função');
-        expect(el('modal-content').textContent).toContain('Firmware/SO');
-        window.otUsarRascunho();
-        expect(el('ot-f-tipo').value).toBe('RTU');
-        expect(el('ot-f-ip').value).toBe('10.0.0.5');
-        expect(chamadas.some((x) => x.k === `POST ${B}/ativos`)).toBe(false);
-    });
-});
-
 describe('fluxos', () => {
     // GET /fluxos (comViolacao em src/routes/ot.ts): booleanos e `violacoes`.
     const FLUXOS = [
@@ -318,22 +242,6 @@ describe('fluxos', () => {
         expect(linhas[0].querySelector('.selo-danger')).toBeTruthy();
         expect(linhas[1].textContent).not.toContain('4.1.2');
         expect(linhas[0].textContent).toContain('RTU-01');
-    });
-    it('criar manda as pontas (ativo ou zona) e avisa a violação devolvida', async () => {
-        servirOt({ ...INVENTARIO, [`GET ${B}/fluxos`]: { fluxos: [] }, [`POST ${B}/fluxos`]: { ok: true, id: 'f9', violacoes: ['4.1.2', '4.1.3'] } });
-        await abrir('fluxos');
-        window.otNovoFluxo();
-        el('ot-fl-site').value = 's1';
-        el('ot-fl-origem').value = 'ativo:a1';
-        el('ot-fl-destino').value = '';
-        el('ot-fl-externo').checked = true;
-        el('ot-fl-protocolo').value = 'HTTPS';
-        el('ot-fl-porta').value = '443';
-        await window.otSalvarFluxo();
-        expect(JSON.parse(chamadas.find((x) => x.k === `POST ${B}/fluxos`).opts.body)).toEqual({
-            site_id: 's1', origem_ativo_id: 'a1', protocolo: 'HTTPS', porta: 443, direcao: 'unidirecional', finalidade: null, externo: true, via_vpn: false,
-        });
-        expect(document.body.textContent).toContain('4.1.2');
     });
 });
 
@@ -703,7 +611,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         await ir({ site: 's1', modo: 'projeto', sub: 'base' });
         expect(el('ot-filtro-site')).toBeNull();
         expect(el('c').textContent).not.toContain('Cadastrar o primeiro site');
-        expect(acoes(el('a'))).toEqual(expect.arrayContaining(['otNovoAtivo', 'otNovoFluxo']));
+        expect(acoes(el('a'))).toEqual(expect.arrayContaining(['otRegistrarAtivo', 'otRegistrarFluxo']));
         expect(primarios()).toBe(1);
         expect(chamadas.some((x) => x.k === `GET ${B}/ativos` && x.url.search === '?site_id=s1')).toBe(true);
     });

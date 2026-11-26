@@ -130,7 +130,7 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guard
   // o único primário da tela é o do cartão Próximo passo; a sub-aba Base fica com os botões comuns
   await expect(page.locator('#content .btn-primary, #header-actions .btn-primary')).toHaveCount(1);
   await expect(page.locator('#content .card .btn-primary')).toHaveText('Abrir Base');
-  await expect(page.locator('#header-actions').getByRole('button', { name: '+ Novo ativo' })).toBeVisible();
+  await expect(page.locator('#header-actions').getByRole('button', { name: 'Registrar ativo' })).toBeVisible();
 
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 

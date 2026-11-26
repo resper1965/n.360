@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderMaisAcoes, renderStatusBadge,
     openModal, forceCloseModal, showToast, confirmar, pedirTexto, formatarData } from '../ui.js';
-import { podeEditarOt, podeAprovarOt, podeRevelar, carregarPermissoes, pode, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
+import { podeEditarOt, podeAprovarOt, podeRevelar, carregarPermissoes, pode, mensagemDeErro, comStepUp, lista, opcoes, nomeDe,
     nomesDeAtivos, TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS, classePrimario } from '../ot-comum.js';
 import { montarSaidas } from './ot-saidas.js';
 import { esvaziarNotas } from './ot-levantamento.js';
@@ -124,10 +124,10 @@ window.otFiltrarZona = (v) => { S.otZona = v || null; window.render(); };
 
 const linhaMais = (itens, nome) => renderMaisAcoes(itens, { nome });
 
-export async function montarInventario(c, a, p, { siteFixo, semPrimario } = {}) {
+export async function montarInventario(c, a, p, { siteFixo, semPrimario, somenteLeitura } = {}) {
     siteTravado = siteFixo || null;
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o inventário do n.ot.', e); return; }
-    const editar = podeEditarOt();
+    const editar = podeEditarOt() && !somenteLeitura;
     if (!D.sites.length) {
         c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário',
             texto: editar ? 'Cadastre o primeiro site (subestação, usina ou centro de operação); zonas e ativos ficam dentro dele.'
@@ -137,7 +137,7 @@ export async function montarInventario(c, a, p, { siteFixo, semPrimario } = {}) 
     }
     if (editar) {
         a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}<button class="btn" data-action="otNovaZona">+ Nova zona</button>`
-            + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="${classePrimario(semPrimario)}" data-action="otNovoAtivo">+ Novo ativo</button>`;
+            + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="${classePrimario(semPrimario)}" data-action="otRegistrarAtivo">Registrar ativo</button>`;
     }
     const zonaVale = (x) => !S.otZona || (S.otZona === 'sem' ? !x.zona_id : x.zona_id === S.otZona);
     const ativos = D.ativos.filter(zonaVale);
@@ -154,8 +154,9 @@ export async function montarInventario(c, a, p, { siteFixo, semPrimario } = {}) 
     ]), { emptyMessage: 'Nenhuma zona registrada.', emptyHint: 'A RO-CB.BR.01 (4.1.1) pede as zonas de supervisão, DMZ operativa e corporativa (níveis 2, 3 e 4) em cada site.' });
     const acoesAtivo = (x) => {
         if (!editar) return [];
-        const extra = [{ rotulo: 'Sugerir zona (IA)', action: 'otSugerirZona', args: [x.id] }, podeRevelar(x) && { rotulo: 'Revelar IP/MAC', action: 'otRevelar', args: [x.id] }];
-        return [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otEditarAtivo" data-args='${args(x.id)}' aria-label="${escapeHTML(`Editar ${x.nome}`)}">Editar</button>${mais('ativos', x, extra)}</div>`];
+        const extra = [{ rotulo: 'Sugerir zona (IA)', action: 'otSugerirZona', args: [x.id] }, podeRevelar(x) && { rotulo: 'Revelar IP/MAC', action: 'otRevelar', args: [x.id] },
+            { rotulo: 'Propor remoção', action: 'otProporRemocao', args: ['ativos', x.id], perigo: true }];
+        return [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otProporAlteracao" data-args='${args(x.id)}' aria-label="${escapeHTML(`Propor alteração de ${x.nome}`)}">Propor alteração</button>${linhaMais(extra, x.nome)}</div>`];
     };
     const tabelaAtivos = renderDataTable(['Ativo', 'Site', 'Zona', 'Tipo', 'Fabricante e modelo', 'IP', 'MAC', 'ARCiber', ...(editar ? ['Ações'] : [])], ativos.map((x) => [
         `<strong>${escapeHTML(x.nome)}</strong>${!x.ultima_verificacao_em || !x.verificado_por ? ` <span title="Entrou sem lote de aprovação">${renderStatusBadge('warning', 'não verificado (4.3.1)')}</span>` : ''}`, escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(x.zona_id ? nomeDe(D.zonas, x.zona_id) : 'Sem zona'),
@@ -165,7 +166,7 @@ export async function montarInventario(c, a, p, { siteFixo, semPrimario } = {}) 
         x.mac == null ? renderStatusBadge('warning', 'Falta MAC') : `<span class="f-mono">${escapeHTML(x.mac)}</span>`,
         x.no_arciber ? renderStatusBadge('info', `Sim${x.categoria_arciber ? ` · ${CATEGORIAS[x.categoria_arciber] || x.categoria_arciber}` : ''}`) : 'Não',
         ...acoesAtivo(x),
-    ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Cadastre o ativo aqui ou traga uma planilha pelo Levantamento.' : 'Os ativos entram pelo Lote de aprovação do site, com a revisão de quem administra o n.ot.' });
+    ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Registre o ativo aqui (vira achado para aprovação) ou traga uma planilha pelo Levantamento.' : 'Os ativos entram pelo Lote de aprovação do site, com a revisão de quem administra o n.ot.' });
     const mascarado = D.ativos.some((x) => x.mascarado);
 
     c.innerHTML = `<div class="d-flex gap-4 flex-wrap mb-4">${siteFixo ? '' : filtroSite()}
@@ -226,33 +227,21 @@ window.otSalvarZona = async (id) => {
     } catch (e) { falhou(e, 'Não foi possível salvar a zona.'); }
 };
 
-// ativos
-const zonasDoSite = (siteId) => D.zonas.filter((z) => z.site_id === siteId);
-window.otNovoAtivo = (rascunho = {}) => formAtivo({ site_id: S.otSite || D.sites[0]?.id, ...rascunho });
-window.otEditarAtivo = (id) => formAtivo(D.ativos.find((x) => x.id === id) || {});
-function formAtivo(d) {
-    const edicao = !!d.id;
-    openModal(`<div class="modal-header"><span class="modal-title">${edicao ? 'Editar ativo' : 'Novo ativo'}</span></div>
-        ${edicao ? '' : campoSite('ot-f-site', 'Site', d.site_id, ' data-action-change="otZonasDoFormulario" data-arg-val')}
-        ${camposDoAtivo(d, { zonas: zonasDoSite(d.site_id), edicao })}
-        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAtivo" data-args='${args(d.id || '')}'>Salvar</button></div>`, 'modal-large');
-}
-window.otZonasDoFormulario = (siteId) => {
-    const s = el('ot-f-zona');
-    if (s) s.innerHTML = `<option value="">Sem zona</option>${opcoes(zonasDoSite(siteId).map((z) => [z.id, `${z.nome} (nível ${z.nivel_purdue})`]), '')}`;
+// ativos e fluxos: só por achado e lote decidido por outra pessoa (spec 2026-11-26, decisão 3). Achado do inventário vai a um levantamento de visita novo.
+const siteAtual = () => siteTravado || S.otSite || D.sites[0]?.id;
+const registrar = (site, achado) => window.otRegistrarAchado(site, achado, { levantamento: S.otLevantamento });
+window.otRegistrarAtivo = () => registrar(siteAtual(), { entidade: 'ativo' });
+window.otProporAlteracao = (id) => { const x = D.ativos.find((a) => a.id === id); if (x) return registrar(x.site_id, { entidade: 'ativo', dados: x, alvo_id: id, original: x }); };
+window.otProporRemocao = (rota, id) => {
+    const x = (rota === 'fluxos' ? D.fluxos : D.ativos).find((a) => a.id === id);
+    if (x) return registrar(x.site_id, { entidade: rota === 'fluxos' ? 'fluxo' : 'ativo', alvo_id: id, remover: true });
 };
-window.otSalvarAtivo = async (id) => {
-    const { dados, erro } = lerCamposDoAtivo();
-    if (erro) return showToast(erro, 'error');
-    if (!id && !dados.nome) return showToast('Informe o nome do ativo.', 'error');
-    const corpo = id ? dados : { site_id: el('ot-f-site').value, ...dados };
-    try {
-        await api(id ? 'PUT' : 'POST', id ? `/api/v1/projects/${proj().id}/ot/ativos/${encodeURIComponent(id)}` : `/api/v1/projects/${proj().id}/ot/ativos`, corpo);
-        forceCloseModal(); showToast('Ativo salvo.', 'success'); window.render();
-    } catch (e) { falhou(e, 'Não foi possível salvar o ativo.'); }
+window.otRegistrarFluxo = () => {
+    const site = siteAtual();
+    return registrar(site, { entidade: 'fluxo', ativos: D.ativos.filter((x) => x.site_id === site).map(({ id, nome }) => ({ id, nome })) });
 };
 
-const NOMES = { sites: 'o site', zonas: 'a zona', ativos: 'o ativo', fluxos: 'o fluxo' };
+const NOMES = { sites: 'o site', zonas: 'a zona' };
 window.otRemover = async (rota, id) => {
     if (!NOMES[rota]) return;
     const ok = await confirmar(`Remover ${NOMES[rota]} do inventário? A exclusão é lógica: o registro sai das listas e a remoção fica na trilha de auditoria.`,
@@ -262,9 +251,7 @@ window.otRemover = async (rota, id) => {
         const i = encodeURIComponent(id);
         const pid = proj().id;
         if (rota === 'sites') await api('DELETE', `/api/v1/projects/${pid}/ot/sites/${i}`);
-        else if (rota === 'zonas') await api('DELETE', `/api/v1/projects/${pid}/ot/zonas/${i}`);
-        else if (rota === 'ativos') await api('DELETE', `/api/v1/projects/${pid}/ot/ativos/${i}`);
-        else await api('DELETE', `/api/v1/projects/${pid}/ot/fluxos/${i}`);
+        else await api('DELETE', `/api/v1/projects/${pid}/ot/zonas/${i}`);
         showToast('Removido do inventário.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível remover.'); }
 };
@@ -296,30 +283,28 @@ window.otRevelar = async (id) => {
     }, TEMPO_REVELADO);
 };
 
-// IA (P0-7): rascunho; quem grava é a pessoa, pelas rotas do inventário.
+// IA (P0-7): rascunho; quem decide é a pessoa, que o leva a um achado (e o lote, a outra pessoa).
 window.otSugerirZona = async (id) => {
     let s;
     try { s = await api('POST', `/api/v1/projects/${proj().id}/ot/ia/zona-sugerida`, { ativo_id: id }, { timeoutMs: TEMPO_IA }); } catch (e) { falhou(e, 'Não foi possível pedir a sugestão de zona.'); return; }
     openModal(`<div class="modal-header"><span class="modal-title">Rascunho da IA: zona do ativo</span></div>
-        <p class="org-dica mb-3">Sugestão da IA, ainda não gravada. Confira antes de aplicar.</p>
+        <p class="org-dica mb-3">Sugestão da IA, ainda não gravada. Confira antes de propor: a zona muda só quando outra pessoa aprovar o lote.</p>
         <div class="rotulo-campo">Nível Purdue sugerido</div><p class="valor-campo">${escapeHTML(String(s.nivel_purdue))}</p>
         <div class="rotulo-campo mt-3">Zona sugerida</div><p class="valor-campo">${escapeHTML(s.zona_nome || 'Nenhuma zona do site serve')}</p>
         <div class="rotulo-campo mt-3">Justificativa</div><p class="pre">${escapeHTML(s.justificativa || '')}</p>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Descartar</button>
-        ${s.zona_id ? `<button class="btn btn-primary" data-action="otAplicarZona" data-args='${args(id, s.zona_id)}'>Aplicar a zona ao ativo</button>` : ''}</div>`);
+        ${s.zona_id ? `<button class="btn btn-primary" data-action="otProporZona" data-args='${args(id, s.zona_id)}'>Propor esta zona</button>` : ''}</div>`);
 };
-window.otAplicarZona = async (id, zonaId) => {
-    try {
-        await api('PUT', `/api/v1/projects/${proj().id}/ot/ativos/${encodeURIComponent(id)}`, { zona_id: zonaId });
-        forceCloseModal(); showToast('Zona aplicada ao ativo.', 'success'); window.render();
-    } catch (e) { falhou(e, 'Não foi possível aplicar a zona.'); }
+window.otProporZona = (id, zonaId) => {
+    const x = D.ativos.find((a) => a.id === id);
+    if (x) return registrar(x.site_id, { entidade: 'ativo', dados: { ...x, zona_id: zonaId }, alvo_id: id, original: x, evidencia: 'Zona sugerida pela IA e conferida por quem registra o achado.' });
 };
 
 let rascunhoIa = null;
 window.otRascunhoIa = () => {
     rascunhoIa = null;
     openModal(`<div class="modal-header"><span class="modal-title">Rascunho de ativo por IA</span></div>
-        <p class="org-dica mb-3">Descreva o ativo como está no campo. A IA extrai os campos do 4.3.1 e diz o que falta; IP, MAC e nome de host são trocados por marcadores antes da chamada. Nada é gravado: você confere no formulário e salva.</p>
+        <p class="org-dica mb-3">Descreva o ativo como está no campo. A IA extrai os campos do 4.3.1 e diz o que falta; IP, MAC e nome de host são trocados por marcadores antes da chamada. Nada é gravado: você confere no formulário do achado e o registra.</p>
         <div class="form-group"><label class="form-label" for="ot-ia-desc">Descrição do ativo</label><textarea class="form-input" id="ot-ia-desc" rows="5" maxlength="4000"></textarea></div>
         <div id="ot-ia-resultado"></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" id="ot-ia-checar" data-action="otChecarCompletude">Checar completude</button></div>`);
@@ -339,24 +324,24 @@ window.otChecarCompletude = async () => {
             : `Falta para o 4.3.1: ${escapeHTML((r.faltando || []).join(', '))}.`}</p>
         ${r.texto_apoio ? `<p class="org-dica">${escapeHTML(r.texto_apoio)}</p>` : ''}`;
     const botao = el('ot-ia-checar');
-    if (botao) { botao.textContent = 'Levar ao formulário do ativo'; botao.setAttribute('data-action', 'otUsarRascunho'); }
+    if (botao) { botao.textContent = 'Levar ao formulário do achado'; botao.setAttribute('data-action', 'otUsarRascunho'); }
 };
 window.otUsarRascunho = () => {
     const r = rascunhoIa || {};
     rascunhoIa = null;
     const sem = (v) => v ?? undefined;
-    window.otNovoAtivo({ tipo_dispositivo: sem(r.tipo_dispositivo), fabricante: sem(r.fabricante), modelo: sem(r.modelo), funcao: sem(r.funcao), ip: sem(r.ip),
-        mac: sem(r.mac), firmware_so_versao: sem(r.firmware_so_versao), protocolos_portas: (r.protocolos_portas || []).map((p) => (p.porta == null ? { protocolo: p.protocolo } : p)) });
+    return registrar(siteAtual(), { entidade: 'ativo', dados: { tipo_dispositivo: sem(r.tipo_dispositivo), fabricante: sem(r.fabricante), modelo: sem(r.modelo), funcao: sem(r.funcao), ip: sem(r.ip),
+        mac: sem(r.mac), firmware_so_versao: sem(r.firmware_so_versao), protocolos_portas: (r.protocolos_portas || []).map((p) => (p.porta == null ? { protocolo: p.protocolo } : p)) } });
 };
 
 // ─── fluxos (N2): 4.1.2/4.1.3, fluxo externo só por VPN ──────────────────────
 const ponta = (ativoId, zonaId) => (ativoId ? `Ativo ${nomeDe(D.ativos, ativoId)}` : zonaId ? `Zona ${nomeDe(D.zonas, zonaId)}` : 'Fora do ARCiber');
 
-export async function montarFluxos(c, a, p, { siteFixo, semPrimario } = {}) {
+export async function montarFluxos(c, a, p, { siteFixo, semPrimario, somenteLeitura } = {}) {
     siteTravado = siteFixo || null;
     try { await carregarInventario(p, { fluxos: true }); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os fluxos do n.ot.', e); return; }
-    const editar = podeEditarOt();
-    if (editar && D.sites.length) a.innerHTML = `<button class="${classePrimario(semPrimario)}" data-action="otNovoFluxo">+ Novo fluxo</button>`;
+    const editar = podeEditarOt() && !somenteLeitura;
+    if (editar && D.sites.length) a.innerHTML = `<button class="${classePrimario(semPrimario)}" data-action="otRegistrarFluxo">Registrar fluxo</button>`;
     if (!D.sites.length) { c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário', texto: 'Os fluxos ligam ativos e zonas de um site.' })
         + (editar ? '<p><button class="btn" data-action="otTela" data-args=\'["sites"]\'>Cadastrar site</button></p>' : ''); return; }
     const violados = D.fluxos.filter((f) => (f.violacoes || []).length);
@@ -367,45 +352,9 @@ export async function montarFluxos(c, a, p, { siteFixo, semPrimario } = {}) {
         escapeHTML([f.protocolo, f.porta].filter((x) => x !== null && x !== undefined && x !== '').join(':') || '—'),
         escapeHTML(f.direcao === 'bidirecional' ? 'Bidirecional' : 'Unidirecional'), f.externo ? 'Sim' : 'Não', f.via_vpn ? 'Sim' : 'Não',
         (f.violacoes || []).length ? renderStatusBadge('danger', `Fluxo externo sem VPN: viola ${f.violacoes.join(' e ')}`) : '—',
-        ...(editar ? [linhaMais([{ rotulo: 'Remover', action: 'otRemover', args: ['fluxos', f.id], perigo: true }], `fluxo ${ponta(f.origem_ativo_id, f.origem_zona_id)}`)] : []),
+        ...(editar ? [linhaMais([{ rotulo: 'Propor remoção', action: 'otProporRemocao', args: ['fluxos', f.id], perigo: true }], `fluxo ${ponta(f.origem_ativo_id, f.origem_zona_id)}`)] : []),
     ]), { emptyMessage: 'Nenhum fluxo registrado.', emptyHint: 'Registre as comunicações entre zonas e ativos, e as que saem do ARCiber, dizendo se passam por VPN.' })}`;
 }
-
-const pontasOpcoes = () => `<option value="">Fora do ARCiber (externo)</option>`
-    + opcoes([...D.zonas.map((z) => [`zona:${z.id}`, `Zona ${z.nome}`]), ...D.ativos.map((x) => [`ativo:${x.id}`, `Ativo ${x.nome}`])], '');
-window.otNovoFluxo = () => {
-    openModal(`<div class="modal-header"><span class="modal-title">Novo fluxo</span></div>
-        ${campoSite('ot-fl-site', 'Site', S.otSite)}
-        <div class="form-group"><label class="form-label" for="ot-fl-origem">Origem</label><select class="form-input" id="ot-fl-origem">${pontasOpcoes()}</select></div>
-        <div class="form-group"><label class="form-label" for="ot-fl-destino">Destino</label><select class="form-input" id="ot-fl-destino">${pontasOpcoes()}</select></div>
-        <div class="form-group"><label class="form-label" for="ot-fl-protocolo">Protocolo</label><input class="form-input" id="ot-fl-protocolo" maxlength="50"></div>
-        <div class="form-group"><label class="form-label" for="ot-fl-porta">Porta</label><input class="form-input" id="ot-fl-porta" inputmode="numeric" maxlength="5"></div>
-        <div class="form-group"><label class="form-label" for="ot-fl-direcao">Direção</label><select class="form-input" id="ot-fl-direcao">${opcoes([['unidirecional', 'Unidirecional'], ['bidirecional', 'Bidirecional']], 'unidirecional')}</select></div>
-        <div class="form-group"><label class="form-label" for="ot-fl-finalidade">Finalidade</label><input class="form-input" id="ot-fl-finalidade" maxlength="500"></div>
-        <label class="opcao-check mb-3" for="ot-fl-externo"><input type="checkbox" id="ot-fl-externo"> Fluxo externo (sai do ARCiber ou chega de fora)</label>
-        <label class="opcao-check mb-3" for="ot-fl-vpn"><input type="checkbox" id="ot-fl-vpn"> Passa por VPN</label>
-        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarFluxo">Salvar</button></div>`);
-};
-window.otSalvarFluxo = async () => {
-    const corpo = { site_id: el('ot-fl-site').value };
-    for (const lado of ['origem', 'destino']) {
-        const [tipo, id] = el(`ot-fl-${lado}`).value.split(':');
-        if (id) corpo[`${lado}_${tipo}_id`] = id;
-    }
-    const porta = el('ot-fl-porta').value.trim();
-    if (porta && (!/^\d+$/.test(porta) || Number(porta) > 65535)) return showToast('Porta: um número de 0 a 65535.', 'error');
-    Object.assign(corpo, { protocolo: el('ot-fl-protocolo').value.trim() || null, porta: porta ? Number(porta) : null, direcao: el('ot-fl-direcao').value,
-        finalidade: el('ot-fl-finalidade').value.trim() || null, externo: el('ot-fl-externo').checked, via_vpn: el('ot-fl-vpn').checked });
-    if (corpo.protocolo === null) delete corpo.protocolo;
-    if (corpo.porta === null) delete corpo.porta;
-    try {
-        const r = await api('POST', `/api/v1/projects/${proj().id}/ot/fluxos`, corpo);
-        forceCloseModal();
-        const v = r && Array.isArray(r.violacoes) ? r.violacoes : [];
-        showToast(v.length ? `Fluxo registrado com violação de ${v.join(' e ')}: externo sem VPN.` : 'Fluxo registrado.', v.length ? 'warning' : 'success');
-        window.render();
-    } catch (e) { falhou(e, 'Não foi possível registrar o fluxo.'); }
-};
 
 // ─── acesso por site (técnicos, ot_site_acessos) ─────────────────────────────
 let tecnicos = [];

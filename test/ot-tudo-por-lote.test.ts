@@ -190,6 +190,9 @@ describe('revisão: fluxo por lote sem prender o lote e com a trava P1-4', () =>
     const l2 = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, porta: 2 } }]);
     await expect(aprovarCom(dbCom(async () => null, true), l2)).rejects.toThrow('falha forçada');
     expect((await lerLote(gestor, l2)).lote.status).toBe('em_revisao');
+    // a trilha diz que a aprovação parou e quanto ficou gravado, só com contagem (P0-6: sem nome nem IP)
+    const t = await env.DB.prepare(`SELECT actor, details, entity_id FROM audit_logs WHERE action = 'ot.lote.aprovacao_interrompida' AND entity_id = ?`).bind(l2).all<{ actor: string; details: string; entity_id: string }>();
+    expect(t.results).toEqual([{ actor: 'gestor@cliente.teste', details: `Aprovação do lote ${l2} interrompida: 0 item(ns) gravado(s) no lote; o resto segue pendente`, entity_id: l2 }]);
     expect(await aprovar(gestor, l2)).toMatchObject({ atualizados: 1, pendentes: 0 });
   });
 

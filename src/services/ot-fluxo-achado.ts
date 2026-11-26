@@ -39,11 +39,11 @@ export async function nomesDasPontas(db: D1Database, projectId: string, siteId: 
   return Object.fromEntries(results.map((r) => [r.id, r.nome]));
 }
 
-/** Campo inválido vira erro e não entra em `dados` (como prepararItem). Pontas insuficientes são aviso: achado pode estar incompleto. */
 /** Espelha o CHECK de ot_fluxos (0091): interno precisa das duas pontas; externo, de ao menos uma. */
 export const pontasDoFluxo = (f: Record<string, unknown>) => ['origem_ativo_id', 'origem_zona_id', 'destino_ativo_id', 'destino_zona_id'].filter((k) => f[k]).length;
 export const PONTAS_E_EXTERNO = 'Fluxo de uma ponta só precisa ser externo';
 
+/** Campo inválido vira erro e não entra em `dados` (como prepararItem). Pontas insuficientes são aviso: achado pode estar incompleto. */
 export function prepararFluxo(bruto: Record<string, unknown>, pontas: { ativos: Set<string>; zonas: Set<string> }) {
   const sep = separarAlvo(bruto);
   if (sep.remover) return { dados: sep.alvo, erros: sep.erros };

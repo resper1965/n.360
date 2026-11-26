@@ -141,11 +141,13 @@ async function montarLote(c, a, id) {
         <p class="org-dica mb-3">Criado em ${escapeHTML(formatarData(lote.created_at, { hora: true }))}.${lote.motivo ? ` Motivo: ${escapeHTML(lote.motivo)}` : ''}${escapeHTML(prazo)} ${escapeHTML(aviso)}</p>
         ${renderDataTable(['Linha', 'Nome', 'Tipo', 'Fabricante', 'IP', 'MAC', 'Erros', 'Duplicata', 'Decisão'], itens.map((i) => {
         const d = i.dados || {};
+        // Com alvo_id, o item altera ou remove um registro do site: o nome é o do alvo (`nomes_alvos`, só nomes).
+        const alvo = d.alvo_id ? `${d.remover ? 'Remover' : 'Alterar'}: ${r.nomes_alvos?.[d.alvo_id] || '—'}` : null;
         if (i.entidade === 'fluxo') {
-            return [escapeHTML(String(i.linha)), escapeHTML(`Fluxo: ${rotaDoFluxo(d, r.nomes_pontas)}`), '—', '—', '—', '—', listaDeErros(i.erros, 't-perigo'),
+            return [escapeHTML(String(i.linha)), escapeHTML(alvo || `Fluxo: ${rotaDoFluxo(d, r.nomes_pontas)}`), '—', '—', '—', '—', listaDeErros(i.erros, 't-perigo'),
                 i.possivel_duplicata ? renderStatusBadge('warning', 'Atualiza fluxo existente') : '—', decisao(i)];
         }
-        return [escapeHTML(String(i.linha)), escapeHTML(d.nome || '—'), escapeHTML(d.tipo_dispositivo || '—'), escapeHTML(d.fabricante || '—'),
+        return [escapeHTML(String(i.linha)), escapeHTML(alvo || d.nome || '—'), escapeHTML(d.tipo_dispositivo || '—'), escapeHTML(d.fabricante || '—'),
             `<span class="f-mono">${escapeHTML(d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(d.mac ?? '—')}</span>`, listaDeErros(i.erros, 't-perigo'),
             i.possivel_duplicata ? renderStatusBadge('warning', `Possível duplicata de ${nomeDoAtivo(i.duplicata_de)}`) : '—', decisao(i)];
     }), { emptyMessage: 'Lote sem itens.' })}`;

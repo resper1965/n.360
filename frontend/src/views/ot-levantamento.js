@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
-import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
+import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar, pedirTexto } from '../ui.js';
 import { podeEditarOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir, classePrimario } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 import { preencherCartoes } from './ot-sensores.js';
@@ -316,18 +316,69 @@ window.otEntidadeAchado = (v) => {
     const r = document.querySelector(`input[name="ach-entidade"][value="${v === 'fluxo' ? 'fluxo' : 'ativo'}"]`);
     if (r) r.checked = true;
 };
+// Para onde vai o achado: { site, levantamento (id; nulo cria um de visita ao gravar), alvo_id e original (alteração), daTela (veio do inventário) }.
+let destino = null;
+async function formAchado({ evidencia = '', entidade = 'ativo', dados = {}, ativos } = {}) {
+    if (ativos) ativosDoSite = ativos;
+    const alterar = !!destino.alvo_id;
+    const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(destino.site)}`).catch(() => null), 'zonas');
+    const radio = (v, rot) => `<label class="d-flex gap-2 items-center"><input type="radio" name="ach-entidade" value="${v}" data-action-change="otEntidadeAchado" data-arg-val${v === entidade ? ' checked' : ''}> ${rot}</label>`;
+    const dica = alterar ? 'Mude só o que está diferente no campo: só os campos alterados vão para o lote. IP e MAC em branco mantêm o valor registrado.'
+        : destino.levantamento ? 'O achado fica neste levantamento até ser enviado para aprovação. Campos que faltam viram aviso, não impedem o registro.'
+            : 'O achado entra num levantamento de visita novo, de hoje, e fica lá até ser enviado para aprovação. Campos que faltam viram aviso, não impedem o registro.';
+    openModal(`<div class="modal-header"><span class="modal-title">${alterar ? 'Propor alteração' : 'Registrar achado'}</span></div>
+        <p class="org-dica mb-3">${dica}</p>
+        <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
+        ${alterar ? '' : `<fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>`}
+        <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo(dados, { zonas, recolher: !alterar, edicao: alterar })}</div>
+        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${alterar ? '' : camposDoFluxo(zonas)}</div>
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
+}
 window.otNovoAchado = async (evidencia = '', perguntaId = null, entidade = 'ativo') => {
     perguntaDoAchado = perguntaId;
-    const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(atual.site_id)}`).catch(() => null), 'zonas');
-    const radio = (v, rot) => `<label class="d-flex gap-2 items-center"><input type="radio" name="ach-entidade" value="${v}" data-action-change="otEntidadeAchado" data-arg-val${v === entidade ? ' checked' : ''}> ${rot}</label>`;
-    openModal(`<div class="modal-header"><span class="modal-title">Registrar achado</span></div>
-        <p class="org-dica mb-3">O achado fica neste levantamento até ser enviado para aprovação. Campos que faltam viram aviso, não impedem o registro.</p>
-        <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
-        <fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>
-        <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo({}, { zonas, recolher: true })}</div>
-        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo(zonas)}</div>
-        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
+    destino = { site: atual.site_id, levantamento: atual.id };
+    await formAchado({ evidencia, entidade });
 };
+/**
+ * Achado fora da sessão (inventário, IA): vai ao levantamento indicado (o aberto na tela) ou a um de visita novo, nunca a outra sessão do site.
+ * `alvo_id` + `original`: alteração (só os campos mudados); `remover`: pede a evidência e grava { alvo_id, remover: true }.
+ */
+window.otRegistrarAchado = async (siteId, { entidade = 'ativo', dados = {}, alvo_id = null, remover = false, original = null, evidencia = '', ativos } = {}, { levantamento = null } = {}) => {
+    perguntaDoAchado = null;
+    destino = { site: siteId, levantamento, alvo_id, original, daTela: true };
+    if (!remover) return formAchado({ evidencia, entidade, dados, ativos });
+    const motivo = await pedirTexto(`O que mostra que ${entidade === 'fluxo' ? 'este fluxo' : 'este ativo'} saiu do site? Isso vira a evidência do achado; a remoção só acontece quando outra pessoa aprovar o lote.`,
+        { titulo: 'Propor remoção', rotulo: 'Propor remoção' });
+    if (motivo === null) return;
+    if (!motivo.trim()) return showToast('Descreva a evidência da remoção.', 'error');
+    await gravarAchado(entidade, { alvo_id, remover: true }, motivo.trim());
+};
+// Mudança em operação: sempre um levantamento de visita novo, aberto na tela; o "Enviar" dele é a mudança (um lote).
+window.otRegistrarMudanca = async (siteId) => {
+    try {
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: siteId, tipo: 'visita', realizado_em: hojeSP() });
+        await window.otTela('site', siteId, 'levantamento', { otLevantamento: r.id });
+    } catch (e) { falhou(e, 'Não foi possível abrir o levantamento da mudança.'); }
+};
+async function gravarAchado(entidade, dados, evidencia) {
+    const d = destino;
+    try {
+        if (!d.levantamento) d.levantamento = (await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: d.site, tipo: 'visita', realizado_em: hojeSP() })).id;
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(d.levantamento)}/achados`,
+            { entidade, dados, evidencia, ...(perguntaDoAchado ? { pergunta_id: perguntaDoAchado } : {}) });
+        forceCloseModal();
+        const avisos = r.erros?.length ? ` com ${r.erros.length} aviso(s)` : '';
+        if (d.daTela) { showToast(`Achado registrado${avisos}: envie para revisão em Revisar.`, 'success'); window.render(); return; }
+        showToast(`Achado registrado${avisos}.`, 'success');
+        await redesenhar();
+    } catch (e) { falhou(e, 'Não foi possível registrar o achado.'); }
+}
+// Alteração: só o que difere do registro. IP/MAC só se digitados e nunca o mascarado.
+// shortcut: campo apagado no formulário não vira proposta (o lote não limpa campo); se precisar, mande null onde o esquema aceita.
+function soOQueMudou(dados, o) {
+    const antes = (k) => (k === 'no_arciber' || k === 'firmware_nao_aplicavel' ? !!o[k] : o[k] ?? null);
+    return Object.fromEntries(Object.entries(dados).filter(([k, v]) => !((k === 'ip' || k === 'mac') && String(v).includes('•')) && JSON.stringify(v) !== JSON.stringify(antes(k))));
+}
 // Fluxo: só o que foi preenchido; externo e via_vpn só se escolhidos (Sim/Não). Devolve { erro } se a porta não for inteiro de 0 a 65535.
 function lerCamposDoFluxo() {
     const v = (id) => el(id)?.value.trim() || '';
@@ -348,17 +399,16 @@ function lerCamposDoFluxo() {
 }
 window.otSalvarAchado = async () => {
     const entidade = document.querySelector('input[name="ach-entidade"]:checked')?.value === 'fluxo' ? 'fluxo' : 'ativo';
-    const { dados, erro } = entidade === 'fluxo' ? lerCamposDoFluxo() : lerCamposDoAtivo({ vazio: 'omitir' });
+    let { dados, erro } = entidade === 'fluxo' ? lerCamposDoFluxo() : lerCamposDoAtivo({ vazio: 'omitir' });
     if (erro) return showToast(erro, 'error');
     const evidencia = el('lev-evidencia').value.trim();
     if (!evidencia) return showToast('Descreva a evidência do achado.', 'error');
-    try {
-        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/achados`,
-            { entidade, dados, evidencia, ...(perguntaDoAchado ? { pergunta_id: perguntaDoAchado } : {}) });
-        forceCloseModal();
-        showToast(r.erros?.length ? `Achado registrado com ${r.erros.length} aviso(s).` : 'Achado registrado.', 'success');
-        await redesenhar();
-    } catch (e) { falhou(e, 'Não foi possível registrar o achado.'); }
+    if (destino.alvo_id) {
+        dados = soOQueMudou(dados, destino.original || {});
+        if (!Object.keys(dados).length) return showToast('Nenhum campo mudou.', 'error');
+        dados.alvo_id = destino.alvo_id;
+    }
+    await gravarAchado(entidade, dados, evidencia);
 };
 window.otDescartarAchado = async (id) => {
     try {
