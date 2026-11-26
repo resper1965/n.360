@@ -4,7 +4,7 @@
 import { diaMaisSP, hojeEmSaoPaulo } from './hoje';
 
 export type Fase = 'em_levantamento' | 'base_em_aprovacao' | 'em_operacao' | 'em_obra';
-export type ProximoPasso = 'comecar' | 'revisar' | 'aguardar_lote' | 'pedir_base' | 'aguardar_base' | 'em_operacao' | 'revalidar';
+export type ProximoPasso = 'comecar' | 'revisar' | 'aguardar_lote' | 'levantar' | 'pedir_base' | 'aguardar_base' | 'em_operacao' | 'revalidar';
 export interface SituacaoSite {
   fase: Fase; base_pedida_em: string | null; base_aprovada_em: string | null;
   rascunhos: number; rascunhos_bloqueiam: number; lotes_em_revisao: number; zonas_4_1_1: boolean; tem_conteudo: boolean;
@@ -33,13 +33,14 @@ export async function contarAchados(db: D1Database, projectId: string, siteId: s
 }
 
 /** A regra do próximo passo do site, pura: `situacaoDoSite` (um site) e `blocoOt` (todos, em lote) usam esta mesma. */
-export function proximoPassoDe(x: { fase: Fase; revalidar_em: string | null; tem_conteudo: boolean; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number }): ProximoPasso {
+export function proximoPassoDe(x: { fase: Fase; revalidar_em: string | null; tem_conteudo: boolean; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number; ativos: number }): ProximoPasso {
   return x.fase === 'em_operacao' ? (x.revalidar_em && x.revalidar_em <= diaMaisSP(60) ? 'revalidar' : 'em_operacao')
     : x.fase === 'base_em_aprovacao' ? 'aguardar_base'
       : !x.tem_conteudo && !x.zonas_4_1_1 ? 'comecar'
         : x.rascunhos_bloqueiam > 0 ? 'revisar'
           : x.lotes_em_revisao > 0 ? 'aguardar_lote'
-            : x.zonas_4_1_1 ? 'pedir_base' : 'revisar';
+            // a base exige ativo (spec 2026-11-26, decisão 2): com zonas e sem ativo, o passo é levantar, não pedir uma base que daria 409
+            : x.zonas_4_1_1 ? (x.ativos > 0 ? 'pedir_base' : 'levantar') : 'revisar';
 }
 
 export type Area = 'implantacao' | 'operacao' | 'obra';
@@ -97,7 +98,7 @@ export async function situacaoDoSite(db: D1Database, projectId: string, siteId: 
   const ativos = conteudo?.ativos ?? 0;
   const tem_conteudo = !!conteudo?.lev || ativos > 0;
   const lotes_em_revisao = lotes?.n ?? 0;
-  const proximo_passo = proximoPassoDe({ fase: site.fase, revalidar_em, tem_conteudo, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao });
+  const proximo_passo = proximoPassoDe({ fase: site.fase, revalidar_em, tem_conteudo, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao, ativos });
   const e = { fase: site.fase, obra_ate: row.obra_ate, ativos, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao };
   return { ...site, rascunhos, rascunhos_bloqueiam, lotes_em_revisao, zonas_4_1_1, tem_conteudo, proximo_passo, lote_em_revisao_id: lotes?.primeiro ?? null, obra, revalidar_em,
     eu_pedi_a_base: !!quemId && row.fase === 'base_em_aprovacao' && row.base_pedida_por === quemId, ...areaEEtapa(e), falta: faltaParaAvancar(e), ativos };

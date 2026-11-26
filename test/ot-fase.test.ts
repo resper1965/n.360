@@ -66,8 +66,13 @@ describe('ot-fase: fase do site e condições da base', () => {
       const s = (await situacaoDoSite(env.DB, P, S))!;
       expect([s.proximo_passo, s.lotes_em_revisao, s.lote_em_revisao_id]).toEqual(['aguardar_lote', 2, 'l-velho']);
     });
-    it('zonas 4.1.1 e nada pendente: pedir_base', async () => {
+    it('zonas 4.1.1, nenhum ativo e nada pendente: levantar (a base daria 409 sem ativo; spec 2026-11-26, decisão 2)', async () => {
       await tresZonas(); await levantamento();
+      const s = (await situacaoDoSite(env.DB, P, S))!;
+      expect([s.proximo_passo, s.zonas_4_1_1, s.fase, s.etapa]).toEqual(['levantar', true, 'em_levantamento', 2]);
+    });
+    it('zonas 4.1.1, um ativo e nada pendente: pedir_base', async () => {
+      await prontoParaBase(); await levantamento();
       const s = (await situacaoDoSite(env.DB, P, S))!;
       expect([s.proximo_passo, s.zonas_4_1_1, s.fase]).toEqual(['pedir_base', true, 'em_levantamento']);
     });

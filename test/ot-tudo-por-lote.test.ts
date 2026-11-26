@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { inventarioPorLote } from './helpers/ot';
+import { chavesOt } from '../src/services/ot-cifra';
+import { aprovarLote } from '../src/services/ot-coleta';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Spec 2026-11-26, decisão 3: ativo e fluxo entram, mudam e saem por lote decidido por outra pessoa (`alvo_id`, `remover`). D1 real.
@@ -155,5 +157,77 @@ describe('nomes_alvos em GET /lotes/:id', () => {
     const [outro] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'Do outro site' } }] });
     const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }, { entidade: 'fluxo', dados: { alvo_id: f, porta: 1 } }, { dados: { alvo_id: outro, nome: 'X' } }]);
     for (const h of [gestor, cons]) expect((await lerLote(h, l)).nomes_alvos).toEqual({ [a]: 'Switch velho', [f]: 'A → B' });
+  });
+});
+
+/** D1 cujo `batch` roda `antes` (uma edição concorrente) e depois o batch de verdade; com `falhar`, lança. */
+const dbCom = (antes: () => Promise<unknown>, falhar = false) => new Proxy(env.DB, { get: (t, k) => k === 'batch'
+  ? async (stmts: D1PreparedStatement[]) => { await antes(); if (falhar) throw new Error('falha forçada'); return t.batch(stmts); }
+  : (typeof (t as unknown as Record<string | symbol, unknown>)[k] === 'function' ? ((t as unknown as Record<string | symbol, (...a: unknown[]) => unknown>)[k]).bind(t) : (t as unknown as Record<string | symbol, unknown>)[k]) }) as D1Database;
+const aprovarCom = (db: D1Database, l: string) => aprovarLote(db, chavesOt(env)!, { id: 'u-gestor', email: 'gestor@cliente.teste' }, 'proj-a', JSON.stringify([ids.s1, ids.s2]), l);
+const NO_FUTURO = `strftime('%Y-%m-%d %H:%M:%f', 'now', '+1 second')`;
+
+describe('revisão: fluxo por lote sem prender o lote e com a trava P1-4', () => {
+  it('externo de ponta única: alterar para externo=false é erro do item; o lote conclui (o CHECK de ot_fluxos nunca é atingido)', async () => {
+    await semTeto();
+    const [a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Ext 1' } }] });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: a1, externo: true, finalidade: 'Suporte' } }] });
+    const l = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, externo: false } }]);
+    expect((await item0(gestor, l)).erros).toEqual([{ campo: 'externo', motivo: 'Fluxo de uma ponta só precisa ser externo' }]);
+    expect(await aprovar(gestor, l)).toMatchObject({ recusados: 1, pendentes: 0 });
+    expect((await lerLote(gestor, l)).lote.status).toBe('concluido');
+    expect(await env.DB.prepare('SELECT externo FROM ot_fluxos WHERE id = ?').bind(f).first('externo')).toBe(1);
+  });
+
+  it('defesa na aprovação: item que chegaria ao CHECK é recusado; batch que lança volta o lote a em_revisao (nunca preso em gravando)', async () => {
+    await semTeto();
+    const [a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Ext 2' } }] });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: a1, externo: true } }] });
+    const l = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, porta: 1 } }]);
+    // o staging não passa mais pela validação: força o externo=0 direto no item
+    await env.DB.prepare(`UPDATE ot_lote_itens SET dados = json_set(dados, '$.externo', 0) WHERE lote_id = ?`).bind(l).run();
+    expect(await aprovar(gestor, l)).toMatchObject({ recusados: 1, atualizados: 0 });
+    const l2 = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, porta: 2 } }]);
+    await expect(aprovarCom(dbCom(async () => null, true), l2)).rejects.toThrow('falha forçada');
+    expect((await lerLote(gestor, l2)).lote.status).toBe('em_revisao');
+    expect(await aprovar(gestor, l2)).toMatchObject({ atualizados: 1, pendentes: 0 });
+  });
+
+  it('P1-4 no fluxo: alvo editado depois da revisão volta o item a pendente; edição entre a leitura e a gravação também', async () => {
+    await semTeto();
+    const [a1, a2] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'P1' } }, { dados: { nome: 'P2' } }] });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: a1, destino_ativo_id: a2, porta: 10 } }] });
+    const l = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, porta: 11 } }]);
+    await env.DB.prepare(`UPDATE ot_fluxos SET porta = 99, updated_at = ${NO_FUTURO} WHERE id = ?`).bind(f).run();
+    expect(await aprovar(gestor, l)).toMatchObject({ atualizados: 0, pendentes: 1 });
+    expect(await item0(gestor, l)).toMatchObject({ decisao: 'pendente', motivo: expect.stringMatching(/mudou depois da revisão/) });
+    expect(await env.DB.prepare('SELECT porta FROM ot_fluxos WHERE id = ?').bind(f).first('porta')).toBe(99);
+    // revisado de novo; agora a edição concorrente chega entre a leitura e o batch: o WHERE do updated_at não sobrescreve
+    await env.DB.prepare(`UPDATE ot_fluxos SET updated_at = '2026-01-01 00:00:00.000' WHERE id = ?`).bind(f).run();
+    await env.DB.prepare(`UPDATE ot_lote_itens SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE lote_id = ?`).bind(l).run();
+    const r = await aprovarCom(dbCom(() => env.DB.prepare(`UPDATE ot_fluxos SET porta = 77, updated_at = ${NO_FUTURO} WHERE id = ?`).bind(f).run()), l);
+    expect(r).toMatchObject({ ok: true, pendentes: 1 });
+    expect(await env.DB.prepare('SELECT porta FROM ot_fluxos WHERE id = ?').bind(f).first('porta')).toBe(77);
+  });
+
+  it('dois externos de uma ponta só do mesmo ativo, no mesmo lote: dois fluxos (o externo de ponta única não casa pelo índice)', async () => {
+    await semTeto();
+    const [a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Dois acessos' } }] });
+    const fs = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [
+      { entidade: 'fluxo', dados: { origem_ativo_id: a1, externo: true, via_vpn: false, finalidade: 'Fornecedor' } },
+      { entidade: 'fluxo', dados: { origem_ativo_id: a1, externo: true, via_vpn: true, finalidade: 'ONS' } }] });
+    expect(new Set(fs).size).toBe(2);
+    const { results } = await env.DB.prepare(`SELECT finalidade, via_vpn FROM ot_fluxos WHERE origem_ativo_id = ? AND status = 'ativo' ORDER BY finalidade`).bind(a1).all();
+    expect(results).toEqual([{ finalidade: 'Fornecedor', via_vpn: 0 }, { finalidade: 'ONS', via_vpn: 1 }]);
+  });
+
+  it('remoção: edição entre a leitura e a gravação (WHERE do updated_at) não remove; o item fica pendente', async () => {
+    await semTeto();
+    const [id] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Corrida' } }] });
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: id, remover: true } }]);
+    const r = await aprovarCom(dbCom(() => env.DB.prepare(`UPDATE ot_ativos SET funcao = 'concorrente', updated_at = ${NO_FUTURO} WHERE id = ?`).bind(id).run()), l);
+    expect(r).toMatchObject({ ok: true, removidos: 0, pendentes: 1 });
+    expect(await env.DB.prepare('SELECT status, funcao FROM ot_ativos WHERE id = ?').bind(id).first()).toEqual({ status: 'ativo', funcao: 'concorrente' });
+    expect(await item0(gestor, l)).toMatchObject({ decisao: 'pendente' });
   });
 });

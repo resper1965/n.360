@@ -133,11 +133,12 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect(externos.find((a) => a.dados.origem_ativo_id === 'a-rtu')!.confronto).toBe('novo');
   });
 
-  it('fluxo do inventário com outra porta: o do sensor ainda vira achado (confirma as pontas)', async () => {
+  // Externo de uma ponta só não casa pelo índice (revisão do PR3a): o achado é "novo" e, aprovado, vira outro fluxo, não sobrescreve o do inventário.
+  it('fluxo do inventário com outra porta: o do sensor ainda vira achado (novo: externo de uma ponta só não casa)', async () => {
     const lev = await doc('Outra porta');
     const r = await enviar(cons, lev, JSON.stringify({ ...base, ativos: [], conexoes: [cx('10.1.1.20', '203.0.113.5', 8443, 'https')] }));
     expect(await r.json()).toMatchObject({ fluxos_criados: 1, fluxos_conhecidos: 0 });
-    expect((await achados(cons, lev))[0]).toMatchObject({ entidade: 'fluxo', dados: { origem_ativo_id: 'a-ihm', porta: 8443 }, confronto: 'confirma' });
+    expect((await achados(cons, lev))[0]).toMatchObject({ entidade: 'fluxo', dados: { origem_ativo_id: 'a-ihm', porta: 8443 }, confronto: 'novo' });
   });
 
   it('pendências gravadas só com hash, sem IP em claro, e com a evidência para a segunda passagem', async () => {

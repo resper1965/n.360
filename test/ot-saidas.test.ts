@@ -76,8 +76,7 @@ beforeAll(async () => {
   [ids.ab] = await inventarioPorLote(chamar, { autor: plat, decisor: gestorB, site: ids.sb, projeto: 'proj-b', itens: [{ dados: { nome: 'IED B', ...ATIVO } }] });
   await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [
     { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, externo: true, via_vpn: false, finalidade: 'Manutenção remota' } },
-    // outra ponta: o lote casa fluxo pelas pontas, e dois externos da mesma origem sem destino viram um só
-    { entidade: 'fluxo', dados: { origem_ativo_id: ids.a2, externo: true, via_vpn: true, finalidade: 'Acesso do ONS' } }] });
+    { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, externo: true, via_vpn: true, finalidade: 'Acesso do ONS' } }] });
   await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: ids.a4, externo: true, via_vpn: false, finalidade: 'Telemetria' } }] });
   await inventarioPorLote(chamar, { autor: plat, decisor: gestorB, site: ids.sb, projeto: 'proj-b', itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: ids.ab, externo: true, via_vpn: false, finalidade: 'B' } }] });
   expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s2 })).status).toBe(201);

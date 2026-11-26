@@ -11,7 +11,7 @@ import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventar
 import { MAC_GATEWAY_MIN_IPS, resolverPendentes } from './ot-rede';
 import { fecharRegularizados } from './ot-desvio';
 import type { Bindings } from '../index';
-import { COLS_FLUXO, fluxosDoSite, indiceFluxos, pontasDoSite, prepararFluxo, type FluxoExistente } from './ot-fluxo-achado';
+import { COLS_FLUXO, fluxosDoSite, indiceFluxos, pontasDoFluxo, PONTAS_E_EXTERNO, pontasDoSite, prepararFluxo, type FluxoExistente } from './ot-fluxo-achado';
 
 export const TETO_ITENS = TETO_ITENS_LOTE;
 export const TETO_LOTES_DIA = 20;
@@ -232,6 +232,8 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
       const dup = dados.alvo_id ? (entidade === 'fluxo' ? (fluxos ?? []).find((f) => f.id === dados.alvo_id) : ativos.results.find((a) => a.id === dados.alvo_id))
         : entidade === 'fluxo' ? idxF.achar(dados) : idx.achar(dados);
       if (dados.alvo_id && !dup) erros.push({ campo: 'alvo_id', motivo: 'registro não encontrado neste site' });
+      // Alteração de fluxo: as pontas são as do alvo; `externo: false` num externo de ponta única violaria o CHECK de ot_fluxos.
+      if (entidade === 'fluxo' && dup && !dados.remover && pontasDoFluxo(dup) < 2 - Number(dados.externo ?? dup.externo)) erros.push({ campo: 'externo', motivo: PONTAS_E_EXTERNO });
       comErro += Number(erros.length > 0);
       dups += Number(!!dup);
       itemIds.push(id);
@@ -305,6 +307,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   const idx = indice(ativos.results);
   const porId = new Map(ativos.results.map((a) => [a.id, a])); // alvo por alvo_id, com o que este lote já gravou nele
   const remocoes: string[] = []; // itens de remoção desta aprovação (contados depois do batch)
+  const tocadosF = new Set<string>(); // fluxos criados ou alterados nesta aprovação
   const tocados = new Set<string>(); // ativos criados ou mesclados nesta aprovação: linhas do mesmo lote foram revisadas juntas
   const n = { criados: 0, atualizados: 0, recusados: 0 };
   const stmts: (D1PreparedStatement | D1PreparedStatement[])[] = [];
@@ -341,18 +344,27 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       const alvo = d.alvo_id ? fluxos.find((f) => f.id === d.alvo_id) : idxF.achar(d);
       // Alvo que sumiu depois do envio: recusa (o INSERT de pontas vazias bateria no CHECK e prenderia o lote em `gravando`).
       if (d.alvo_id && !alvo) { recusar(i, FLUXO_SUMIU); continue; }
+      // P1-4, como no ativo: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão): o item volta a pendente.
+      if (alvo ? !tocadosF.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
+        stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo?.id ?? null, FLUXO_MUDOU, i.id));
+        continue;
+      }
+      // Defesa do CHECK de ot_fluxos (o lote nunca fica preso em `gravando`): recusa em vez de deixar o UPDATE lançar.
+      if (alvo && pontasDoFluxo(alvo) < 2 - Number(d.externo ?? alvo.externo)) { recusar(i, PONTAS_E_EXTERNO); continue; }
       const fluxoId = alvo?.id ?? genId();
       // Pontas e direção são a chave do casamento: o UPDATE nunca as grava (bidirecional casado ao contrário trocaria as pontas).
       const cols = (['protocolo', 'porta', 'finalidade', 'externo', 'via_vpn'] as const).filter((k) => d[k] !== undefined);
       const novo: Record<string, unknown> = { direcao: 'unidirecional', externo: 0, via_vpn: 0, ...d };
       stmts.push([alvo
-        ? db.prepare(`UPDATE ot_fluxos SET ${cols.map((k) => `${k} = ?, `).join('')}updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo'`)
-          .bind(...cols.map((k) => d[k]), fluxoId, projectId)
+        // O WHERE compara o updated_at lido (como no ativo): edição entre a leitura e a gravação deixa o item pendente.
+        ? db.prepare(`UPDATE ot_fluxos SET ${cols.map((k) => `${k} = ?, `).join('')}updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo'
+            AND (? OR updated_at = ?)`).bind(...cols.map((k) => d[k]), fluxoId, projectId, Number(tocadosF.has(fluxoId)), alvo.updated_at ?? null)
         : db.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, ${COLS_FLUXO.join(', ')}) VALUES (?, ?, ?, ${COLS_FLUXO.map(() => '?').join(', ')})`)
           .bind(fluxoId, projectId, lote.site_id, ...COLS_FLUXO.map((k) => novo[k] ?? null)),
       db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END,
         registro_id = CASE WHEN changes() > 0 THEN ? END, motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`)
-        .bind(fluxoId, FLUXO_SUMIU, i.id)]);
+        .bind(fluxoId, FLUXO_MUDOU, i.id)]);
+      tocadosF.add(fluxoId);
       idxF.add({ ...(alvo ? { ...alvo, ...Object.fromEntries(cols.map((k) => [k, d[k]])) } : novo), id: fluxoId } as FluxoExistente);
       n[alvo ? 'atualizados' : 'criados']++;
       continue;
@@ -388,7 +400,11 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     tocados.add(ativoId);
     n[alvo ? 'atualizados' : 'criados']++;
   }
-  await emBlocos(db, stmts);
+  try { await emBlocos(db, stmts); } catch (e) {
+    // O lote nunca fica preso em `gravando`: volta a em revisão (o que um batch anterior gravou fica gravado; o resto segue pendente).
+    await db.prepare(`UPDATE ot_lotes SET status = 'em_revisao', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'gravando'`).bind(loteId).run();
+    throw e;
+  }
   const pendentes = (await db.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente'`).bind(loteId).first<{ n: number }>())?.n ?? 0;
   const removidos = remocoes.length ? (await db.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'gravado' AND id IN (SELECT value FROM json_each(?))`)
     .bind(loteId, JSON.stringify(remocoes)).first<{ n: number }>())?.n ?? 0 : 0;
@@ -419,12 +435,13 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
 
 const ALVO_MUDOU = 'O ativo de destino mudou depois da revisão: revise o item de novo';
 const FLUXO_SUMIU = 'O fluxo de destino foi removido depois da revisão: revise o item de novo';
+const FLUXO_MUDOU = 'O fluxo de destino mudou depois da revisão: revise o item de novo';
 const ITEM_COM_ERRO = 'Item com erro de validação';
 const PONTA_REMOVIDA = 'Uma ponta do fluxo foi removida';
 const ZONA_REMOVIDA = 'A zona do item foi removida';
 const ALVO_INEXISTENTE = 'O registro não existe neste site';
 /** Motivos gerados pela aprovação (estado do inventário, não texto do revisor): quem não vê completo não os lê (oráculo, A1). */
-export const MOTIVOS_DO_SISTEMA = new Set([ALVO_MUDOU, FLUXO_SUMIU, ITEM_COM_ERRO, PONTA_REMOVIDA, ZONA_REMOVIDA, FALTA_4_3_1, ALVO_INEXISTENTE]);
+export const MOTIVOS_DO_SISTEMA = new Set([ALVO_MUDOU, FLUXO_SUMIU, ITEM_COM_ERRO, PONTA_REMOVIDA, ZONA_REMOVIDA, FALTA_4_3_1, ALVO_INEXISTENTE, FLUXO_MUDOU, PONTAS_E_EXTERNO]);
 const RECUSADO_NA_APROVACAO = 'Recusado na aprovação';
 
 /** Motivo do revisor (já sem PII, `livreSemPii`) e "Lote rejeitado" ficam visíveis; os do sistema viram texto genérico para quem não vê completo. */
