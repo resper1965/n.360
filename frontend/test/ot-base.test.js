@@ -39,6 +39,7 @@ describe('cabeçalho do site', () => {
         ['revisar', { rascunhos: 3 }, 'Revise 3 achados', 'otSiteSub'],
         ['revisar', { rascunhos: 0 }, 'Defina as zonas dos níveis 2, 3 e 4', 'otSiteSub'],
         ['aguardar_lote', { lote_em_revisao_id: 'k1' }, 'Aguardando o Gestor decidir o lote', 'otIrParaLote'],
+        ['levantar', {}, 'Levante os ativos do site', 'otNovoLevantamentoDoSite'],
         ['pedir_base', {}, 'Tudo aprovado: peça a aprovação da base', 'otPedirBase'],
         ['aguardar_base', {}, 'Aguardando o Gestor aprovar a base', 'otAprovarBase'],
         ['em_operacao', { ...OPERACAO, base_aprovada_em: '2026-11-10 12:00:00' }, 'Acompanhe a operação do site', 'otSiteModo'],

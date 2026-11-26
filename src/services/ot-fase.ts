@@ -4,7 +4,7 @@
 import { diaMaisSP, hojeEmSaoPaulo } from './hoje';
 
 export type Fase = 'em_levantamento' | 'base_em_aprovacao' | 'em_operacao' | 'em_obra';
-export type ProximoPasso = 'comecar' | 'revisar' | 'aguardar_lote' | 'pedir_base' | 'aguardar_base' | 'em_operacao' | 'revalidar';
+export type ProximoPasso = 'comecar' | 'revisar' | 'aguardar_lote' | 'levantar' | 'pedir_base' | 'aguardar_base' | 'em_operacao' | 'revalidar';
 export interface SituacaoSite {
   fase: Fase; base_pedida_em: string | null; base_aprovada_em: string | null;
   rascunhos: number; rascunhos_bloqueiam: number; lotes_em_revisao: number; zonas_4_1_1: boolean; tem_conteudo: boolean;
@@ -33,13 +33,14 @@ export async function contarAchados(db: D1Database, projectId: string, siteId: s
 }
 
 /** A regra do próximo passo do site, pura: `situacaoDoSite` (um site) e `blocoOt` (todos, em lote) usam esta mesma. */
-export function proximoPassoDe(x: { fase: Fase; revalidar_em: string | null; tem_conteudo: boolean; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number }): ProximoPasso {
+export function proximoPassoDe(x: { fase: Fase; revalidar_em: string | null; tem_conteudo: boolean; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number; ativos: number }): ProximoPasso {
   return x.fase === 'em_operacao' ? (x.revalidar_em && x.revalidar_em <= diaMaisSP(60) ? 'revalidar' : 'em_operacao')
     : x.fase === 'base_em_aprovacao' ? 'aguardar_base'
       : !x.tem_conteudo && !x.zonas_4_1_1 ? 'comecar'
         : x.rascunhos_bloqueiam > 0 ? 'revisar'
           : x.lotes_em_revisao > 0 ? 'aguardar_lote'
-            : x.zonas_4_1_1 ? 'pedir_base' : 'revisar';
+            // a base exige ativo (spec 2026-11-26, decisão 2): com zonas e sem ativo, o passo é levantar, não pedir uma base que daria 409
+            : x.zonas_4_1_1 ? (x.ativos > 0 ? 'pedir_base' : 'levantar') : 'revisar';
 }
 
 export type Area = 'implantacao' | 'operacao' | 'obra';
@@ -97,19 +98,14 @@ export async function situacaoDoSite(db: D1Database, projectId: string, siteId: 
   const ativos = conteudo?.ativos ?? 0;
   const tem_conteudo = !!conteudo?.lev || ativos > 0;
   const lotes_em_revisao = lotes?.n ?? 0;
-  const proximo_passo = proximoPassoDe({ fase: site.fase, revalidar_em, tem_conteudo, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao });
+  const proximo_passo = proximoPassoDe({ fase: site.fase, revalidar_em, tem_conteudo, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao, ativos });
   const e = { fase: site.fase, obra_ate: row.obra_ate, ativos, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao };
   return { ...site, rascunhos, rascunhos_bloqueiam, lotes_em_revisao, zonas_4_1_1, tem_conteudo, proximo_passo, lote_em_revisao_id: lotes?.primeiro ?? null, obra, revalidar_em,
     eu_pedi_a_base: !!quemId && row.fase === 'base_em_aprovacao' && row.base_pedida_por === quemId, ...areaEEtapa(e), falta: faltaParaAvancar(e), ativos };
 }
 
-/** A primeira condição da base que falha, em texto para a tela; null se todas valem. */
-function faltaParaBase(s: SituacaoSite): string | null {
-  if (s.rascunhos_bloqueiam > 0) return `Há ${s.rascunhos_bloqueiam} achado(s) em rascunho para revisar`;
-  if (s.lotes_em_revisao > 0) return `Há ${s.lotes_em_revisao} lote(s) de aprovação em revisão`;
-  if (!s.zonas_4_1_1) return 'Faltam zonas nos níveis Purdue 2, 3 e 4';
-  return null;
-}
+/** A primeira condição da base que falha, em texto para a tela; null se todas valem (o ativo é a última: as mensagens de hoje vêm antes). */
+const faltaParaBase = (s: SituacaoSite): string | null => condicoesDaBase({ ...s, obra_ate: s.obra?.ate ?? null })[0] ?? null;
 
 /** Aplica a transição `de → para`; distingue 404 (site não é deste projeto) de 409 (fase mudou). */
 async function transitar(db: D1Database, projectId: string, siteId: string, de: Fase, set: string, binds: unknown[], erro409: string): Promise<Resultado> {
@@ -131,7 +127,7 @@ export async function pedirBase(db: D1Database, ator: Ator, projectId: string, s
 
 const LIMPA_OBRA = 'obra_ate = NULL, obra_justificativa = NULL, obra_renovada = 0, obra_aberta_em = NULL, obra_aberta_por = NULL';
 
-/** Atômico: as condições da base vão no WHERE do UPDATE, então um rascunho ou lote que chegue depois do pedido barra a aprovação. */
+/** Atômico: as condições da base vão no WHERE do UPDATE, então um rascunho ou lote que chegue (ou o último ativo que saia) depois do pedido barra a aprovação. */
 export async function aprovarBase(db: D1Database, ator: Ator, projectId: string, siteId: string): Promise<{ ok: true; fechouObra: boolean } | Falha> {
   const antes = await db.prepare(`SELECT obra_ate FROM ot_sites WHERE id = ? AND project_id = ?`).bind(siteId, projectId).first<{ obra_ate: string | null }>();
   const r = await db.prepare(`UPDATE ot_sites SET fase = 'em_operacao', base_aprovada_em = CURRENT_TIMESTAMP, base_aprovada_por = ?, ${LIMPA_OBRA}, updated_at = CURRENT_TIMESTAMP
@@ -139,8 +135,9 @@ export async function aprovarBase(db: D1Database, ator: Ator, projectId: string,
     AND NOT EXISTS (SELECT 1 FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
       WHERE a.project_id = ? AND l.site_id = ? AND l.status = 'ativo' AND a.situacao = 'rascunho'${SEM_SONDA})
     AND NOT EXISTS (SELECT 1 FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao')
-    AND id IN (${sitesComZonas411('site_id = ?')})`)
-    .bind(ator.id, siteId, projectId, ator.id, projectId, siteId, projectId, siteId, projectId, siteId).run();
+    AND id IN (${sitesComZonas411('site_id = ?')})
+    AND EXISTS (SELECT 1 FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo')`)
+    .bind(ator.id, siteId, projectId, ator.id, projectId, siteId, projectId, siteId, projectId, siteId, projectId, siteId).run();
   if (r.meta.changes) return { ok: true, fechouObra: !!antes?.obra_ate };
   const site = await db.prepare(`SELECT fase, base_pedida_por FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`).bind(siteId, projectId).first<{ fase: Fase; base_pedida_por: string | null }>();
   if (!site) return { ok: false, status: 404, error: 'Site não encontrado' };

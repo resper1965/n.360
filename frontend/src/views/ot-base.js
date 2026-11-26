@@ -25,6 +25,7 @@ export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPri
                 : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Abrir Base', 'otSiteSub', 'base') };
         }
         case 'aguardar_lote': return { texto: 'Aguardando o Gestor decidir o lote', acao: sit.lote_em_revisao_id ? botao('Abrir o lote', 'otIrParaLote', site, sit.lote_em_revisao_id) : '' };
+        case 'levantar': return { texto: 'Levante os ativos do site', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
         case 'pedir_base': return { texto: 'Tudo aprovado: peça a aprovação da base', acao: editar ? botao('Pedir aprovação da base', 'otPedirBase', site) : '' };
         case 'aguardar_base': return gestor
             ? { texto: 'Aguardando o Gestor aprovar a base', acao: `${sit.eu_pedi_a_base ? '<p class="org-dica">Quem pediu a base não a aprova: peça a outra pessoa.</p>' : botao('Aprovar a base', 'otAprovarBase', site)}<button class="btn" data-action="otDevolverBase" data-args='${args(site)}'>Devolver</button>` }

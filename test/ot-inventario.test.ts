@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { requireResourceAccess, sha256Hex } from '../src/helpers';
 import { chavesOt, decifrarOt, aadOt, hmacOt } from '../src/services/ot-cifra';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Inventário do n.ot (N2): CRUD, cifra (P0-8), máscara única (P0-6), filtro de site (P0-4), recusa de agente/chave (P0-2),
@@ -24,7 +25,7 @@ const ATIVO_ARCIBER = {
   funcao: 'telecontrole', ip: IP1, mac: MAC1, protocolos_portas: [{ protocolo: 'DNP3', porta: 20000 }], firmware_so_versao: '2.4.1.7',
 };
 
-let plat: H, gestor: H, tec: H, tec0: H, cli: H, cons: H, caDes: H, caNao: H, tecB: H;
+let plat: H, gestorB: H, gestor: H, tec: H, tec0: H, cli: H, cons: H, caDes: H, caNao: H, tecB: H;
 const ids: Record<string, string> = {};
 
 const criar = async (h: H, rota: string, corpo: unknown, base = P) => {
@@ -45,13 +46,15 @@ beforeAll(async () => {
       ('u-cli', 'cli@cliente.teste', 'x', 'Leitura', 'client', 'proj-a'),
       ('u-tecb', 'tecb@cliente.teste', 'x', 'Técnico B', 'org_user', 'proj-b'),
       ('u-ca-d', 'ca-d@ness.lat', 'x', 'Admin designado', 'consultoria_admin', NULL),
-      ('u-ca-n', 'ca-n@ness.lat', 'x', 'Admin não designado', 'consultoria_admin', NULL)`),
+      ('u-ca-n', 'ca-n@ness.lat', 'x', 'Admin não designado', 'consultoria_admin', NULL),
+      ('u-gestor-b', 'gestor-b@cliente.teste', 'x', 'Gestor B', 'org_admin', 'proj-b')`),
     env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('proj-a', 'Admin', 'ca-d@ness.lat', 'consultor', 'Consultor')`),
   ]);
   await designarConsultor('cons-ot@ness.lat', 'proj-a');
-  await concederModulos(['u-gestor', 'u-tec', 'u-tec0', 'u-cli', 'u-tecb', 'u-ca-d', 'u-ca-n', 'cons:cons-ot@ness.lat'], ['ot']);
+  await concederModulos(['u-gestor', 'u-tec', 'u-tec0', 'u-cli', 'u-tecb', 'u-ca-d', 'u-ca-n', 'u-gestor-b', 'cons:cons-ot@ness.lat'], ['ot']);
   // TOTP recente: revelar exige o step-up do P1-1 (test/ot-stepup.test.ts).
   plat = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin', totp_em: Date.now() });
+  gestorB = await sessionFor({ id: 'u-gestor-b', email: 'gestor-b@cliente.teste', role: 'org_admin', client_project_id: 'proj-b' });
   gestor = await sessionFor({ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
   tec = await sessionFor({ id: 'u-tec', email: 'tec@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
   tec0 = await sessionFor({ id: 'u-tec0', email: 'tec0@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
@@ -67,12 +70,17 @@ beforeAll(async () => {
   ids.sb = await criar(plat, 'sites', { nome: 'SE Outro cliente' }, PB);
   for (const [k, nivel] of [['z2', 2], ['z3', 3], ['z4', 4]] as const) ids[k] = await criar(cons, 'zonas', { site_id: ids.s1, nome: `Zona ${nivel}`, nivel_purdue: nivel });
   ids.zs2 = await criar(cons, 'zonas', { site_id: ids.s2, nome: 'Supervisão Sul', nivel_purdue: 2, tipo: 'supervisao' });
-  ids.a1 = await criar(gestor, 'ativos', { site_id: ids.s1, zona_id: ids.z2, ...ATIVO_ARCIBER });
-  ids.a2 = await criar(cons, 'ativos', { site_id: ids.s2, nome: 'IED Sul', ip: '10.2.2.20' });
-  ids.ab = await criar(plat, 'ativos', { site_id: ids.sb, nome: 'IED B', ip: IP1 }, PB);
-  ids.f11 = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, destino_zona_id: ids.z3, protocolo: 'DNP3', porta: 20000 });
-  ids.f12 = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, destino_zona_id: ids.zs2, protocolo: 'IEC 104', porta: 2404 });
-  ids.fext = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true, via_vpn: false, finalidade: 'Manutenção remota do fornecedor' });
+  // Inventário por lote (spec 2026-11-26, decisão 3); o decisor de B é um Gestor de B (platform_admin não decide lote).
+  [ids.a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { zona_id: ids.z2, ...ATIVO_ARCIBER } }] });
+  [ids.a2] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'IED Sul', ip: '10.2.2.20' } }] });
+  [ids.ab] = await inventarioPorLote(chamar, { autor: plat, decisor: gestorB, site: ids.sb, projeto: 'proj-b', itens: [{ dados: { nome: 'IED B', ip: IP1 } }] });
+  [ids.f11, ids.fext] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [
+    { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_zona_id: ids.z3, protocolo: 'DNP3', porta: 20000 } },
+    { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, externo: true, via_vpn: false, finalidade: 'Manutenção remota do fornecedor' } }] });
+  // Fluxo para zona de OUTRO site: o lote não aceita ponta fora do site (P0-5); só o banco o cria, para provar o filtro de leitura.
+  ids.f12 = 'f12-cruzado';
+  await env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_zona_id, protocolo, porta) VALUES (?, 'proj-a', ?, ?, ?, 'IEC 104', 2404)`)
+    .bind(ids.f12, ids.s1, ids.a1, ids.zs2).run();
   expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s1 })).status).toBe(201);
 });
 

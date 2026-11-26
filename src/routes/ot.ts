@@ -105,12 +105,26 @@ const paraBanco = (d: Record<string, unknown>) => Object.fromEntries(Object.entr
  * UPDATE dos campos validados (as chaves saem de esquema `.strict()`, nunca do corpo cru), preso ao projeto, ao site permitido e ao
  * registro ativo. 0 = não achou (inexistente, de outro projeto ou de site sem acesso: o mesmo 404, T27).
  */
-async function atualizar(db: D1Database, tabela: 'ot_sites' | 'ot_zonas' | 'ot_ativos' | 'ot_fluxos', id: string, projectId: string, sites: string, campos: Record<string, unknown>) {
+async function atualizar(db: D1Database, tabela: 'ot_sites' | 'ot_zonas' | 'ot_ativos' | 'ot_fluxos', id: string, projectId: string, sites: string, campos: Record<string, unknown>,
+  extra = '') {
   const cols = Object.keys(campos);
   const doSite = tabela === 'ot_sites' ? 'id IN (SELECT value FROM json_each(?))' : NO_SITE;
   const r = await db.prepare(`UPDATE ${tabela} SET ${cols.map((k) => `${k} = ?`).concat(`updated_at = ${AGORA_MS}`).join(', ')}
-    WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${doSite}`).bind(...cols.map((k) => campos[k]), id, projectId, sites).run();
+    WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${doSite}${extra}`).bind(...cols.map((k) => campos[k]), id, projectId, sites).run();
   return r.meta.changes;
+}
+
+/**
+ * Spec 2026-11-26, decisão 3: zona só muda com o site em implantação ou em obra. A fase vai na própria mutação (sem leitura antes, que
+ * deixaria uma janela): com a base em aprovação, a zona que o Gestor vai aprovar não muda por baixo dele.
+ */
+const FASES_ZONA = `('em_levantamento', 'em_obra')`;
+const ZONA_NA_FASE = ` AND EXISTS (SELECT 1 FROM ot_sites s WHERE s.id = ot_zonas.site_id AND s.project_id = ot_zonas.project_id AND s.fase IN ${FASES_ZONA})`;
+const TRAVA_ZONA = 'Zona só muda com o site em implantação ou em obra';
+/** Depois de `changes() = 0`, só para a mensagem: zona do projeto, ativa e de site permitido → 409 da trava; senão, o 404 de hoje. */
+async function zonaNaoMudou(c: C, db: D1Database, id: string, projectId: string, sites: string) {
+  const existe = await db.prepare(`SELECT 1 AS x FROM ot_zonas WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${NO_SITE}`).bind(id, projectId, sites).first();
+  return existe ? c.json({ error: TRAVA_ZONA }, 409) : NAO_ENCONTRADO(c, 'Zona');
 }
 
 /** Zona/ativo citado no corpo: ativo, do projeto e de site permitido (P1-3); `site` restringe ao mesmo site. Devolve o campo ruim. */
@@ -201,8 +215,10 @@ otApp.post('/zonas', async (c) => {
     if (!v.success) return v.response;
     if (!daLista(sites, v.data.site_id)) return refRuim(c, 'site_id');
     const id = genId();
-    await db.prepare('INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue, tipo, descricao) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, projectId, v.data.site_id, v.data.nome, v.data.nivel_purdue, v.data.tipo ?? 'outra', v.data.descricao ?? null).run();
+    const r = await db.prepare(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue, tipo, descricao) SELECT ?, ?, ?, ?, ?, ?, ?
+      WHERE EXISTS (SELECT 1 FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo' AND fase IN ${FASES_ZONA})`)
+      .bind(id, projectId, v.data.site_id, v.data.nome, v.data.nivel_purdue, v.data.tipo ?? 'outra', v.data.descricao ?? null, v.data.site_id, projectId).run();
+    if (!r.meta.changes) return c.json({ error: TRAVA_ZONA }, 409); // o site é permitido (daLista): só a fase barra
     await trilha(c, 'ot.zona.criada', projectId, `Zona ${id} criada no site ${v.data.site_id}`, { tipo: 'ot_zona', id });
     return c.json({ ok: true, id }, 201);
   } catch (e) { return erro500(c, 'Falha ao criar a zona', e); }
@@ -215,7 +231,7 @@ otApp.put('/zonas/:id', async (c) => {
     if (!v.success) return v.response;
     const campos = paraBanco(v.data);
     if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
-    if (!await atualizar(db, 'ot_zonas', c.req.param('id'), projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Zona');
+    if (!await atualizar(db, 'ot_zonas', c.req.param('id'), projectId, sites, campos, ZONA_NA_FASE)) return zonaNaoMudou(c, db, c.req.param('id'), projectId, sites);
     await trilha(c, 'ot.zona.atualizada', projectId, `Zona ${c.req.param('id')} atualizada`, { tipo: 'ot_zona', id: c.req.param('id') });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao atualizar a zona', e); }
@@ -396,7 +412,9 @@ for (const [rota, tabela, nome, tipo] of [
   otApp.delete(`/${rota}/:id`, async (c) => {
     try {
       const { db, projectId, sites } = await contexto(c);
-      if (!await atualizar(db, tabela, c.req.param('id'), projectId, sites, { status: 'removido' })) return NAO_ENCONTRADO(c, nome);
+      if (!await atualizar(db, tabela, c.req.param('id'), projectId, sites, { status: 'removido' }, tabela === 'ot_zonas' ? ZONA_NA_FASE : '')) {
+        return tabela === 'ot_zonas' ? zonaNaoMudou(c, db, c.req.param('id'), projectId, sites) : NAO_ENCONTRADO(c, nome);
+      }
       await trilha(c, `${tipo.replace('_', '.')}.removido`, projectId, `${nome} ${c.req.param('id')} removido (exclusão lógica)`, { tipo, id: c.req.param('id') });
       return c.json({ ok: true });
     } catch (e) { return erro500(c, `Falha ao remover: ${nome.toLowerCase()}`, e); }
@@ -467,9 +485,30 @@ otApp.get('/lotes/:id', async (c) => {
     const sensiveis = completo ? results.filter((i) => /"(ip|mac)_cifrado":"ot1:/.test(i.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} item(ns) do lote ${lote.id} com IP/MAC sem máscara`, { tipo: 'ot_lote', id: lote.id as string });
     const nomes_pontas = await nomesDasPontas(db, projectId, lote.site_id as string, itens.filter((i) => i.entidade === 'fluxo').map((i) => i.dados));
-    return c.json({ lote, itens, nomes_pontas });
+    return c.json({ lote, itens, nomes_pontas, nomes_alvos: await nomesDosAlvos(db, projectId, lote.site_id as string, results) });
   } catch (e) { return erro500(c, 'Falha ao ler o lote', e); }
 });
+
+/**
+ * id → nome do que o item vai alterar ou remover (`alvo_id`): o nome do ativo ou "origem → destino" do fluxo. Só do site do lote (P0-4:
+ * alvo de outro site não aparece); sem filtro de status, para o lote já gravado continuar dizendo o que removeu. Só nomes, nunca IP/MAC.
+ */
+async function nomesDosAlvos(db: D1Database, projectId: string, siteId: string, itens: LinhaItem[]): Promise<Record<string, string>> {
+  const ids = JSON.stringify([...new Set(itens.map((i) => (JSON.parse(i.dados) as { alvo_id?: unknown }).alvo_id).filter((x) => typeof x === 'string'))]);
+  if (ids === '[]') return {};
+  const [ativos, fluxos] = await Promise.all([
+    db.prepare(`SELECT id, nome FROM ot_ativos WHERE project_id = ? AND site_id = ? AND id IN (SELECT value FROM json_each(?)) LIMIT ${TETO_ITENS}`)
+      .bind(projectId, siteId, ids).all<{ id: string; nome: string }>(),
+    db.prepare(`SELECT id, origem_ativo_id, origem_zona_id, destino_ativo_id, destino_zona_id FROM ot_fluxos WHERE project_id = ? AND site_id = ?
+      AND id IN (SELECT value FROM json_each(?)) LIMIT ${TETO_ITENS}`).bind(projectId, siteId, ids).all<Record<string, string | null>>(),
+  ]);
+  const pontas = await nomesDasPontas(db, projectId, siteId, fluxos.results);
+  const ponta = (f: Record<string, string | null>, lado: string) => {
+    const id = f[`${lado}_ativo_id`] ?? f[`${lado}_zona_id`];
+    return id ? pontas[id] ?? 'ponta removida' : 'externo';
+  };
+  return Object.fromEntries([...ativos.results.map((a) => [a.id, a.nome]), ...fluxos.results.map((f) => [f.id, `${ponta(f, 'origem')} → ${ponta(f, 'destino')}`])]);
+}
 
 async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, projectId: string, site: string, extra: Record<string, unknown> = {}) {
   if (!r.ok) return c.json({ error: r.error }, r.status);
@@ -499,7 +538,7 @@ otApp.post('/lotes/:id/aprovar', async (c) => {
       ctx: { waitUntil: (p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { /* sem contexto */ } } } });
     if (!r.ok) return c.json({ error: r.error }, r.status);
     const { ok: _ok, ...n } = r;
-    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`
+    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.removidos} removido(s), ${n.recusados} recusado(s)`
       + (n.fluxos_pendentes_resolvidos > 0 ? `, ${n.fluxos_pendentes_resolvidos} fluxo(s) pendente(s) resolvido(s)` : ''), { tipo: 'ot_lote', id: c.req.param('id') });
     return c.json({ ok: true, ...n });
   } catch (e) { return erro500(c, 'Falha ao aprovar o lote', e); }

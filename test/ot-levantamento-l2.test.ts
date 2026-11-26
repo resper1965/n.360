@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { manutencaoDiaria } from '../src/manutencao';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Levantamento do n.ot (spec 2026-11-01, L2): achado de fluxo. Base da L1: sessões, achados, confronto sem oráculo, envio ao lote. D1 real.
@@ -32,9 +33,9 @@ beforeAll(async () => {
   cons = await sessionFor({ id: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', role: 'consultor' });
   ids.s1 = await criar(cons, 'sites', { nome: 'SE Norte' });
   ids.s2 = await criar(cons, 'sites', { nome: 'SE Sul' });
-  ids.a1 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'RTU 1', ip: '10.1.1.10' });
-  ids.a2 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'IHM 1', ip: '10.1.1.11' });
-  ids.a3 = await criar(cons, 'ativos', { site_id: ids.s2, nome: 'RTU Sul', ip: '10.2.1.10' });
+  [ids.a1, ids.a2] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [
+    { dados: { nome: 'RTU 1', ip: '10.1.1.10' } }, { dados: { nome: 'IHM 1', ip: '10.1.1.11' } }] });
+  [ids.a3] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'RTU Sul', ip: '10.2.1.10' } }] });
   ids.z1 = await criar(cons, 'zonas', { site_id: ids.s1, nome: 'Supervisão', nivel_purdue: 2 });
   expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s1 })).status).toBe(201);
   ids.lev1 = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'entrevista', realizado_em: '2026-11-01', funcao: 'Operador', turno: 'B', notas: 'usa TeamViewer' });
@@ -69,7 +70,7 @@ describe('achado de fluxo (L2)', () => {
   });
 
   it('confronto: confirma, contradiz, novo; técnico não recebe confronto', async () => {
-    const f = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, destino_ativo_id: ids.a2, externo: false });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_ativo_id: ids.a2, externo: false } }] });
     const conf = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_ativo_id: ids.a2 }, evidencia: 'x' });
     const contra = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_ativo_id: ids.a2, externo: true }, evidencia: 'x' });
     const novo = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a2, destino_zona_id: ids.z1 }, evidencia: 'x' });
@@ -153,7 +154,7 @@ describe('lote com fluxos', () => {
   });
 
   it('bidirecional casado ao contrário: atualiza só externo/VPN, pontas intactas, lote concluído', async () => {
-    const f = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a2, destino_zona_id: ids.z1, direcao: 'bidirecional', externo: true, via_vpn: false });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: ids.a2, destino_zona_id: ids.z1, direcao: 'bidirecional', externo: true, via_vpn: false } }] });
     const n0 = (await fluxosS1()).length;
     const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_zona_id: ids.z1, destino_ativo_id: ids.a2, via_vpn: true }, evidencia: 'x' });
     const lote = await enviar([fl]);
@@ -166,10 +167,10 @@ describe('lote com fluxos', () => {
   });
 
   it('ponta removida entre o envio e a aprovação: item recusado', async () => {
-    const a4 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'CLP 4' });
+    const [a4] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'CLP 4' } }] });
     const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: a4, destino_zona_id: ids.z1 }, evidencia: 'x' });
     const lote = await enviar([fl]);
-    expect((await chamar(cons, 'DELETE', `${P}/ativos/${a4}`)).status).toBe(200);
+    await env.DB.prepare(`UPDATE ot_ativos SET status = 'removido' WHERE id = ?`).bind(a4).run(); // a ponta sai do inventário entre o envio e a aprovação
     await aprovar(lote);
     expect((await itensDo(gestor, lote))[0]).toMatchObject({ decisao: 'recusado', motivo: 'Uma ponta do fluxo foi removida' });
   });
@@ -183,8 +184,8 @@ describe('lote com fluxos', () => {
 
 describe('revisão final (L2)', () => {
   it('externo/via_vpn ausentes não comparam nem gravam: confirma e, aprovado, mantém externo=1 e via_vpn=1', async () => {
-    const a5 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'CLP 5' });
-    const f = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: a5, destino_zona_id: ids.z1, externo: true, via_vpn: true });
+    const [a5] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'CLP 5' } }] });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: a5, destino_zona_id: ids.z1, externo: true, via_vpn: true } }] });
     const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: a5, destino_zona_id: ids.z1, protocolo: 'OPC' }, evidencia: 'x' });
     expect((await sessao(cons)).find((a) => a.id === fl)).toMatchObject({ confronto: 'confirma', alvo_id: f });
     await aprovar(await enviar([fl]));

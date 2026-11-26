@@ -64,7 +64,7 @@ describe('etapasDoIso (puro)', () => {
 
 describe('etapasDoOt (puro)', () => {
   it('todo próximo passo do site tem etapa', () => {
-    expect(Object.keys(ETAPA_DO_PASSO_OT).sort()).toEqual(['aguardar_base', 'aguardar_lote', 'comecar', 'em_operacao', 'pedir_base', 'revalidar', 'revisar']);
+    expect(Object.keys(ETAPA_DO_PASSO_OT).sort()).toEqual(['aguardar_base', 'aguardar_lote', 'comecar', 'em_operacao', 'levantar', 'pedir_base', 'revalidar', 'revisar']);
   });
   it('sem site: Começar, 0 de 0, cadastrar o primeiro site; nenhum nome de site em lugar nenhum', () => {
     const p = etapasDoOt([]);

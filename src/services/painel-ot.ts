@@ -101,7 +101,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const sitesPrograma: SiteNoPrograma[] = lista.map((s) => ({
     id: s.id,
     proximo_passo: proximoPassoDe({ fase: s.fase as Fase, revalidar_em: mRev.get(s.id)?.em ?? null, tem_conteudo: mConteudo.has(s.id), zonas_4_1_1: mZonas.has(s.id),
-      rascunhos_bloqueiam: Number(mRasc.get(s.id)?.n ?? 0), lotes_em_revisao: Number(mLotes.get(s.id)?.n ?? 0) }),
+      rascunhos_bloqueiam: Number(mRasc.get(s.id)?.n ?? 0), lotes_em_revisao: Number(mLotes.get(s.id)?.n ?? 0), ativos: Number(mAtivos.get(s.id)?.n ?? 0) }),
     desvios_abertos: Number(mDesv.get(s.id)?.n ?? 0),
   }));
   // Quadro "Por site" (PR2): o mesmo lote, nenhuma consulta a mais. O texto do passo é o da régua (em operação com desvio = Tratar).

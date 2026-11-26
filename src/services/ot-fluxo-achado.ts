@@ -3,6 +3,7 @@ import type { ZodType } from 'zod';
 import { campoFluxo } from '../schemas/ot';
 import { TETO_LEITURA_OT } from './ot-inventario';
 import { temPii } from './rascunhos-privacy';
+import { separarAlvo } from './ot-coleta';
 
 // Achado de fluxo (spec 2026-11-01, L2). Validação campo a campo pelo MESMO esquema do cadastro de fluxo; pontas só do site da sessão
 // (ponta de outro site nunca casa: sem oráculo, P0-5). Confronto pela chave das pontas: novo, confirma ou contradiz (externo/VPN diferente).
@@ -39,10 +40,16 @@ export async function nomesDasPontas(db: D1Database, projectId: string, siteId: 
 }
 
 /** Campo inválido vira erro e não entra em `dados` (como prepararItem). Pontas insuficientes são aviso: achado pode estar incompleto. */
+/** Espelha o CHECK de ot_fluxos (0091): interno precisa das duas pontas; externo, de ao menos uma. */
+export const pontasDoFluxo = (f: Record<string, unknown>) => ['origem_ativo_id', 'origem_zona_id', 'destino_ativo_id', 'destino_zona_id'].filter((k) => f[k]).length;
+export const PONTAS_E_EXTERNO = 'Fluxo de uma ponta só precisa ser externo';
+
 export function prepararFluxo(bruto: Record<string, unknown>, pontas: { ativos: Set<string>; zonas: Set<string> }) {
-  const erros: Erro[] = [];
-  const dados: Record<string, unknown> = {};
-  for (const [campo, valor] of Object.entries(bruto)) {
+  const sep = separarAlvo(bruto);
+  if (sep.remover) return { dados: sep.alvo, erros: sep.erros };
+  const erros: Erro[] = sep.erros;
+  const dados: Record<string, unknown> = { ...sep.alvo };
+  for (const [campo, valor] of Object.entries(sep.resto)) {
     if (!Object.hasOwn(FORMA, campo)) { erros.push({ campo, motivo: 'campo não aceito' }); continue; }
     const v = FORMA[campo].safeParse(valor);
     if (!v.success) { const i = v.error.issues[0]; erros.push({ campo, motivo: i.code === 'custom' ? i.message : MOTIVO[i.code] ?? 'valor inválido' }); continue; }
@@ -58,8 +65,9 @@ export function prepararFluxo(bruto: Record<string, unknown>, pontas: { ativos: 
     }
   }
   // Espelha o CHECK de ot_fluxos: interno precisa das duas pontas; externo, de ao menos uma.
+  // Com alvo_id, as pontas são as do alvo (o UPDATE nunca grava pontas).
   const n = ['origem_ativo_id', 'origem_zona_id', 'destino_ativo_id', 'destino_zona_id'].filter((k) => dados[k]).length;
-  if (n < 2 - Number(dados.externo ?? 0)) erros.push({ campo: 'pontas', motivo: 'Informe origem e destino (fluxo externo: ao menos um)' });
+  if (!dados.alvo_id && n < 2 - Number(dados.externo ?? 0)) erros.push({ campo: 'pontas', motivo: 'Informe origem e destino (fluxo externo: ao menos um)' });
   return { dados, erros };
 }
 
@@ -68,13 +76,15 @@ const chaveFluxo = (o: string, d: string) => `o:${o}|d:${d}`;
 
 export function indiceFluxos(fluxos: FluxoExistente[]) {
   const m = new Map<string, FluxoExistente>();
+  // Fluxo externo de ponta única não casa pelo índice (só por `alvo_id`): dois acessos externos do mesmo ativo são dois fluxos.
   const add = (f: FluxoExistente) => {
     const o = ponta(f, 'origem'), d = ponta(f, 'destino');
+    if (!o || !d) return;
     m.set(chaveFluxo(o, d), f);
     if (f.direcao === 'bidirecional' && !m.has(chaveFluxo(d, o))) m.set(chaveFluxo(d, o), f);
   };
   fluxos.forEach(add);
-  return { add, achar: (x: Record<string, unknown>) => (ponta(x, 'origem') || ponta(x, 'destino')) ? m.get(chaveFluxo(ponta(x, 'origem'), ponta(x, 'destino'))) : undefined };
+  return { add, achar: (x: Record<string, unknown>) => (ponta(x, 'origem') && ponta(x, 'destino')) ? m.get(chaveFluxo(ponta(x, 'origem'), ponta(x, 'destino'))) : undefined };
 }
 
 export function confrontarFluxo(d: Record<string, unknown>, idx: ReturnType<typeof indiceFluxos>) {

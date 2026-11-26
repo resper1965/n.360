@@ -3,6 +3,7 @@ import { env, createExecutionContext } from 'cloudflare:test';
 import worker, { ROTAS_OAUTH } from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { aadOt, chavesOt, decifrarOt } from '../src/services/ot-cifra';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Endpoint MCP do agente de coleta do n.ot (L5, Task 3). D1 real, chave `ot_coleta` no Bearer.
@@ -56,7 +57,7 @@ beforeAll(async () => {
   const gestor = await sessionFor({ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
   cons = await sessionFor({ id: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', role: 'consultor' });
   ids.s1 = await criar(cons, 'sites', { nome: 'SE Norte' });
-  ids.a1 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'RTU 1', ip: '10.1.1.10' });
+  [ids.a1] = await inventarioPorLote(humano, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'RTU 1', ip: '10.1.1.10' } }] });
   ids.z1 = await criar(cons, 'zonas', { site_id: ids.s1, nome: 'Zona Real', nivel_purdue: 2 });
   const rb = await humano(cons, 'POST', '/api/v1/projects/proj-b/ot/sites', { nome: 'SE de B' });
   ids.sB = (await rb.json<{ id: string }>()).id;
@@ -228,6 +229,14 @@ describe('ferramentas', () => {
     }
     expect(new Set(resp).size).toBe(1);
     expect(JSON.parse(resp[0])).toEqual({ criados: 0, recusados: [{ indice: 0, motivo: 'campo não aceito pelo agente' }], com_aviso: 0 });
+  });
+
+  it('alvo_id e remover: recusa uniforme, como zona (o agente não altera nem remove inventário; spec 2026-11-26)', async () => {
+    for (const dados of [{ alvo_id: ids.a1, nome: 'Y' }, { alvo_id: 'x', nome: 'Y' }, { remover: true }, { alvo_id: ids.a1, remover: true }]) {
+      const r = await ferramenta(chave, 'registrar_achados', { levantamento_id: ids.lev, achados: [{ dados, evidencia: 'Página 9: CLP' }] });
+      expect(r.erro, r.texto).toBe(false);
+      expect(JSON.parse(r.texto), JSON.stringify(dados)).toEqual({ criados: 0, recusados: [{ indice: 0, motivo: 'campo não aceito pelo agente' }], com_aviso: 0 });
+    }
   });
 
   it('argumentos fora do esquema estrito (projectId, project_id): recusados', async () => {

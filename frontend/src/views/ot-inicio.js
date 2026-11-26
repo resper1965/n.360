@@ -9,7 +9,7 @@ import { emDiasSP, hojeSP } from '../hoje.js';
 
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const PRAZO_DIAS = 7;
-const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Acompanhar', revalidar: 'Revalidar' };
+const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', levantar: 'Levantar os ativos', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Acompanhar', revalidar: 'Revalidar' };
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const alvo = (site, aba, lote) => ({ tela: 'site', site, aba, ...(lote ? { lote } : {}) }); // aba nula: a área do site decide
 

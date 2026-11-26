@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Levantamento do n.ot (spec 2026-11-01, L1): sessões, achados, confronto sem oráculo, envio ao lote. D1 real.
@@ -31,7 +32,7 @@ beforeAll(async () => {
   cons = await sessionFor({ id: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', role: 'consultor' });
   ids.s1 = await criar(cons, 'sites', { nome: 'SE Norte' });
   ids.s2 = await criar(cons, 'sites', { nome: 'SE Sul' });
-  ids.a1 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'RTU 1', ip: '10.1.1.10' });
+  [ids.a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'RTU 1', ip: '10.1.1.10' } }] });
   expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s1 })).status).toBe(201);
   ids.lev1 = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'entrevista', realizado_em: '2026-11-01', funcao: 'Operador', turno: 'B', notas: 'usa TeamViewer' });
   ids.lev2 = await criar(cons, 'levantamentos', { site_id: ids.s2, tipo: 'visita', realizado_em: '2026-11-01' });
@@ -47,7 +48,9 @@ describe('levantamento: acesso e texto livre', () => {
   it('cliente não cria sessão (o técnico cria: test/ot-tecnico); técnico só lê sessões dos sites dele', async () => {
     expect((await chamar(cli, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-01' })).status).toBe(403);
     const lista = await (await chamar(tec, 'GET', `${P}/levantamentos`)).json<{ levantamentos: { id: string }[] }>();
-    expect(lista.levantamentos.map((l) => l.id)).toEqual([ids.lev1]);
+    // a preparação do inventário (por lote, test/helpers/ot.ts) deixa uma sessão de visita no s1; a do s2 nunca aparece
+    expect(lista.levantamentos.map((l) => l.id)).toContain(ids.lev1);
+    expect(lista.levantamentos.map((l) => l.id)).not.toContain(ids.lev2);
     expect((await chamar(tec, 'GET', `${P}/levantamentos/${ids.lev2}`)).status).toBe(404);
   });
 

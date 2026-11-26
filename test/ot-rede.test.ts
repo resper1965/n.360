@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { aadOt, chavesOt, decifrarOt, hmacOt } from '../src/services/ot-cifra';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // n.ot L3: importação do resumo do sensor de rede na sessão de documento. O arquivo fica em memória: nada ao R2, sem IA. D1 real.
@@ -101,7 +102,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash, mac_hash) VALUES ('a-ihm', 'proj-a', ?, 'IHM', ?, 'mh')`).bind(ids.s1, await hmacOt(chaves, 'proj-a', '10.1.1.20')),
   ]);
   // Fluxo externo do inventário igual ao externo da IHM no sensor (mesma ponta, protocolo e porta: não vira achado); o da RTU não tem par (novo).
-  ids.fext = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: 'a-ihm', externo: true, protocolo: 'https', porta: 443 });
+  [ids.fext] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: 'a-ihm', externo: true, protocolo: 'https', porta: 443 } }] });
   ids.doc = await doc('Sensor SE Norte');
   ids.ent = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'entrevista', realizado_em: '2026-11-04' });
 });
@@ -132,11 +133,12 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect(externos.find((a) => a.dados.origem_ativo_id === 'a-rtu')!.confronto).toBe('novo');
   });
 
-  it('fluxo do inventário com outra porta: o do sensor ainda vira achado (confirma as pontas)', async () => {
+  // Externo de uma ponta só não casa pelo índice (revisão do PR3a): o achado é "novo" e, aprovado, vira outro fluxo, não sobrescreve o do inventário.
+  it('fluxo do inventário com outra porta: o do sensor ainda vira achado (novo: externo de uma ponta só não casa)', async () => {
     const lev = await doc('Outra porta');
     const r = await enviar(cons, lev, JSON.stringify({ ...base, ativos: [], conexoes: [cx('10.1.1.20', '203.0.113.5', 8443, 'https')] }));
     expect(await r.json()).toMatchObject({ fluxos_criados: 1, fluxos_conhecidos: 0 });
-    expect((await achados(cons, lev))[0]).toMatchObject({ entidade: 'fluxo', dados: { origem_ativo_id: 'a-ihm', porta: 8443 }, confronto: 'confirma' });
+    expect((await achados(cons, lev))[0]).toMatchObject({ entidade: 'fluxo', dados: { origem_ativo_id: 'a-ihm', porta: 8443 }, confronto: 'novo' });
   });
 
   it('pendências gravadas só com hash, sem IP em claro, e com a evidência para a segunda passagem', async () => {

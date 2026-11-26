@@ -6,6 +6,7 @@ import { manutencaoDiaria } from '../src/manutencao';
 import { chavesOt, decifrarOt, aadOt, hmacOt } from '../src/services/ot-cifra';
 import { aprovarLote, criarLote, linhasDaPlanilha } from '../src/services/ot-coleta';
 import { lerPlanilha } from '../src/services/ot-planilha';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 import xlsxReal from './fixtures/ot-planilha-openpyxl.xlsx.b64?raw';
 
@@ -80,8 +81,8 @@ beforeAll(async () => {
   ids.s1 = await criar(cons, 'sites', { nome: 'SE Norte' });
   ids.s2 = await criar(cons, 'sites', { nome: 'SE Sul' });
   ids.z2 = await criar(cons, 'zonas', { site_id: ids.s1, nome: 'Supervisão', nivel_purdue: 2 });
-  ids.a1 = await criar(gestor, 'ativos', { site_id: ids.s1, zona_id: ids.z2, ...ATIVO_ARCIBER });
-  ids.a2 = await criar(cons, 'ativos', { site_id: ids.s2, nome: 'IED Sul', ip: IP2, fabricante: 'Fab', modelo: 'M9' });
+  [ids.a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { zona_id: ids.z2, ...ATIVO_ARCIBER } }] });
+  [ids.a2] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'IED Sul', ip: IP2, fabricante: 'Fab', modelo: 'M9' } }] });
   expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s1 })).status).toBe(201);
 });
 
@@ -275,7 +276,7 @@ describe('aprovação promove ao inventário', () => {
 
     const t = await env.DB.prepare(`SELECT actor, details FROM audit_logs WHERE action = 'ot.lote.aprovado' ORDER BY rowid DESC LIMIT 1`).first<Record<string, string>>();
     expect(t).toMatchObject({ actor: 'gestor@cliente.teste' });
-    expect(t!.details).toContain('1 criado(s), 1 atualizado(s), 1 recusado(s)');
+    expect(t!.details).toContain('1 criado(s), 1 atualizado(s), 0 removido(s), 1 recusado(s)');
   });
 
   it('a trilha da coleta não leva IP, MAC nem nome de ativo', async () => {
@@ -374,7 +375,7 @@ describe('4.3.1 e P1-4: verificação só com recoleta; alvo alterado depois da 
 
   it('ativo novo com o mesmo IP criado depois da revisão também volta o item a pendente', async () => {
     const l = await loteDo(tec, `Sem par;10.1.1.92;;;;;;;;;;`);
-    const outro = await criar(gestor, 'ativos', { site_id: ids.s1, nome: 'Chegou antes', ip: '10.1.1.92' });
+    const [outro] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Chegou antes', ip: '10.1.1.92' } }] });
     const r = await chamar(gestor, 'POST', `${P}/lotes/${l}/aprovar`);
     expect(await json(r)).toMatchObject({ criados: 0, atualizados: 0, pendentes: 1 });
     expect(await ativo(outro)).toMatchObject({ nome: 'Chegou antes' });

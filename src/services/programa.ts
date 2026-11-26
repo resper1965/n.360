@@ -42,10 +42,10 @@ export function etapasDoIso(cat: Catalogo, ctx: ContextoProjeto): ProgramaDoModu
 
 /** n.ot: o próximo passo do site (`situacaoDoSite`) na etapa comum. Em operação com desvio aberto, o site está em Tratar. */
 export const ETAPA_DO_PASSO_OT: Record<ProximoPasso, EtapaComum> = {
-  comecar: 'comecar', revisar: 'levantar', aguardar_lote: 'levantar', pedir_base: 'avaliar', aguardar_base: 'avaliar', em_operacao: 'operar', revalidar: 'operar',
+  comecar: 'comecar', revisar: 'levantar', aguardar_lote: 'levantar', levantar: 'levantar', pedir_base: 'avaliar', aguardar_base: 'avaliar', em_operacao: 'operar', revalidar: 'operar',
 };
 export const TEXTO_OT: Record<ProximoPasso, string> = {
-  comecar: 'Implantação: cadastrar o site', revisar: 'Implantação: revisar os achados', aguardar_lote: 'Implantação: decidir o lote',
+  comecar: 'Implantação: cadastrar o site', revisar: 'Implantação: revisar os achados', aguardar_lote: 'Implantação: decidir o lote', levantar: 'Implantação: levantar os ativos do site',
   pedir_base: 'Implantação: pedir a aprovação da base', aguardar_base: 'Implantação: aprovar a base', em_operacao: 'Operação: acompanhar', revalidar: 'Operação: revalidar os ativos',
 };
 /** `id` leva o link ao site (spec 2026-11-26 §7); o painel o tira para o leitor, e sem `id` o próximo passo não leva site. */

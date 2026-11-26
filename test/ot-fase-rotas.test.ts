@@ -18,7 +18,9 @@ async function chamar(h: H, metodo: string, caminho: string, corpo?: unknown) {
 const run = (sql: string, ...b: unknown[]) => env.DB.prepare(sql).bind(...b).run();
 const fase = async (s = 's1') => (await env.DB.prepare(`SELECT fase FROM ot_sites WHERE id = ?`).bind(s).first<{ fase: string }>())!.fase;
 const trilhas = async (acao: string) => (await env.DB.prepare(`SELECT details, justification FROM audit_logs WHERE action = ? AND project_id = 'proj-a'`).bind(acao).all<any>()).results;
-const prepararBase = () => Promise.all([2, 3, 4].map((n) => run(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES (?, 'proj-a', 's1', 'z', ?)`, `z${n}`, n)));
+// zonas 2, 3 e 4 e um ativo (decisão 2 do dono, spec 2026-11-26: a base exige ao menos um ativo)
+const prepararBase = () => Promise.all([...[2, 3, 4].map((n) => run(`INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue) VALUES (?, 'proj-a', 's1', 'z', ?)`, `z${n}`, n)),
+  run(`INSERT INTO ot_ativos (id, project_id, site_id, nome) VALUES ('at1', 'proj-a', 's1', 'RTU')`)]);
 
 describe('rotas da base do site', () => {
   beforeAll(async () => { await applySchema(); });

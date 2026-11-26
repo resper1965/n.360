@@ -138,8 +138,9 @@ export async function registrarAchados(env: EnvColeta, chave: ChaveColeta, a: { 
   for (const [indice, it] of a.achados.entries()) {
     const ev = evidenciaSchema.safeParse(it.evidencia);
     if (!ev.success) { recusados.push({ indice, motivo: `evidencia: ${ev.error.issues[0].message}` }); continue; }
-    // Recusa uniforme, sem consultar zona alguma: a mesma resposta para zona real e inventada.
-    if ('zona' in it.dados || 'zona_id' in it.dados) { recusados.push({ indice, motivo: 'campo não aceito pelo agente' }); continue; }
+    // Recusa uniforme, sem consultar zona alguma: a mesma resposta para zona real e inventada. O agente também não altera nem remove
+    // inventário (`alvo_id`/`remover`, spec 2026-11-26): a mesma recusa, sem ler o alvo.
+    if (['zona', 'zona_id', 'alvo_id', 'remover'].some((k) => k in it.dados)) { recusados.push({ indice, motivo: 'campo não aceito pelo agente' }); continue; }
     const id = genId(); // o mesmo id na AAD da cifra e na linha
     const p = await prepararAchado(chaves, chave.projectId, lev.site_id, id, it.dados, SEM_ZONA);
     itens.push({ indice, aviso: p.erros.length > 0, stmt: db.prepare(INSERIR_ACHADO('agente'))
