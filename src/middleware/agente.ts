@@ -178,7 +178,7 @@ export function foraDoAuditor(method: string, path: string, projectId: string): 
     const leitura = doProjeto
       || path === '/api/v1/portfolio' // escopado ao projeto da concessão (role client)
       || /^\/api\/v1\/audits\/[^/]+\/findings$/.test(path)
-      || /^\/api\/v1\/evidence\/[^/]+\/(content|detail|download)$/.test(path);
+      || /^\/api\/v1\/evidence\/[^/]+(\/(content|detail|download))?$/.test(path);
     return leitura ? null : 'o agente auditor lê só o projeto desta conexão';
   }
   if (method === 'POST' && (/^\/api\/v1\/audits\/[^/]+\/findings$/.test(path) || path === `/api/v1/projects/${projectId}/auditor-notes`)) return null;

@@ -5120,6 +5120,34 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "get_api_v1_evidence__id_",
+        "tags": [
+          "evidence"
+        ],
+        "summary": "A evidência: `control_ids` (todos os controles ligados), `avaliacao_ia`, `evaluation_*` e as aprovações (`ciso_approved_by/at`, `ceo_approved_by/at`), sem IP nem navegador das assinaturas. Inexistente ou de outro projeto: 404, a mesma resposta.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Sem sessão válida"
+          },
+          "404": {
+            "description": "Não encontrado (ou fora do seu alcance)"
+          }
+        }
       }
     },
     "/api/v1/fornecedor-modelos/{tipo}/perguntas/{perguntaId}": {
@@ -42867,6 +42895,45 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/evidence": {
+      "get": {
+        "operationId": "get_api_v1_projects__projectId__evidence",
+        "tags": [
+          "projects"
+        ],
+        "summary": "Evidências do projeto, paginadas (`limit`, `offset`; `X-Has-More`).",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "controlId",
+            "in": "query",
+            "required": false,
+            "description": "Só as ligadas a este controle (id da linha ou código, ex. A.5.1). Controle inexistente: lista vazia.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Sem sessão válida"
+          },
+          "404": {
+            "description": "Não encontrado (ou fora do seu alcance)"
           }
         }
       }

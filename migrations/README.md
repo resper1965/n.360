@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0120** (`ls migrations/*.sql | tail -1`). São 121 arquivos
+- Última migration no repositório: **0121** (`ls migrations/*.sql | tail -1`). São 122 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -48,6 +48,10 @@ cliente. O arquivo fica porque `d1_migrations` guarda o nome.
 ---
 
 Seções por número, da mais nova para a mais antiga (as anteriores à 0035 não têm seção). Migration nova entra no topo.
+
+## 0121 — aceite do residual independente do status (2026-11-25)
+
+Só dados; o `schema.sql` não muda. Todo risco com `status = 'Accepted'` que tem linha `vigente` em `risco_aceites` com `status_anterior` não nulo volta a `status = status_anterior`, e cada risco alterado ganha uma linha em `audit_logs` (`action = 'risk.status_corrigido_aceite'`, ator `sistema:migration-0121`, `entity_type = 'risk'`, `field = 'status'`, valor antigo e novo). **Não altera `risco_aceites`** nem o aceite antigo (status `Accepted` sem linha vigente). Repetível: rodar de novo não acha risco a corrigir. **Antes de aplicar**: `npm run db:backup` e as contagens do cabeçalho (esperado em produção, medido em 25/11/2026: 25 riscos `Accepted` com aceite vigente e `status_anterior`; 0 linhas de trilha `risk.status_corrigido_aceite`). **Depois**: 0 riscos `Accepted` com aceite vigente; 25 linhas de trilha; `risco_aceites` com as mesmas 25 linhas vigentes. O código desta versão já lê a situação do aceite da linha vigente, então a ordem entre aplicar e publicar não quebra a tela; aplique logo para o status voltar ao do tratamento. **Efeito no Painel e na Prontidão:** risco tratado passa a ser `SQL_RISCO_TRATADO` (Mitigated ou Closed, o aceite antigo sem linha, ou estratégia `Accept` com aceite vigente); depois de aplicar, os riscos de estratégia `Mitigate` que estavam `Accepted` voltam a contar como pendentes (produção: 25 riscos). Aceite com `status_anterior = 'Accepted'` (legado aceito de novo com senha) fica de fora. **Status: NÃO aplicada.**
 
 ## 0120 — aceite do risco residual (2026-11-23)
 

@@ -11,6 +11,7 @@ import { initDelegation } from '../src/delegation.js';
 import '../src/views/grc.js';
 import '../src/views/meus-pedidos.js';
 import { montar } from '../src/atividade/aba-riscos.js';
+import { colunaDeAceite, SITUACOES_ACEITE } from '../src/aceite-risco.js';
 import grc from '../src/views/grc.js?raw';
 
 initDelegation();
@@ -111,6 +112,24 @@ describe('n.iso: aceite do risco residual', () => {
         expect(t).toContain('Motivo: Falha no backup');
     });
 
+    it('aceite vigente com o tratamento em outro status: a tela mostra o aceite pela situação, não pelo status', () => {
+        S.risks = [risco({ status: 'Mitigated' }, { situacao: 'aceito', por: 'Carla Ceo', em: '2026-11-20T13:05:00Z', com_senha: true, pode_aceitar: false })];
+        window.openRiskDetailsModal('k1');
+        expect(document.getElementById('modal-content').textContent).toContain('Aceito por Carla Ceo em 20/11/2026');
+        expect(botao('Pedir aceite')).toBeUndefined();
+    });
+
+    it('encerrado sem residual: "Não se aplica", fora do filtro "Aceite pendente", sem pedir aceite', () => {
+        const r = risco({ status: 'Closed', residual_level: null }, { situacao: 'nao_se_aplica', pode_aceitar: false, alcada: null });
+        expect(colunaDeAceite(r)).toContain('Não se aplica');
+        expect(colunaDeAceite(r)).not.toContain('pendente');
+        expect(SITUACOES_ACEITE).toContainEqual(['nao_se_aplica', 'Não se aplica']);
+        S.risks = [r];
+        window.openRiskDetailsModal('k1');
+        expect(document.getElementById('modal-content').textContent).toContain('Não se aplica');
+        expect(botao('Pedir aceite')).toBeUndefined();
+    });
+
     it('o consultor pede o aceite com o papel da alçada, sem escolha', async () => {
         servidor({ 'GET /api/v1/projects/p9/governance': [{ email: 'ceo@cliente.com', name: 'Carla Ceo', job_title: 'CEO', role_category: 'cliente' }] });
         S.risks = [risco({}, { pode_aceitar: false })];
@@ -146,6 +165,13 @@ describe('n.privacy: aceite na aba Riscos', () => {
         await abrir();
         expect(botao('Aceitar risco residual')).toBeUndefined();
         expect(document.getElementById('painel').textContent.split(SEM_RESIDUAL).length - 1).toBe(1);
+    });
+
+    it('encerrado sem residual: a linha diz que o aceite não se aplica', async () => {
+        servidor({ [`GET ${P}/riscos`]: { riscos: [risco({ status: 'Closed', residual_level: null }, { situacao: 'nao_se_aplica', pode_aceitar: false, alcada: null })] },
+            [`GET ${P}/riscos/motivos`]: { motivos: [] }, 'GET /api/v1/projects/p9/partes': [] });
+        await abrir();
+        expect(document.getElementById('painel').textContent).toContain('Aceite: não se aplica (risco encerrado sem residual)');
     });
 
     it('risco aceito mostra a linha de aceite e não tem botão; sem alçada, sem botão', async () => {

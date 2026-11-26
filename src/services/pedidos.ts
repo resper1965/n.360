@@ -119,8 +119,12 @@ const sqlDoRisco = (onde: string) =>
   'r.risk_level AS nivel, r.residual_impact AS impacto_residual, r.residual_probability AS probabilidade_residual, r.residual_level AS nivel_residual, ' +
   'r.treatment AS estrategia, r.treatment_plan AS plano, CASE WHEN r.control_id IS NULL THEN NULL ELSE COALESCE(cc.title, r.control_id) END AS controle ' +
   `FROM risks r LEFT JOIN compliance_controls cc ON cc.id = r.control_id AND cc.project_id = r.project_id${onde})`;
-/** Só risco com residual avaliado e ainda não aceito nem encerrado pode ser aceito (e ter pedido de aceite aberto). */
-export const SQL_RISCO_ACEITAVEL = sqlDoRisco(" WHERE COALESCE(r.status, 'Open') NOT IN ('Accepted', 'Closed') AND r.residual_level IS NOT NULL");
+/**
+ * Só risco não encerrado, com residual avaliado e sem aceite vigente pode ser aceito (e ter pedido de aceite aberto). O status do
+ * tratamento não entra (migration 0121): o aceite é independente dele.
+ */
+export const SQL_RISCO_ACEITAVEL = sqlDoRisco(" WHERE COALESCE(r.status, 'Open') <> 'Closed' AND r.residual_level IS NOT NULL" +
+  " AND NOT EXISTS (SELECT 1 FROM risco_aceites ra WHERE ra.risk_id = r.id AND ra.situacao = 'vigente')");
 const SQL_RISCO_QUALQUER = sqlDoRisco('');
 const tituloDoRisco = (r: Record<string, unknown>, id: string) => `Aceite do risco residual: ${String(r.ameaca || id).slice(0, 60)} (${String(r.ativo || '').slice(0, 40)})`;
 

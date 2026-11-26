@@ -2,11 +2,12 @@ import { escapeHTML, formatarData, openModal, forceCloseModal } from './ui.js';
 import { rotuloDe } from './rotulos.js';
 
 // Aceite do risco residual (ISO/IEC 27001, 6.1.3 e; migration 0120). O servidor manda, em cada risco, o bloco `aceite`: a situação
-// (aceito, pendente, revogado), quem e quando, a alçada do nível residual, o hash do estado que se aceitaria agora e se ESTA pessoa
-// pode aceitar ou revogar. A tela só mostra o que o servidor permite; quem decide de novo é a rota (alçada, senha, um risco por vez).
+// (aceito, pendente, revogado, não se aplica), quem e quando, a alçada do nível residual, o hash (o aceito, com aceite vigente; senão
+// o do estado que se aceitaria agora) e se ESTA pessoa pode aceitar ou revogar. O aceite não muda o status do risco (migration 0121).
+// "Não se aplica": risco encerrado sem residual. A tela só mostra o que o servidor permite; quem decide de novo é a rota (alçada, senha, um risco por vez).
 
 const PAPEL = { ceo: 'Direção (CEO)', ciso: 'Liderança do SGSI' };
-export const SITUACOES_ACEITE = [['aceito', 'Aceito'], ['pendente', 'Aceite pendente'], ['revogado', 'Aceite revogado']];
+export const SITUACOES_ACEITE = [['aceito', 'Aceito'], ['pendente', 'Aceite pendente'], ['revogado', 'Aceite revogado'], ['nao_se_aplica', 'Não se aplica']];
 const quando = (s) => formatarData(s, { hora: true, vazio: 'data desconhecida' });
 const el = (id) => document.getElementById(id);
 
@@ -19,7 +20,7 @@ export const avisoSemResidual = (r) => (r?.aceite?.motivo_nao_aceita && r.aceite
 export const podePedirAceite = (r, user) => !!r?.aceite && r.aceite.situacao !== 'aceito' && !!r.aceite.alcada
     && !['Closed', 'Accepted'].includes(r.status) && typeof window.podePedirAprovacao === 'function' && window.podePedirAprovacao(user);
 
-/** Uma linha, HTML escapado: "Aceito por X em ...", "Aceite revogado ..." ou vazio quando pendente. */
+/** Uma linha, HTML escapado: "Aceito por X em ...", "Aceite revogado ...", "Não se aplica" ou vazio quando pendente. */
 export function linhaDeAceite(r) {
     const a = r?.aceite;
     if (a?.situacao === 'aceito') {
@@ -27,11 +28,13 @@ export function linhaDeAceite(r) {
         return `Aceito por ${escapeHTML(a.por || '')} em ${quando(a.em)}${a.com_senha ? '' : ' (registro anterior, sem senha)'}`;
     }
     if (a?.situacao === 'revogado' && a.revogado) return `Aceite revogado por ${escapeHTML(a.revogado.por || '')} em ${quando(a.revogado.em)}`;
+    if (a?.situacao === 'nao_se_aplica') return 'Aceite: não se aplica (risco encerrado sem residual)';
     return '';
 }
 
 /** O texto da coluna "Aceite" da lista: quem e quando, ou a situação. */
-export const colunaDeAceite = (r) => linhaDeAceite(r) || '<span class="t-dim">Aceite pendente</span>';
+export const colunaDeAceite = (r) => (r?.aceite?.situacao === 'nao_se_aplica' ? '<span class="t-dim">Não se aplica</span>'
+    : linhaDeAceite(r) || '<span class="t-dim">Aceite pendente</span>');
 
 // Tudo o que entra no hash do aceite aparece na janela antes da senha (COLUNAS_RISCO em src/services/pedidos.ts).
 const campo = (rotulo, valor) => `<div><dt class="rotulo-campo">${escapeHTML(rotulo)}</dt><dd>${escapeHTML(String(valor))}</dd></div>`;

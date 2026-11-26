@@ -12,7 +12,7 @@ import { remetente } from '../services/email-layout';
 import { emailCiencia, emailPedidoAprovacao, type QuemPede } from '../services/emails';
 import { log } from '../observability';
 import { assinarEvidencia } from './evidence';
-import { alcadasDoProjeto, type NivelRisco } from '../services/aceite-risco';
+import { alcadasDoProjeto, temAceiteVigente, type NivelRisco } from '../services/aceite-risco';
 import {
   criarPedido, recusaDeDestinatarios, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
   substituirPedidosDoDocumento, CONTEINER_PORTAL, type TipoPedido, type Vigencia,
@@ -115,12 +115,12 @@ projectPedidosApp.post('/', async (c) => {
       return c.json({ error: 'Ciência de política ou documento é pelo envio por link ("Nova ciência por link"). Este pedido é de aprovação: escolha Líder SGSI ou Direção.' }, 400);
     }
     const refId = b.ref_id;
-    // Pedido de aceite de risco: um risco por pedido, residual avaliado, ainda não aceito; o papel é a alçada do nível residual.
+    // Pedido de aceite de risco: um risco por pedido, não encerrado, residual avaliado, sem aceite vigente; o papel é a alçada do nível residual.
     if (b.tipo === 'risco') {
       const risco = await c.env.DB.prepare('SELECT status, residual_level FROM risks WHERE id = ? AND project_id = ?').bind(refId, projectId)
         .first<{ status: string | null; residual_level: NivelRisco | null }>();
       if (!risco) return c.json({ error: 'Risco não encontrado neste projeto' }, 404);
-      if (risco.status === 'Accepted' || risco.status === 'Closed') return c.json({ error: 'Este risco já está aceito ou encerrado.' }, 409);
+      if (risco.status === 'Closed' || await temAceiteVigente(c.env.DB, refId)) return c.json({ error: 'Este risco já está aceito ou encerrado.' }, 409);
       if (!risco.residual_level) return c.json({ error: 'Avalie o risco residual (impacto e probabilidade residuais) antes de pedir o aceite.' }, 400);
       const alcada = (await alcadasDoProjeto(c.env.DB, projectId))[risco.residual_level] ?? 'ceo';
       // Um destinatário: o primeiro "aprovar" é o aceite e fecha o risco; um segundo destinatário ficaria pendente para sempre.

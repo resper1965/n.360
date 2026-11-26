@@ -475,6 +475,21 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
 // ─── FIM DA TABELA GERADA ───
 
 /** `/api/v1/x/:id` → `/api/v1/x/{id}`, que é a forma do OpenAPI. */
+/**
+ * Leituras documentadas à mão (o contrato acima é das escritas com schema). Só as que um cliente da API precisa achar sem ler o código.
+ */
+const ROTAS_DE_LEITURA: { caminho: string; resumo: string; query?: { nome: string; descricao: string }[] }[] = [
+  {
+    caminho: '/api/v1/evidence/:id',
+    resumo: 'A evidência: `control_ids` (todos os controles ligados), `avaliacao_ia`, `evaluation_*` e as aprovações (`ciso_approved_by/at`, `ceo_approved_by/at`), sem IP nem navegador das assinaturas. Inexistente ou de outro projeto: 404, a mesma resposta.',
+  },
+  {
+    caminho: '/api/v1/projects/:projectId/evidence',
+    resumo: 'Evidências do projeto, paginadas (`limit`, `offset`; `X-Has-More`).',
+    query: [{ nome: 'controlId', descricao: 'Só as ligadas a este controle (id da linha ou código, ex. A.5.1). Controle inexistente: lista vazia.' }],
+  },
+];
+
 function caminhoOpenApi(caminho: string): string {
   return caminho.replace(/:(\w+)/g, '{$1}');
 }
@@ -539,6 +554,23 @@ export function documentoOpenApi(origem?: string): Record<string, unknown> {
           description: 'Erro de servidor. `request_id` correlaciona com o log estruturado',
           content: { 'application/json': { schema: RESPOSTA_ERRO } },
         },
+      },
+    };
+  }
+
+  for (const r of ROTAS_DE_LEITURA) {
+    const p = caminhoOpenApi(r.caminho);
+    paths[p] ??= {};
+    (paths[p] as Record<string, unknown>).get = {
+      operationId: `get${p.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      tags: [p.split('/')[3] ?? 'api'],
+      summary: r.resumo,
+      parameters: [...parametrosDe(r.caminho),
+        ...(r.query ?? []).map((q) => ({ name: q.nome, in: 'query' as const, required: false, description: q.descricao, schema: { type: 'string' as const } }))],
+      responses: {
+        '200': { description: 'OK' },
+        '401': { description: 'Sem sessão válida' },
+        '404': { description: 'Não encontrado (ou fora do seu alcance)' },
       },
     };
   }

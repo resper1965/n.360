@@ -119,6 +119,9 @@ describe('Agente auditor (MCP remoto)', () => {
     }
     expect((await comoAgente('/api/v1/audits/au-a/findings', AUD)).status).toBe(200);
     expect((await comoAgente('/api/v1/evidence/ev-a/detail', AUD)).status).toBe(200);
+    // A evidência por id: a do projeto da concessão se lê; a de outro projeto é 404, como a inexistente.
+    expect((await comoAgente('/api/v1/evidence/ev-a', AUD)).status).toBe(200);
+    expect((await comoAgente('/api/v1/evidence/ev-b', AUD)).status).toBe(404);
     const res = await chamarFerramenta(token, 'niso_ler', { caminho: `/api/v1/projects/${P}/ropa` });
     expect(res.isError, res.content[0].text).toBeFalsy();
   });

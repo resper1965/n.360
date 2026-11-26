@@ -16,7 +16,7 @@ description: Use depois de um diagnóstico (lacunas, achados de prontidão ou de
 
 ## O que você nunca faz (é do cliente ou de uma pessoa, pela interface)
 
-- Aceitar risco (`status: Accepted`), assinar ou aprovar evidência, política, tratamento ou RIPD, revogar aprovação, responder ou negar o titular, eliminar dados de titular.
+- Aceitar o risco residual (ato com a senha de quem tem a alçada; não muda o status do risco), assinar ou aprovar evidência, política, tratamento ou RIPD, revogar aprovação, responder ou negar o titular, eliminar dados de titular.
 - Publicar documento (você grava rascunho; publicar é decisão com o "sim" do consultor).
 - Concluir LIA e encerrar incidente sem a decisão explícita do consultor (ferramentas de decisão, com `confirmado_pelo_usuario: true` e motivo).
 - Mudar prazo legal (`parametros_legais`).
@@ -70,7 +70,7 @@ Para cada item que o consultor mandar tratar, um por vez:
   de fato não se aplica ao cliente (resolução dirigida a outro tipo de agente, base legal que ele não usa): nunca para "limpar" lacuna.
   Marque pela `niso_excluir_requisito`, com o "sim" do consultor; o cliente vê a justificativa, o autor e a data.
 - **Prazo "não calculado"** é parâmetro legal não cadastrado: peça o cadastro ao encarregado; não invente número.
-- **Risco aceito** é ato do cliente; se as notas mudarem depois do aceite, ele volta a Aberto sozinho.
+- **Risco aceito** é ato do cliente, e aceitar não muda o status do risco (o ciclo do tratamento segue livre). Se as notas, o residual, a estratégia, o plano ou o controle mudarem depois do aceite, o aceite cai sozinho (volta a "aceite pendente"); o status não muda.
 
 ## 5. Ao fim de cada rodada
 

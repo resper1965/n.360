@@ -403,8 +403,9 @@ projectRopaApp.put('/:recordId/riscos/:riscoId', async (c) => {
     const riscoId = c.req.param('riscoId');
     const gravado = await c.env.DB.prepare('SELECT status FROM risks WHERE id = ? AND ropa_id = ? AND project_id = ?')
       .bind(riscoId, c.req.param('recordId'), projectId).first<{ status: string | null }>();
-    const recusaStatus = gravado ? await recusaDoStatus(c.env.DB, riscoId, gravado.status, v.data.status) : null;
-    if (recusaStatus) return c.json({ error: recusaStatus }, v.data.status === 'Accepted' ? 403 : 409);
+    // Accepted não se grava pelo PUT (o aceite é o ato com senha); o resto do status é livre e não derruba o aceite.
+    const recusaStatus = gravado ? recusaDoStatus(gravado.status, v.data.status) : null;
+    if (recusaStatus) return c.json({ error: recusaStatus }, 403);
     const r = await atualizarRisco(c.env.DB, projectId, c.req.param('recordId'), riscoId, ator, v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);
     // Mudou o que foi aceito: o aceite com senha cai e o pedido de aceite aberto acompanha o conteúdo novo.

@@ -109,8 +109,9 @@ risks.put('/api/v1/risks/:id', async (c) => {
     ).bind(id).first<Record<string, any>>();
     if (!atual) return c.json({ error: 'Risco não encontrado' }, 404);
     const projectId = atual.project_id;
-    const recusaStatus = await recusaDoStatus(c.env.DB, id, atual.status, body.status);
-    if (recusaStatus) return c.json({ error: recusaStatus }, body.status === 'Accepted' ? 403 : 409);
+    // Accepted não se grava pelo PUT (o aceite é o ato com senha); o resto do status é livre e não derruba o aceite.
+    const recusaStatus = recusaDoStatus(atual.status, body.status);
+    if (recusaStatus) return c.json({ error: recusaStatus }, 403);
     // O projeto vem do risco gravado, nunca do corpo.
     const fora = await refForaDoProjeto(c.env.DB, projectId, body, ['control_id', 'asset_id', 'owner_parte_id', 'ropa_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
@@ -126,13 +127,16 @@ risks.put('/api/v1/risks/:id', async (c) => {
     // F2 (0073): atividade e residual também são parciais; o nível residual é recalculado com o que fica gravado.
     const residualImpact = anulavel('residual_impact');
     const residualProbability = anulavel('residual_probability');
-    // Aceite carimbado pelo servidor só na transição para Accepted; accepted_by/accepted_at do corpo são ignorados.
+    // accepted_by/accepted_at do corpo são ignorados. O aceite com senha não depende do status (migration 0121): o status muda
+    // livremente e o aceite só cai se o estado aceito mudar (conferirAceite, abaixo). `caiu` e `saiu` são do aceite ANTIGO (status
+    // Accepted sem senha, de antes da 0120): notas mudadas ou saída de Accepted o desfazem, como antes.
     const email = c.get('user')?.email ?? 'system';
-    const caiu = aceiteCaiu(atual as Parameters<typeof aceiteCaiu>[0], { impact, probability, residual_impact: residualImpact, residual_probability: residualProbability, status: obrigatoria('status') });
+    // Legado = Accepted sem NENHUMA linha de aceite (o que já teve aceite com senha segue a regra do aceite com senha).
+    const legado = atual.status === 'Accepted' && !(await temAceiteRegistrado(c.env.DB, id));
+    const caiu = legado && aceiteCaiu(atual as Parameters<typeof aceiteCaiu>[0], { impact, probability, residual_impact: residualImpact, residual_probability: residualProbability, status: obrigatoria('status') });
     const status = caiu ? 'Open' : obrigatoria('status');
     const aceite = carimboDeAceite(atual.status, status, email);
-    // Sair de Accepted por status explícito também desfaz o aceite: o carimbo não sobrevive ao status.
-    const saiu = !caiu && atual.status === 'Accepted' && status !== 'Accepted';
+    const saiu = legado && !caiu && status !== 'Accepted';
 
     await c.env.DB.prepare(
       `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, aceite_manual=CASE WHEN ? THEN 0 ELSE aceite_manual END, ropa_id=?, residual_impact=?, residual_probability=?, residual_level=?, treatment_due_date=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
@@ -169,8 +173,8 @@ risks.put('/api/v1/risks/:id', async (c) => {
          VALUES (?, ?, ?, ?, ?, ?)`
       ).bind(histId, id, projectId, impact, probability, level).run();
     }
-    // Aceite com senha: mudou o que foi aceito (notas, residual, estratégia, plano, controle), o aceite cai e o risco volta ao status
-    // de antes. O pedido de aceite aberto acompanha o conteúdo novo. O aceite antigo (sem senha) segue a regra das notas, abaixo.
+    // Aceite com senha: mudou o que foi aceito (notas, residual, estratégia, plano, controle), o aceite cai (o status não muda).
+    // O pedido de aceite aberto acompanha o conteúdo novo. O aceite antigo (sem senha) segue a regra das notas, abaixo.
     const invalidou = await conferirAceite(c.env.DB, id, email);
     await conferirPedidosDoDocumento(c, 'risco', id, projectId);
     if (caiu && !invalidou) await logAudit(c.env.DB, 'risk.aceite_invalidado', email, `Risco ${id}: as notas mudaram depois do aceite; voltou a Aberto`, '', '', projectId);

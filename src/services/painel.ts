@@ -140,6 +140,7 @@ type Celula = { p: number; i: number; n: number };
 export { SQL_EVIDENCIA_VENCIDA, SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 import { escopoRopa } from './escopo-itens';
+import { SQL_RISCO_TRATADO } from './aceite-risco';
 /** Escopo do SGSI registrado (ISO/IEC 27001, 4.3), sobre `projects p LEFT JOIN context_analysis x`: a mesma regra no Painel e na Prontidão. */
 export const SQL_ESCOPO_DEFINIDO = `(trim(COALESCE(p.scope, '')) <> '' OR (x.notes IS NOT NULL AND CASE WHEN json_valid(x.notes) THEN trim(COALESCE(json_extract(x.notes, '$.perimeter'), '')) <> ''
           ELSE trim(x.notes) <> '' END))`;
@@ -212,11 +213,11 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     db.prepare(`SELECT substr(recebido_em, 1, 7) AS m FROM titular_pedidos WHERE project_id = ?1 AND substr(recebido_em, 1, 10) >= ?2`).bind(projectId, mesesAtras(dia, 11) + '-01'),
     // Riscos das atividades (F2): o mesmo recorte do Mapa de risco do n.privacy.
     db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1${escopoRopa('atividades')} GROUP BY probability, impact`).bind(projectId),
-    // Indicadores de andamento (% de gaps e de riscos das atividades concluídos). Gap = ação corretiva da atividade; risco tratado = fechado, mitigado ou aceito.
+    // Indicadores de andamento (% de gaps e de riscos das atividades concluídos). Gap = ação corretiva da atividade; risco tratado = SQL_RISCO_TRATADO (services/aceite-risco.ts).
     db.prepare(`SELECT (SELECT count(*) FROM corrective_actions WHERE project_id = ?1${escopoRopa('atividades')}) AS gaps,
         (SELECT count(*) FROM corrective_actions WHERE project_id = ?1 ${escopoRopa('atividades')} AND status = 'Closed') AS gaps_ok,
         (SELECT count(*) FROM risks WHERE project_id = ?1${escopoRopa('atividades')}) AS riscos,
-        (SELECT count(*) FROM risks WHERE project_id = ?1 ${escopoRopa('atividades')} AND status IN ('Closed', 'Mitigated', 'Accepted')) AS riscos_ok`).bind(projectId),
+        (SELECT count(*) FROM risks WHERE project_id = ?1 ${escopoRopa('atividades')} AND ${SQL_RISCO_TRATADO}) AS riscos_ok`).bind(projectId),
   ]);
   const [ativ, ripd, lias, pedidos90, incidentes12, evid, ciclo, meses, mapa, andamento] = respostas.slice(consultas.length);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
@@ -307,12 +308,13 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
     db.prepare(`SELECT substr(title, 1, 3) AS tema, ${SQL_CLASSE_CONTROLE} AS classe, count(*) AS n FROM compliance_controls
       WHERE project_id = ?1 GROUP BY 1, 2`).bind(projectId),
     // Riscos do n.iso (sem atividade de tratamento): tratados / em tratamento (com plano) / sem tratamento definido.
-    db.prepare(`SELECT sum(CASE WHEN COALESCE(status, 'Open') IN ('Mitigated', 'Accepted', 'Closed') THEN 1 ELSE 0 END) AS feito,
-        sum(CASE WHEN COALESCE(status, 'Open') NOT IN ('Mitigated', 'Accepted', 'Closed') AND trim(COALESCE(treatment_plan, '')) <> '' THEN 1 ELSE 0 END) AS andamento,
-        sum(CASE WHEN COALESCE(status, 'Open') NOT IN ('Mitigated', 'Accepted', 'Closed') AND trim(COALESCE(treatment_plan, '')) = '' THEN 1 ELSE 0 END) AS falta
+    // Tratado: SQL_RISCO_TRATADO (o aceite do residual só trata o risco de estratégia "aceitar"; migration 0121).
+    db.prepare(`SELECT sum(CASE WHEN ${SQL_RISCO_TRATADO} THEN 1 ELSE 0 END) AS feito,
+        sum(CASE WHEN NOT ${SQL_RISCO_TRATADO} AND trim(COALESCE(treatment_plan, '')) <> '' THEN 1 ELSE 0 END) AS andamento,
+        sum(CASE WHEN NOT ${SQL_RISCO_TRATADO} AND trim(COALESCE(treatment_plan, '')) = '' THEN 1 ELSE 0 END) AS falta
       FROM risks WHERE project_id = ?1${escopoRopa('programa')}`).bind(projectId),
     db.prepare(`SELECT threat FROM risks WHERE project_id = ?1${escopoRopa('programa')} AND risk_level IN ('High', 'Critical') AND COALESCE(status, 'Open') = 'Open'
-      AND trim(COALESCE(treatment_plan, '')) = '' ORDER BY impact * probability DESC, threat`).bind(projectId),
+      AND NOT ${SQL_RISCO_TRATADO} AND trim(COALESCE(treatment_plan, '')) = '' ORDER BY impact * probability DESC, threat`).bind(projectId),
     db.prepare(`SELECT sum(CASE WHEN COALESCE(status, 'Open') = 'Closed' THEN 1 ELSE 0 END) AS feito,
         sum(CASE WHEN COALESCE(status, 'Open') <> 'Closed' AND (due_date IS NULL OR substr(due_date, 1, 10) >= ?2) THEN 1 ELSE 0 END) AS andamento,
         sum(CASE WHEN COALESCE(status, 'Open') <> 'Closed' AND substr(due_date, 1, 10) < ?2 THEN 1 ELSE 0 END) AS falta

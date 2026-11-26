@@ -9,6 +9,8 @@
 // ficar velho.
 
 export const ROTAS = {
+  'GET /api/v1/evidence/{id}': { obrigatorios: [] },
+  'GET /api/v1/projects/{projectId}/evidence': { obrigatorios: [] },
   'PATCH /api/v1/projects/{id}/controls': { obrigatorios: [] },
   'PATCH /api/v1/projects/{projectId}/evidence/{evidenceId}': { obrigatorios: [] },
   'PATCH /api/v1/projects/{projectId}/passos/{itemId}': { obrigatorios: [] },

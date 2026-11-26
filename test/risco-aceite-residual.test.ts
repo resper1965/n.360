@@ -1,5 +1,7 @@
 // Aceite do risco residual (ISO/IEC 27001, 6.1.3 e; migration 0120): quem tem a alçada aceita, com senha, um risco por vez; o aceite
 // congela o estado do risco e cai sozinho quando o residual, a estratégia ou o controle mudam; só quem aceitou revoga, com motivo.
+// O aceite é independente do status do tratamento (migration 0121): aceitar, revogar ou invalidar não mudam o status, e o status
+// muda livremente sem derrubar o aceite.
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
@@ -60,7 +62,9 @@ describe('aceite direto, com senha', () => {
     expect(r.status, await r.clone().text()).toBe(200);
 
     const linha = await doRisco(cons, 'rk-1');
-    expect(linha.status).toBe('Accepted');
+    // Aceitar não muda o status do tratamento; o carimbo de quem aceitou fica.
+    expect(linha.status).toBe('Mitigated');
+    expect((await risco('rk-1')).accepted_by).toBe('Carla Ceo');
     expect(linha.aceite).toMatchObject({ situacao: 'aceito', por: 'Carla Ceo', com_senha: true, papel: 'ceo', pode_aceitar: false });
     expect(linha.aceite.em).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/);
 
@@ -71,6 +75,9 @@ describe('aceite direto, com senha', () => {
     });
     expect(JSON.parse(prova.conteudo_json)).toMatchObject({ nivel_residual: 'Low', estrategia: 'Mitigate', controle: 'A.8.13 Backup', plano: 'Backup diário' });
     expect(prova.hash).toMatch(/^[0-9a-f]{64}$/);
+    // O hash e o estado aceitos vão a quem lê o risco (não só a quem aceitaria).
+    expect(linha.aceite.hash).toBe(prova.hash);
+    expect(linha.aceite.estado_aceito).toEqual(JSON.parse(prova.conteudo_json));
     expect((await trilha('risk.aceite_residual', 'rk-1')).justification).toBe('Residual baixo com backup testado');
   });
 
@@ -101,20 +108,86 @@ describe('aceite direto, com senha', () => {
     expect((await r.json<any>()).error).toContain('risco residual');
   });
 
-  it('status Accepted não se grava pelo PUT nem nasce no POST; aceito com senha não sai por status', async () => {
+  it('status Accepted não se grava pelo PUT nem nasce no POST; o status do risco aceito muda livremente e o aceite fica', async () => {
     expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-2', { status: 'Accepted' })).status).toBe(403);
     expect((await chamar(cons, 'POST', `/api/v1/projects/${P}/risks`, { asset: 'X', threat: 'Y', status: 'Accepted' })).status).toBe(403);
     await aceitar(ceo, 'rk-1');
-    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status: 'Open' })).status).toBe(409);
-    expect((await risco('rk-1')).status).toBe('Accepted');
+    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status: 'Accepted' })).status).toBe(403);
+    for (const status of ['Open', 'Closed']) {
+      const r = await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status });
+      expect(r.status, await r.clone().text()).toBe(200);
+      expect(await risco('rk-1')).toMatchObject({ status, accepted_by: 'Carla Ceo' });
+      expect((await aceites('rk-1'))[0].situacao).toBe('vigente');
+      expect((await doRisco(cons, 'rk-1')).aceite.situacao).toBe('aceito');
+    }
+    // Já aceito: um segundo aceite é recusado, mesmo com o status mudado.
+    const de_novo = await aceitar(ceo, 'rk-1');
+    expect(de_novo.status).toBe(403);
+    expect((await de_novo.json<any>()).error).toContain('já está aceito');
+    // Nem pedido de aceite para risco com aceite vigente (aberto, para não ser a recusa do encerrado).
+    await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status: 'Open' });
+    const pedido = await chamar(cons, 'POST', `/api/v1/projects/${P}/pedidos`, { tipo: 'risco', ref_id: 'rk-1', papel_exigido: 'ceo', destinatarios: [{ email: 'ceo@cliente.com' }] });
+    expect(pedido.status).toBe(409);
+  });
+
+  it('risco encerrado sem residual: o aceite não se aplica (lista e CSV)', async () => {
+    expect((await doRisco(cons, 'rk-sem')).aceite.situacao).toBe('pendente');
+    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-sem', { status: 'Closed' })).status).toBe(200);
+    expect((await doRisco(cons, 'rk-sem')).aceite).toMatchObject({ situacao: 'nao_se_aplica', pode_aceitar: false, motivo_nao_aceita: null });
+    const csv = await (await chamar(cons, 'GET', `/api/v1/projects/${P}/export/risks`)).text();
+    expect(csv.split('\n').find((l) => l.includes('Furto'))).toContain('"Não se aplica"');
+    // Encerrado COM residual segue pendente: o aceite do residual ainda se aplica à prova.
+    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-2', { status: 'Closed' })).status).toBe(200);
+    expect((await doRisco(cons, 'rk-2')).aceite.situacao).toBe('pendente');
+  });
+
+  it('revogar e invalidar não mexem no status mudado depois do aceite', async () => {
+    await aceitar(ceo, 'rk-1');
+    await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status: 'Closed' });
+    expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Revisão do residual', senha: SENHA })).status).toBe(200);
+    expect((await risco('rk-1')).status).toBe('Closed');
+    await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status: 'Open' });
+    expect((await aceitar(ceo, 'rk-1')).status).toBe(200);
+    await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status: 'Mitigated' });
+    await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { residual_impact: 4 });
+    expect((await aceites('rk-1')).map((a: any) => a.situacao)).toEqual(['revogado', 'invalidado']);
+    expect(await risco('rk-1')).toEqual({ status: 'Mitigated', accepted_by: null, accepted_at: null });
+  });
+
+  it('dado de antes da 0121 (Accepted com aceite vigente): sair de Accepted não desfaz o aceite com senha', async () => {
+    await aceitar(ceo, 'rk-1');
+    await env.DB.prepare(`UPDATE risks SET status = 'Accepted' WHERE id = 'rk-1'`).run();
+    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { status: 'Mitigated' })).status).toBe(200);
+    expect(await risco('rk-1')).toMatchObject({ status: 'Mitigated', accepted_by: 'Carla Ceo' });
+    expect((await aceites('rk-1'))[0].situacao).toBe('vigente');
+  });
+
+  it('aceite antigo (status Accepted sem linha, de antes da 0120) segue aceito, como legado', async () => {
+    await env.DB.prepare(`UPDATE risks SET status = 'Accepted', accepted_by = 'Ana Exemplo', accepted_at = '2026-10-01T10:00:00Z' WHERE id = 'rk-2'`).run();
+    expect((await doRisco(cons, 'rk-2')).aceite).toMatchObject({ situacao: 'aceito', legado: true, com_senha: false, por: 'Ana Exemplo', hash: null });
+    // Sem aceite vigente, o legado é aceitável com senha (aceitável = não encerrado, com residual, sem aceite vigente); o status fica.
+    expect((await doRisco(ceo, 'rk-2')).aceite.pode_aceitar).toBe(true);
+    expect((await aceitar(ceo, 'rk-2')).status).toBe(200);
+    expect((await doRisco(cons, 'rk-2')).aceite).toMatchObject({ situacao: 'aceito', legado: false, com_senha: true, por: 'Carla Ceo' });
+    expect((await risco('rk-2')).status).toBe('Accepted');
+    // Revogado: não volta a "aceito" legado pelo status (legado é só o risco sem NENHUMA linha de aceite).
+    expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-2/aceite/revogar', { motivo: 'Revisão do residual', senha: SENHA })).status).toBe(200);
+    expect((await doRisco(cons, 'rk-2')).aceite).toMatchObject({ situacao: 'revogado', legado: false });
+    expect(await risco('rk-2')).toEqual({ status: 'Accepted', accepted_by: null, accepted_at: null });
+    // E o PUT não o trata como legado: mudar as notas não o devolve a Open.
+    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-2', { impact: 3 })).status).toBe(200);
+    expect((await risco('rk-2')).status).toBe('Accepted');
+    const csv = await (await chamar(cons, 'GET', `/api/v1/projects/${P}/export/risks`)).text();
+    expect(csv.split('\n').find((l) => l.includes('Indisponibilidade'))).toContain('"Aceite revogado"');
   });
 });
 
 describe('o aceite congela o estado do risco', () => {
+  // Cada campo que mudou vai ao motivo com o valor aceito e o novo.
   const casos: [string, Record<string, unknown>, string][] = [
-    ['nível residual', { residual_impact: 4 }, 'impacto_residual'],
-    ['estratégia de tratamento', { treatment: 'Transfer' }, 'estrategia'],
-    ['controle vinculado', { control_id: 'c-2' }, 'controle'],
+    ['nível residual', { residual_impact: 4 }, 'impacto_residual: 2 -> 4, nivel_residual: Low -> Medium'],
+    ['estratégia de tratamento', { treatment: 'Transfer' }, 'estrategia: Mitigate -> Transfer'],
+    ['controle vinculado', { control_id: 'c-2' }, 'controle: A.8.13 Backup -> A.8.14 Redundância'],
   ];
   for (const [o, corpo, campo] of casos) {
     it(`mudar ${o} de um risco aceito o devolve a "aceite pendente"`, async () => {
@@ -125,7 +198,7 @@ describe('o aceite congela o estado do risco', () => {
       expect(prova.situacao).toBe('invalidado');
       expect(prova.motivo).toContain(campo);
       expect(prova.encerrado_por).toBe('cons@ness.lat');
-      // Volta ao status de antes do aceite, sem o carimbo.
+      // O status não muda (nunca mudou); o carimbo sai.
       expect(await risco('rk-1')).toEqual({ status: 'Mitigated', accepted_by: null, accepted_at: null });
       expect((await doRisco(cons, 'rk-1')).aceite.situacao).toBe('pendente');
       expect((await trilha('risk.aceite_invalidado', 'rk-1')).details).toContain(campo);
@@ -136,7 +209,7 @@ describe('o aceite congela o estado do risco', () => {
     await aceitar(ceo, 'rk-1');
     expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { owner: 'TI' })).status).toBe(200);
     expect((await aceites('rk-1'))[0].situacao).toBe('vigente');
-    expect((await risco('rk-1')).status).toBe('Accepted');
+    expect((await risco('rk-1')).status).toBe('Mitigated');
   });
 
   it('a prova não se reescreve: o banco recusa mudar o que foi aceito ou reabrir um aceite encerrado', async () => {
@@ -150,18 +223,18 @@ describe('o aceite congela o estado do risco', () => {
 });
 
 describe('revogação', () => {
-  it('só quem aceitou revoga, com motivo; o risco volta ao status anterior e a lista mostra "revogado"', async () => {
+  it('só quem aceitou revoga, com motivo; o status não muda e a lista mostra "revogado"', async () => {
     await aceitar(ceo, 'rk-1');
     expect((await doRisco(lider, 'rk-1')).aceite.pode_revogar).toBe(false);
     expect((await chamar(lider, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Não fui eu que aceitei', senha: SENHA })).status).toBe(403);
     expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { senha: SENHA })).status).toBe(400);
     expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Auditoria apontou falha no backup' })).status).toBe(400);
     expect((await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Auditoria apontou falha no backup', senha: 'errada' })).status).toBe(401);
-    expect((await risco('rk-1')).status).toBe('Accepted');
+    expect((await risco('rk-1')).status).toBe('Mitigated');
     expect((await doRisco(ceo, 'rk-1')).aceite.pode_revogar).toBe(true);
     const r = await chamar(ceo, 'POST', '/api/v1/risks/rk-1/aceite/revogar', { motivo: 'Auditoria apontou falha no backup', senha: SENHA });
     expect(r.status, await r.clone().text()).toBe(200);
-    expect((await risco('rk-1')).status).toBe('Mitigated');
+    expect(await risco('rk-1')).toEqual({ status: 'Mitigated', accepted_by: null, accepted_at: null });
     const linha = await doRisco(cons, 'rk-1');
     expect(linha.aceite).toMatchObject({ situacao: 'revogado', revogado: { por: 'ceo@cliente.com', motivo: 'Auditoria apontou falha no backup' } });
     expect((await trilha('risk.aceite_revogado', 'rk-1')).justification).toBe('Auditoria apontou falha no backup');
@@ -219,7 +292,7 @@ describe('pedido de aceite em "Minhas aprovações"', () => {
   const pedir = (papel = 'ceo', ref = 'rk-1') => chamar(cons, 'POST', `/api/v1/projects/${P}/pedidos`,
     { tipo: 'risco', ref_id: ref, papel_exigido: papel, destinatarios: [{ email: 'ceo@cliente.com' }] });
 
-  it('o consultor pede; o CEO vê, aprova com senha, e o risco fica aceito com a prova ligada ao pedido', async () => {
+  it('o consultor pede; o CEO vê, aprova com senha, e o risco fica aceito (status igual) com a prova ligada ao pedido', async () => {
     const r = await pedir();
     expect(r.status, await r.clone().text()).toBe(201);
     const { id } = await r.json<any>();
@@ -230,7 +303,8 @@ describe('pedido de aceite em "Minhas aprovações"', () => {
 
     const ap = await chamar(ceo, 'POST', `/api/v1/pedidos/${id}/aprovar`, { senha: SENHA });
     expect(ap.status, await ap.clone().text()).toBe(200);
-    expect((await risco('rk-1')).status).toBe('Accepted');
+    expect((await risco('rk-1')).status).toBe('Mitigated');
+    expect((await doRisco(cons, 'rk-1')).aceite.situacao).toBe('aceito');
     const [prova] = await aceites('rk-1');
     expect(prova).toMatchObject({ pedido_id: id, aceito_por: 'ceo@cliente.com', papel: 'ceo', situacao: 'vigente' });
   });
@@ -314,7 +388,7 @@ describe('exportação e pacote de auditoria', () => {
     expect(csv).toContain('"Carla Ceo"');
     expect(csv).toContain('"Aceite pendente"');
     const pack = (await (await chamar(cons, 'GET', `/api/v1/projects/${P}/audit-pack`)).json<any>()).pack;
-    expect(pack.risks.find((r: any) => r.id === 'rk-1').status).toBe('Accepted');
+    expect(pack.risks.find((r: any) => r.id === 'rk-1').status).toBe('Mitigated');
     expect(pack.risk_acceptances).toHaveLength(1);
     expect(pack.risk_acceptances[0]).toMatchObject({ risk_id: 'rk-1', aceito_nome: 'Carla Ceo', situacao: 'vigente' });
     expect(pack.risk_acceptances[0]).not.toHaveProperty('ip');

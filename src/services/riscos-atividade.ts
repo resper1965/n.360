@@ -117,7 +117,10 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
   const resI = corpo.residual_impact === undefined ? atual.residual_impact : corpo.residual_impact;
   const resP = corpo.residual_probability === undefined ? atual.residual_probability : corpo.residual_probability;
   const aceite = carimboDeAceite(atual.status, corpo.status, ator);
-  const caiu = aceiteCaiu(atual, { impact: impacto, probability: prob, residual_impact: resI, residual_probability: resP, status: corpo.status ?? atual.status });
+  // `caiu` e `saiu` são do aceite ANTIGO (Accepted sem senha): o aceite com senha não depende do status (migration 0121).
+  const legado = atual.status === 'Accepted'
+    && !(await db.prepare('SELECT 1 FROM risco_aceites WHERE risk_id = ? LIMIT 1').bind(id).first());
+  const caiu = legado && aceiteCaiu(atual, { impact: impacto, probability: prob, residual_impact: resI, residual_probability: resP, status: corpo.status ?? atual.status });
   if (caiu) corpo = { ...corpo, status: 'Open' };
   const p = setParcial(corpo, {
     threat: null, vulnerability: null, asset_id: null, treatment: 'Mitigate', treatment_plan: null, residual_impact: null,
@@ -130,8 +133,8 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
     binds.push(await textoDoAtivo(db, corpo.asset_id, at.processing_purpose));
   }
   if (aceite) { extra.push('accepted_by = ?', 'accepted_at = ?', 'aceite_manual = 0'); binds.push(aceite.accepted_by, aceite.accepted_at); }
-  // Sair de Accepted por status explícito também desfaz o aceite (como a queda por notas).
-  const saiu = !caiu && atual.status === 'Accepted' && corpo.status !== undefined && corpo.status !== 'Accepted';
+  // Sair de Accepted por status explícito também desfaz o aceite antigo (como a queda por notas).
+  const saiu = legado && !caiu && corpo.status !== undefined && corpo.status !== 'Accepted';
   if (caiu || saiu) extra.push('accepted_by = NULL', 'accepted_at = NULL', 'aceite_manual = 0');
   await db.batch([
     db.prepare(
