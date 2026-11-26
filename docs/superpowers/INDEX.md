@@ -1,7 +1,7 @@
 # Índice de specs e planos
 
 Uma linha por spec (`specs/`) e por plano sem spec própria. O status sai da evidência (PR mergeado e artefato na `main`), não do
-cabeçalho do documento; conferido em 23/11/2026 sobre `origin/main` `2fc1261`.
+cabeçalho do documento; conferido em 23/11/2026 sobre `origin/main` `2fc1261`; as linhas dos painéis do n.ot e da spec de 26/11 foram reconferidas em 26/11/2026 sobre `e734f7a`.
 
 Regra: o status muda **no mesmo PR que constrói**, e o plano executado por inteiro vai para [`../arquivo/planos/`](../arquivo/planos/)
 no mesmo PR (`git mv`, consertando os links).
@@ -58,7 +58,8 @@ de apoio, não desenho de construção), **substituída**.
 | 2026-11-18 | [Onda 4: jornada comum](specs/2026-11-18-onda4-jornada-comum-design.md) | construída | #593 (`c0badf9`); `src/data/programa.ts` | [`arquivo/planos/2026-11-18-onda4-jornada-comum.md`](../arquivo/planos/2026-11-18-onda4-jornada-comum.md) |
 | 2026-11-19 | [Avaliação por IA em campo separado](specs/2026-11-19-avaliacao-ia-campo-separado-design.md) | construída | #596 (`b290f94`); migration 0118, `evidence.avaliacao_ia` | — |
 | 2026-11-19 | [Canal do titular](specs/2026-11-19-canal-do-titular-design.md) | parcialmente construída (PR1 a PR3; PR4 a executar) | #597, #599, #600 (`14a89d5`, `be6ec3a`, `d04a2e0`); migration 0117 | [`plans/2026-11-19-canal-do-titular.md`](plans/2026-11-19-canal-do-titular.md) (Task 8 substituída por [`plans/2026-11-20-lote3-e-canal-pr4.md`](plans/2026-11-20-lote3-e-canal-pr4.md)) |
-| 2026-11-19 | [Painéis do n.ot](specs/2026-11-19-paineis-do-n-ot-design.md) | aprovada (sem código) | plano no #604 (`5b17283`); sem `src/services/painel-ot-quadros.ts` | [`plans/2026-11-20-paineis-do-n-ot.md`](plans/2026-11-20-paineis-do-n-ot.md) |
+| 2026-11-19 | [Painéis do n.ot](specs/2026-11-19-paineis-do-n-ot-design.md) | construída (PR 1 a 4; o PR 5, plano por onda, não será feito por ora: fora da spec de 26/11) | #611 (`2cda0ae`), #616 (`20b1dba`), #618 (`f6bdb22`), #619 (`597e503`); `src/services/painel-ot-quadros.ts` | [`plans/2026-11-20-paineis-do-n-ot.md`](plans/2026-11-20-paineis-do-n-ot.md) |
+| 2026-11-26 | [n.ot: Implantação e Operação](specs/2026-11-26-n-ot-implantacao-e-operacao-design.md) | aprovada (sem código) | o próprio documento; nenhuma migration prevista | [`plans/2026-11-26-n-ot-implantacao-e-operacao.md`](plans/2026-11-26-n-ot-implantacao-e-operacao.md) |
 
 ## Planos em `plans/` sem spec própria
 
@@ -68,6 +69,6 @@ de apoio, não desenho de construção), **substituída**.
 | 2026-11-19 | [Pontos menores (três lotes)](plans/2026-11-19-pontos-menores.md) | lote 1 construído; lotes 2 e 3 a executar | #605 (`a4e9b31`); lote 3 no plano de 20/11 abaixo |
 | 2026-11-19 | [Saída do GitHub Actions](plans/2026-11-19-saida-do-github-actions.md) | para aprovação, não executado | `deploy.yml` e `db-migrate.yml` seguem ativos |
 | 2026-11-20 | [Lote 3 dos pontos menores e PR4 do canal](plans/2026-11-20-lote3-e-canal-pr4.md) | aprovado, a executar | #604 (`5b17283`) |
-| 2026-11-20 | [Painéis do n.ot](plans/2026-11-20-paineis-do-n-ot.md) | aprovado, a executar | #604 (`5b17283`); spec acima |
+| 2026-11-20 | [Painéis do n.ot](plans/2026-11-20-paineis-do-n-ot.md) | PR 1 a 4 construídos; PR 5 é esboço, não executado | #611, #616, #618, #619; spec acima |
 
 Planos executados de outubro e novembro: [`../arquivo/README.md`](../arquivo/README.md).
