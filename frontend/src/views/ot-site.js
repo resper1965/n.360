@@ -74,8 +74,9 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o site.', e); return; }
     const s = sites.find((x) => x.id === site);
     if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
-    // sem modo pedido (endereço, Abrir), a área decide; a aba que não é dessa área abre a primeira dela (spec 2026-11-26 §7)
-    modo = SUBS[modo] ? modo : (sit?.area ?? areaDaFase(sit?.fase)) === 'operacao' ? 'operacao' : 'projeto';
+    // sem modo pedido (endereço, Abrir), a área decide; a aba que não é dessa área abre a primeira dela (spec 2026-11-26 §7). Exceção
+    // até o PR8: as abas da implantação seguem válidas num site em operação (lote de revalidação, Novo levantamento).
+    modo = SUBS[modo] ? modo : modoDaAba(sub) === 'projeto' || (sit?.area ?? areaDaFase(sit?.fase)) !== 'operacao' ? 'projeto' : 'operacao';
     const pedida = ALIAS_ABA[sub] ?? sub;
     sub = SUBS[modo].includes(pedida) ? pedida : SUBS[modo][0];
     S.otSite = site; S.otSub = sub; S.otModo = modo;

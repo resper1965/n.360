@@ -46,7 +46,7 @@ export function cabecalhoDoSite(sit, site, papeis = { gestor: ehGestor(), editar
     const btnObra = !papeis.gestor ? '' : sit.obra ? (sit.obra.renovada ? '' : `<button class="btn" data-action="otObra" data-args='${args('renovar', site, sit.obra.ate)}'>Renovar obra</button>`)
         : sit.fase === 'em_operacao' ? `<button class="btn" data-action="otObra" data-args='${args('abrir', site)}'>Abrir obra</button>` : '';
     const topo = area === 'operacao' ? (desde ? `<p class="org-dica mb-3">Operação desde ${escapeHTML(desde)}</p>` : '')
-        : `<ol class="ot-regua" aria-label="Etapas da implantação">${ETAPAS_IMPLANTACAO.map((e, i) => (i + 1 === sit.etapa
+        : `<ol class="ot-regua" aria-label="${area === 'obra' ? 'Etapas da obra' : 'Etapas da implantação'}">${ETAPAS_IMPLANTACAO.map((e, i) => (i + 1 === sit.etapa
             ? `<li aria-current="step"><strong>${i + 1}. ${e}</strong></li>` : `<li>${i + 1}. ${e}</li>`)).join('')}</ol>`;
     const corpo = falta.length ? `<ul>${falta.map((f) => `<li>${escapeHTML(f)}</li>`).join('')}</ul>` : `<span>${escapeHTML(texto)}</span>`;
     return `<section class="card mb-4">${topo}
@@ -64,7 +64,8 @@ async function enviar(fn, ok, erro, depois = () => window.render()) {
 const proj = () => S.activeProject;
 
 window.otNovoLevantamentoDoSite = async () => {
-    if (S.otSub !== 'levantamento') { S.otSub = 'levantamento'; await window.render(); }
+    // em operação (revalidar) o Levantamento é aba da implantação: o modo vai junto, senão a tela cai em Saúde da coleta
+    if (S.otSub !== 'levantamento' || S.otModo !== 'projeto') { S.otSub = 'levantamento'; S.otModo = 'projeto'; await window.render(); }
     window.otNovoLevantamento();
 };
 window.otPedirBase = async (site) => {

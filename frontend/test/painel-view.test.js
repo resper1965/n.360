@@ -301,12 +301,6 @@ describe('início do n.360', () => {
         expect(sit.textContent).toContain('2 desvios abertos.');
         expect(sit.textContent).toContain('Mais urgente: 1 ação corretiva passou do prazo');
         expect(sit.querySelector('.btn-primary')).toBeNull();
-        // o item do n.ot leva o site e a aba (spec 2026-11-26 §7): abre o site na aba, no projeto do item
-        const itemOt = [...sit.querySelectorAll('[data-action="painelAbrirItem"]')].find((b) => JSON.parse(b.dataset.args)[1] === 'ot');
-        expect(JSON.parse(itemOt.dataset.args)).toEqual(['p9', 'ot', 'desvios', null, 's1']);
-        window.painelAbrirItem(...JSON.parse(itemOt.dataset.args));
-        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s1&aba=desvios');
-        S.activeProject = null;
         expect(chamadas(f)).toContain('GET /api/v1/projects/p9/painel');
         expect(S.activeProject).toBeNull();
         await window.painelVerSituacao('p9', 'Exemplo', ver);
@@ -315,6 +309,11 @@ describe('início do n.360', () => {
         await window.painelVerSituacao('p9', 'Exemplo', ver);
         expect(el('ini-sit-p9')).not.toBeNull();
         expect(chamadas(f).filter((x) => x.includes('/painel'))).toEqual(['GET /api/v1/projects/p9/painel']);
+        // o item do n.ot leva o site e a aba (spec 2026-11-26 §7): abre o site na aba, no projeto do item
+        const itemOt = [...el('ini-sit-p9').querySelectorAll('[data-action="painelAbrirItem"]')].find((b) => JSON.parse(b.dataset.args)[1] === 'ot');
+        expect(JSON.parse(itemOt.dataset.args)).toEqual(['p9', 'ot', 'desvios', null, 's1']);
+        window.painelAbrirItem(...JSON.parse(itemOt.dataset.args));
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s1&aba=desvios');
     });
 
     it('"Ver situação" com falha: diz isso na linha, sem segundo botão primário', async () => {

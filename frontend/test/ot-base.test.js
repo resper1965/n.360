@@ -88,6 +88,7 @@ describe('cabeçalho do site', () => {
         expect(render(sit('revalidar', { ...OPERACAO, base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Operação desde 10/11/2026');
         const obra = render(sit('comecar', { fase: 'em_obra', area: 'obra', etapa: 2, obra: { ate: '2026-12-05', renovada: false, justificativa: '' } }), EQ);
         expect(obra.textContent).toContain('Obra até 05/12');
+        expect(obra.querySelector('ol').getAttribute('aria-label')).toBe('Etapas da obra');
         expect(obra.querySelector('[aria-current="step"]').textContent).toContain('2. Levantar');
         for (const c of [op, obra]) for (const velho of ['Modo projeto', 'Modo operação', 'Em operação']) expect(c.textContent).not.toContain(velho);
     });

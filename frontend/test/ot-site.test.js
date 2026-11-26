@@ -751,6 +751,27 @@ describe('lista de sites e tela do site (Task 4)', () => {
         history.replaceState(null, '', '/');
     });
 
+    it('site em Operação: aba da implantação pedida (revisar, lote de revalidação) abre a aba, não a Saúde; Novo levantamento abre o Levantamento', async () => {
+        const OP = sit('revalidar', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00', revalidar_em: '2026-12-20' });
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: OP });
+        await ir({ site: 's1', modo: null, sub: 'revisar' });
+        expect([S.otModo, S.otSub]).toEqual(['projeto', 'aprovacao']);
+        expect(window.location.search).toBe('?ot=site&site=s1&aba=aprovacao');
+        await ir({ site: 's1', modo: null, sub: null }); // sem aba, a área decide
+        expect([S.otModo, S.otSub]).toEqual(['operacao', 'saude']);
+        // "Revalide → Novo levantamento": o modo vai junto com a aba
+        S.otTela = 'site'; S.otSite = 's1';
+        const original = window.otNovoLevantamento;
+        window.otNovoLevantamento = vi.fn();
+        window.render = vi.fn(() => ir({ site: S.otSite, modo: S.otModo, sub: S.otSub }));
+        try {
+            await window.otNovoLevantamentoDoSite();
+            expect([S.otModo, S.otSub]).toEqual(['projeto', 'levantamento']);
+            expect(window.otNovoLevantamento).toHaveBeenCalled();
+        } finally { window.otNovoLevantamento = original; }
+        history.replaceState(null, '', '/');
+    });
+
     it('resolverDesvio: acha o site do desvio sem filtro de situação; desvio ausente dá null', async () => {
         servirOt(ROTAS);
         expect(await resolverDesvio(S.activeProject, 'd1')).toEqual({ site_id: 's2' });
