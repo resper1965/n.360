@@ -35,6 +35,7 @@ export const ROTAS = {
   'POST /api/v1/evidence/{id}/approve': { obrigatorios: [] },
   'POST /api/v1/evidence/{id}/controles': { obrigatorios: ['control_id'] },
   'POST /api/v1/evidence/{id}/evaluate': { obrigatorios: [] },
+  'POST /api/v1/evidence/{id}/riscos': { obrigatorios: ['risk_id'] },
   'POST /api/v1/fornecedor-modelos/{tipo}/perguntas': { obrigatorios: ['tema', 'texto'] },
   'POST /api/v1/leads': { obrigatorios: ['company_name'] },
   'POST /api/v1/leads/{id}/enrich-cnpj': { obrigatorios: ['cnpj'] },

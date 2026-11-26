@@ -333,6 +333,8 @@ async function riscoDaEvidencia(c: Context<{ Bindings: Bindings; Variables: Vari
 
 evidenceApp.post('/:id/riscos', async (c) => {
   try {
+    // A guarda da evidência antes do corpo: evidência de outro projeto é 403/404 antes de qualquer validação.
+    await requireResourceAccess(c.env.DB, 'evidence', c.req.param('id'), c.get('user'));
     const v = await validateBody(c, evidenciaRiscoSchema);
     if (!v.success) return v.response;
     const r = await riscoDaEvidencia(c, v.data.risk_id);
