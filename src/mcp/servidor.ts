@@ -224,7 +224,7 @@ async function decidir(nome: string, args: Record<string, unknown> | undefined, 
   for (const p of parametrosDe(d.caminho)) {
     const v = p === 'projectId' ? projectId : a[p];
     if (typeof v !== 'string' || !v) return falha(`${p} é obrigatório para ${d.acao}`);
-    caminho = caminho.replace(`{${p}}`, encodeURIComponent(v));
+    caminho = caminho.replace(`{${p}}`, segmento(v));
   }
   if (nome === 'niso_publicar_documento' && d.acao === 'publicar') {
     if (typeof a.hash !== 'string' || !/^[0-9a-f]{64}$/.test(a.hash)) return falha('hash do rascunho mostrado é obrigatório para publicar');
@@ -285,6 +285,9 @@ async function notaDoAuditor(args: Record<string, unknown> | undefined, t: Trans
  * resolve) e qualquer caminho que o parser de URL reescreva. Id com caractere
  * que precise de codificação é recusado junto: os ids do n.iso não têm.
  */
+/** Um segmento de caminho: codifica tudo, menos o ":" dos ids do catálogo de requisitos (`lgpd:art23`), que é válido no caminho e o `caminhoSeguro` recusaria como `%3A`. */
+const segmento = (v: string) => encodeURIComponent(v).replace(/%3A/gi, ':');
+
 function caminhoSeguro(base: string, path: string): boolean {
   const q = path.indexOf('?');
   const rota = q === -1 ? path : path.slice(0, q);
@@ -340,7 +343,7 @@ function transporteInterno(bruto: Bruto): Transporte {
       const path = modelo.replace(/\{(\w+)\}/g, (_, k: string) => {
         // Mesma guarda do nisoContrato local: placeholder vazio viraria `{x}` literal e um 404 silencioso.
         if (!params[k]) throw new Error(`Parâmetro de caminho ausente: ${k} (rota ${rota})`);
-        return encodeURIComponent(params[k]);
+        return segmento(params[k]);
       });
       return chamar(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
     },

@@ -32,7 +32,7 @@ Cadastro compartilhado (vale com qualquer módulo):
 - Partes (pessoas e organizações; só organização tem cnpj): /api/v1/projects/{p}/partes · papéis (responsável, encarregado, dono): POST /api/v1/projects/{p}/partes/{id}/vinculos · Departamentos: /api/v1/projects/{p}/departamentos · Itens (ativos e sistemas): /api/v1/projects/{p}/assets
 - Fornecedores: /api/v1/projects/{p}/vendors (o perfil de segurança de uma parte que é terceiro) · tipo, criticidade, avaliação e homologação são decisão (niso_avaliar_fornecedor)
 - Importar programa (arquivos do cliente): niso_importar_programa · padronizar nomes: niso_padronizar_nomes · documento em arquivo: /api/v1/projects/{p}/documentos-arquivo (só leitura) · módulos do projeto: /api/v1/projects/{p}/modulos
-- Documentos: /api/v1/projects/{p}/documentos · Evidências: /api/v1/projects/{p}/evidence · texto: /api/v1/evidence/{id}/content (PUT regrava o texto)
+- Documentos: /api/v1/projects/{p}/documentos · Evidências: /api/v1/projects/{p}/evidence · texto: /api/v1/evidence/{id}/content (PUT regrava o texto) · evidência do tratamento de um risco (prova que o plano foi cumprido sem editar o plano nem derrubar o aceite): POST /api/v1/evidence/{id}/riscos { risk_id } (desligar: DELETE na mesma rota, com /{riskId} no fim); a lista sai em evidencias_tratamento de /api/v1/projects/{p}/risks
 - RoPA: /api/v1/projects/{p}/ropa · DPIA: /api/v1/projects/{p}/dpia · direitos do titular: /api/v1/projects/{p}/data-subject
 - Pedidos de aprovação e ciência: /api/v1/projects/{p}/pedidos (ler: niso_ler; criar: niso_pedir_aprovacao, um registro por pedido; aprovar é do destinatário) · Incidentes: /api/v1/projects/{p}/incidentes (prazos de comunicação em situacao_anpd e situacao_titular: no_prazo, vence_hoje, atrasado, sem_prazo, comunicado ou nao_exigida)
 - Governança: /api/v1/projects/{p}/governance (o agente só lê; incluir, editar ou tirar membro é pela interface) · /api/v1/projects/{p}/stakeholders (POST cria; PUT /api/v1/stakeholders/{id} edita) · /api/v1/projects/{p}/context
@@ -51,7 +51,7 @@ n.iso:
 - Fila do que fazer (os dois módulos): /api/v1/projects/{p}/painel (por módulo: fazer[] em atraso, semana e plano, vencimentos, cobertura e riscos; é por onde se começa uma rodada de correção)
 
 n.privacy:
-- Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd; situação coberto, parcial, lacuna ou nao_aplicavel) · catálogo (ids de base legal): /api/v1/requisitos?fonte=lgpd · marcar requisito como não aplicável (com justificativa) ou voltar a aplicar: niso_excluir_requisito
+- Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd; situação coberto, parcial, lacuna ou nao_aplicavel) · catálogo (ids de base legal): /api/v1/requisitos?fonte=lgpd · marcar requisito como não aplicável (com justificativa) ou voltar a aplicar: niso_excluir_requisito (chama PUT /api/v1/projects/{p}/requisitos/{requisitoId}/exclusao com { justificativa }, e DELETE na mesma rota para voltar; o id vai com os dois-pontos, ex. lgpd:art23)
 - Terceiros: /api/v1/projects/{p}/terceiros · Pedidos do titular: /api/v1/projects/{p}/titular-pedidos (prazo em situacao_prazo)
 - Consentimentos: /api/v1/projects/{p}/consentimentos · Encarregado: /api/v1/projects/{p}/encarregado
 - Ligações e LIA de um tratamento do RoPA: /api/v1/projects/{p}/ropa/{id}/ligacoes · /api/v1/projects/{p}/ropa/{id}/lia · questionário da LIA: /ropa/{id}/lia/questionario

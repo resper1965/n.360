@@ -5,8 +5,9 @@ import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAcce
 import type { PapelAssinatura } from '../helpers';
 import { EvidenceAgent } from '../agents/evidence';
 import { listPaged } from '../helpers';
-import { validateBody, evidenceContentSchema, evidenciaVincularSchema, evidenciaTextoSchema, evidenciaAssinarSchema, evidenciaAvaliacaoSchema, evidenciaControleSchema } from '../schemas';
+import { validateBody, evidenceContentSchema, evidenciaVincularSchema, evidenciaTextoSchema, evidenciaAssinarSchema, evidenciaAvaliacaoSchema, evidenciaControleSchema, evidenciaRiscoSchema } from '../schemas';
 import { comControles, ligarControle, desligarControle } from '../services/evidencia-controles';
+import { ligarRisco, desligarRisco } from '../services/evidencia-riscos';
 import { recusaDoModulo } from '../modulos';
 
 /**
@@ -310,6 +311,53 @@ evidenceApp.delete('/:id/controles/:controlId', async (c) => {
     return c.json({ ok: true, control_id: controlId });
   } catch (e) {
     return erro500(c, 'Erro ao desligar a evidência do controle', e);
+  }
+});
+
+/**
+ * Evidência do tratamento ligada ao RISCO (migration 0122): prova que o plano foi cumprido sem editar o plano, que faz parte do estado
+ * aceito. Não toca o risco: o aceite vigente e o hash dele ficam iguais. Exige o módulo do risco (n.privacy se for de uma atividade, n.iso se não).
+ * Mesma resposta para risco inexistente e de outro projeto.
+ */
+async function riscoDaEvidencia(c: Context<{ Bindings: Bindings; Variables: Variables }>, riskId: string) {
+  const id = c.req.param('id')!;
+  await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
+  const ev = await c.env.DB.prepare('SELECT id, project_id FROM evidence WHERE id = ?').bind(id).first<{ id: string; project_id: string }>();
+  if (!ev) return { resposta: c.json({ error: 'Evidência não encontrada' }, 404) };
+  const risco = await c.env.DB.prepare('SELECT id, ropa_id FROM risks WHERE id = ? AND project_id = ?').bind(riskId, ev.project_id).first<{ id: string; ropa_id: string | null }>();
+  if (!risco) return { resposta: c.json({ error: 'Risco não encontrado neste projeto' }, 404) };
+  const semModulo = await recusaDoModulo(c.env.DB, c.get('user'), ev.project_id, risco.ropa_id ? 'privacy' : 'iso');
+  if (semModulo) return { resposta: c.json({ error: semModulo }, 403) };
+  return { ev, risco };
+}
+
+evidenceApp.post('/:id/riscos', async (c) => {
+  try {
+    // A guarda da evidência antes do corpo: evidência de outro projeto é 403/404 antes de qualquer validação.
+    await requireResourceAccess(c.env.DB, 'evidence', c.req.param('id'), c.get('user'));
+    const v = await validateBody(c, evidenciaRiscoSchema);
+    if (!v.success) return v.response;
+    const r = await riscoDaEvidencia(c, v.data.risk_id);
+    if ('resposta' in r) return r.resposta;
+    const quem = c.get('user')?.email ?? 'system';
+    const ligou = await ligarRisco(c.env.DB, r.ev, r.risco.id, quem);
+    if (ligou) await logAudit(c.env.DB, 'evidence.risco_ligado', quem, `Evidência ${r.ev.id} ligada ao risco ${r.risco.id} como evidência do tratamento. O aceite do risco não muda.`, '', '', r.ev.project_id, { tipo: 'risk', id: r.risco.id });
+    return c.json({ ok: true, risk_id: r.risco.id, ligado: ligou }, ligou ? 201 : 200);
+  } catch (e) {
+    return erro500(c, 'Erro ao ligar a evidência ao risco', e);
+  }
+});
+
+evidenceApp.delete('/:id/riscos/:riskId', async (c) => {
+  try {
+    const r = await riscoDaEvidencia(c, c.req.param('riskId'));
+    if ('resposta' in r) return r.resposta;
+    if (!(await desligarRisco(c.env.DB, r.ev.id, r.risco.id))) return c.json({ error: 'A evidência não está ligada a este risco' }, 404);
+    const quem = c.get('user')?.email ?? 'system';
+    await logAudit(c.env.DB, 'evidence.risco_desligado', quem, `Evidência ${r.ev.id} desligada do risco ${r.risco.id}. O aceite do risco não muda.`, '', '', r.ev.project_id, { tipo: 'risk', id: r.risco.id });
+    return c.json({ ok: true, risk_id: r.risco.id });
+  } catch (e) {
+    return erro500(c, 'Erro ao desligar a evidência do risco', e);
   }
 });
 

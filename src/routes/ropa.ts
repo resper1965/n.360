@@ -4,6 +4,7 @@ import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, podeRevogarAprovacao, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema, riscoAceiteSchema, riscoRevogarAceiteSchema } from '../schemas';
+import { comEvidenciasDoTratamento } from '../services/evidencia-riscos';
 import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, RECUSA_STATUS_ACEITO, RECUSA_EXCLUIR_COM_ACEITE, temAceiteRegistrado, type RiscoBase } from '../services/aceite-risco';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
 import { lerImpacto, salvarImpacto } from '../services/impacto';
@@ -374,7 +375,7 @@ const ATO_HUMANO = { risco: 'aceitar risco é ato humano, pela interface' };
 
 projectRopaApp.get('/:recordId/riscos', async (c) => {
   const r = await listarRiscos(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
-  return r ? c.json({ riscos: await comAceite(c.env.DB, c.get('user'), c.req.param('projectId')!, r as unknown as RiscoBase[]) }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+  return r ? c.json({ riscos: await comEvidenciasDoTratamento(c.env.DB, c.req.param('projectId')!, await comAceite(c.env.DB, c.get('user'), c.req.param('projectId')!, r as unknown as RiscoBase[])) }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
 });
 
 projectRopaApp.post('/:recordId/riscos', async (c) => {

@@ -186,6 +186,8 @@ describe('o aceite congela o estado do risco', () => {
   // Cada campo que mudou vai ao motivo com o valor aceito e o novo.
   const casos: [string, Record<string, unknown>, string][] = [
     ['nível residual', { residual_impact: 4 }, 'impacto_residual: 2 -> 4, nivel_residual: Low -> Medium'],
+    ['probabilidade residual', { residual_probability: 4 }, 'probabilidade_residual: 2 -> 4'],
+    ['plano de tratamento', { treatment_plan: 'Backup semanal' }, 'plano: Backup diário -> Backup semanal'],
     ['estratégia de tratamento', { treatment: 'Transfer' }, 'estrategia: Mitigate -> Transfer'],
     ['controle vinculado', { control_id: 'c-2' }, 'controle: A.8.13 Backup -> A.8.14 Redundância'],
   ];
@@ -205,10 +207,12 @@ describe('o aceite congela o estado do risco', () => {
     });
   }
 
-  it('editar o que não foi aceito (responsável) mantém o aceite', async () => {
+  it('editar o que não foi aceito (responsável e prazo do tratamento) mantém o aceite', async () => {
     await aceitar(ceo, 'rk-1');
     expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { owner: 'TI' })).status).toBe(200);
+    expect((await chamar(cons, 'PUT', '/api/v1/risks/rk-1', { treatment_due_date: '2027-03-31' })).status).toBe(200);
     expect((await aceites('rk-1'))[0].situacao).toBe('vigente');
+    expect((await doRisco(cons, 'rk-1')).aceite.situacao).not.toBe('pendente');
     expect((await risco('rk-1')).status).toBe('Mitigated');
   });
 
