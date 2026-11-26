@@ -1,7 +1,7 @@
 import { ehConsultor, ehPapelCliente } from '../helpers';
 import { adminDireto } from './organizacao';
 import { gestorArciberDireto, podeVerCompleto, sitesPermitidos, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
-import { proximoPassoDe, sitesComZonas411, type Fase } from './ot-fase';
+import { areaEEtapa, proximoPassoDe, sitesComZonas411, type Area, type Fase } from './ot-fase';
 import { TEXTO_OT, type SiteNoPrograma } from './programa';
 import { situacaoSensor, type Cred } from './ot-sensor';
 import type { ItemFazer, Passo, Proximo, Saude } from './painel';
@@ -17,7 +17,7 @@ export type AtorPainelOt = AtorOt & { client_project_id?: string | null };
 export type PapelPainelOt = 'gestor' | 'equipe' | 'tecnico' | 'leitor';
 export type EstadoSonda = 'em_dia' | 'atrasada' | 'parada';
 /** Uma linha do quadro "Por site": nome de site e contagens (P0-6). `sonda` só existe para quem abre a rota de sonda (`podeVerCompleto`). */
-export type LinhaSiteOt = { id: string; nome: string; fase: string; proximo: string; desvios_abertos: number; revalidar_em: string | null; obra_ate: string | null; sonda?: EstadoSonda | null };
+export type LinhaSiteOt = { id: string; nome: string; fase: string; area: Area; etapa: 1 | 2 | 3 | 4 | null; proximo: string; desvios_abertos: number; revalidar_em: string | null; obra_ate: string | null; sonda?: EstadoSonda | null };
 
 const DIA_MS = 86_400_000;
 const plural = (q: number, um: string, varios: string) => `${q} ${q === 1 ? um : varios}`;
@@ -37,7 +37,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const veSondas = await podeVerCompleto(db, ator, projectId);
   const papel: PapelPainelOt = gestor ? 'gestor' : ator.role === 'org_user' ? 'tecnico' : ehPapelCliente(ator) ? 'leitor' : 'equipe';
   const NO_SITE = 'site_id IN (SELECT value FROM json_each(?2))';
-  const [sts, cont, sondas, creds, rasc, lotesRev, zonas, conteudo, revalid, desv] = await db.batch([
+  const [sts, cont, sondas, creds, rasc, lotesRev, zonas, conteudo, revalid, desv, ativosPorSite] = await db.batch([
     db.prepare(`SELECT id, nome, fase, substr(obra_ate, 1, 10) AS obra_ate, base_aprovada_em FROM ot_sites
       WHERE project_id = ?1 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?2)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
     db.prepare(`SELECT
@@ -46,6 +46,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
           AND site_id NOT IN (SELECT id FROM ot_sites WHERE project_id = ?1 AND obra_ate IS NOT NULL)) AS desvios_fora_de_obra,
         (SELECT count(*) FROM ot_lotes WHERE project_id = ?1 AND ${NO_SITE} AND status = 'em_revisao' AND criado_por IS NOT ?5) AS lotes,
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aceito' AND substr(aceito_ate, 1, 10) <= ?3) AS aceites,
+        (SELECT CASE WHEN count(DISTINCT site_id) = 1 THEN min(site_id) END FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aceito' AND substr(aceito_ate, 1, 10) <= ?3) AS aceites_site,
         (SELECT count(*) FROM ot_avaliacoes WHERE project_id = ?1 AND proxima_revisao IS NOT NULL AND proxima_revisao < ?4) AS revisoes`)
       .bind(projectId, sites, em7, dia, ator.id),
     db.prepare(`SELECT s.id, s.site_id, s.created_at,
@@ -63,9 +64,11 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
     db.prepare(`SELECT site_id, date(min(ultima_verificacao_em), '+24 months') AS em FROM ot_ativos
       WHERE project_id = ?1 AND status = 'ativo' AND no_arciber = 1 AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
     db.prepare(`SELECT site_id, count(*) AS n FROM ot_desvios WHERE project_id = ?1 AND situacao = 'aberto' AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
+    // Área e etapa por site (spec 2026-11-26 §1): a etapa 2 olha se há ativo; uma consulta agrupada, constante (não cresce com os sites).
+    db.prepare(`SELECT site_id, count(*) AS n FROM ot_ativos WHERE project_id = ?1 AND status = 'ativo' AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
   ]);
   const lista = sts.results as { id: string; nome: string; fase: string; obra_ate: string | null; base_aprovada_em: string | null }[];
-  const c = cont.results[0] as { desvios: number; desvios_fora_de_obra: number; lotes: number; aceites: number; revisoes: number };
+  const c = cont.results[0] as { desvios: number; desvios_fora_de_obra: number; lotes: number; aceites: number; aceites_site: string | null; revisoes: number };
   const cs = creds.results as (Cred & { sensor_id: string })[];
   const sondasLidas = sondas.results as { id: string; site_id: string; created_at: string; ultimo_envio: string | null }[];
   const estados = sondasLidas.map((s) => ({ site_id: s.site_id, estado: situacaoSensor(s.ultimo_envio ?? s.created_at, cs.filter((k) => k.sensor_id === s.id), agora) }));
@@ -74,23 +77,28 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const emAprovacao = lista.filter((s) => s.fase === 'base_em_aprovacao');
   const obras = lista.filter((s) => (s.fase === 'em_obra' || s.fase === 'base_em_aprovacao') && s.obra_ate && s.obra_ate <= em7);
 
-  const item = (grupo: ItemFazer['grupo'], q: number, um: string, varios: string, contexto: string, acao: string, aba: string): ItemFazer[] =>
-    q > 0 ? [{ grupo, quando: grupo === 'atraso' ? 'Agora' : 'Nesta semana', texto: plural(q, um, varios), contexto, acao, tela: 'ot', aba, modulo: 'ot' }] : [];
+  const por = <T extends { site_id: string }>(r: unknown) => new Map((r as T[]).map((x) => [x.site_id, x]));
+  const [mRasc, mLotes, mRev, mDesv, mAtivos] = [rasc, lotesRev, revalid, desv, ativosPorSite].map((r) => por<{ site_id: string; n: number; em?: string | null }>(r.results));
+  // Spec 2026-11-26 §7: o item leva o site quando o grupo é de um site só (id de site permitido: tudo acima sai de `sites`); abas finais.
+  const umSo = (ids: string[]) => { const u = [...new Set(ids)]; return u.length === 1 ? u[0] : undefined; };
+  const comObra = new Set(lista.filter((s) => s.obra_ate).map((s) => s.id));
+  const siteDesvios = umSo([...mDesv.keys()].filter((id) => !comObra.has(id)));
+  const item = (grupo: ItemFazer['grupo'], q: number, um: string, varios: string, contexto: string, acao: string, aba?: string, site?: string): ItemFazer[] =>
+    q > 0 ? [{ grupo, quando: grupo === 'atraso' ? 'Agora' : 'Nesta semana', texto: plural(q, um, varios), contexto, acao, tela: 'ot', ...(aba ? { aba } : {}), ...(site ? { site } : {}), modulo: 'ot' }] : [];
   const itens: ItemFazer[] = [
-    ...(veSondas ? item('atraso', paradas.length, 'sonda parada', 'sondas paradas', exemplos([...new Set(paradas.map((s) => nome(s.site_id)))]), 'Ver as sondas', 'acessos') : []),
+    ...(veSondas ? item('atraso', paradas.length, 'sonda parada', 'sondas paradas', exemplos([...new Set(paradas.map((s) => nome(s.site_id)))]), 'Ver as sondas', 'sondas') : []),
     ...(gestor ? item('atraso', c.revisoes, 'requisito com revisão vencida', 'requisitos com revisão vencida', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment') : []),
     // a tela tira os desvios de site com obra ativa (situacao.obra = obra_ate preenchida); o número do topo segue contando todos
-    ...(aprova ? item('semana', c.desvios_fora_de_obra, 'desvio aberto', 'desvios abertos', 'O sensor viu o que não está na base aprovada', 'Ver os desvios', 'sites') : []),
-    ...(aprova ? item('semana', c.lotes, 'lote aguardando revisão', 'lotes aguardando revisão', 'Coleta enviada, esperando quem aprova', 'Revisar os lotes', 'sites') : []),
-    ...(gestor ? item('semana', emAprovacao.length, 'base aguardando aprovação', 'bases aguardando aprovação', exemplos(emAprovacao.map((s) => s.nome)), 'Abrir os sites', 'sites') : []),
-    ...(gestor ? item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', 'sites') : []),
-    ...(gestor ? item('semana', c.aceites, 'aceite de desvio vence em até 7 dias', 'aceites de desvio vencem em até 7 dias', 'Depois do prazo, o desvio reabre', 'Ver os desvios', 'sites') : []),
+    ...(aprova ? item('semana', c.desvios_fora_de_obra, 'desvio aberto', 'desvios abertos', 'O sensor viu o que não está na base aprovada', 'Ver os desvios', 'desvios', siteDesvios) : []),
+    ...(aprova ? item('semana', c.lotes, 'lote aguardando revisão', 'lotes aguardando revisão', 'Coleta enviada, esperando quem aprova', 'Revisar os lotes', 'revisar', umSo([...mLotes.keys()])) : []),
+    ...(gestor ? item('semana', emAprovacao.length, 'base aguardando aprovação', 'bases aguardando aprovação', exemplos(emAprovacao.map((s) => s.nome)), 'Abrir os sites', 'base', umSo(emAprovacao.map((s) => s.id))) : []),
+    ...(gestor ? item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', undefined, umSo(obras.map((s) => s.id))) : []),
+    ...(gestor ? item('semana', c.aceites, 'aceite de desvio vence em até 7 dias', 'aceites de desvio vencem em até 7 dias', 'Depois do prazo, o desvio reabre', 'Ver os desvios', 'desvios', c.aceites_site ?? undefined) : []),
   ];
-  const por = <T extends { site_id: string }>(r: unknown) => new Map((r as T[]).map((x) => [x.site_id, x]));
-  const [mRasc, mLotes, mRev, mDesv] = [rasc, lotesRev, revalid, desv].map((r) => por<{ site_id: string; n: number; em?: string | null }>(r.results));
   const [mZonas, mConteudo] = [zonas, conteudo].map((r) => new Set((r.results as { site_id: string }[]).map((x) => x.site_id)));
   // A régua do programa (P0-4): um item por site permitido, sem nome; a rota só o repassa a quem tem o bloco `ot`.
   const sitesPrograma: SiteNoPrograma[] = lista.map((s) => ({
+    id: s.id,
     proximo_passo: proximoPassoDe({ fase: s.fase as Fase, revalidar_em: mRev.get(s.id)?.em ?? null, tem_conteudo: mConteudo.has(s.id), zonas_4_1_1: mZonas.has(s.id),
       rascunhos_bloqueiam: Number(mRasc.get(s.id)?.n ?? 0), lotes_em_revisao: Number(mLotes.get(s.id)?.n ?? 0) }),
     desvios_abertos: Number(mDesv.get(s.id)?.n ?? 0),
@@ -100,6 +108,8 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const porSite: LinhaSiteOt[] = lista.map((s, i) => {
     const p = sitesPrograma[i];
     return { id: s.id, nome: s.nome, fase: s.fase,
+      ...areaEEtapa({ fase: s.fase as Fase, obra_ate: s.obra_ate, ativos: Number(mAtivos.get(s.id)?.n ?? 0), zonas_4_1_1: mZonas.has(s.id),
+        rascunhos_bloqueiam: Number(mRasc.get(s.id)?.n ?? 0), lotes_em_revisao: Number(mLotes.get(s.id)?.n ?? 0) }),
       proximo: p.proximo_passo === 'em_operacao' && p.desvios_abertos > 0 ? 'Tratar os desvios abertos' : TEXTO_OT[p.proximo_passo],
       desvios_abertos: p.desvios_abertos, revalidar_em: mRev.get(s.id)?.em ?? null, obra_ate: s.obra_ate, ...(veSondas ? { sonda: sondaDo(s.id) } : {}) };
   });

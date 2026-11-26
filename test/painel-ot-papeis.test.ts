@@ -131,3 +131,25 @@ describe('?modulo=ot: leitor com todos os sites em operação; admin direto Gest
     expect(d.modulos.ot.fazer.map((i: any) => i.texto)).toEqual(expect.arrayContaining(['1 desvio aberto', '1 requisito com revisão vencida']));
   });
 });
+
+// Spec 2026-11-26 §1 e §7 (PR1a): área e etapa por site; item de um só site leva o site e a aba; o leitor não recebe site na régua.
+describe('?modulo=ot: área, etapa, site e aba (PR1a implantação e operação)', () => {
+  beforeAll(async () => {
+    await env.DB.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, status, criado_por) VALUES ('l-1a', 'proj-a', 's2', 'manual', 'em_revisao', 'u-t')`).run();
+  });
+  it('por_site traz área e etapa; o item de um só site leva o site e a aba', async () => {
+    const b = await ot(cons);
+    expect(b.modulos.ot.por_site.find((s: any) => s.id === 's2')).toMatchObject({ area: 'implantacao', etapa: 3 });
+    expect(b.modulos.ot.por_site.find((s: any) => s.id === 's1')).toMatchObject({ area: 'operacao', etapa: null });
+    const lote = b.modulos.ot.fazer.find((i: { texto: string }) => /lote/.test(i.texto));
+    expect(lote).toMatchObject({ tela: 'ot', aba: 'revisar', site: 's2' });
+    expect(b.programa.etapas.ot.proximo).toMatchObject({ tela: 'ot', site: 's2' });
+  });
+  it('leitor (client): a régua não leva site, nem no n.360 nem no ?modulo=ot', async () => {
+    for (const url of ['/api/v1/projects/proj-a/painel', '/api/v1/projects/proj-a/painel?modulo=ot']) {
+      const r = await (await chamar(leitor, url)).json() as { programa: { etapas: { ot?: { proximo?: Record<string, unknown> } } } };
+      expect(r.programa.etapas.ot?.proximo).toBeTruthy();
+      expect(r.programa.etapas.ot?.proximo).not.toHaveProperty('site');
+    }
+  });
+});
