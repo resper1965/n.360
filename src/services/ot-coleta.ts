@@ -2,7 +2,7 @@
 // linhas → itens validados campo a campo → staging (`ot_lote_itens`, IP/MAC já cifrados) → aprovação de outra pessoa → `ot_ativos`.
 // Nada grava direto no inventário. O export de ativos do Nozomi tem perfil de fábrica no de-para (ot-depara.ts, `NOZOMI`); Claroty e
 // Tenable OT seriam outro mapa de cabeçalho como esse: não implementados sem amostra real de export.
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
 import { genId } from '../helpers';
 import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
@@ -86,7 +86,21 @@ export function semMacGateway(itens: Record<string, unknown>[]): number {
 
 type Erro = { campo: string; motivo: string };
 const FORMA: Record<string, ZodType> = otAtivoCriarSchema.shape;
-const CAMPOS_ITEM = new Set([...Object.keys(FORMA).filter((k) => k !== 'site_id'), 'zona']);
+const CAMPOS_ITEM = new Set([...Object.keys(FORMA).filter((k) => k !== 'site_id'), 'zona', 'alvo_id', 'remover']);
+/** Spec 2026-11-26, decisão 3: `alvo_id` (ativo ou fluxo do site do lote) altera esse registro; com `remover: true`, o remove. */
+export const ALVO: Record<'alvo_id' | 'remover', ZodType> = { alvo_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), remover: z.literal(true) };
+/** Separa `alvo_id`/`remover` do bruto. Com `remover`, o item é só `{ alvo_id, remover: 1 }` (sem alvo_id, erro). */
+export function separarAlvo(bruto: Record<string, unknown>) {
+  const erros: Erro[] = [];
+  const { alvo_id, remover, ...resto } = bruto;
+  const alvo: Record<string, unknown> = {};
+  for (const [k, v] of [['alvo_id', alvo_id], ['remover', remover]] as const) {
+    if (v === undefined) continue;
+    if (ALVO[k].safeParse(v).success) alvo[k] = k === 'remover' ? 1 : v; else erros.push({ campo: k, motivo: 'valor inválido' });
+  }
+  if (alvo.remover && !alvo.alvo_id && !erros.some((e) => e.campo === 'alvo_id')) erros.push({ campo: 'alvo_id', motivo: 'obrigatório para remover' });
+  return { resto, alvo, erros, remover: alvo.remover === 1 || remover !== undefined };
+}
 // P1-7: a mensagem de erro nunca carrega o valor (a do Zod para enum traz o recebido); só as nossas, de `refine`, vão como estão.
 const MOTIVO: Record<string, string> = { invalid_type: 'tipo inválido', invalid_value: 'valor fora da lista', invalid_format: 'formato inválido', too_big: 'acima do tamanho', too_small: 'vazio ou abaixo do mínimo' };
 
@@ -117,9 +131,11 @@ export const FALTA_4_3_1 = 'Ativo do ARCiber exige os campos mínimos do 4.3.1 d
  */
 export async function prepararItem(chaves: ChavesOt, projectId: string, id: string, bruto: Record<string, unknown>, zonas: Map<string, string>,
   tabela = 'ot_lote_itens') {
-  const erros: Erro[] = [];
+  const sep = separarAlvo(bruto);
+  if (sep.remover) return { dados: sep.alvo, erros: sep.erros };
+  const erros: Erro[] = sep.erros;
   const ok: Record<string, unknown> = {};
-  for (const [campo, valor] of Object.entries(bruto)) {
+  for (const [campo, valor] of Object.entries(sep.resto)) {
     if (!CAMPOS_ITEM.has(campo)) { erros.push({ campo, motivo: 'campo não aceito' }); continue; }
     if (campo === 'zona' || campo === 'zona_id') {
       const z = campo === 'zona' ? zonas.get(chave(String(valor))) : [...zonas.values()].find((x) => x === valor);
@@ -130,9 +146,11 @@ export async function prepararItem(chaves: ChavesOt, projectId: string, id: stri
     if (v.success) ok[campo] = v.data;
     else { const i = v.error.issues[0]; erros.push({ campo, motivo: i.code === 'custom' ? i.message : MOTIVO[i.code] ?? 'valor inválido' }); }
   }
-  if (ok.nome === undefined && !erros.some((e) => e.campo === 'nome')) erros.push({ campo: 'nome', motivo: 'obrigatório' });
+  // Com alvo_id, o nome é o do alvo (renomear é opcional).
+  if (ok.nome === undefined && !sep.alvo.alvo_id && !erros.some((e) => e.campo === 'nome')) erros.push({ campo: 'nome', motivo: 'obrigatório' });
   const { ip, mac, protocolos_portas, no_arciber, firmware_nao_aplicavel, ...resto } = ok;
   const dados: Record<string, unknown> = {
+    ...sep.alvo,
     ...resto,
     ...(no_arciber !== undefined && { no_arciber: Number(no_arciber) }),
     ...(firmware_nao_aplicavel !== undefined && { firmware_nao_aplicavel: Number(firmware_nao_aplicavel) }),
@@ -210,7 +228,10 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
       const id = genId();
       const entidade = entidades[n] ?? 'ativo';
       const { dados, erros } = entidade === 'fluxo' ? prepararFluxo(bruto, pontas!) : await prepararItem(chaves, projectId, id, bruto, mapaZonas);
-      const dup = entidade === 'fluxo' ? idxF.achar(dados) : idx.achar(dados);
+      // Com alvo_id, o alvo é ele (só do site do lote: outro site e inexistente dão o mesmo desfecho, P0-4/P0-5); senão, o índice.
+      const dup = dados.alvo_id ? (entidade === 'fluxo' ? (fluxos ?? []).find((f) => f.id === dados.alvo_id) : ativos.results.find((a) => a.id === dados.alvo_id))
+        : entidade === 'fluxo' ? idxF.achar(dados) : idx.achar(dados);
+      if (dados.alvo_id && !dup) erros.push({ campo: 'alvo_id', motivo: 'registro não encontrado neste site' });
       comErro += Number(erros.length > 0);
       dups += Number(!!dup);
       itemIds.push(id);
@@ -265,7 +286,7 @@ async function recifrar(chaves: ChavesOt, projectId: string, itemId: string, ati
  */
 export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string,
   desvio?: { env: Bindings; ctx: Pick<ExecutionContext, 'waitUntil'> }):
-  Promise<Falha | { ok: true; criados: number; atualizados: number; recusados: number; pendentes: number; fluxos_pendentes_resolvidos: number }> {
+  Promise<Falha | { ok: true; criados: number; atualizados: number; removidos: number; recusados: number; pendentes: number; fluxos_pendentes_resolvidos: number }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);
   if (!lote.ok) return lote;
   const trava = await db.prepare(`UPDATE ot_lotes SET status = 'gravando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?
@@ -282,6 +303,8 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   const idxF = indiceFluxos(fluxos);
   const zonasAtivas = new Set(zonas.results.map((z) => z.id));
   const idx = indice(ativos.results);
+  const porId = new Map(ativos.results.map((a) => [a.id, a])); // alvo por alvo_id, com o que este lote já gravou nele
+  const remocoes: string[] = []; // itens de remoção desta aprovação (contados depois do batch)
   const tocados = new Set<string>(); // ativos criados ou mesclados nesta aprovação: linhas do mesmo lote foram revisadas juntas
   const n = { criados: 0, atualizados: 0, recusados: 0 };
   const stmts: (D1PreparedStatement | D1PreparedStatement[])[] = [];
@@ -292,12 +315,32 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   for (const i of itens) {
     if ((JSON.parse(i.erros) as Erro[]).length) { recusar(i, ITEM_COM_ERRO); continue; }
     const d = JSON.parse(i.dados) as Record<string, unknown>;
+    if (d.remover) {
+      const tabela = i.entidade === 'fluxo' ? 'ot_fluxos' : 'ot_ativos';
+      const alvo = (i.entidade === 'fluxo' ? fluxos : ativos.results).find((x) => x.id === d.alvo_id); // só do site do lote (P0-4)
+      if (!alvo) { recusar(i, ALVO_INEXISTENTE); continue; } // outro site ou inexistente: o mesmo desfecho
+      // P1-4, a mesma trava da alteração: o alvo editado depois da revisão do item volta o item a pendente, nada é removido.
+      if (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) {
+        stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo.id, ALVO_MUDOU, i.id));
+        continue;
+      }
+      // O WHERE compara o updated_at lido (como o UPDATE da alteração): edição entre a leitura e a gravação deixa o item pendente.
+      // A remoção não carimba verificação (só a aprovação de item completo carimba o 4.3.1).
+      stmts.push([db.prepare(`UPDATE ${tabela} SET status = 'removido', updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND site_id = ? AND status = 'ativo' AND updated_at = ?`)
+        .bind(alvo.id, projectId, lote.site_id, alvo.updated_at),
+      db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END, registro_id = CASE WHEN changes() > 0 THEN ? END,
+        motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo.id, ALVO_MUDOU, i.id)]);
+      remocoes.push(i.id);
+      continue;
+    }
     if (i.entidade === 'fluxo') {
       const sumiu = (['origem', 'destino'] as const).some((l) => (d[`${l}_ativo_id`] && !pontas.ativos.has(d[`${l}_ativo_id`] as string))
         || (d[`${l}_zona_id`] && !pontas.zonas.has(d[`${l}_zona_id`] as string)));
       if (sumiu) { recusar(i, PONTA_REMOVIDA); continue; }
       // Regra do confronto do fluxo: casou na chave (confirma ou contradiz, recalculado agora) atualiza só os campos do item; senão, cria.
-      const alvo = idxF.achar(d);
+      const alvo = d.alvo_id ? fluxos.find((f) => f.id === d.alvo_id) : idxF.achar(d);
+      // Alvo que sumiu depois do envio: recusa (o INSERT de pontas vazias bateria no CHECK e prenderia o lote em `gravando`).
+      if (d.alvo_id && !alvo) { recusar(i, FLUXO_SUMIU); continue; }
       const fluxoId = alvo?.id ?? genId();
       // Pontas e direção são a chave do casamento: o UPDATE nunca as grava (bidirecional casado ao contrário trocaria as pontas).
       const cols = (['protocolo', 'porta', 'finalidade', 'externo', 'via_vpn'] as const).filter((k) => d[k] !== undefined);
@@ -315,7 +358,8 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       continue;
     }
     if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, ZONA_REMOVIDA); continue; }
-    const alvo = idx.achar(d);
+    const alvo = d.alvo_id ? porId.get(d.alvo_id as string) : idx.achar(d);
+    if (d.alvo_id && !alvo) { recusar(i, ALVO_INEXISTENTE); continue; } // sumiu depois do envio: nunca "alvo mudou" para sempre
     // P1-4: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão do item): o item volta a pendente, nada é gravado.
     if (alvo ? !tocados.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
       stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo?.id ?? null, ALVO_MUDOU, i.id));
@@ -340,11 +384,14 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       registro_id = CASE WHEN changes() > 0 THEN ? END, motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`)
       .bind(ativoId, ALVO_MUDOU, i.id)]);
     idx.add({ ...linha, id: ativoId } as Existente);
+    porId.set(ativoId, { ...linha, id: ativoId } as Existente);
     tocados.add(ativoId);
     n[alvo ? 'atualizados' : 'criados']++;
   }
   await emBlocos(db, stmts);
   const pendentes = (await db.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente'`).bind(loteId).first<{ n: number }>())?.n ?? 0;
+  const removidos = remocoes.length ? (await db.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'gravado' AND id IN (SELECT value FROM json_each(?))`)
+    .bind(loteId, JSON.stringify(remocoes)).first<{ n: number }>())?.n ?? 0 : 0;
   // Item que voltou a pendente deixa o lote em revisão para outra decisão; sem pendente, concluído.
   await db.prepare(pendentes
     ? `UPDATE ot_lotes SET status = 'em_revisao', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
@@ -367,7 +414,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     } catch (e) { console.error('ot.desvio: falha ao regularizar', e); }
   }
   await devolverRecusados(db, loteId);
-  return { ok: true, ...n, pendentes, fluxos_pendentes_resolvidos };
+  return { ok: true, ...n, removidos, pendentes, fluxos_pendentes_resolvidos };
 }
 
 const ALVO_MUDOU = 'O ativo de destino mudou depois da revisão: revise o item de novo';
@@ -375,8 +422,9 @@ const FLUXO_SUMIU = 'O fluxo de destino foi removido depois da revisão: revise 
 const ITEM_COM_ERRO = 'Item com erro de validação';
 const PONTA_REMOVIDA = 'Uma ponta do fluxo foi removida';
 const ZONA_REMOVIDA = 'A zona do item foi removida';
+const ALVO_INEXISTENTE = 'O registro não existe neste site';
 /** Motivos gerados pela aprovação (estado do inventário, não texto do revisor): quem não vê completo não os lê (oráculo, A1). */
-export const MOTIVOS_DO_SISTEMA = new Set([ALVO_MUDOU, FLUXO_SUMIU, ITEM_COM_ERRO, PONTA_REMOVIDA, ZONA_REMOVIDA, FALTA_4_3_1]);
+export const MOTIVOS_DO_SISTEMA = new Set([ALVO_MUDOU, FLUXO_SUMIU, ITEM_COM_ERRO, PONTA_REMOVIDA, ZONA_REMOVIDA, FALTA_4_3_1, ALVO_INEXISTENTE]);
 const RECUSADO_NA_APROVACAO = 'Recusado na aprovação';
 
 /** Motivo do revisor (já sem PII, `livreSemPii`) e "Lote rejeitado" ficam visíveis; os do sistema viram texto genérico para quem não vê completo. */

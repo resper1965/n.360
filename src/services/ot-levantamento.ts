@@ -70,7 +70,7 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
   };
 }
 
-const PARA_BRUTO = ['nome', 'zona_id', 'no_arciber', 'categoria_arciber', 'tipo_dispositivo', 'fabricante', 'modelo', 'funcao', 'firmware_so_versao',
+const PARA_BRUTO = ['alvo_id', 'remover', 'nome', 'zona_id', 'no_arciber', 'categoria_arciber', 'tipo_dispositivo', 'fabricante', 'modelo', 'funcao', 'firmware_so_versao',
   'firmware_nao_aplicavel'] as const;
 
 /**
@@ -99,12 +99,14 @@ export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id:
     for (const a of results) {
       const d = JSON.parse(a.dados) as Record<string, unknown>;
       if (a.entidade === 'fluxo') {
-        brutos.push({ ...d, ...(d.externo !== undefined && { externo: !!d.externo }), ...(d.via_vpn !== undefined && { via_vpn: !!d.via_vpn }) });
+        brutos.push({ ...d, ...(d.externo !== undefined && { externo: !!d.externo }), ...(d.via_vpn !== undefined && { via_vpn: !!d.via_vpn }),
+          ...(d.remover !== undefined && { remover: true }) });
         continue;
       }
       const b: Record<string, unknown> = Object.fromEntries(PARA_BRUTO.filter((k) => d[k] !== undefined && d[k] !== null).map((k) => [k, d[k]]));
       if (b.no_arciber !== undefined) b.no_arciber = !!b.no_arciber;
       if (b.firmware_nao_aplicavel !== undefined) b.firmware_nao_aplicavel = !!b.firmware_nao_aplicavel;
+      if (b.remover !== undefined) b.remover = true;
       if (typeof d.protocolos_portas === 'string') b.protocolos_portas = JSON.parse(d.protocolos_portas);
       for (const campo of ['ip', 'mac'] as const) {
         const c = d[`${campo}_cifrado`];

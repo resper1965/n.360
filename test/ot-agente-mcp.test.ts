@@ -231,6 +231,14 @@ describe('ferramentas', () => {
     expect(JSON.parse(resp[0])).toEqual({ criados: 0, recusados: [{ indice: 0, motivo: 'campo não aceito pelo agente' }], com_aviso: 0 });
   });
 
+  it('alvo_id e remover: recusa uniforme, como zona (o agente não altera nem remove inventário; spec 2026-11-26)', async () => {
+    for (const dados of [{ alvo_id: ids.a1, nome: 'Y' }, { alvo_id: 'x', nome: 'Y' }, { remover: true }, { alvo_id: ids.a1, remover: true }]) {
+      const r = await ferramenta(chave, 'registrar_achados', { levantamento_id: ids.lev, achados: [{ dados, evidencia: 'Página 9: CLP' }] });
+      expect(r.erro, r.texto).toBe(false);
+      expect(JSON.parse(r.texto), JSON.stringify(dados)).toEqual({ criados: 0, recusados: [{ indice: 0, motivo: 'campo não aceito pelo agente' }], com_aviso: 0 });
+    }
+  });
+
   it('argumentos fora do esquema estrito (projectId, project_id): recusados', async () => {
     for (const extra of [{ projectId: 'proj-b' }, { project_id: 'proj-b' }]) {
       const r = await ferramenta(chave, 'registrar_achados', { levantamento_id: ids.lev, achados: [{ dados: { nome: 'x' }, evidencia: 'y' }], ...extra });

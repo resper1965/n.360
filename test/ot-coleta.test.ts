@@ -276,7 +276,7 @@ describe('aprovação promove ao inventário', () => {
 
     const t = await env.DB.prepare(`SELECT actor, details FROM audit_logs WHERE action = 'ot.lote.aprovado' ORDER BY rowid DESC LIMIT 1`).first<Record<string, string>>();
     expect(t).toMatchObject({ actor: 'gestor@cliente.teste' });
-    expect(t!.details).toContain('1 criado(s), 1 atualizado(s), 1 recusado(s)');
+    expect(t!.details).toContain('1 criado(s), 1 atualizado(s), 0 removido(s), 1 recusado(s)');
   });
 
   it('a trilha da coleta não leva IP, MAC nem nome de ativo', async () => {
