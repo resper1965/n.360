@@ -7,6 +7,18 @@ import { servirShell } from './shell.js';
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor' };
 const REQ = (codigo, titulo, prazo_meses) => ({ id: `ons-${codigo}`, framework: 'ONS-RO-CB.BR.01', codigo, titulo, descricao: null, categoria: null, versao: 'Rev.00', prazo_meses });
 
+// GET /ot/permissoes (src/services/ot-permissoes.ts): o que o servidor responde a cada papel; a tela não recalcula papel (spec 2026-11-26 §6).
+const permissoesDe = (papel) => {
+  const editar = ['org_admin', 'consultor', 'consultoria_admin', 'platform_admin'].includes(papel);
+  const completo = ['org_admin', 'consultor', 'consultoria_admin'].includes(papel);
+  return { editar, criar_lote: editar || papel === 'org_user', aprovar_lote: completo, ver_sondas: completo, gestor: papel === 'org_admin',
+    leitor: papel === 'client', tecnico: papel === 'org_user', acao_corretiva: editar, tela_inicial: 'painel' };
+};
+// O papel muda no meio do teste (o Gestor entra depois): /auth/me e /ot/permissoes respondem o mesmo papel.
+const trocarPapel = (page, papel) => Promise.all([
+  page.route('**/api/v1/auth/me', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { ...USER, role: papel, modulos: ['iso', 'ot'] } }) })),
+  page.route('**/ot/permissoes', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(permissoesDe(papel)) }))]);
+
 async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
   await servirShell(page);
   await page.route('**/api/v1/**', async (route) => {
@@ -19,6 +31,7 @@ async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
     if (path === '/api/v1/projects' && method === 'GET') return json([{ id: 'proj-e2e', client_name: 'Cliente E2E', project_name: 'Projeto E2E', modulos }]);
     if (path === '/api/v1/carteira') return json({ gerado_em: new Date().toISOString(), projetos: [{ id: 'proj-e2e', nome: 'Cliente E2E', modulos: modulos.filter((m) => modulosDaPessoa.includes(m)),
       tom: 'ok', situacao: 'Em dia', urgente: 'Nenhum prazo nos próximos 90 dias', modulo_urgente: 'iso', ultimo_movimento: null }] });
+    if (path === '/api/v1/projects/proj-e2e/ot/permissoes') return json(permissoesDe(papel));
     if (path === '/api/v1/projects/proj-e2e/ot/requisitos') return json({ requisitos: [REQ('4.1.1', 'Segregação em zonas de segurança', 18), REQ('5.1.1', 'Tratamento de exceções', null)] });
     if (path === '/api/v1/projects/proj-e2e/ot/assessment') return json({ resumo: { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 2, revisar: 0, a_confirmar: 0 }, itens: [
       { codigo: '4.1.1', titulo: 'Segregação em zonas de segurança', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_avaliado', por_site: [] },
@@ -661,7 +674,7 @@ test('base: o consultor pede a aprovação e o gestor aprova; o site abre na Ope
   expect(posts).toEqual([['pedir', {}]]);
   // o Gestor entra com a mesma API e aprova
   papel = 'org_admin';
-  await page.route('**/api/v1/auth/me', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { ...USER, role: papel, modulos: ['iso', 'ot'] } }) }));
+  await trocarPapel(page, papel);
   await page.reload(); // a URL já é a do site
   await page.getByRole('button', { name: 'Aprovar a base' }).click();
   await expect(page.getByRole('alertdialog')).toContainText('Confirmo que este inventário representa o site.');
@@ -792,7 +805,7 @@ test('assessment: o consultor preenche um item de política e o gestor o vê "A 
 
   // o Gestor entra com a mesma API, filtra o que espera por ele e confirma
   papel = 'org_admin';
-  await page.route('**/api/v1/auth/me', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { ...USER, role: papel, modulos: ['iso', 'ot'] } }) }));
+  await trocarPapel(page, papel);
   await page.reload();
   await page.locator('#nav-ot-assessment').click();
   await page.locator('#ass-meus').check();

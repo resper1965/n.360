@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderMaisAcoes, renderStatusBadge,
     openModal, forceCloseModal, showToast, confirmar, pedirTexto, formatarData } from '../ui.js';
-import { podeEditarOt, podeAprovarOt, podeRevelar, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
+import { podeEditarOt, podeAprovarOt, podeRevelar, carregarPermissoes, pode, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
     nomesDeAtivos, TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS, classePrimario } from '../ot-comum.js';
 import { montarSaidas } from './ot-saidas.js';
 import { esvaziarNotas } from './ot-levantamento.js';
@@ -13,7 +13,7 @@ import { montarAssessment } from './ot-assessment.js';
 import { montarFornecedoresOt } from './ot-fornecedores.js';
 import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio, modoDaAba } from './ot-site.js';
-import { itemVisivel, enderecoDoProduto, modulosVisiveis } from '../produto.js';
+import { itemVisivel, enderecoDoProduto, modulosVisiveis, atualizarItemOt } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
 import { renderPainel } from './painel.js';
 
@@ -43,8 +43,9 @@ async function renderOt(c, h, a) {
         trocou = !!S.otProjeto; // sem projeto anterior é o primeiro desenho da página: o endereço vale
         await esvaziarNotas(); // notas digitadas no projeto anterior vão para ele, antes de a tela mudar
         S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null; nomesDeAtivos.clear();
-        S.otTela = null; S.otModo = null; S.otSub = null;
+        S.otTela = null; S.otModo = null; S.otSub = null; S.otPermissoes = null;
     }
+    await carregarPermissoes(proj().id);
     // Pedido de uma só vez (sino): vence o endereço velho e sobrevive à troca de projeto.
     // O site vai com modo nulo (a área decide, montarSite); o desvio segue o caminho do endereço /ot/desvios/<id>, logo abaixo.
     let desvioPedido = null;
@@ -57,7 +58,7 @@ async function renderOt(c, h, a) {
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
         const e = desvioPedido ? { tela: 'inicio', site: null, aba: null, desvio: desvioPedido } : lerEndereco();
         Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: null, otSub: e.aba }); // a área do site decide o modo e confere a aba
-        if (e.desvio) {
+        if (e.desvio && !pode('leitor')) { // o leitor não lê desvio (403): o endereço cai no Painel, abaixo
             let r = await resolverDesvio(proj(), e.desvio);
             // O link não traz o projeto: se não está no ativo, procura nos outros n.ot (um a um) e troca para o que o tem.
             for (const o of r ? [] : (S.projects || []).filter((x) => x.id !== proj().id && modulosVisiveis(x).includes('ot'))) {
@@ -72,7 +73,11 @@ async function renderOt(c, h, a) {
             else { showToast('Desvio não encontrado neste projeto', 'error'); Object.assign(S, { otTela: 'inicio', otSite: null }); }
         }
     }
+    await carregarPermissoes(proj().id); // o link de desvio pode ter trocado o projeto
+    atualizarItemOt();
     if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'inicio';
+    // o leitor lê só Painel, Assessment e Relatórios (spec 2026-11-26, decisão 4): Início, Sites e o resto caem no Painel
+    if (pode('leitor') && !['painel', 'assessment', 'relatorios'].includes(S.otTela)) S.otTela = 'painel';
     const tela = S.otTela;
     escreverEndereco({ tela, site: S.otSite, aba: S.otSub });
     for (const t of ['inicio', 'painel', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));

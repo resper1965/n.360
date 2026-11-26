@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, confirmar } from '../ui.js';
-import { mensagemDeErro, lista, semRepetir } from '../ot-comum.js';
+import { mensagemDeErro, ehGestor, lista, semRepetir } from '../ot-comum.js';
 import { apagarAoFechar } from './ot-agente.js';
 
 // n.ot, E4 T5: cartão "Integração ness.OS" na aba Acessos e sondas. Reaproveita as rotas de webhooks do n.360 (src/routes/integrations.ts):
@@ -12,7 +12,6 @@ const el = (id) => document.getElementById(id);
 const proj = () => S.activeProject;
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
-const ehGestor = () => S.user?.role === 'org_admin';
 const temDesvio = (w) => String(w.events || '').split(',').some((e) => e.trim() === 'ot.desvio');
 
 /** HTML do cartão, ou '' se a leitura falhar (a aba segue sem ele). */

@@ -1,6 +1,6 @@
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatCards, renderStatusBadge, falhaDeCarga, showToast, formatarData, pedirTexto } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, SITUACAO } from '../ot-comum.js';
+import { podeEditarOt, pode, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, SITUACAO } from '../ot-comum.js';
 import { S } from '../state.js';
 import { montarRelatorio } from './ot-relatorio.js';
 
@@ -21,7 +21,7 @@ export async function montarSaidas(c, a, p) {
     raiz = c; acoes = a;
     let ind, conf, sites;
     try {
-        [ind, conf, sites] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/indicadores`), api('GET', `/api/v1/projects/${p.id}/ot/conformidade`), api('GET', `/api/v1/projects/${p.id}/ot/sites`)]);
+        [ind, conf, sites] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/indicadores`), api('GET', `/api/v1/projects/${p.id}/ot/conformidade`), pode('leitor') ? { sites: [] } : api('GET', `/api/v1/projects/${p.id}/ot/sites`)]); // o leitor não lê sites (spec 2026-11-26, decisão 4)
         sites = lista(sites, 'sites');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível calcular as saídas do n.ot.', e); return; }
     const comp = ind.completude || {};

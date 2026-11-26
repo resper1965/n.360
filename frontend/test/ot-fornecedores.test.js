@@ -9,6 +9,10 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import '../src/ui.js';
 import { montarFornecedoresOt } from '../src/views/ot-fornecedores.js';
 import { S } from '../src/state.js';
+import { permissoesPeloPapel } from './ot-abrir.js';
+
+// GET /ot/permissoes: a tela lê do servidor (spec 2026-11-26 §6); aqui, a resposta que o servidor daria ao papel do teste.
+beforeEach(permissoesPeloPapel);
 
 const pausa = () => new Promise((r) => setTimeout(r, 0));
 const FORN = { fornecedores: [{ id: 'f1', parte_id: 'pa1', parte_nome: 'Integra <b id="xss">Ltda</b>', papel: 'integrador', ot_site_id: 's1', ot_fluxo_id: null, site_efetivo_id: 's1' }] };
