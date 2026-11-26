@@ -127,10 +127,12 @@ A fase do banco (`ot_sites.fase`) continua; o nome sai de um mapa, sem migration
 | `em_levantamento` | `pedir_base` | Implantação | 4 Aprovar a base |
 | `base_em_aprovacao` sem `obra_ate` | `aguardar_base` | Implantação | 4 Aprovar a base |
 | `em_operacao` | — | Operação | — |
-| `em_obra`, ou `base_em_aprovacao` com `obra_ate` | — | Obra | 2, 3 ou 4 (como a Implantação) |
+| `em_obra`, ou `base_em_aprovacao` com `obra_ate` | — | Obra | 1, 2, 3 ou 4, pela mesma regra da Implantação (a zona pode mudar na obra) |
 
 Função pura nova `areaEEtapa(sit)` em `src/services/ot-fase.ts`, usada por `situacaoDoSite` e por `blocoOt` (o mesmo cálculo em lote). O
-"o que falta" deixa de ser só a primeira condição: `faltaParaAvancar(sit)` devolve **todas** as condições que faltam na etapa.
+"o que falta" mostra só o que falta para sair da **etapa atual** (`faltaParaAvancar`: etapa 1, as zonas; etapa 2, o ativo; etapa 3,
+rascunhos e lotes; etapa 4, nada); a checagem completa da base fica separada (`condicoesDaBase`, todas as condições, cuja primeira é o 409
+de `pedirBase`).
 
 De-para dos textos:
 
@@ -174,7 +176,7 @@ consulta por site. Cada passo: `{ id, texto, estado: 'feito' | 'falta' | 'opcion
 | `gestor` | `project_governance` com o cargo Gestor ARCiber e e-mail (`CARGO_GESTOR_ARCIBER`, `ot-inventario.ts:14`) | n.360 › Papéis e comitê |
 | `tecnicos` | ao menos uma linha em `ot_site_acessos` | Configuração › Acessos de técnicos |
 | `site` | ao menos um site ativo | Implantação › Sites em implantação (abre "Novo site") |
-| `sonda` | sonda ativa; **instalada** = credencial ativa; **primeiro envio** = envio `concluido` (três estados no `detalhe`) | Configuração › Sondas |
+| `sonda` | sonda **ativa** com envio `concluido`; **instalada** = credencial ativa; credencial e envio contam só de sonda ativa (`ot_sensores.situacao = 'ativa'`; três números no `detalhe`) | Configuração › Sondas |
 | `agente` | `projects.agente_coleta_ot = 1` | Configuração › Agente de coleta; estado `opcional` quando falta |
 | `fornecedores` | ao menos um `ot_fornecedores` ativo | Configuração › Fornecedores de OT |
 | `assessment` | ao menos uma linha em `ot_avaliacoes` | Operação › Assessment |
@@ -199,14 +201,15 @@ Criar site abre o site novo na etapa 1 (`POST /sites` já devolve `id`, `ot.ts:1
 Abas: **Desvios**, **Saúde da coleta**, **Inventário** (só leitura, com os fluxos), **Mudanças**, **Revalidação**.
 
 - **Mudanças:** os lotes do site criados depois de `base_aprovada_em` (derivada; sem coluna nova), em duas listas: **abertas** (em
-  revisão) e **concluídas**; e "Registrar mudança", que abre um levantamento de visita no site e leva ao formulário de achado. A
+  revisão) e **concluídas**; e "Registrar mudança", que **sempre cria um levantamento de visita novo** para aquela mudança (nunca reusa outra sessão aberta) e
+  leva ao formulário de achado; o envio dessa sessão é a Mudança (um lote). A
   retenção apaga todo lote não concluído com mais de 7 dias (`src/manutencao.ts:155`, P0-3): uma Mudança recusada some da lista em
   7 dias, e o registro dela fica na trilha (`ot.lote.rejeitado`, com o motivo). Mudar o inventário em operação é só por aqui (ou pelo
   "Regularizar" do desvio, que já cria achado).
-- **Revalidação:** `revalidar_em` (`ot-fase.ts:58`), os ativos do ARCiber com verificação vencida ou a vencer em 60 dias (para quem vê
-  completo, pela lista de ativos que já existe) e "Nova visita de revalidação" (levantamento).
-- **Obra** é a exceção formal: em obra o site mostra o assistente nas etapas 2 a 4 com a faixa "Obra até dd/mm" (o servidor já permite
-  `pedirBase` a partir de `em_obra`, `ot-fase.ts:90`).
+- **Revalidação:** `revalidar_em` (`ot-fase.ts:58`) para todos; os ativos do ARCiber com verificação vencida ou a vencer em 60 dias só
+  para quem vê completo (`aprovar_lote` = `podeVerCompleto`; técnico e platform_admin veem só a data) e "Nova visita de revalidação" (levantamento).
+- **Obra** é a exceção formal: em obra o site mostra o assistente nas quatro etapas, com a faixa "Obra até dd/mm" (a zona pode mudar
+  na obra, então a etapa 1 também existe; o servidor já permite `pedirBase` a partir de `em_obra`, `ot-fase.ts:90`).
 
 ### 6. Papéis
 
@@ -243,8 +246,9 @@ rascunho dos sites dele que ele criou e os lotes dele recusados nos últimos 7 d
 
 ### 7. Links profundos
 
-O endereço passa a guardar a aba: `/ot?ot=site&site=<id>&aba=<aba>` (`aba` validada contra a lista da área; inválida cai na
-primeira). Item de "O que fazer" e próximo passo da régua ganham `site` (quando o item é de um site só) e `aba`; com mais de um site,
+O endereço passa a guardar a aba: `/ot?ot=site&site=<id>&aba=<aba>`. O endereço só valida o formato; a tela do site, depois de ler a
+`area` da situação, confere a aba contra as abas daquela área e, se não for uma delas (mesmo com formato válido), abre a da etapa atual
+(Implantação, Obra) ou a primeira (Operação) e reescreve o endereço. Item de "O que fazer" e próximo passo da régua ganham `site` (quando o item é de um site só) e `aba`; com mais de um site,
 o item leva a Operação › Desvios ou a Implantação › Sites em implantação, já filtrados. O sino: o link gravado no
 aviso passa a levar o alvo (`/projects/<id>/ot?site=<site>` na obra, `/projects/<id>/ot?desvio=<desvio>` no aceite,
 `/projects/<id>/ot?ot=assessment` na revisão); o clique abre o site, o desvio (pelo caminho que já resolve `/ot/desvios/<id>`,
@@ -254,13 +258,13 @@ aviso passa a levar o alvo (`/projects/<id>/ot?site=<site>` na obra, `/projects/
 
 | Regra | Onde | Muda |
 |---|---|---|
-| Área e etapa do site | `areaEEtapa`, `faltaParaAvancar` em `ot-fase.ts` | nova (pura) |
+| Área e etapa do site | `areaEEtapa`, `faltaParaAvancar`, `condicoesDaBase` em `ot-fase.ts` | nova (pura) |
 | Pedir a base exige ao menos um ativo ativo no site | `faltaParaBase`, `aprovarBase` | **alterada** (decisão 2) |
 | Ativo e fluxo só entram, mudam ou saem por lote | rotas de escrita de `ativos` e `fluxos` saem; o item de lote ganha `alvo_id` e `remover` | alterada |
-| Lote aprovado remove ativo/fluxo (`remover: true` com `alvo_id` do mesmo site) | `aprovarLote` (`ot-coleta.ts:266`) | nova |
+| Lote aprovado remove ativo/fluxo (`remover: true` com `alvo_id` do mesmo site), com a mesma trava P1-4 da alteração (alvo editado depois da revisão: o item volta a pendente; o UPDATE compara o `updated_at` lido) | `aprovarLote` (`ot-coleta.ts:266`) | nova |
 | Alteração por `alvo_id`: o alvo é o do `alvo_id` (não o do índice), `duplicata_de = alvo_id` na criação do item (senão a trava P1-4, `ot-coleta.ts:320`, devolve "alvo mudou"); dispensa `nome` (`ot-coleta.ts:133`) e, no fluxo, as pontas (`ot-fluxo-achado.ts:62-63`); a regra do 4.3.1 (`toca431`, recoleta carimba) vale igual | `criarLote`, `prepararItem`, `prepararFluxo`, `aprovarLote` | nova |
 | O agente de coleta não manda `alvo_id` nem `remover` (recusa uniforme, como `zona`) | `registrarAchados` (`src/services/ot-agente.ts:142`) | nova |
-| Zona: criar, editar e remover só com o site em Implantação (`em_levantamento`) ou em Obra (`em_obra`); 409 em `em_operacao` e `base_em_aprovacao` (decisão 3) | rotas de zona (`src/routes/ot.ts:178-203` e o DELETE do laço `:375-386`) | nova |
+| Zona: criar, editar e remover só com o site em Implantação (`em_levantamento`) ou em Obra (`em_obra`); 409 em `em_operacao` e `base_em_aprovacao` (decisão 3). A fase vai na própria mutação (`INSERT … SELECT … WHERE EXISTS`, `UPDATE … AND EXISTS`), sem leitura antes | rotas de zona (`src/routes/ot.ts:178-203` e o DELETE do laço `:375-386`) | nova |
 | Leitor só lê Painel, Assessment e Relatórios | middleware no `otApp` | nova |
 | Técnico tem "Meu trabalho" no Painel | `blocoOt` / `respostaDoOt` | nova |
 | Itens do Painel com `site` e `aba` | `ItemFazer` (`src/services/painel.ts:32`), `etapasDoOt` | alterada |
@@ -309,7 +313,7 @@ de modo; "Acessos e sondas" como tela única; as seis rotas de escrita direta de
   "Acessos e sondas" (`ot.spec.js:43-47,120,335,434,484-521,627-665`): cada PR que muda esses textos atualiza o E2E junto.
 - **Renomear ativo sem IP nem MAC** não casa pelo `indice` (`ot-coleta.ts:154-160`): por isso o achado de alteração leva `alvo_id`.
 - **Pedir base com ativo obrigatório** muda testes de fase que aprovam base só com zonas (`test/ot-fase*.test.ts`). A ordem das
-  mensagens de `faltaParaAvancar` é a de hoje (rascunho, lote, zonas) com o ativo por último: o 409 dos casos atuais não muda.
+  mensagens de `condicoesDaBase` é a de hoje (rascunho, lote, zonas) com o ativo por último: o 409 dos casos atuais não muda.
 - **Leitor:** quem é `client` com `ot` hoje e abre Sites passa a receber 403; a tela some com o menu antes (mesmo PR).
 - **Lote de um só item** por "Editar" na operação gera muitos lotes: a tela agrupa os achados em rascunho e envia de uma vez (como hoje).
 - **Sondas por site** em Configuração continuam uma chamada por site (`ot-sensores.js:36`): fica como está (só quem edita, raro).

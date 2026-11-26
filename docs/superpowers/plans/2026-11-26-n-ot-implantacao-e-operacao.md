@@ -95,13 +95,13 @@ PR1a e PR2 tocam arquivos diferentes do servidor, mas o PR2 mexe nas telas do PR
 - Modify: `test/ot-fase-rotas.test.ts` (a resposta de `/situacao` ganha os campos)
 
 **Interfaces:**
-- Produces: `type Area = 'implantacao' | 'operacao' | 'obra'`; `areaEEtapa(x: EntradaEtapa): { area: Area; etapa: 1 | 2 | 3 | 4 | null }`; `faltaParaAvancar(x: EntradaEtapa): string[]`; `EntradaEtapa = { fase: Fase; obra_ate: string | null; ativos: number; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number }`; `SituacaoSite` ganha `area`, `etapa`, `falta: string[]`, `ativos: number`.
+- Produces: `type Area = 'implantacao' | 'operacao' | 'obra'`; `areaEEtapa(x: EntradaEtapa): { area: Area; etapa: 1 | 2 | 3 | 4 | null }`; `faltaParaAvancar(x: EntradaEtapa): string[]` (só o que falta para sair da etapa atual); `condicoesDaBase(x: EntradaEtapa): string[]` (todas as condições da base, na ordem de hoje; o 409 de `pedirBase` usa a primeira, Task 3a.4); `EntradaEtapa = { fase: Fase; obra_ate: string | null; ativos: number; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number }`; `SituacaoSite` ganha `area`, `etapa`, `falta: string[]`, `ativos: number`.
 
 - [ ] **Step 1: Teste puro que falha** — `test/ot-area-etapa.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { areaEEtapa, faltaParaAvancar } from '../src/services/ot-fase';
+import { areaEEtapa, condicoesDaBase, faltaParaAvancar } from '../src/services/ot-fase';
 
 // Spec 2026-11-26 §1: a fase do banco fica; área e etapa saem de um mapa puro.
 const x = (o: Partial<Parameters<typeof areaEEtapa>[0]> = {}) => ({ fase: 'em_levantamento' as const, obra_ate: null, ativos: 0,
@@ -128,15 +128,33 @@ describe('areaEEtapa', () => {
     expect(areaEEtapa(x({ fase: 'em_obra', obra_ate: '2026-12-20', zonas_4_1_1: true, ativos: 1 }))).toEqual({ area: 'obra', etapa: 4 });
     expect(areaEEtapa(x({ fase: 'base_em_aprovacao', obra_ate: '2026-12-20', zonas_4_1_1: true, ativos: 1 })).area).toBe('obra');
   });
+  it('obra com zona faltando (a zona muda na obra, Task 3a.5): Obra, etapa 1; a tela da obra mostra as quatro etapas', () => {
+    expect(areaEEtapa(x({ fase: 'em_obra', obra_ate: '2026-12-20', ativos: 1 }))).toEqual({ area: 'obra', etapa: 1 });
+  });
 });
 
-describe('faltaParaAvancar', () => {
-  it('lista TODAS as condições que faltam, não só a primeira', () => {
-    // a ordem é a de `faltaParaBase` hoje (ot-fase.ts:71-76) com o ativo por último: o 409 dos casos atuais não muda (Task 3a.4)
+describe('faltaParaAvancar: só o que falta para sair da etapa atual', () => {
+  it('etapa 1: só as zonas (o ativo é da etapa 2)', () => {
+    expect(faltaParaAvancar(x())).toEqual(['Faltam zonas nos níveis Purdue 2, 3 e 4']);
+  });
+  it('etapa 2: só o ativo', () => {
+    expect(faltaParaAvancar(x({ zonas_4_1_1: true }))).toEqual(['Nenhum ativo no inventário do site']);
+  });
+  it('etapa 3: só rascunhos e lotes, mesmo sem zonas', () => {
     expect(faltaParaAvancar(x({ rascunhos_bloqueiam: 2, lotes_em_revisao: 1 }))).toEqual([
+      'Há 2 achado(s) em rascunho para revisar', 'Há 1 lote(s) de aprovação em revisão']);
+  });
+});
+
+describe('condicoesDaBase: a checagem completa, separada', () => {
+  it('lista TODAS as condições, na ordem de faltaParaBase hoje (ot-fase.ts:71-76), com o ativo por último', () => {
+    expect(condicoesDaBase(x({ rascunhos_bloqueiam: 2, lotes_em_revisao: 1 }))).toEqual([
       'Há 2 achado(s) em rascunho para revisar', 'Há 1 lote(s) de aprovação em revisão',
       'Faltam zonas nos níveis Purdue 2, 3 e 4', 'Nenhum ativo no inventário do site']);
   });
+});
+
+describe('falta: casos sem nada', () => {
   it('pronto para pedir a base: lista vazia; em operação: lista vazia', () => {
     expect(faltaParaAvancar(x({ zonas_4_1_1: true, ativos: 1 }))).toEqual([]);
     expect(faltaParaAvancar(x({ fase: 'em_operacao' }))).toEqual([]);
@@ -155,15 +173,25 @@ describe('faltaParaAvancar', () => {
 export type Area = 'implantacao' | 'operacao' | 'obra';
 export type EntradaEtapa = { fase: Fase; obra_ate: string | null; ativos: number; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number };
 
-/** Spec 2026-11-26 §1: todas as condições que faltam para a próxima etapa da Implantação (ou da Obra). Só contagens. */
+const RASCUNHOS = (n: number) => `Há ${n} achado(s) em rascunho para revisar`;
+const LOTES = (n: number) => `Há ${n} lote(s) de aprovação em revisão`;
+const ZONAS = 'Faltam zonas nos níveis Purdue 2, 3 e 4';
+const ATIVO = 'Nenhum ativo no inventário do site';
+
+/** Todas as condições da base, na ordem de `faltaParaBase` de hoje (rascunho, lote, zonas) e o ativo por último. Só contagens. */
+export function condicoesDaBase(x: EntradaEtapa): string[] {
+  return [x.rascunhos_bloqueiam > 0 && RASCUNHOS(x.rascunhos_bloqueiam), x.lotes_em_revisao > 0 && LOTES(x.lotes_em_revisao),
+    !x.zonas_4_1_1 && ZONAS, x.ativos === 0 && ATIVO].filter((t): t is string => !!t);
+}
+
+/** Spec 2026-11-26 §1 e §4: só o que falta para sair da etapa ATUAL (a tela mostra uma etapa por vez). */
 export function faltaParaAvancar(x: EntradaEtapa): string[] {
-  if (x.fase === 'em_operacao') return [];
-  return [
-    x.rascunhos_bloqueiam > 0 && `Há ${x.rascunhos_bloqueiam} achado(s) em rascunho para revisar`,
-    x.lotes_em_revisao > 0 && `Há ${x.lotes_em_revisao} lote(s) de aprovação em revisão`,
-    !x.zonas_4_1_1 && 'Faltam zonas nos níveis Purdue 2, 3 e 4',
-    x.ativos === 0 && 'Nenhum ativo no inventário do site',
-  ].filter((t): t is string => !!t);
+  switch (areaEEtapa(x).etapa) {
+    case 1: return [ZONAS];
+    case 2: return [ATIVO];
+    case 3: return condicoesDaBase(x).filter((t) => t !== ZONAS && t !== ATIVO);
+    default: return []; // 4: pode pedir (ou espera o Gestor); operação: nada
+  }
 }
 
 /** Área e etapa (1 Cadastrar, 2 Levantar, 3 Revisar, 4 Aprovar a base). A fase do banco fica; isto é só o nome. */
@@ -175,6 +203,8 @@ export function areaEEtapa(x: EntradaEtapa): { area: Area; etapa: 1 | 2 | 3 | 4 
   return { area, etapa };
 }
 ```
+
+  (`faltaParaAvancar` chama `areaEEtapa`, declarada logo abaixo: funções declaradas são içadas, não há problema de ordem.)
 
   Em `situacaoDoSite` (`ot-fase.ts:50-60`), troque a consulta `conteudo` por uma que devolva também a contagem de ativos (o `tem_conteudo` segue):
 
@@ -189,7 +219,7 @@ export function areaEEtapa(x: EntradaEtapa): { area: Area; etapa: 1 | 2 | 3 | 4 
 
 - [ ] **Step 4: Rodar** — `npx vitest run test/ot-area-etapa.test.ts test/ot-fase.test.ts test/ot-fase-rotas.test.ts` → PASS. Em `test/ot-fase-rotas.test.ts`, no teste que lê `GET …/situacao`, acrescente `expect(corpo).toMatchObject({ area: 'implantacao', etapa: 1, falta: expect.any(Array) })`.
 
-- [ ] **Step 5: Mutação** — troque `!x.zonas_4_1_1 ? 1` por `!x.zonas_4_1_1 ? 2`; `npx vitest run test/ot-area-etapa.test.ts` falha; desfaça.
+- [ ] **Step 5: Mutação** — troque `!x.zonas_4_1_1 ? 1` por `!x.zonas_4_1_1 ? 2`; `npx vitest run test/ot-area-etapa.test.ts` falha; desfaça. Outra: no `case 1`, devolva `condicoesDaBase(x)`; o teste "etapa 1: só as zonas" falha; desfaça.
 
 - [ ] **Step 6: Commit**
 
@@ -364,6 +394,7 @@ export function escreverEndereco({ tela, site = null, aba = null }, loc = window
 
   - `ot-comum.js:140`: `export const AREA = { implantacao: 'Implantação', operacao: 'Operação', obra: 'Obra' };`, `export const ETAPAS_IMPLANTACAO = ['Cadastrar', 'Levantar', 'Revisar', 'Aprovar a base'];` e `export const areaDaFase = (f) => (f === 'em_operacao' ? 'operacao' : f === 'em_obra' ? 'obra' : 'implantacao');` (`FASE` sai; quem o importa — `ot-inicio.js:4`, `painel.js`, `ot-relatorio.js:3` — passa a usar `AREA[l.area]` mais ` · ${etapa}. ${ETAPAS_IMPLANTACAO[etapa-1]}` quando há etapa). O Relatório de conformidade (`ot-relatorio.js:37`) mostra a coluna "Área" com `AREA[areaDaFase(s.fase)]` (o servidor do relatório devolve só a `fase`): o documento formal usa o vocabulário novo; `frontend/test/ot-relatorio.test.js` cobra "Operação" no lugar de "Em operação".
   - `ot-base.js`: `cabecalhoDoSite` desenha a régua de `ETAPAS_IMPLANTACAO` com `sit.etapa` quando `sit.area !== 'operacao'` (`aria-label="Etapas da implantação"`), o cartão "Para avançar" com `sit.falta` (`<ul>` de textos escapados; vazio → o texto do `proximoPasso`) e, em operação, só "Operação desde dd/mm/aaaa". Os rótulos dos botões de `proximoPasso` trocam "Abrir Revisão e aprovação" por "Revisar" e "Abrir Modo operação" por "Abrir a operação".
+  - `ot-site.js`: a `aba` do endereço só valida o formato em `lerEndereco`; a validação de verdade é aqui, depois de carregar a situação: `const abas = SUBS[modo]; sub = abas.includes(ALIAS_ABA[sub] ?? sub) ? (ALIAS_ABA[sub] ?? sub) : abas[0];` e o endereço é reescrito com a aba efetiva (o PR7 e o PR8 fazem o mesmo com as abas da área). Teste em `frontend/test/ot-site.test.js`: `?ot=site&site=s1&aba=zzz` (formato válido, aba que não existe) abre a primeira aba da área e o endereço passa a `aba=<primeira>`; `aba=desvios` num site em implantação abre a primeira aba da implantação.
   - `ot-site.js`: nesta etapa só os nomes: `MODOS` vira `[['projeto', 'Implantação'], ['operacao', 'Operação']]` e a sub-aba ativa vai para o endereço (`escreverEndereco({ tela: 'site', site, aba: sub })` no fim de `montarSite`); a chave `modo` sai do endereço (o modo é derivado da aba: aba de `SUBS.operacao` = operação). As abas que o Painel manda e que ainda não existem com esse nome são traduzidas: `const ALIAS_ABA = { revisar: 'aprovacao' };` (sai no PR7). PR7/PR8 reescrevem a tela inteira.
   - `ot.js`: `TITULOS.fornecedores = 'Fornecedores de OT'`; `escreverEndereco` com `aba: S.otSub`; `window.otTela = async (tela, site = null, aba = null, extra = {})` (os chamadores que passavam `modo` passam a aba: `'projeto'` → `null`, `'operacao'` → `'desvios'`).
   - `painel.js:634`: `if (tela === 'ot') { const SEM_SITE = { assessment: 'assessment', sondas: 'acessos', acessos: 'acessos' }; irPara(site ? `${enderecoDoProduto('ot')}?ot=site&site=${encodeURIComponent(site)}${aba ? `&aba=${encodeURIComponent(aba)}` : ''}` : `${enderecoDoProduto('ot')}?ot=${SEM_SITE[aba] || 'sites'}`); return; }` (sem site, `desvios`, `revisar`, `base` e `implantacao` vão à lista Sites até o PR5, que troca o mapa pelas telas novas) e os botões de `listaFazer` (`:112`) e `regua` (`:137`) passam `i.site || null` como quarto argumento (`painelAbrir(tela, aba, filtro, site)`). `quadroPorSite` (`:212-213`) mostra a coluna "Área" com `AREA[l.area]` e a etapa.
@@ -670,6 +701,14 @@ it('P0-4: alvo_id de ativo de OUTRO site tem o mesmo desfecho de id inexistente'
   expect((await aprovar(gestor, r1)).removidos).toBe(0);
   expect((await chamar(cons, 'GET', `${P}/ativos/${outro}`)).status).toBe(200);
 });
+it('P1-4 na remoção: alvo editado depois da revisão do item não é removido; o item volta a pendente', async () => {
+  const [id] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Painel X' } }] });
+  const l = await lote(cons, ids.s1, [{ dados: { alvo_id: id, remover: true } }]);
+  await env.DB.prepare(`UPDATE ot_ativos SET funcao = 'editado', updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', '+1 second') WHERE id = ?`).bind(id).run();
+  expect((await aprovar(gestor, l)).removidos).toBe(0);
+  expect((await chamar(cons, 'GET', `${P}/ativos/${id}`)).status).toBe(200);
+  expect(await item0(gestor, l)).toMatchObject({ decisao: 'pendente', motivo: expect.stringMatching(/revis/i) });
+});
 it('remover sem alvo_id é erro do item', async () => {
   expect((await item0(gestor, await lote(cons, ids.s1, [{ dados: { remover: true } }]))).erros[0]).toMatchObject({ campo: 'alvo_id' });
 });
@@ -695,22 +734,29 @@ it('fluxo: alterar por alvo_id sem repetir as pontas; remover por alvo_id', asyn
 ```ts
     if (d.remover) {
       const tabela = i.entidade === 'fluxo' ? 'ot_fluxos' : 'ot_ativos';
-      // P0-4: só do site do lote; outro site ou inexistente dá o mesmo desfecho. Não carimba verificação.
-      stmts.push([db.prepare(`UPDATE ${tabela} SET status = 'removido', updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND site_id = ? AND status = 'ativo'`)
-        .bind(d.alvo_id, projectId, lote.site_id),
-      db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'recusado' END, registro_id = CASE WHEN changes() > 0 THEN ? END,
-        motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`).bind(d.alvo_id, ALVO_INEXISTENTE, i.id)]);
+      const alvo = (i.entidade === 'fluxo' ? fluxos : ativos.results).find((x) => x.id === d.alvo_id); // só do site do lote (P0-4)
+      if (!alvo) { recusar(i, ALVO_INEXISTENTE); continue; } // outro site ou inexistente: o mesmo desfecho
+      // P1-4, a mesma trava da alteração (:320): o alvo editado depois da revisão do item volta o item a pendente, nada é removido.
+      if (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) {
+        stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo.id, ALVO_MUDOU, i.id));
+        continue;
+      }
+      // O WHERE compara o updated_at lido (como o UPDATE da alteração): edição entre a leitura e a gravação deixa o item pendente.
+      stmts.push([db.prepare(`UPDATE ${tabela} SET status = 'removido', updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND site_id = ? AND status = 'ativo' AND updated_at = ?`)
+        .bind(alvo.id, projectId, lote.site_id, alvo.updated_at),
+      db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END, registro_id = CASE WHEN changes() > 0 THEN ? END,
+        motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo.id, ALVO_MUDOU, i.id)]);
       continue;
     }
 ```
 
-    com `const ALVO_INEXISTENTE = 'O registro não existe neste site'`; `removidos` é contado depois do batch, lendo os itens `gravado` com `"remover":1` no `dados` (o código já relê itens para `pendentes`).
+    com `const ALVO_INEXISTENTE = 'O registro não existe neste site'` (`fluxosDoSite`, `ot-fluxo-achado.ts:19-20`, já traz `updated_at`); `removidos` é contado depois do batch, lendo os itens `gravado` com `"remover":1` no `dados` (o código já relê itens para `pendentes`).
   - `enviarAoLote`: `alvo_id` e `remover` entram em `PARA_BRUTO`.
   - `registrarAchados` (`ot-agente.ts:142`): `if (['zona', 'zona_id', 'alvo_id', 'remover'].some((k) => k in it.dados)) { recusados.push({ indice, motivo: 'campo não aceito pelo agente' }); continue; }`.
   - Trilha da aprovação (`src/routes/ot.ts:483-484`): `, ${n.removidos} removido(s)`.
 
 - [ ] **Step 4: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-agente-mcp.test.ts test/ot-coleta.test.ts test/ot-lote-item.test.ts test/ot-levantamento-l2.test.ts test/ot-fluxo-achado.test.ts` → PASS.
-- [ ] **Step 5: Mutações P0** — (a) tire `AND site_id = ?` do UPDATE de remoção: o teste de outro site falha; (b) tire `'alvo_id'` da recusa do agente: o teste do agente falha. Desfaça as duas.
+- [ ] **Step 5: Mutações P0** — (a) troque a busca do alvo por `find` em todos os ativos do projeto: o teste de outro site falha; (b) tire `'alvo_id'` da recusa do agente: o teste do agente falha; (c) tire a trava P1-4 da remoção: o teste "P1-4 na remoção" falha. Desfaça as três.
 - [ ] **Step 6: Commit** — `git commit -m "feat(ot): achado e lote alteram por alvo_id e removem ativo ou fluxo; o agente não usa (PR3a implantação e operação)"`.
 
 ### Task 3a.3: Nome do alvo no lote **[P0]**
@@ -745,9 +791,9 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 });
 ```
 
-  Nos testes que pedem ou aprovam base só com zonas (`ot-fase.test.ts`, `ot-fase-rotas.test.ts`, `ot-obra.test.ts`), insira um ativo por SQL na preparação. As mensagens de hoje não mudam: `faltaParaAvancar` (Task 1.1) lista rascunho, lote, zonas e só então o ativo, e `faltaParaBase` devolve o primeiro.
+  Nos testes que pedem ou aprovam base só com zonas (`ot-fase.test.ts`, `ot-fase-rotas.test.ts`, `ot-obra.test.ts`), insira um ativo por SQL na preparação. As mensagens de hoje não mudam: `condicoesDaBase` (Task 1.1) lista rascunho, lote, zonas e só então o ativo, e `faltaParaBase` devolve o primeiro.
 - [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `faltaParaBase(s)` passa a `faltaParaAvancar(s)[0] ?? null` (com `obra_ate` e `ativos` vindos de `situacaoDoSite`, Task 1.1); em `aprovarBase`, `AND EXISTS (SELECT 1 FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo')` com os binds.
+- [ ] **Step 3: Implementar** — `faltaParaBase(s)` passa a `condicoesDaBase(s)[0] ?? null` (com `obra_ate` e `ativos` vindos de `situacaoDoSite`, Task 1.1); em `aprovarBase`, `AND EXISTS (SELECT 1 FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo')` com os binds.
 - [ ] **Step 4: Rodar** — `npx vitest run test/ot-fase.test.ts test/ot-fase-rotas.test.ts test/ot-obra.test.ts test/ot-area-etapa.test.ts` → PASS.
 - [ ] **Step 5: Mutação P0** — tire o `EXISTS` do `aprovarBase`; o teste atômico falha; desfaça.
 - [ ] **Step 6: Commit** — `git commit -m "feat(ot): a base só é pedida e aprovada com ao menos um ativo (PR3a implantação e operação)"`.
@@ -760,9 +806,13 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 
 - [ ] **Step 1: Teste que falha** — `test/ot-zona-trava.test.ts`: com o site em `em_levantamento` e em `em_obra`, criar, editar e remover zona dão 201/200; com o site em `em_operacao` e em `base_em_aprovacao` (fase posta por SQL), os três dão 409 `{ error: 'Zona só muda com o site em implantação ou em obra' }` e a zona não muda no banco.
 - [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — uma função na rota: `const zonaTravada = async (db: D1Database, projectId: string, siteId: string) => !!await db.prepare(`SELECT 1 FROM ot_sites WHERE id = ? AND project_id = ? AND fase IN ('em_operacao', 'base_em_aprovacao')`).bind(siteId, projectId).first();`. No POST, com `v.data.site_id`; no PUT e no DELETE, com o `site_id` da zona (`SELECT site_id FROM ot_zonas WHERE id = ? AND project_id = ? AND ${NO_SITE}`; zona de site sem acesso segue 404). No laço de DELETE, o ramo `zonas` chama a trava antes de `atualizar`.
+- [ ] **Step 3: Implementar** — a fase vai **na própria mutação** (sem SELECT antes, que deixaria uma janela entre a leitura e a escrita):
+  - POST: `INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue, tipo, descricao) SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo' AND fase IN ('em_levantamento', 'em_obra'))`.
+  - PUT e DELETE (o ramo `zonas` do laço): o `atualizar` (`ot.ts:97-104`) ganha um parâmetro opcional `extra` de SQL, e as rotas de zona passam `AND EXISTS (SELECT 1 FROM ot_sites s WHERE s.id = ot_zonas.site_id AND s.project_id = ot_zonas.project_id AND s.fase IN ('em_levantamento', 'em_obra'))`.
+  - Com `changes() = 0`, a rota distingue depois da escrita (só para a mensagem): zona/site não encontrado no projeto e nos sites permitidos → 404 como hoje; encontrado → 409 `Zona só muda com o site em implantação ou em obra`.
+  Acrescente ao teste: pedir a base (fase vai a `base_em_aprovacao`) e, em seguida, `PUT` de zona → 409; a zona não muda no banco.
 - [ ] **Step 4: Rodar** — `npx vitest run test/ot-zona-trava.test.ts test/ot-inventario.test.ts test/ot-fase.test.ts` → PASS.
-- [ ] **Step 5: Mutação P0** — tire `'base_em_aprovacao'` da lista: o caso da base em aprovação falha (zona mudada depois do pedido mudaria a base que o Gestor vai aprovar); desfaça.
+- [ ] **Step 5: Mutação P0** — ponha `'base_em_aprovacao'` na lista de fases permitidas do `UPDATE`: o caso da base em aprovação falha (zona mudada depois do pedido mudaria a base que o Gestor vai aprovar); desfaça.
 - [ ] **Step 6: Commit e entrega** — CHANGELOG ("n.ot: ativo e fluxo podem ser alterados e removidos por lote; a base exige ao menos um ativo; zona só muda na implantação ou em obra."); `git commit -m "feat(ot): zona só muda com o site em implantação ou em obra (PR3a implantação e operação)"`; push `claude/ot-io-3a`; PR "n.ot: tudo por lote no servidor (PR3a)".
 
 ---
@@ -780,9 +830,9 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 
 **Interfaces:**
 - Consumes: `POST /levantamentos`, `POST /levantamentos/:id/achados` (com `alvo_id`/`remover`, Task 3a.2); `GET /lotes/:id` `nomes_alvos` (Task 3a.3).
-- Produces: `window.otRegistrarAchado(siteId, { entidade, dados, alvo_id, remover })`: usa o levantamento aberto do site (o mais recente com `situacao: 'aberto'`) ou cria um de visita com `realizado_em` = hoje (`hojeSP()`), e abre o formulário de achado preenchido; ao salvar, "Achado registrado: envie para revisão em Revisar". `montarInventario(..., { somenteLeitura })` e `montarFluxos(..., { somenteLeitura })` (usados no PR7 e no PR8).
+- Produces: `window.otRegistrarAchado(siteId, { entidade, dados, alvo_id, remover }, { levantamento })`: registra o achado **no levantamento indicado** (o que está aberto na tela, `S.otLevantamento`); sem levantamento indicado, cria um **novo de visita** (`tipo: 'visita'`, `realizado_em` = hoje, `hojeSP()`) e registra nele. Nunca reusa em silêncio outra sessão (entrevista, documento ou visita de outro assunto). Ao salvar: "Achado registrado: envie para revisão em Revisar". `window.otRegistrarMudanca(siteId)` (usado no PR8): sempre cria um levantamento de visita novo para a mudança e abre-o; os achados daquela mudança vão nele e o "Enviar" dele é a Mudança (um lote). `montarInventario(..., { somenteLeitura })` e `montarFluxos(..., { somenteLeitura })` (usados no PR7 e no PR8).
 
-- [ ] **Step 1: Teste que falha** — `frontend/test/ot-achado-manual.test.js`: com o inventário do site carregado, (a) não existe `[data-action="otNovoAtivo"]`, `otSalvarAtivo`, `otNovoFluxo`, `otSalvarFluxo`, `otAplicarZona`; (b) "Registrar ativo" chama `GET …/levantamentos?site_id=s1` e, sem levantamento aberto, `POST …/levantamentos` com `{ site_id: 's1', tipo: 'visita' }` e depois `POST …/levantamentos/<id>/achados`; (c) "Propor remoção" pede confirmação e manda `{ dados: { alvo_id: 'a1', remover: true }, evidencia }`; (d) nenhuma chamada a `POST/PUT/DELETE …/ot/ativos` ou `…/ot/fluxos` (o mock lança se a URL casar; `…/ativos/a1/revelar` passa). `frontend/test/ot-lote-decisao.test.js`: o item `{ dados: { alvo_id: 'a1', remover: 1 } }` com `nomes_alvos: { a1: 'Switch velho' }` aparece como "Remover: Switch velho"; `{ alvo_id: 'a1', nome: 'X' }`, como "Alterar: Switch velho".
+- [ ] **Step 1: Teste que falha** — `frontend/test/ot-achado-manual.test.js`: com o inventário do site carregado, (a) não existe `[data-action="otNovoAtivo"]`, `otSalvarAtivo`, `otNovoFluxo`, `otSalvarFluxo`, `otAplicarZona`; (b) "Registrar ativo" sem levantamento aberto na tela faz `POST …/levantamentos` com `{ site_id: 's1', tipo: 'visita' }` e depois `POST …/levantamentos/<id>/achados`, **mesmo havendo uma entrevista aberta no site** (o mock de `GET …/levantamentos` devolve uma `entrevista` aberta e o teste confere que ela não recebe o achado); com `S.otLevantamento = 'l1'`, o achado vai a `…/levantamentos/l1/achados`; (c) "Propor remoção" pede confirmação e manda `{ dados: { alvo_id: 'a1', remover: true }, evidencia }`; (d) nenhuma chamada a `POST/PUT/DELETE …/ot/ativos` ou `…/ot/fluxos` (o mock lança se a URL casar; `…/ativos/a1/revelar` passa). `frontend/test/ot-lote-decisao.test.js`: o item `{ dados: { alvo_id: 'a1', remover: 1 } }` com `nomes_alvos: { a1: 'Switch velho' }` aparece como "Remover: Switch velho"; `{ alvo_id: 'a1', nome: 'X' }`, como "Alterar: Switch velho".
 - [ ] **Step 2: Rodar** → FAIL.
 - [ ] **Step 3: Implementar** — `montarInventario` troca os botões: "+ Novo ativo" → "Registrar ativo" (`otRegistrarAchado`), "Editar" → "Propor alteração" (achado com `alvo_id` e só os campos que a pessoa mudou: IP e MAC mascarados (`•••`) nunca vão no corpo), "Remover" → "Propor remoção", "Sugerir zona (IA)" → o modal mostra a sugestão e "Propor esta zona" (achado com `alvo_id` e `zona_id`), "Rascunho por IA" → formulário de achado. Fluxos: "+ Novo fluxo" → "Registrar fluxo" (achado de fluxo, `ot-levantamento.js:313-318`). Com `somenteLeitura`, nenhum desses botões. Remova `formAtivo`, `otSalvarAtivo`, `otNovoFluxo`, `otSalvarFluxo`, `otAplicarZona` e os ramos `ativos`/`fluxos` de `otRemover` (`NOMES` fica com `sites` e `zonas`). Em `ot-coleta.js`, a coluna do item usa `nomes_alvos[d.alvo_id]` quando há `alvo_id`.
 - [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
@@ -948,6 +998,9 @@ it('projeto novo: tudo falta, agente é opcional, na ordem do spec', async () =>
   expect(r.passos.map((p) => [p.id, p.estado])).toEqual([['modulo', 'falta'], ['gestor', 'falta'], ['tecnicos', 'falta'], ['site', 'falta'],
     ['sonda', 'falta'], ['agente', 'opcional'], ['fornecedores', 'falta'], ['assessment', 'falta'], ['base', 'falta']]);
 });
+it('sonda revogada não conta: credencial e envio só de sonda ativa; sem sonda ativa com envio, o passo falta', async () => {
+  // uma sonda com credencial e envio concluído, depois revogada (situacao = 'revogada') → passo 'sonda' em 'falta', detalhe '0 sondas; 0 instaladas; 0 com primeiro envio'
+});
 it('sonda: detalhe diz criada, instalada (credencial ativa) e primeiro envio', async () => {
   // uma sonda sem credencial, outra com credencial e um envio concluído
   const s = (await lista(cons)).find((p) => p.id === 'sonda');
@@ -980,8 +1033,10 @@ export async function listaDeVerificacao(db: D1Database, projectId: string) {
       (SELECT count(*) FROM ot_site_acessos a JOIN ot_sites s ON s.id = a.site_id WHERE s.project_id = ?1 AND s.status = 'ativo') AS tecnicos,
       (SELECT count(*) FROM ot_sites WHERE project_id = ?1 AND status = 'ativo') AS sites,
       (SELECT count(*) FROM ot_sensores WHERE project_id = ?1 AND situacao = 'ativa') AS sondas,
-      (SELECT count(DISTINCT sensor_id) FROM ot_sensor_credenciais WHERE project_id = ?1 AND situacao = 'ativa' AND expira_em > datetime('now')) AS instaladas,
-      (SELECT count(DISTINCT sensor_id) FROM ot_sensor_envios WHERE project_id = ?1 AND situacao = 'concluido') AS com_envio,
+      (SELECT count(DISTINCT c.sensor_id) FROM ot_sensor_credenciais c JOIN ot_sensores s ON s.id = c.sensor_id AND s.project_id = c.project_id
+        WHERE c.project_id = ?1 AND s.situacao = 'ativa' AND c.situacao = 'ativa' AND c.expira_em > datetime('now')) AS instaladas,
+      (SELECT count(DISTINCT e.sensor_id) FROM ot_sensor_envios e JOIN ot_sensores s ON s.id = e.sensor_id AND s.project_id = e.project_id
+        WHERE e.project_id = ?1 AND s.situacao = 'ativa' AND e.situacao = 'concluido') AS com_envio,
       (SELECT agente_coleta_ot FROM projects WHERE id = ?1) AS agente,
       (SELECT count(*) FROM ot_fornecedores WHERE project_id = ?1) AS fornecedores,
       (SELECT count(*) FROM ot_avaliacoes WHERE project_id = ?1) AS avaliacoes,
@@ -1040,7 +1095,7 @@ export async function listaDeVerificacao(db: D1Database, projectId: string) {
 - Consumes: `situacao.area/etapa/falta` (PR1a), `montarInventario(..., { somenteLeitura })` e `montarFluxos(..., { somenteLeitura })` (PR3b), `montarLevantamento`, `montarRevisao`.
 - Produces: abas da Implantação `['cadastrar', 'levantar', 'revisar', 'base']` (a do endereço, ou a da etapa atual); `window.otSiteAba(aba)`.
 
-- [ ] **Step 1: Teste que falha** — `frontend/test/ot-site.test.js`: com `situacao = { area: 'implantacao', etapa: 2, falta: ['Nenhum ativo no inventário do site'] }`, a tela abre na aba "2. Levantar" (o `montarLevantamento` é chamado), as etapas 3 e 4 aparecem como "ainda não" (botão desabilitado com `aria-disabled="true"`), a 1 como "feita" (abre para leitura); só um `.btn-primary`. Com `etapa: 4`, a aba "4. Aprovar a base" mostra inventário e fluxos **sem** "Registrar ativo" nem "Propor", e "Pedir aprovação da base" para quem edita; com `pode('gestor')` e `eu_pedi_a_base: false`, "Aprovar a base" e "Devolver". Com `area: 'obra'`, a faixa "Obra até dd/mm" e as abas 2 a 4. Nenhum "Modo projeto" no DOM.
+- [ ] **Step 1: Teste que falha** — `frontend/test/ot-site.test.js`: com `situacao = { area: 'implantacao', etapa: 2, falta: ['Nenhum ativo no inventário do site'] }`, a tela abre na aba "2. Levantar" (o `montarLevantamento` é chamado), as etapas 3 e 4 aparecem como "ainda não" (botão desabilitado com `aria-disabled="true"`), a 1 como "feita" (abre para leitura); só um `.btn-primary`. Com `etapa: 4`, a aba "4. Aprovar a base" mostra inventário e fluxos **sem** "Registrar ativo" nem "Propor", e "Pedir aprovação da base" para quem edita; com `pode('gestor')` e `eu_pedi_a_base: false`, "Aprovar a base" e "Devolver". Com `area: 'obra'`, a faixa "Obra até dd/mm" e as quatro etapas (a zona pode mudar na obra, Task 3a.5, então a etapa 1 existe também aqui); com `area: 'obra', etapa: 1`, abre em "1. Cadastrar". Aba do endereço que não é da área (`aba=desvios` em obra, `aba=zzz`) cai na aba da etapa atual. Nenhum "Modo projeto" no DOM.
 - [ ] **Step 2: Rodar** → FAIL.
 - [ ] **Step 3: Implementar** — `montarSite`: lê sites e situação (como hoje, `ot-site.js:61-69`); `sit.area === 'operacao'` → `montarSiteOperacao` (PR8; até lá, a tela de operação de hoje); senão, as abas da implantação: `cadastrar` → formulário do site e zonas (o `formSite` e a tabela de zonas de `montarInventario`, que já existem), `levantar` → `montarLevantamento`, `revisar` → `montarRevisao`, `base` → `montarInventario(…, { somenteLeitura: true })` + `montarFluxos(…, { somenteLeitura: true })` + botões da base (`proximoPasso` de `ot-base.js`). Aba sem pedido no endereço = `['cadastrar', 'levantar', 'revisar', 'base'][sit.etapa - 1]`. `ALIAS_ABA` (PR1b) sai: `revisar` é aba de verdade agora.
 - [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
@@ -1067,17 +1122,20 @@ it('em operação: cinco abas, Desvios primeiro; a aba do endereço vale', async
     expect([...document.querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim())).toEqual(['Desvios', 'Saúde da coleta', 'Inventário', 'Mudanças', 'Revalidação']);
 });
 it('Inventário só leitura: ativos e fluxos, sem Registrar, Propor nem Remover', async () => {});
-it('Mudanças: abertas (em revisão) e concluídas, só do site e depois da base; "Registrar mudança" abre o levantamento de visita', async () => {
+it('Mudanças: abertas (em revisão) e concluídas, só do site e depois da base; "Registrar mudança" cria um levantamento de visita NOVO (POST /levantamentos tipo visita), mesmo com outro aberto', async () => {
     // /ot/lotes devolve de s1: um antes da base, um em_revisao e um concluido depois, um rejeitado depois; e um de s2
     // → "Abertas": o em_revisao; "Concluídas": o concluido; o rejeitado aparece em "Recusadas nos últimos 7 dias" (a retenção apaga
     //   o lote não concluído em 7 dias, src/manutencao.ts:155; a recusa fica na trilha, ot.lote.rejeitado); o de s2 e o anterior não aparecem
 });
-it('Revalidação: "Revalidar até dd/mm/aaaa" e os ativos do ARCiber vencidos ou a vencer em 60 dias; "Nova visita de revalidação"', async () => {});
+it('Revalidação: "Revalidar até dd/mm/aaaa" e, para quem vê completo (aprovar_lote), os ativos do ARCiber vencidos ou a vencer em 60 dias; "Nova visita de revalidação"', async () => {});
+it('Revalidação sem ver completo (técnico; platform_admin): só a data e o botão, nenhuma lista de ativos e nenhuma chamada a /ot/ativos', async () => {
+    // permissões { tecnico: true, aprovar_lote: false } e, noutro caso, { editar: true, aprovar_lote: false } (platform_admin): o mock lança em /ot/ativos
+});
 it('Gestor vê "Abrir obra"; os demais, não', async () => {});
 ```
 
 - [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `montarSiteOperacao(c, a, p, { site, aba, sit })`: `desvios` → `montarDesvios(…, { siteFixo })`; `saude` → o que `ot-site.js:92-93` já faz; `inventario` → `montarInventario(…, { somenteLeitura: true })` + `montarFluxos(…, { somenteLeitura: true })`; `mudancas` → `GET /ot/lotes`, filtro `l.site_id === site && l.created_at >= sit.base_aprovada_em`, em três blocos: **Abertas** (`em_revisao`), **Concluídas** (`concluido`) e **Recusadas nos últimos 7 dias** (`rejeitado`, com a nota "a recusa fica registrada na trilha; o lote sai daqui em 7 dias"), cada um com Criado em, Itens e Abrir → `otTela('site', site, 'mudancas', { otLote: l.id })` (abre `montarColeta` no lote), botão "Registrar mudança" → `otRegistrarAchado(site, {})` (PR3b); `revalidacao` → `sit.revalidar_em` e a lista de `GET /ot/ativos?site_id=` com `no_arciber` e `ultima_verificacao_em` + 24 meses ≤ hoje + 60 dias, botão "Nova visita de revalidação" → `otNovoLevantamentoDoSite`. O cabeçalho em operação: "Operação desde dd/mm/aaaa" e, para `pode('gestor')`, "Abrir obra" (`ot-base.js:46-47`).
+- [ ] **Step 3: Implementar** — `montarSiteOperacao(c, a, p, { site, aba, sit })`: `desvios` → `montarDesvios(…, { siteFixo })`; `saude` → o que `ot-site.js:92-93` já faz; `inventario` → `montarInventario(…, { somenteLeitura: true })` + `montarFluxos(…, { somenteLeitura: true })`; `mudancas` → `GET /ot/lotes`, filtro `l.site_id === site && l.created_at >= sit.base_aprovada_em`, em três blocos: **Abertas** (`em_revisao`), **Concluídas** (`concluido`) e **Recusadas nos últimos 7 dias** (`rejeitado`, com a nota "a recusa fica registrada na trilha; o lote sai daqui em 7 dias"), cada um com Criado em, Itens e Abrir → `otTela('site', site, 'mudancas', { otLote: l.id })` (abre `montarColeta` no lote), botão "Registrar mudança" → `otRegistrarMudanca(site)` (PR3b: sempre um levantamento de visita novo para a mudança); `revalidacao` → `sit.revalidar_em`; **só com `pode('aprovar_lote')`** (`podeVerCompleto` do servidor, que vê o inventário em claro), a lista de `GET /ot/ativos?site_id=` com `no_arciber` e `ultima_verificacao_em` + 24 meses ≤ hoje + 60 dias (técnico e platform_admin veem só a data, sem a chamada); botão "Nova visita de revalidação" → `otNovoLevantamentoDoSite`. Aba do endereço fora das cinco cai em Desvios. O cabeçalho em operação: "Operação desde dd/mm/aaaa" e, para `pode('gestor')`, "Abrir obra" (`ot-base.js:46-47`).
 - [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
 - [ ] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: o site em operação tem Desvios, Saúde da coleta, Inventário só leitura, Mudanças e Revalidação."); `git commit -m "feat(ot): site em Operação com Mudanças e Revalidação (PR8 implantação e operação)"`; push `claude/ot-io-8`; PR.
 
@@ -1132,4 +1190,4 @@ it('Gestor vê "Abrir obra"; os demais, não', async () => {});
 
 **2. Placeholders:** os passos de teste da tela descrevem o DOM esperado com seletores e textos exatos; os corpos de `gh pr create` são texto do executor. Nenhum ponto depende de conferência de esquema: colunas e caminhos usados foram lidos nas migrations e rotas citadas.
 
-**3. Consistência de nomes:** `areaEEtapa`/`faltaParaAvancar`/`Area` (1.1) são os usados em 1.2, 3a.4, 7.1; `Permissoes`/`permissoesOt`/`ehLeitorOt` (2.1) em 2.2 e no `painel-ot.ts`; `carregarPermissoes`/`pode` (2.3) em 4.x, 5.1, 6.2, 7.1, 8.1; `inventarioPorLote` (3a.1) em 3a.2, 3c.1; `nomes_alvos` (3a.3) em 3b.1; `otRegistrarAchado` e `somenteLeitura` (3b.1) em 7.1 e 8.1; `ALIAS_ABA` (1.4) sai no 7.1; `listaDeVerificacao`/`PassoImplantacao` (6.1) em 6.2; abas da Implantação `cadastrar|levantar|revisar|base` e da Operação `desvios|saude|inventario|mudancas|revalidacao`; abas dos itens do Painel `desvios|revisar|base|saude|assessment|sondas|site`.
+**3. Consistência de nomes:** `areaEEtapa`/`faltaParaAvancar`/`Area` (1.1) são os usados em 1.2, 3a.4, 7.1; `Permissoes`/`permissoesOt`/`ehLeitorOt` (2.1) em 2.2 e no `painel-ot.ts`; `carregarPermissoes`/`pode` (2.3) em 4.x, 5.1, 6.2, 7.1, 8.1; `inventarioPorLote` (3a.1) em 3a.2, 3c.1; `nomes_alvos` (3a.3) em 3b.1; `otRegistrarAchado`, `otRegistrarMudanca` e `somenteLeitura` (3b.1) em 7.1 e 8.1; `condicoesDaBase` (1.1) em 3a.4; `ALIAS_ABA` (1.4) sai no 7.1; `listaDeVerificacao`/`PassoImplantacao` (6.1) em 6.2; abas da Implantação `cadastrar|levantar|revisar|base` e da Operação `desvios|saude|inventario|mudancas|revalidacao`; abas dos itens do Painel `desvios|revisar|base|saude|assessment|sondas|site`.
