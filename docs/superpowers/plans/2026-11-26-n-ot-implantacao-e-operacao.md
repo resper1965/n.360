@@ -1005,7 +1005,7 @@ it('Gestor vê "Abrir obra"; os demais, não', async () => {});
 | §7 links profundos (endereço, Painel, régua, sino) | Tasks 1.2, 1.3, 1.4 |
 | Decisão 3: tudo por lote, remoção, fim da gravação direta | Tasks 3.1 a 3.4 |
 | Decisão 5: Início some, sem chamadas por site | Tasks 4.1, 4.2 |
-| Pergunta 2: base exige ativo | Task 7.1 |
+| Decisão 2 do dono: base exige ativo | Task 7.1 |
 | "Criar ação corretiva" só com o n.iso | Tasks 2.1 (`acao_corretiva`), 2.3 |
 | Desvio vazio leva a Sondas, não a Acessos | Task 5.1 |
 | "Fornecedores de OT", "Sonda de rede" | Task 1.4 |

@@ -244,7 +244,7 @@ o item leva a Operação › Desvios ou a Implantação › Sites em implantaç�
 | Regra | Onde | Muda |
 |---|---|---|
 | Área e etapa do site | `areaEEtapa`, `faltaParaAvancar` em `ot-fase.ts` | nova (pura) |
-| Pedir a base exige ao menos um ativo ativo no site | `faltaParaBase`, `aprovarBase` | **alterada** (pergunta 2) |
+| Pedir a base exige ao menos um ativo ativo no site | `faltaParaBase`, `aprovarBase` | **alterada** (decisão 2) |
 | Ativo e fluxo só entram, mudam ou saem por lote | rotas de escrita de `ativos` e `fluxos` saem; o item de lote ganha `alvo_id` e `remover` | alterada |
 | Lote aprovado remove ativo/fluxo (`remover: true` com `alvo_id` do mesmo site) | `aprovarLote` (`ot-coleta.ts:266`) | nova |
 | Leitor só lê Painel, Assessment e Relatórios | middleware no `otApp` | nova |
@@ -263,7 +263,7 @@ o item leva a Operação › Desvios ou a Implantação › Sites em implantaç�
 | `GET /painel?modulo=ot` | alterado | `por_site[]` ganha `area` e `etapa`; `fazer[]` ganha `site?` e `aba?`; técnico recebe `meu_trabalho: ItemFazer[]` |
 | `POST /levantamentos/:id/achados` e `PUT …/achados/:aid` | alterado | `dados` aceita `alvo_id` (ativo ou fluxo do site) e `remover: true` (só com `alvo_id`) |
 | `POST/PUT /ot/ativos*`, `POST/PUT /ot/fluxos*`, `DELETE /ot/ativos/:id`, `DELETE /ot/fluxos/:id` | **somem** | o OpenAPI e `contrato-tela-api` acompanham |
-| `DELETE /ot/sites/:id`, zonas | ficam | estrutura do site (etapa 1); ver pergunta 3 |
+| `DELETE /ot/sites/:id`, zonas | ficam | estrutura do site (etapa 1); ver decisão 3 |
 
 ### O que some
 
@@ -292,9 +292,9 @@ de modo; "Acessos e sondas" como tela única; as seis rotas de escrita direta de
 - **Lote de um só item** por "Editar" na operação gera muitos lotes: a tela agrupa os achados em rascunho e envia de uma vez (como hoje).
 - **Sondas por site** em Configuração continuam uma chamada por site (`ot-sensores.js:36`): fica como está (só quem edita, raro).
 
-## Perguntas ao dono (com recomendação)
+## Decisões do dono sobre as perguntas abertas (26/11/2026: "sim às 4", as recomendações valem)
 
-| # | Pergunta | Recomendação |
+| # | Pergunta | Decisão |
 |---|---|---|
 | 1 | O Relatório de conformidade do leitor mostra a tabela de sites (nome e fase), como hoje (`ot-avaliacao.ts:185`)? | **Sim**: é o relatório formal entregue ao cliente; o Painel continua sem site |
 | 2 | Pedir a base passa a exigir ao menos um ativo no site? | **Sim** (a etapa 2 Levantar só faz sentido assim) |
