@@ -651,7 +651,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     const SITE2 = { id: 's2', nome: 'SE Sul', tipo: 'usina', criticidade: 'media', localizacao: null, status: 'ativo' };
     const lev = (id, site_id, funcao) => ({ id, site_id, tipo: 'entrevista', realizado_em: '2026-11-01', funcao, turno: null, achados: 0, situacao: 'em_andamento' });
     const des = (id, site_id) => ({ id, site_id, site_nome: site_id, tipo: 'ativo', situacao: 'tratado', origem: { ativo: `host-${id}` }, primeira_vez: '2026-11-01T10:00:00Z', ultima_vez: '2026-11-02T10:00:00Z', ocorrencias: 1 });
-    const sit = (proximo_passo, extra = {}) => ({ fase: 'em_levantamento', base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 0, zonas_4_1_1: true, tem_conteudo: true, proximo_passo, lote_em_revisao_id: null, ...extra });
+    const sit = (proximo_passo, extra = {}) => ({ fase: 'em_levantamento', area: 'implantacao', etapa: 1, falta: [], base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 0, zonas_4_1_1: true, tem_conteudo: true, proximo_passo, lote_em_revisao_id: null, ...extra });
     const ROTAS = { [`GET ${B}/sites`]: { sites: [SITE, SITE2] }, [`GET ${B}/sites/s1/situacao`]: sit('comecar'), [`GET ${B}/sites/s2/situacao`]: sit('comecar'),
         [`GET ${B}/levantamentos`]: { levantamentos: [lev('l1', 's1', 'l1-texto-unico'), lev('l2', 's2', 'l2-texto-unico')] },
         [`GET ${B}/lotes`]: { lotes: [{ id: 'k1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', created_at: '2026-11-01T10:00:00Z' }, { id: 'k2', site_id: 's2', fonte: 'manual', status: 'concluido', created_at: '2026-11-02T10:00:00Z' }] },
@@ -678,7 +678,8 @@ describe('lista de sites e tela do site (Task 4)', () => {
     it('modo projeto: Levantamento, Lote de aprovação e Base; a lista só tem as linhas do site', async () => {
         servirOt(ROTAS);
         await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
-        expect(abas()).toEqual(expect.arrayContaining(['Modo projeto', 'Modo operação', 'Levantamento', 'Revisão e aprovação', 'Base']));
+        expect(abas()).toEqual(expect.arrayContaining(['Implantação', 'Operação', 'Levantamento', 'Revisão e aprovação', 'Base']));
+        expect(texto()).not.toMatch(/Modo projeto|Modo operação/);
         expect(el('c').textContent).toContain('l1-texto-unico');
         expect(el('c').textContent).not.toContain('l2-texto-unico');
         window.otNovoLevantamento();
@@ -718,7 +719,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     });
 
     it('Saúde da coleta do site: só o cartão de saúde, sem pontos nem contagem de desvios do projeto', async () => {
-        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { base_aprovada_em: '2026-11-10 12:00:00' }), [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] } });
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }), [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] } });
         await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
         await vi.waitFor(() => expect(el('c').textContent).toContain('Saúde da coleta'));
         await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
@@ -733,6 +734,42 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(S.otSub).toBe('saude');
         await ir({ site: 'sX', modo: 'projeto' });
         expect(el('c').textContent).toContain('Site não encontrado');
+    });
+
+    it('aba do endereço: a que não existe na área abre a primeira dela, e o endereço passa a ter a aba efetiva', async () => {
+        servirOt(ROTAS);
+        history.replaceState(null, '', '/ot?ot=site&site=s1&aba=zzz');
+        await ir({ site: 's1', modo: null, sub: 'zzz' });
+        expect(S.otSub).toBe('levantamento');
+        expect(window.location.search).toBe('?ot=site&site=s1&aba=levantamento');
+        await ir({ site: 's1', modo: null, sub: 'desvios' }); // desvios num site em implantação: a primeira da implantação
+        expect(S.otModo).toBe('projeto');
+        expect(S.otSub).toBe('levantamento');
+        await ir({ site: 's1', modo: null, sub: 'revisar' }); // nome do Painel: vira a aba de hoje até o PR7
+        expect(S.otSub).toBe('aprovacao');
+        expect(window.location.search).toBe('?ot=site&site=s1&aba=aprovacao');
+        history.replaceState(null, '', '/');
+    });
+
+    it('site em Operação: aba da implantação pedida (revisar, lote de revalidação) abre a aba, não a Saúde; Novo levantamento abre o Levantamento', async () => {
+        const OP = sit('revalidar', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00', revalidar_em: '2026-12-20' });
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: OP });
+        await ir({ site: 's1', modo: null, sub: 'revisar' });
+        expect([S.otModo, S.otSub]).toEqual(['projeto', 'aprovacao']);
+        expect(window.location.search).toBe('?ot=site&site=s1&aba=aprovacao');
+        await ir({ site: 's1', modo: null, sub: null }); // sem aba, a área decide
+        expect([S.otModo, S.otSub]).toEqual(['operacao', 'saude']);
+        // "Revalide → Novo levantamento": o modo vai junto com a aba
+        S.otTela = 'site'; S.otSite = 's1';
+        const original = window.otNovoLevantamento;
+        window.otNovoLevantamento = vi.fn();
+        window.render = vi.fn(() => ir({ site: S.otSite, modo: S.otModo, sub: S.otSub }));
+        try {
+            await window.otNovoLevantamentoDoSite();
+            expect([S.otModo, S.otSub]).toEqual(['projeto', 'levantamento']);
+            expect(window.otNovoLevantamento).toHaveBeenCalled();
+        } finally { window.otNovoLevantamento = original; }
+        history.replaceState(null, '', '/');
     });
 
     it('resolverDesvio: acha o site do desvio sem filtro de situação; desvio ausente dá null', async () => {
@@ -761,23 +798,23 @@ describe('lista de sites e tela do site (Task 4)', () => {
             }
         }
         await ir({ site: 's1', modo: 'projeto', sub: 'levantamento' });
-        expect(el('c').querySelector('[aria-current="step"]').textContent).toContain('Levantar');
+        expect(el('c').querySelector('[aria-current="step"]').textContent).toContain('1. Cadastrar');
         expect(el('c').textContent).toContain('Comece o levantamento');
         expect(el('c').querySelector('.card .btn-primary').getAttribute('data-action')).toBe('otNovoLevantamentoDoSite');
     });
 
-    it('modo inicial pela fase: em_operacao abre em Modo operação; sem modo e sem operação, em Modo projeto', async () => {
-        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }) });
+    it('modo inicial pela área: operação abre na Operação; sem modo e sem operação, na Implantação', async () => {
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
         await ir({ site: 's1', modo: null });
         expect(S.otModo).toBe('operacao');
-        expect(el('c').textContent).toContain('Em operação desde 10/11/2026');
+        expect(el('c').textContent).toContain('Operação desde 10/11/2026');
         expect(el('c').textContent).not.toContain('ainda não tem base aprovada');
         await ir({ site: 's2', modo: null });
         expect(S.otModo).toBe('projeto');
     });
 
     it('revalidar em operação abre em Modo operação', async () => {
-        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('revalidar', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }) });
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('revalidar', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
         await ir({ site: 's1', modo: null });
         expect(S.otModo).toBe('operacao');
     });

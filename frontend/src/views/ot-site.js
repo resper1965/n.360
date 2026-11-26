@@ -1,7 +1,8 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes } from '../ui.js';
-import { podeEditarOt, podeCriarLote, ehGestor, lista, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, ehGestor, lista, areaDaFase, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
+import { escreverEndereco } from '../ot-navegacao.js';
 import { montarInventario, montarFluxos, formSite } from './ot.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
 import { montarRevisao } from './ot-revisao.js';
@@ -9,11 +10,15 @@ import { montarDesvios } from './ot-desvios.js';
 import { cabecalhoDoSite } from './ot-base.js';
 import { areaSondas, preencherCartoes } from './ot-sensores.js';
 
-// n.ot, lista de sites e tela do site (spec 2026-11-11 fluidez §3). A tela do site tem dois modos, cada um com suas sub-abas; o recorte
+// n.ot, lista de sites e tela do site (spec 2026-11-11 fluidez §3). A tela do site tem duas áreas (Implantação, Operação), cada uma com suas sub-abas; o recorte
 // por site é o `siteFixo` das telas reaproveitadas. Quem navega (window.otTela, endereço) é a casca; aqui só se desenha.
 
 export const SUBS = { projeto: ['levantamento', 'aprovacao', 'base'], operacao: ['saude', 'desvios', 'inventario'] };
-const MODOS = [['projeto', 'Modo projeto'], ['operacao', 'Modo operação']];
+const MODOS = [['projeto', 'Implantação'], ['operacao', 'Operação']];
+// Abas que o Painel já manda com o nome final e que aqui ainda têm o nome de hoje (sai no PR7, quando `revisar` vira aba).
+export const ALIAS_ABA = { revisar: 'aprovacao' };
+/** O modo de uma aba pedida dentro da sessão (botões, Painel); aba que não é de modo nenhum, null (a área decide). */
+export const modoDaAba = (aba) => Object.keys(SUBS).find((m) => SUBS[m].includes(ALIAS_ABA[aba] ?? aba)) ?? null;
 const ROTULO = { levantamento: 'Levantamento', aprovacao: 'Revisão e aprovação', base: 'Base', saude: 'Saúde da coleta', desvios: 'Desvios', inventario: 'Inventário' };
 
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
@@ -69,10 +74,13 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o site.', e); return; }
     const s = sites.find((x) => x.id === site);
     if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
-    // sem modo pedido, a fase decide: em operação abre no Modo operação, o resto no Modo projeto
-    modo = SUBS[modo] ? modo : sit?.fase === 'em_operacao' ? 'operacao' : 'projeto';
-    sub = SUBS[modo].includes(sub) ? sub : SUBS[modo][0];
+    // sem modo pedido (endereço, Abrir), a área decide; a aba que não é dessa área abre a primeira dela (spec 2026-11-26 §7). Exceção
+    // até o PR8: as abas da implantação seguem válidas num site em operação (lote de revalidação, Novo levantamento).
+    modo = SUBS[modo] ? modo : modoDaAba(sub) === 'projeto' || (sit?.area ?? areaDaFase(sit?.fase)) !== 'operacao' ? 'projeto' : 'operacao';
+    const pedida = ALIAS_ABA[sub] ?? sub;
+    sub = SUBS[modo].includes(pedida) ? pedida : SUBS[modo][0];
     S.otSite = site; S.otSub = sub; S.otModo = modo;
+    escreverEndereco({ tela: 'site', site, aba: sub }); // recarregar mantém a aba efetiva
     if (sub === 'desvios') {
         const f = S.otDesvioFiltro;
         if (desvio) S.otDesvioFiltro = { situacao: '', site_id: site, tipo: '' }; // o desvio do link pode estar em qualquer situação
@@ -94,5 +102,5 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     }
 }
 
-window.otSiteModo = async (modo) => { await esvaziarNotas(); S.otSub = SUBS[modo][0]; S.otLote = null; S.otLevantamento = null; window.otTela('site', S.otSite, modo); };
+window.otSiteModo = async (modo) => { await esvaziarNotas(); window.otTela('site', S.otSite, SUBS[modo][0]); };
 window.otSiteSub = async (sub) => { S.otSub = sub; S.otLote = null; S.otLevantamento = null; await esvaziarNotas(); window.render(); };

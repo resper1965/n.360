@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderEmptyState } from '../ui.js';
-import { lista, podeAprovarOt, podeEditarOt, ehGestor, dataDoSqlite, FASE } from '../ot-comum.js';
+import { lista, podeAprovarOt, podeEditarOt, ehGestor, dataDoSqlite, rotuloDaArea, areaDaFase } from '../ot-comum.js';
 import { emDiasSP, hojeSP } from '../hoje.js';
 
 // n.ot, tela Início (spec 2026-11-11 fluidez §2): "Espera por você", Sites e Postura RO-CB.BR.01. Clique pela delegação:
@@ -9,9 +9,9 @@ import { emDiasSP, hojeSP } from '../hoje.js';
 
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const PRAZO_DIAS = 7;
-const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Em operação', revalidar: 'Revalidar' };
+const PASSO = { comecar: 'Começar o levantamento', revisar: 'Revisar', aguardar_lote: 'Aguardar o lote', pedir_base: 'Pedir a base', aguardar_base: 'Aguardar a base', em_operacao: 'Acompanhar', revalidar: 'Revalidar' };
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
-const alvo = (site, modo, lote) => ({ tela: 'site', site, modo, ...(lote ? { lote } : {}) });
+const alvo = (site, aba, lote) => ({ tela: 'site', site, aba, ...(lote ? { lote } : {}) }); // aba nula: a área do site decide
 
 /** Linhas de "Espera por você" para o papel de quem olha. Pura: recebe os dados já lidos. `sites` mapeia id → nome. */
 export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rascunhosPorSite = {}, sondas = [], sites = {}, situacoes = {}, assessment = null }, { id, podeAprovar, podeEditar, gestor }) {
@@ -21,33 +21,33 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rasc
         for (const l of lotes.filter((x) => x.status === 'em_revisao' && x.criado_por !== id)) {
             const criado = dataDoSqlite(l.created_at);
             const [, m, d] = criado ? emDiasSP(PRAZO_DIAS, criado).split('-') : [];
-            out.push({ tipo: 'lote', texto: `Lote de aprovação em ${nome(l.site_id)}${criado ? `: decidir até ${d}/${m}` : ''}`, acao: alvo(l.site_id, 'projeto', l.id) });
+            out.push({ tipo: 'lote', texto: `Lote de aprovação em ${nome(l.site_id)}${criado ? `: decidir até ${d}/${m}` : ''}`, acao: alvo(l.site_id, null, l.id) });
         }
         const porSite = {};
         for (const d of desvios.filter((x) => !situacoes[x.site_id]?.obra)) porSite[d.site_id] = (porSite[d.site_id] || 0) + 1;
-        for (const [s, n] of Object.entries(porSite)) out.push({ tipo: 'desvio', texto: `${plural(n, 'desvio aberto', 'desvios abertos')} em ${nome(s)}`, acao: { ...alvo(s, 'operacao'), extra: { otSub: 'desvios' } } });
+        for (const [s, n] of Object.entries(porSite)) out.push({ tipo: 'desvio', texto: `${plural(n, 'desvio aberto', 'desvios abertos')} em ${nome(s)}`, acao: alvo(s, 'desvios') });
     }
     if (gestor) {
         // quem pediu a base não a aprova: não espera por essa pessoa
-        for (const [s] of Object.entries(situacoes).filter(([, x]) => x?.proximo_passo === 'aguardar_base' && !x.eu_pedi_a_base)) out.push({ tipo: 'base', texto: `Base de ${nome(s)} aguardando sua aprovação`, acao: alvo(s, 'projeto') });
+        for (const [s] of Object.entries(situacoes).filter(([, x]) => x?.proximo_passo === 'aguardar_base' && !x.eu_pedi_a_base)) out.push({ tipo: 'base', texto: `Base de ${nome(s)} aguardando sua aprovação`, acao: alvo(s, null) });
     }
     if (gestor) {
         const hoje = hojeSP(); const limite = emDiasSP(PRAZO_DIAS);
         const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
         const verbo = (iso) => (iso < hoje ? 'venceu' : 'vence');
-        for (const [s, x] of Object.entries(situacoes)) if (x?.obra?.ate && x.obra.ate <= limite) out.push({ tipo: 'obra', texto: `Obra em ${nome(s)} ${verbo(x.obra.ate)} em ${dm(x.obra.ate)}`, acao: alvo(s, 'projeto') });
+        for (const [s, x] of Object.entries(situacoes)) if (x?.obra?.ate && x.obra.ate <= limite) out.push({ tipo: 'obra', texto: `Obra em ${nome(s)} ${verbo(x.obra.ate)} em ${dm(x.obra.ate)}`, acao: alvo(s, null) });
         for (const d of aceitos) { // aceito_ate é um instante: o dia vale em São Paulo
             const t = dataDoSqlite(d.aceito_ate);
             const dia = t && hojeSP(t);
-            if (dia && dia <= limite) out.push({ tipo: 'aceite', texto: `Aceite de desvio ${verbo(dia)} em ${dm(dia)} (${nome(d.site_id)})`, acao: { ...alvo(d.site_id, 'operacao'), extra: { otSub: 'desvios' } } });
+            if (dia && dia <= limite) out.push({ tipo: 'aceite', texto: `Aceite de desvio ${verbo(dia)} em ${dm(dia)} (${nome(d.site_id)})`, acao: alvo(d.site_id, 'desvios') });
         }
     }
     if (podeEditar) {
-        for (const [s, n] of Object.entries(rascunhosPorSite).filter(([, n]) => n > 0)) out.push({ tipo: 'rascunho', texto: `${plural(n, 'achado em rascunho', 'achados em rascunho')} em ${nome(s)}`, acao: { ...alvo(s, 'projeto'), extra: { otSub: 'aprovacao' } } });
+        for (const [s, n] of Object.entries(rascunhosPorSite).filter(([, n]) => n > 0)) out.push({ tipo: 'rascunho', texto: `${plural(n, 'achado em rascunho', 'achados em rascunho')} em ${nome(s)}`, acao: alvo(s, 'aprovacao') });
         // a API devolve a situação da sonda em `saude`
         for (const s of sondas) {
             const sit = s.saude || s.situacao;
-            if (sit === 'parada' || sit === 'atrasada') out.push({ tipo: 'sonda', texto: `Sonda ${s.nome} ${sit} em ${nome(s.site_id)}`, acao: alvo(s.site_id, 'operacao') });
+            if (sit === 'parada' || sit === 'atrasada') out.push({ tipo: 'sonda', texto: `Sonda ${s.nome} ${sit} em ${nome(s.site_id)}`, acao: alvo(s.site_id, 'saude') });
         }
     }
     // assessment: mesma regra do "Só o que espera por mim" da tela (ot-assessment.js). O Gestor confirma e revisa; quem edita preenche.
@@ -62,14 +62,14 @@ export function pendenciasDoPapel({ lotes = [], desvios = [], aceitos = [], rasc
         const n = (assessment.itens || []).filter((i) => i.tipo === 'politica' && !i.avaliacao).length;
         if (n > 0) ass(`${plural(n, 'item do assessment', 'itens do assessment')} sem preencher`, 'meus');
     }
-    for (const l of lotes.filter((x) => x.status === 'rejeitado' && x.criado_por === id)) out.push({ tipo: 'recusado', texto: `Seu lote em ${nome(l.site_id)} foi recusado`, acao: alvo(l.site_id, 'projeto', l.id) });
+    for (const l of lotes.filter((x) => x.status === 'rejeitado' && x.criado_por === id)) out.push({ tipo: 'recusado', texto: `Seu lote em ${nome(l.site_id)} foi recusado`, acao: alvo(l.site_id, null, l.id) });
     return out;
 }
 
 const botao = (rotulo, aria, acao, ...a) => `<button class="btn btn-sm" data-action="${acao}" data-args='${args(...a)}' aria-label="${escapeHTML(aria)}">${rotulo}</button>`;
-const abrir = (a) => (a.tela === 'assessment' ? botao('Abrir', 'Abrir assessment', 'otTela', 'assessment', null, 'projeto', { otAssFiltro: a.filtro })
+const abrir = (a) => (a.tela === 'assessment' ? botao('Abrir', 'Abrir assessment', 'otTela', 'assessment', null, null, { otAssFiltro: a.filtro })
     : a.lote ? botao('Abrir', 'Abrir lote', 'otIrParaLote', a.site, a.lote)
-    : a.site ? botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.modo, ...(a.extra ? [a.extra] : [])) : botao('Abrir', 'Abrir sites', 'otTela', 'sites'));
+    : a.site ? botao('Abrir', 'Abrir site', 'otTela', 'site', a.site, a.aba) : botao('Abrir', 'Abrir sites', 'otTela', 'sites'));
 
 export async function montarInicio(c, a, p) {
     const [rL, rD, rS, rC, rA] = await Promise.allSettled([
@@ -106,8 +106,8 @@ export async function montarInicio(c, a, p) {
     const sit = (s) => sondas.filter((x) => x.site_id === s).map((x) => x.saude || x.situacao);
     const pior = (s) => { const t = sit(s); return ['parada', 'atrasada'].find((x) => t.includes(x)); };
     const blocoSites = rS.status === 'rejected' ? '<p class="org-dica" role="alert">Não foi possível carregar os sites.</p>' : sitesL.length
-        ? renderDataTable(['Site', 'Fase', 'Próximo passo', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome),
-            escapeHTML(FASE[situacoes[s.id]?.fase] || '—'), escapeHTML(PASSO[situacoes[s.id]?.proximo_passo] || '—'),
+        ? renderDataTable(['Site', 'Área', 'Próximo passo', 'Desvios abertos', 'Sonda', 'Abrir'], sitesL.map((s) => [escapeHTML(s.nome),
+            escapeHTML(situacoes[s.id] ? rotuloDaArea(situacoes[s.id].area ?? areaDaFase(situacoes[s.id].fase), situacoes[s.id].etapa) : '—'), escapeHTML(PASSO[situacoes[s.id]?.proximo_passo] || '—'),
             escapeHTML(String(abertos[s.id] || 0)), escapeHTML(pior(s.id) || (sondas.some((x) => x.site_id === s.id) ? 'em dia' : '—')), botao('Abrir', `Abrir ${s.nome}`, 'otTela', 'site', s.id, null)]))
         : renderEmptyState({ titulo: 'Cadastre o primeiro site', texto: 'O site é onde o inventário e os levantamentos acontecem.', acao: podeEditarOt() ? `<button class="btn btn-primary" data-action="otTela" data-args='${args('sites')}'>Cadastrar site</button>` : '' });
     const r = assessment?.resumo;

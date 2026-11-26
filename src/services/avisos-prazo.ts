@@ -259,6 +259,10 @@ const TELA: Record<Fonte, string> = {
   ot_aceite: '/ot', ot_obra: '/ot', ot_revisao: '/ot',
 };
 
+/** n.ot (spec 2026-11-26 §7): o link leva o alvo pelo id (o `item_id` é o site na obra e o desvio no aceite), nunca pelo nome. */
+const telaOt = (i: { fonte: Fonte; item_id: string }) => i.fonte === 'ot_obra' ? `/ot?site=${encodeURIComponent(i.item_id)}`
+  : i.fonte === 'ot_aceite' ? `/ot?desvio=${encodeURIComponent(i.item_id)}` : '/ot?ot=assessment';
+
 /** Faixa do módulo de cada fonte (a mesma de `src/modulos.ts` para a tela que o aviso abre): só recebe quem tem o módulo. */
 const FAIXA_DA_FONTE: Record<Fonte, Faixa> = {
   capa: 'iso', checklist: 'iso', auditoria: 'iso', certificado: 'iso', link_auditor: 'iso', politica: 'iso',
@@ -321,7 +325,7 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
       if (!pessoas) pessoasPorProjeto.set(item.project_id, (pessoas = await pessoasDoProjeto(db, item.project_id)));
       const atraso = item.marco.startsWith('atraso-');
       // Ação (CAPA) de projeto sem o n.iso é ação da atividade de tratamento (F2): o sino leva ao RoPA, que o n.privacy abre.
-      let tela = TELA[item.fonte];
+      let tela = item.fonte.startsWith('ot_') ? telaOt(item) : TELA[item.fonte];
       if (item.fonte === 'capa') {
         let m = modulosPorProjeto.get(item.project_id);
         if (!m) modulosPorProjeto.set(item.project_id, (m = await modulosDoProjeto(db, item.project_id)));

@@ -10,7 +10,8 @@ import '../src/ui.js';
 import { cabecalhoDoSite, proximoPasso } from '../src/views/ot-base.js';
 
 const B = '/api/v1/projects/p9/ot';
-const sit = (proximo_passo, extra = {}) => ({ fase: 'em_levantamento', base_aprovada_em: null, rascunhos: 0, lote_em_revisao_id: null, proximo_passo, ...extra });
+const sit = (proximo_passo, extra = {}) => ({ fase: 'em_levantamento', area: 'implantacao', etapa: 1, falta: [], base_aprovada_em: null, rascunhos: 0, lote_em_revisao_id: null, proximo_passo, ...extra });
+const OPERACAO = { fase: 'em_operacao', area: 'operacao', etapa: null };
 const render = (s, papeis) => { document.body.innerHTML = `<div id="c">${cabecalhoDoSite(s, 's1', papeis)}</div>`; return document.getElementById('c'); };
 const EQ = { gestor: false, editar: true };
 const GE = { gestor: true, editar: true };
@@ -40,7 +41,7 @@ describe('cabeçalho do site', () => {
         ['aguardar_lote', { lote_em_revisao_id: 'k1' }, 'Aguardando o Gestor decidir o lote', 'otIrParaLote'],
         ['pedir_base', {}, 'Tudo aprovado: peça a aprovação da base', 'otPedirBase'],
         ['aguardar_base', {}, 'Aguardando o Gestor aprovar a base', 'otAprovarBase'],
-        ['em_operacao', { base_aprovada_em: '2026-11-10 12:00:00' }, 'Em operação', 'otSiteModo'],
+        ['em_operacao', { ...OPERACAO, base_aprovada_em: '2026-11-10 12:00:00' }, 'Acompanhe a operação do site', 'otSiteModo'],
     ])('%s: texto e um só primário', (passo, extra, texto, acao) => {
         const c = render(sit(passo, extra), GE);
         expect(c.textContent).toContain(texto);
@@ -51,6 +52,8 @@ describe('cabeçalho do site', () => {
     it('revisar com 1 achado fica no singular; Revisar abre a aba certa', () => {
         expect(proximoPasso(sit('revisar', { rascunhos: 1 }), 's1', EQ).texto).toBe('Revise 1 achado');
         expect(JSON.parse(render(sit('revisar', { rascunhos: 2 }), EQ).querySelector('.btn-primary').getAttribute('data-args'))).toEqual(['aprovacao']);
+        expect(render(sit('revisar', { rascunhos: 2 }), EQ).querySelector('.btn-primary').textContent).toBe('Revisar');
+        expect(render(sit('em_operacao', OPERACAO), EQ).querySelector('.btn-primary').textContent).toBe('Abrir a operação');
     });
 
     it('aguardar_base: o Gestor vê aprovar e devolver; os demais só o texto', () => {
@@ -61,13 +64,33 @@ describe('cabeçalho do site', () => {
         expect(outro.textContent).toContain('Aguardando o Gestor aprovar a base');
     });
 
-    it('régua marca a etapa atual e escapa o que vem da API', () => {
-        const c = render(sit('pedir_base'), EQ);
+    it('régua de 4 etapas da implantação: a atual marcada e o "Para avançar" com o que falta, escapado', () => {
+        const c = render(sit('revisar', { etapa: 3, rascunhos: 2, falta: ['Há 2 achado(s) em rascunho para revisar', '<b id="xss">x</b>'] }), EQ);
+        const r = c.querySelector('ol[aria-label="Etapas da implantação"]');
+        expect([...r.querySelectorAll('li')].map((li) => li.textContent.trim())).toEqual(['1. Cadastrar', '2. Levantar', '3. Revisar', '4. Aprovar a base']);
         expect(c.querySelectorAll('[aria-current="step"]')).toHaveLength(1);
-        expect(c.querySelector('[aria-current="step"]').textContent).toContain('Revisar e aprovar');
-        expect(render(sit('em_operacao', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
-        expect(render(sit('revalidar', { fase: 'em_operacao', base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Em operação desde 10/11/2026');
+        expect(c.querySelector('[aria-current="step"]').textContent).toContain('3. Revisar');
+        expect(c.querySelector('h3').textContent).toBe('Para avançar');
+        expect([...c.querySelectorAll('.card ul li')].map((li) => li.textContent)).toEqual(['Há 2 achado(s) em rascunho para revisar', '<b id="xss">x</b>']);
+        expect(c.querySelector('#xss')).toBeNull();
+        expect(c.querySelectorAll('.btn-primary')).toHaveLength(1);
+        for (const velho of ['Revisar e aprovar', 'Base aprovada', 'Modo projeto', 'Modo operação']) expect(c.textContent).not.toContain(velho);
+        // sem nada na lista, o cartão diz o próximo passo
+        expect(render(sit('pedir_base', { etapa: 4 }), EQ).textContent).toContain('Tudo aprovado: peça a aprovação da base');
         expect(render(null, EQ).textContent).toContain('Não foi possível carregar a situação do site.');
+    });
+
+    it('operação: sem régua, o cabeçalho diz "Operação" e desde quando; obra diz "Obra até dd/mm"', () => {
+        const op = render(sit('em_operacao', { ...OPERACAO, base_aprovada_em: '2026-11-10 12:00:00' }), EQ);
+        expect(op.querySelector('ol')).toBeNull();
+        expect(op.querySelector('h3').textContent).toBe('Operação');
+        expect(op.textContent).toContain('Operação desde 10/11/2026');
+        expect(render(sit('revalidar', { ...OPERACAO, base_aprovada_em: '2026-11-10 12:00:00' }), EQ).textContent).toContain('Operação desde 10/11/2026');
+        const obra = render(sit('comecar', { fase: 'em_obra', area: 'obra', etapa: 2, obra: { ate: '2026-12-05', renovada: false, justificativa: '' } }), EQ);
+        expect(obra.textContent).toContain('Obra até 05/12');
+        expect(obra.querySelector('ol').getAttribute('aria-label')).toBe('Etapas da obra');
+        expect(obra.querySelector('[aria-current="step"]').textContent).toContain('2. Levantar');
+        for (const c of [op, obra]) for (const velho of ['Modo projeto', 'Modo operação', 'Em operação']) expect(c.textContent).not.toContain(velho);
     });
 
     it('aprovar pede a declaração e faz o POST com { declaracao: true }', async () => {
@@ -83,7 +106,7 @@ describe('cabeçalho do site', () => {
         const [url, opts] = f.mock.calls[0];
         expect(new URL(url, 'http://x').pathname).toBe(`${B}/sites/s1/base/aprovar`);
         expect(JSON.parse(opts.body)).toEqual({ declaracao: true });
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'operacao'); // aprovada, abre em operação
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'desvios'); // aprovada, abre na Operação, em Desvios
     });
 
     it('aprovar cancelado não chama a API; devolver manda o motivo; 409 mostra a mensagem', async () => {
@@ -129,9 +152,9 @@ describe('cabeçalho do site', () => {
     });
 
     it('em obra: selo com a justificativa no title; só o Gestor vê Renovar, e só antes de renovar; um só primário', () => {
-        const em = (renovada) => sit('comecar', { fase: 'em_obra', obra: { ate: '2026-12-05', renovada, justificativa: 'Troca "do" <b>switch</b>' } });
+        const em = (renovada) => sit('comecar', { fase: 'em_obra', area: 'obra', obra: { ate: '2026-12-05', renovada, justificativa: 'Troca "do" <b>switch</b>' } });
         const g = render(em(false), GE);
-        expect(g.textContent).toContain('Obra em andamento até 05/12');
+        expect(g.textContent).toContain('Obra até 05/12');
         expect(g.querySelector('.badge').getAttribute('title')).toBe('Troca "do" <b>switch</b>');
         expect(g.querySelector('[data-args*="renovar"]').textContent).toBe('Renovar obra');
         expect(g.querySelector('[data-args*="renovar"]').classList.contains('btn-primary')).toBe(false);
@@ -140,10 +163,10 @@ describe('cabeçalho do site', () => {
         expect(render(em(false), EQ).textContent).not.toContain('Renovar obra');
     });
     it('Abrir obra só em operação e só para o Gestor; revalidar mostra o prazo e Novo levantamento', () => {
-        const op = sit('em_operacao', { fase: 'em_operacao', obra: null });
+        const op = sit('em_operacao', { ...OPERACAO, obra: null });
         expect(render(op, GE).textContent).toContain('Abrir obra');
         expect(render(op, EQ).textContent).not.toContain('Abrir obra');
-        const r = render(sit('revalidar', { fase: 'em_operacao', obra: null, revalidar_em: '2026-12-20' }), { ...GE, criar: true });
+        const r = render(sit('revalidar', { ...OPERACAO, obra: null, revalidar_em: '2026-12-20' }), { ...GE, criar: true });
         expect(r.textContent).toContain('Revalide o inventário até 20/12');
         expect(r.querySelector('.btn-primary').textContent).toBe('Novo levantamento');
         expect(r.querySelectorAll('.btn-primary')).toHaveLength(1);

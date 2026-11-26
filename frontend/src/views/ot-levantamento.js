@@ -18,7 +18,7 @@ const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_perguntado: 'Não perguntado' };
 const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado para aprovação'], descartado: ['warning', 'Descartado'] };
 const SELO_ORIGEM = { ia: 'Sugerido pela IA', agente: 'Enviado pelo agente' };
 // O sensor de rede grava origem 'consultor'; a fonte fica na evidência (EVIDENCIA_SENSOR, src/services/ot-rede.ts).
-export const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sensor de rede' : '');
+export const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sonda de rede' : ''); // o prefixo é o gravado na evidência; o selo, o nome da tela
 /** Desfecho do achado no lote (a API só o devolve depois da decisão); sem ele, `enviado` é lote ainda em revisão. */
 const seloDaSituacao = (x, site) => (x.desfecho === 'no_inventario' ? `${renderStatusBadge('success', 'No inventário')} <button class="btn btn-sm" data-action="otVerNoInventario" data-args='${args(site)}'>Ver no inventário</button>`
     : x.desfecho === 'recusado' ? renderStatusBadge('danger', `Recusado: ${x.motivo || '—'}`) : selo(ACHADO, x.situacao));
@@ -391,7 +391,7 @@ window.otEnviarAchados = async () => {
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
-        await window.otTela('site', atual.site_id || S.otSite, 'projeto', { otSub: 'aprovacao', otLote: r.id });
+        await window.otTela('site', atual.site_id || S.otSite, 'aprovacao', { otLote: r.id });
     } catch (e) { falhou(e, 'Não foi possível enviar os achados para aprovação.'); }
 };
 

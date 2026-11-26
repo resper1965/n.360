@@ -41,7 +41,9 @@ describe('rotas da base do site', () => {
   it('situacao: campos da fase; site de outro projeto dá 404', async () => {
     const r = await chamar(gestor, 'GET', `${P}/sites/s1/situacao`);
     expect(r.status).toBe(200);
-    expect(await r.json()).toMatchObject({ fase: 'em_levantamento', rascunhos: 0, zonas_4_1_1: false, proximo_passo: 'comecar' });
+    const corpo = await r.json();
+    expect(corpo).toMatchObject({ fase: 'em_levantamento', rascunhos: 0, zonas_4_1_1: false, proximo_passo: 'comecar' });
+    expect(corpo).toMatchObject({ area: 'implantacao', etapa: 1, falta: expect.any(Array) });
     expect((await chamar(gestor, 'GET', `${P}/sites/sb/situacao`)).status).toBe(404);
   });
 

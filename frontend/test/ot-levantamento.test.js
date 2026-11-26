@@ -485,11 +485,11 @@ describe('importar arquivo no levantamento de documento', () => {
         expect(el('modal-content').textContent).not.toContain('IP e MAC entram cifrados');
     });
 
-    it('achado do sensor de rede mostra o selo "Sensor de rede"', async () => {
+    it('achado do sensor de rede mostra o selo "Sonda de rede"', async () => {
         await abrirDoc({}, DOC, [ACH(), ACH({ id: 'a4', evidencia: 'Sensor de rede (Zeek): 5321 conexões entre 01/11 e 03/11', dados: { nome: 'Ativo 10.1.1.10' } })]);
         const linha = (nome) => [...document.querySelectorAll('#c tbody tr')].find((tr) => tr.textContent.includes(nome));
-        expect(linha('Notebook IHM').textContent).not.toContain('Sensor de rede');
-        expect(linha('Ativo 10.1.1.10').querySelector('.badge').textContent).toBe('Sensor de rede');
+        expect(linha('Notebook IHM').textContent).not.toContain('Sonda de rede');
+        expect(linha('Ativo 10.1.1.10').querySelector('.badge').textContent).toBe('Sonda de rede');
     });
 
     it('achado com origem ia mostra o selo "Sugerido pela IA" junto do nome', async () => {

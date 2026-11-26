@@ -11,6 +11,7 @@ export interface SituacaoSite {
   proximo_passo: ProximoPasso; lote_em_revisao_id: string | null;
   obra: { ate: string; renovada: boolean; justificativa: string | null } | null; revalidar_em: string | null;
   eu_pedi_a_base: boolean;
+  area: Area; etapa: 1 | 2 | 3 | 4 | null; falta: string[]; ativos: number;
 }
 type Ator = { id: string };
 type Falha = { ok: false; status: 400 | 403 | 404 | 409; error: string };
@@ -41,6 +42,39 @@ export function proximoPassoDe(x: { fase: Fase; revalidar_em: string | null; tem
             : x.zonas_4_1_1 ? 'pedir_base' : 'revisar';
 }
 
+export type Area = 'implantacao' | 'operacao' | 'obra';
+export type EntradaEtapa = { fase: Fase; obra_ate: string | null; ativos: number; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number };
+
+const RASCUNHOS = (n: number) => `Há ${n} achado(s) em rascunho para revisar`;
+const LOTES = (n: number) => `Há ${n} lote(s) de aprovação em revisão`;
+const ZONAS = 'Faltam zonas nos níveis Purdue 2, 3 e 4';
+const ATIVO = 'Nenhum ativo no inventário do site';
+
+/** Todas as condições da base, na ordem de `faltaParaBase` de hoje (rascunho, lote, zonas) e o ativo por último. Só contagens. */
+export function condicoesDaBase(x: EntradaEtapa): string[] {
+  return [x.rascunhos_bloqueiam > 0 && RASCUNHOS(x.rascunhos_bloqueiam), x.lotes_em_revisao > 0 && LOTES(x.lotes_em_revisao),
+    !x.zonas_4_1_1 && ZONAS, x.ativos === 0 && ATIVO].filter((t): t is string => !!t);
+}
+
+/** Spec 2026-11-26 §1 e §4: só o que falta para sair da etapa ATUAL (a tela mostra uma etapa por vez). */
+export function faltaParaAvancar(x: EntradaEtapa): string[] {
+  switch (areaEEtapa(x).etapa) {
+    case 1: return [ZONAS];
+    case 2: return [ATIVO];
+    case 3: return condicoesDaBase(x).filter((t) => t !== ZONAS && t !== ATIVO);
+    default: return []; // 4: pode pedir (ou espera o Gestor); operação: nada
+  }
+}
+
+/** Área e etapa (1 Cadastrar, 2 Levantar, 3 Revisar, 4 Aprovar a base). A fase do banco fica; isto é só o nome. */
+export function areaEEtapa(x: EntradaEtapa): { area: Area; etapa: 1 | 2 | 3 | 4 | null } {
+  if (x.fase === 'em_operacao') return { area: 'operacao', etapa: null };
+  const area: Area = x.fase === 'em_obra' || (x.fase === 'base_em_aprovacao' && x.obra_ate) ? 'obra' : 'implantacao';
+  if (x.fase === 'base_em_aprovacao') return { area, etapa: 4 };
+  const etapa = x.rascunhos_bloqueiam > 0 || x.lotes_em_revisao > 0 ? 3 : !x.zonas_4_1_1 ? 1 : x.ativos === 0 ? 2 : 4;
+  return { area, etapa };
+}
+
 export async function situacaoDoSite(db: D1Database, projectId: string, siteId: string, quemId?: string): Promise<SituacaoSite | null> {
   const row = await db.prepare(`SELECT fase, base_pedida_por, base_pedida_em, base_aprovada_em, obra_ate, obra_renovada, obra_justificativa FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo'`)
     .bind(siteId, projectId).first<{ fase: Fase; base_pedida_por: string | null; base_pedida_em: string | null; base_aprovada_em: string | null; obra_ate: string | null; obra_renovada: number; obra_justificativa: string | null }>();
@@ -53,18 +87,20 @@ export async function situacaoDoSite(db: D1Database, projectId: string, siteId: 
     db.prepare(`SELECT count(*) AS n, (SELECT id FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao' ORDER BY created_at, id LIMIT 1) AS primeiro
       FROM ot_lotes WHERE project_id = ? AND site_id = ? AND status = 'em_revisao'`).bind(projectId, siteId, projectId, siteId).first<{ n: number; primeiro: string | null }>(),
     db.prepare(sitesComZonas411('site_id = ?')).bind(projectId, siteId).first(),
-    db.prepare(`SELECT (SELECT 1 FROM ot_levantamentos WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT 1)
-      OR (SELECT 1 FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT 1) AS tem`).bind(projectId, siteId, projectId, siteId).first<{ tem: number | null }>(),
+    db.prepare(`SELECT (SELECT 1 FROM ot_levantamentos WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT 1) AS lev,
+      (SELECT count(*) FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo') AS ativos`).bind(projectId, siteId, projectId, siteId).first<{ lev: number | null; ativos: number }>(),
     db.prepare(`SELECT date(min(ultima_verificacao_em), '+24 months') AS em FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo' AND no_arciber = 1`)
       .bind(projectId, siteId).first<{ em: string | null }>(),
   ]);
   const revalidar_em = rev?.em ?? null;
   const zonas_4_1_1 = !!zonas;
-  const tem_conteudo = !!conteudo?.tem;
+  const ativos = conteudo?.ativos ?? 0;
+  const tem_conteudo = !!conteudo?.lev || ativos > 0;
   const lotes_em_revisao = lotes?.n ?? 0;
   const proximo_passo = proximoPassoDe({ fase: site.fase, revalidar_em, tem_conteudo, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao });
+  const e = { fase: site.fase, obra_ate: row.obra_ate, ativos, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao };
   return { ...site, rascunhos, rascunhos_bloqueiam, lotes_em_revisao, zonas_4_1_1, tem_conteudo, proximo_passo, lote_em_revisao_id: lotes?.primeiro ?? null, obra, revalidar_em,
-    eu_pedi_a_base: !!quemId && row.fase === 'base_em_aprovacao' && row.base_pedida_por === quemId };
+    eu_pedi_a_base: !!quemId && row.fase === 'base_em_aprovacao' && row.base_pedida_por === quemId, ...areaEEtapa(e), falta: faltaParaAvancar(e), ativos };
 }
 
 /** A primeira condição da base que falha, em texto para a tela; null se todas valem. */

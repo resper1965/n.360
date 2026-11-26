@@ -168,7 +168,7 @@ describe('lote item a item', () => {
         expect(link.textContent).toBe('Ver no inventário');
         expect(link.getAttribute('aria-label')).toContain('linha 2');
         window.otVerNoInventario('s1');
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'base' });
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'base');
     });
 });
 

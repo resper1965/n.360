@@ -231,7 +231,7 @@ describe('início do n.360', () => {
         { id: 'p9', nome: 'Exemplo', modulos: ['iso', 'privacy', 'ot'], tom: 'ok', situacao: 'Em dia', urgente: 'Próximo: Pedido PT-9 em 03/11', modulo_urgente: 'iso', ultimo_movimento: null },
     ] };
     const OT = { saude: { tom: 'semana', rotulo: 'Atenção', frase: '2 desvios abertos.', apoio: '' }, numeros: [['2', 'desvios abertos']], comecando: false,
-        fazer: [{ grupo: 'semana', quando: 'Nesta semana', texto: '2 desvios abertos', contexto: '', acao: 'Ver os desvios', tela: 'ot', aba: 'sites', modulo: 'ot' }] };
+        fazer: [{ grupo: 'semana', quando: 'Nesta semana', texto: '2 desvios abertos', contexto: '', acao: 'Ver os desvios', tela: 'ot', aba: 'desvios', site: 's1', modulo: 'ot' }] };
     const ISO_ATRASO = BLOCO({ fazer: [{ grupo: 'atraso', quando: 'Venceu em 01/10', texto: '1 ação corretiva passou do prazo', contexto: '', acao: 'Ver as ações', tela: 'capa', filtro: 'vencidas', modulo: 'iso' }] });
     beforeEach(() => {
         history.replaceState(null, '', '/');
@@ -309,6 +309,11 @@ describe('início do n.360', () => {
         await window.painelVerSituacao('p9', 'Exemplo', ver);
         expect(el('ini-sit-p9')).not.toBeNull();
         expect(chamadas(f).filter((x) => x.includes('/painel'))).toEqual(['GET /api/v1/projects/p9/painel']);
+        // o item do n.ot leva o site e a aba (spec 2026-11-26 §7): abre o site na aba, no projeto do item
+        const itemOt = [...el('ini-sit-p9').querySelectorAll('[data-action="painelAbrirItem"]')].find((b) => JSON.parse(b.dataset.args)[1] === 'ot');
+        expect(JSON.parse(itemOt.dataset.args)).toEqual(['p9', 'ot', 'desvios', null, 's1']);
+        window.painelAbrirItem(...JSON.parse(itemOt.dataset.args));
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s1&aba=desvios');
     });
 
     it('"Ver situação" com falha: diz isso na linha, sem segundo botão primário', async () => {
@@ -375,10 +380,12 @@ describe('início do n.360', () => {
     });
 
     it('painelAbrir e abrirModulo: só destinos da lista fechada', () => {
-        window.painelAbrir('ot', 'sites', null);
+        window.painelAbrir('ot', 'desvios', null);
         expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
-        window.painelAbrir('ot', '<script>', null);
-        expect(irPara).toHaveBeenLastCalledWith('/ot');
+        window.painelAbrir('ot', '<script>', null); // aba fora do mapa, sem site: a lista Sites, e a aba não vai ao endereço
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
+        window.painelAbrir('ot', '<script>', null, 's1'); // com site, a aba vai escapada (a tela do site a confere)
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s1&aba=%3Cscript%3E');
         window.abrirModulo('iso');
         expect(irPara).toHaveBeenLastCalledWith('/iso');
         irPara.mockClear();

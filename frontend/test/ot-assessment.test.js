@@ -73,7 +73,7 @@ describe('tela Assessment', () => {
         window.otAssAbrir('4.1.1');
         expect(el('modal-content').textContent).toContain('Situação nos seus sites');
         window.otAssIrSite('s1');
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'base' });
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'base');
     });
 
     it('5.1.1 mostra "Não avaliado neste ciclo"', async () => {
@@ -170,7 +170,7 @@ describe('tela Assessment', () => {
         const b = el('modal-content').querySelector('[data-action="otAssIrLevantamento"]');
         const [site, lev] = JSON.parse(b.dataset.args);
         window.otAssIrLevantamento(site, lev);
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'projeto', { otSub: 'levantamento', otLevantamento: 'lv1' });
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantamento', { otLevantamento: 'lv1' });
         const it = ITENS.itens[1]; const antes = it.subsidio[0].resposta;
         it.subsidio[0].resposta = 'talvez<b id="xss4">';
         await abrir(); window.otAssAbrir('4.2.1');

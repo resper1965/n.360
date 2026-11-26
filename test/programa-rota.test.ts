@@ -49,7 +49,7 @@ describe('programa.etapas por perfil', () => {
   it('consultor com o ot: iso e ot; o site em operação com desvio aberto está em Tratar; nenhum nome de site', async () => {
     const d = await painel(cons);
     expect(Object.keys(d.programa.etapas).sort()).toEqual(['iso', 'ot']);
-    expect(d.programa.etapas.ot).toMatchObject({ etapa: 'tratar', feitos: 0, total: 1, proximo: { texto: 'Tratar os desvios abertos', tela: 'ot', aba: 'sites' } });
+    expect(d.programa.etapas.ot).toMatchObject({ etapa: 'tratar', feitos: 0, total: 1, proximo: { texto: 'Operação: tratar os desvios abertos', tela: 'ot', site: 's1' } });
     expect(JSON.stringify(d.programa)).not.toContain('SE Norte');
   });
   it('?modulo=iso: só a régua do iso, mesmo para quem tem o ot', async () => {
@@ -60,7 +60,7 @@ describe('programa.etapas por perfil', () => {
   it('chave de API: nenhuma chave, contagem ou texto do n.ot (P0-2)', async () => semRastroDoOt(await painel({ 'X-API-Key': 'chave-programa-ot' })));
   it('técnico com o ot e sem acesso ao site: o ot vem com 0 sites (P0-4), não com o site do projeto', async () => {
     const d = await painel(tecnico);
-    expect(d.programa.etapas.ot).toMatchObject({ total: 0, etapa: 'comecar', proximo: { texto: 'Cadastrar o primeiro site' } });
+    expect(d.programa.etapas.ot).toMatchObject({ total: 0, etapa: 'comecar', proximo: { texto: 'Implantação: cadastrar o primeiro site' } });
   });
 });
 

@@ -121,7 +121,7 @@ describe('cartões do Levantamento', () => {
         expect(t).toContain('Achados da sonda para revisar');
         expect(t).toContain('1 ativo');
         expect(t).toContain('2 fluxos');
-        expect(t).toContain('Sensor de rede');
+        expect(t).toContain('Sonda de rede');
         expect(chamadas.filter((c) => c.k.includes('/levantamentos/lv1'))).toHaveLength(0); // sem leitura por sessão
     });
 

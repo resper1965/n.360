@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, closeModal, showToast, confirmar, falhaDeCarga, renderEmptyState, formatarData } from '../ui.js';
-import { mensagemDeErro, podeEditarOt, ehGestor, lista, opcoes, SITUACAO, AVALIACAO, AGUARDANDO_BASE } from '../ot-comum.js';
+import { mensagemDeErro, podeEditarOt, ehGestor, lista, opcoes, SITUACAO, AVALIACAO, AGUARDANDO_BASE, AREA, areaDaFase } from '../ot-comum.js';
 import { moduloPara, enderecoDoProduto } from '../produto.js';
 
 // n.ot, tela Assessment (RO-CB.BR.01) sobre /ot/assessment (src/routes/ot.ts). Item técnico: só leitura, calculado do inventário.
@@ -71,11 +71,11 @@ window.otAssAbrir = (codigo) => {
 
 function corpoTecnico(i) {
     const sites = lista(i, 'por_site');
-    return `<p class="org-dica">Calculado pelo inventário; não editável.</p>${renderDataTable(['Site', 'Fase', 'Evidência', ''], sites.map((s) => [escapeHTML(s.site_nome), escapeHTML(s.fase || '—'),
+    return `<p class="org-dica">Calculado pelo inventário; não editável.</p>${renderDataTable(['Site', 'Área', 'Evidência', ''], sites.map((s) => [escapeHTML(s.site_nome), escapeHTML(s.fase ? AREA[areaDaFase(s.fase)] : '—'),
         escapeHTML(s.evidencia || '—'), `<button class="btn btn-sm" data-action="otAssIrSite" data-args='${args(s.site_id)}' aria-label="${escapeHTML(`Abrir o site ${s.site_nome}`)}">Abrir site</button>`]),
     { emptyMessage: 'Nenhum site no inventário.' })}`;
 }
-window.otAssIrSite = (id) => { closeModal(); window.otTela('site', id, 'projeto', { otSub: 'base' }); };
+window.otAssIrSite = (id) => { closeModal(); window.otTela('site', id, 'base'); };
 
 function corpoPolitica(i) {
     const av = i.avaliacao || {};
@@ -101,7 +101,7 @@ function corpoPolitica(i) {
         ? (av.eu_avaliei ? '<p class="org-dica">Quem avaliou o item não o confirma: peça a outra pessoa.</p>' : `<button class="btn" data-action="otAssConfirmar" data-args='${args(i.codigo)}'>Confirmar</button>`) : '';
     return `${form}${confirmacao}${confirmar_}${evidencias}${subsidio}`;
 }
-window.otAssIrLevantamento = (site, lev) => { closeModal(); window.otTela('site', site, 'projeto', { otSub: 'levantamento', otLevantamento: lev }); };
+window.otAssIrLevantamento = (site, lev) => { closeModal(); window.otTela('site', site, 'levantamento', { otLevantamento: lev }); };
 
 const CAMPOS = ['ass-sit', 'ass-just', 'ass-resp', 'ass-rev'];
 async function recarregar(codigo) {

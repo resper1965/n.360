@@ -11,7 +11,7 @@ import type { Modulo } from '../modulos';
 // `etapasDoPrograma`, que usa só leituras). Nenhum número da onda 2 sai daqui.
 
 export type ResumoDaEtapa = { id: EtapaComum; rotulo: string; feitos: number; total: number };
-export type ProximoDoPrograma = { texto: string; tela: string; aba?: string; fase?: number; passo?: string };
+export type ProximoDoPrograma = { texto: string; tela: string; aba?: string; site?: string; fase?: number; passo?: string };
 export type PassoDaTrilha = { id: string; ordem: number; rotulo: string; etapa: EtapaComum; feito: boolean; tela: string; acao: string };
 export type ProgramaDoModulo = { etapa: EtapaComum; feitos: number; total: number; proximo: ProximoDoPrograma | null; etapas: ResumoDaEtapa[]; passos?: PassoDaTrilha[] };
 
@@ -45,10 +45,11 @@ export const ETAPA_DO_PASSO_OT: Record<ProximoPasso, EtapaComum> = {
   comecar: 'comecar', revisar: 'levantar', aguardar_lote: 'levantar', pedir_base: 'avaliar', aguardar_base: 'avaliar', em_operacao: 'operar', revalidar: 'operar',
 };
 export const TEXTO_OT: Record<ProximoPasso, string> = {
-  comecar: 'Começar o levantamento do site', revisar: 'Revisar os achados do levantamento', aguardar_lote: 'Revisar o lote de aprovação',
-  pedir_base: 'Pedir a aprovação da base', aguardar_base: 'Aprovar a base do site', em_operacao: 'Acompanhar a operação', revalidar: 'Revalidar os ativos',
+  comecar: 'Implantação: cadastrar o site', revisar: 'Implantação: revisar os achados', aguardar_lote: 'Implantação: decidir o lote',
+  pedir_base: 'Implantação: pedir a aprovação da base', aguardar_base: 'Implantação: aprovar a base', em_operacao: 'Operação: acompanhar', revalidar: 'Operação: revalidar os ativos',
 };
-export type SiteNoPrograma = { proximo_passo: ProximoPasso; desvios_abertos: number };
+/** `id` leva o link ao site (spec 2026-11-26 §7); o painel o tira para o leitor, e sem `id` o próximo passo não leva site. */
+export type SiteNoPrograma = { id?: string; proximo_passo: ProximoPasso; desvios_abertos: number };
 
 /**
  * Unidade do n.ot é o site: a etapa do módulo é a do site mais atrasado; feito = site em operação sem desvio aberto. Nunca leva nome de site.
@@ -63,10 +64,12 @@ export function etapasDoOt(sitesPermitidos: SiteNoPrograma[]): ProgramaDoModulo 
   const doSite = sites.map(etapaDe);
   const etapas = ETAPAS_COMUNS.map(({ id, rotulo }) => ({ id, rotulo, total: sites.length,
     feitos: doSite.filter((e) => indice(e) > indice(id) || (id === 'operar' && e === 'operar')).length }));
-  if (!sites.length) return { etapa: 'comecar', feitos: 0, total: 0, proximo: { texto: 'Cadastrar o primeiro site', tela: 'ot', aba: 'sites' }, etapas };
+  if (!sites.length) return { etapa: 'comecar', feitos: 0, total: 0, proximo: { texto: 'Implantação: cadastrar o primeiro site', tela: 'ot', aba: 'implantacao' }, etapas };
   const i = doSite.reduce((m, e, k) => (indice(e) < indice(doSite[m]) ? k : m), 0);
-  const texto = doSite[i] === 'tratar' ? 'Tratar os desvios abertos' : TEXTO_OT[sites[i].proximo_passo];
-  return { etapa: doSite[i], feitos: doSite.filter((e) => e === 'operar').length, total: sites.length, proximo: { texto, tela: 'ot', aba: 'sites' }, etapas };
+  const texto = doSite[i] === 'tratar' ? 'Operação: tratar os desvios abertos' : TEXTO_OT[sites[i].proximo_passo];
+  // Sem `aba`: a tela do site abre na aba da etapa.
+  const proximo: ProximoDoPrograma = { texto, tela: 'ot', ...(sites[i].id ? { site: sites[i].id } : {}) };
+  return { etapa: doSite[i], feitos: doSite.filter((e) => e === 'operar').length, total: sites.length, proximo, etapas };
 }
 
 export type VisaoDoEncarregado = Awaited<ReturnType<typeof visaoDoEncarregado>>;

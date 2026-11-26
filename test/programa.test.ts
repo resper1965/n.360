@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ETAPAS_COMUNS, FASES_DO_ISO, etapaDaFase, PASSOS_PRIVACY, CRITERIOS_PRIVACY } from '../src/data/programa';
-import { etapasDoIso, etapasDoOt, primeiroMarco, ETAPA_DO_PASSO_OT, etapasDoPrivacy, criterioPrivacy, type VisaoDoEncarregado } from '../src/services/programa';
+import { etapasDoIso, etapasDoOt, primeiroMarco, ETAPA_DO_PASSO_OT, TEXTO_OT, etapasDoPrivacy, criterioPrivacy, type VisaoDoEncarregado } from '../src/services/programa';
 import { obterCatalogo } from '../src/data/passos/catalogo';
 import { ENTIDADES } from '../src/data/passos/tipos';
 import type { ContextoProjeto, LinhaFase } from '../src/services/passos/contexto';
@@ -68,16 +68,21 @@ describe('etapasDoOt (puro)', () => {
   });
   it('sem site: Começar, 0 de 0, cadastrar o primeiro site; nenhum nome de site em lugar nenhum', () => {
     const p = etapasDoOt([]);
-    expect(p).toMatchObject({ etapa: 'comecar', feitos: 0, total: 0, proximo: { texto: 'Cadastrar o primeiro site', tela: 'ot', aba: 'sites' } });
+    expect(p).toMatchObject({ etapa: 'comecar', feitos: 0, total: 0, proximo: { texto: 'Implantação: cadastrar o primeiro site', tela: 'ot', aba: 'implantacao' } });
   });
   it('a etapa do módulo é a do site mais atrasado; em operação com desvio aberto é Tratar', () => {
     const p = etapasDoOt([{ proximo_passo: 'em_operacao', desvios_abertos: 1 }, { proximo_passo: 'pedir_base', desvios_abertos: 0 }]);
     expect(p.etapa).toBe('avaliar');
     expect(p.total).toBe(2);
     expect(p.feitos).toBe(0); // em operação sem desvio = feito; com desvio ainda é Tratar
-    expect(p.proximo).toEqual({ texto: 'Pedir a aprovação da base', tela: 'ot', aba: 'sites' });
-    expect(etapasDoOt([{ proximo_passo: 'em_operacao', desvios_abertos: 2 }])).toMatchObject({ etapa: 'tratar', proximo: { texto: 'Tratar os desvios abertos' } });
+    expect(p.proximo).toEqual({ texto: 'Implantação: pedir a aprovação da base', tela: 'ot' }); // sem id (leitor): sem site
+    expect(etapasDoOt([{ proximo_passo: 'em_operacao', desvios_abertos: 2 }])).toMatchObject({ etapa: 'tratar', proximo: { texto: 'Operação: tratar os desvios abertos' } });
     expect(etapasDoOt([{ proximo_passo: 'revalidar', desvios_abertos: 0 }])).toMatchObject({ etapa: 'operar', feitos: 1, total: 1 });
+  });
+  it('n.ot: o próximo passo diz a área e leva ao site mais atrasado (spec 2026-11-26 §1 e §7)', () => {
+    const p = etapasDoOt([{ id: 's1', proximo_passo: 'em_operacao', desvios_abertos: 0 }, { id: 's2', proximo_passo: 'revisar', desvios_abertos: 0 }]);
+    expect(p.proximo).toEqual({ texto: 'Implantação: revisar os achados', tela: 'ot', site: 's2' });
+    expect(TEXTO_OT.em_operacao).toBe('Operação: acompanhar');
   });
 });
 

@@ -65,7 +65,7 @@ export async function montarSaidas(c, a, p) {
         ${exportar}`;
 }
 
-window.otIrBase = (site, zona) => window.otTela('site', site, 'projeto', { otSub: 'base', otZona: zona });
+window.otIrBase = (site, zona) => window.otTela('site', site, 'base', { otZona: zona });
 window.otRelatorioConformidade = () => montarRelatorio(raiz, acoes, S.activeProject);
 
 window.otExportar = async (formato) => {

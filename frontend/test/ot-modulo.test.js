@@ -212,13 +212,13 @@ describe('casca por subtela', () => {
         expect(S.otTela).toBe('inicio');
         expect(el('h').textContent).toBe('n.ot · Início');
     });
-    it('trocar de projeto zera site, subtela e modo', async () => {
+    it('trocar de projeto zera site, subtela e aba', async () => {
         servir({});
         S.otTela = 'site'; S.otSite = 's1'; S.otModo = 'operacao'; S.otSub = 'desvios';
         S.activeProject = { id: 'p8', modulos: ['ot'] };
         ir('/ot');
         await abrir();
-        expect([S.otSite, S.otModo, S.otSub]).toEqual([null, 'projeto', null]);
+        expect([S.otSite, S.otModo, S.otSub]).toEqual([null, null, null]);
         expect(S.otTela).toBe('inicio');
     });
     it('trocar de projeto não lê o endereço velho: abre o Início e limpa ?ot=', async () => {
@@ -241,6 +241,16 @@ describe('casca por subtela', () => {
         S.otPedido = { tela: 'sites' };
         await abrir();
         expect(el('h').textContent).toBe('Sites');
+    });
+    it('pedido do sino com site abre o site; com desvio, o site do desvio em Desvios (spec 2026-11-26 §7)', async () => {
+        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [{ id: 'd9', site_id: 's2', tipo: 'ativo_novo', situacao: 'aberto' }] } });
+        ir('/ot?ot=relatorios');
+        S.otPedido = { tela: 'site', site: 's2' };
+        await abrir();
+        expect([S.otTela, S.otSite, S.otPedido]).toEqual(['site', 's2', null]);
+        S.otPedido = { desvio: 'd9' };
+        await abrir();
+        expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
     });
     it('otTela("acessos") para client cai no Início', async () => {
         S.user = { id: 'u', role: 'client' };
