@@ -490,10 +490,10 @@ otApp.get('/lotes/:id', async (c) => {
 });
 
 /**
- * id → nome do que o item vai alterar ou remover (`alvo_id`): o nome do ativo ou "origem → destino" do fluxo. Só do site do lote (P0-4:
+ * id → nome do que o item (ou o achado) vai alterar ou remover (`alvo_id`): o nome do ativo ou "origem → destino" do fluxo. Só do site do lote (P0-4:
  * alvo de outro site não aparece); sem filtro de status, para o lote já gravado continuar dizendo o que removeu. Só nomes, nunca IP/MAC.
  */
-async function nomesDosAlvos(db: D1Database, projectId: string, siteId: string, itens: LinhaItem[]): Promise<Record<string, string>> {
+async function nomesDosAlvos(db: D1Database, projectId: string, siteId: string, itens: { dados: string }[]): Promise<Record<string, string>> {
   const ids = JSON.stringify([...new Set(itens.map((i) => (JSON.parse(i.dados) as { alvo_id?: unknown }).alvo_id).filter((x) => typeof x === 'string'))]);
   if (ids === '[]') return {};
   const [ativos, fluxos] = await Promise.all([
@@ -640,7 +640,7 @@ otApp.get('/levantamentos/:id', async (c) => {
     const nomes_pontas = await nomesDasPontas(db, projectId, lev.site_id, results.filter((a) => a.entidade === 'fluxo').map((a) => JSON.parse(a.dados)));
     const { results: ativos_do_site } = await db.prepare(`SELECT id, nome FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo' ORDER BY nome
       LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lev.site_id).all<{ id: string; nome: string }>();
-    return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados, nomes_pontas, ativos_do_site });
+    return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados, nomes_pontas, ativos_do_site, nomes_alvos: await nomesDosAlvos(db, projectId, lev.site_id, results) });
   } catch (e) { return erro500(c, 'Falha ao ler o levantamento', e); }
 });
 
@@ -682,7 +682,7 @@ otApp.get('/achados', async (c) => {
     const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) da fila do site ${site} com IP/MAC sem máscara`, { tipo: 'ot_site', id: site });
     const nomes_pontas = await nomesDasPontas(db, projectId, site, results.filter((a) => a.entidade === 'fluxo').map((a) => JSON.parse(a.dados)));
-    return c.json({ achados, nomes_pontas });
+    return c.json({ achados, nomes_pontas, nomes_alvos: await nomesDosAlvos(db, projectId, site, results) });
   } catch (e) { return erro500(c, 'Falha ao ler a fila de revisão', e); }
 });
 

@@ -95,6 +95,7 @@ async function renderOt(c, h, a) {
 window.otTela = async (tela, site = null, aba = null, extra = {}) => {
     await esvaziarNotas();
     Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modoDaAba(aba), otSub: aba, otZona: null, otLote: null, otLevantamento: null }, extra);
+    if (S.otTela !== 'site' || S.otVisitaInventario?.site !== S.otSite) S.otVisitaInventario = null; // fora da tela do site, a visita do inventário não é reaproveitada
     window.render();
 };
 // Abre o lote de um site vindo de fora (Início): sub-aba Lote de aprovação.
@@ -236,6 +237,10 @@ window.otProporRemocao = (rota, id) => {
     const x = (rota === 'fluxos' ? D.fluxos : D.ativos).find((a) => a.id === id);
     if (x) return registrar(x.site_id, { entidade: rota === 'fluxos' ? 'fluxo' : 'ativo', alvo_id: id, remover: true });
 };
+window.otProporAlteracaoFluxo = (id) => {
+    const f = D.fluxos.find((x) => x.id === id);
+    if (f) return registrar(f.site_id, { entidade: 'fluxo', dados: f, alvo_id: id, original: f, ativos: D.ativos.filter((x) => x.site_id === f.site_id).map(({ id: i, nome }) => ({ id: i, nome })) });
+};
 window.otRegistrarFluxo = () => {
     const site = siteAtual();
     return registrar(site, { entidade: 'fluxo', ativos: D.ativos.filter((x) => x.site_id === site).map(({ id, nome }) => ({ id, nome })) });
@@ -352,7 +357,7 @@ export async function montarFluxos(c, a, p, { siteFixo, semPrimario, somenteLeit
         escapeHTML([f.protocolo, f.porta].filter((x) => x !== null && x !== undefined && x !== '').join(':') || '—'),
         escapeHTML(f.direcao === 'bidirecional' ? 'Bidirecional' : 'Unidirecional'), f.externo ? 'Sim' : 'Não', f.via_vpn ? 'Sim' : 'Não',
         (f.violacoes || []).length ? renderStatusBadge('danger', `Fluxo externo sem VPN: viola ${f.violacoes.join(' e ')}`) : '—',
-        ...(editar ? [linhaMais([{ rotulo: 'Propor remoção', action: 'otProporRemocao', args: ['fluxos', f.id], perigo: true }], `fluxo ${ponta(f.origem_ativo_id, f.origem_zona_id)}`)] : []),
+        ...(editar ? [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otProporAlteracaoFluxo" data-args='${args(f.id)}' aria-label="${escapeHTML(`Propor alteração do fluxo ${ponta(f.origem_ativo_id, f.origem_zona_id)}`)}">Propor alteração</button>${linhaMais([{ rotulo: 'Propor remoção', action: 'otProporRemocao', args: ['fluxos', f.id], perigo: true }], `fluxo ${ponta(f.origem_ativo_id, f.origem_zona_id)}`)}</div>`] : []),
     ]), { emptyMessage: 'Nenhum fluxo registrado.', emptyHint: 'Registre as comunicações entre zonas e ativos, e as que saem do ARCiber, dizendo se passam por VPN.' })}`;
 }
 

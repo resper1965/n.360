@@ -26,26 +26,32 @@ const ROTAS = {
     [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte Exemplo', tipo: 'subestacao' }] },
     [`GET ${B}/zonas`]: { zonas: [{ id: 'z2', site_id: 's1', nome: 'Supervisão', nivel_purdue: 2, tipo: 'supervisao' }, { id: 'z3', site_id: 's1', nome: 'DMZ', nivel_purdue: 3, tipo: 'dmz_operativa' }] },
     [`GET ${B}/ativos`]: { ativos: [ativo('a1', 'RTU-01', 'z2')] },
-    [`GET ${B}/fluxos`]: { fluxos: [{ id: 'f1', site_id: 's1', origem_ativo_id: 'a1', externo: true, via_vpn: false, violacoes: [] }] },
+    [`GET ${B}/fluxos`]: { fluxos: [{ id: 'f1', site_id: 's1', origem_ativo_id: 'a1', origem_zona_id: null, destino_ativo_id: null, destino_zona_id: null, protocolo: 'HTTPS', porta: 443,
+        direcao: 'unidirecional', finalidade: 'Suporte', externo: true, via_vpn: false, violacoes: ['4.1.2', '4.1.3'] }] },
     // uma entrevista aberta no site: nunca recebe o achado do inventário em silêncio
     [`GET ${B}/levantamentos`]: { levantamentos: [{ id: 'l-ent', site_id: 's1', tipo: 'entrevista', situacao: 'aberto' }] },
     [`POST ${B}/levantamentos`]: { id: 'lv-novo' },
     [`POST ${B}/levantamentos/lv-novo/achados`]: { id: 'ach1', erros: [] },
     [`POST ${B}/levantamentos/l1/achados`]: { id: 'ach2', erros: [] },
     [`POST ${B}/ia/zona-sugerida`]: { rascunho: true, nivel_purdue: 3, zona_id: 'z3', zona_nome: 'DMZ', justificativa: 'Servidor de dados.' },
-    [`POST ${B}/ia/completude`]: { rascunho: true, campos: { tipo_dispositivo: 'RTU', fabricante: 'ACME', protocolos_portas: [] }, faltando: [], completo: true },
 };
+const COMPLETUDE = { rascunho: true, campos: { tipo_dispositivo: 'RTU', fabricante: 'ACME', protocolos_portas: [] }, faltando: [], completo: true };
+ROTAS[`POST ${B}/ia/completude`] = COMPLETUDE;
 let chamadas;
+let violacoes; // escrita direta em /ot/ativos ou /ot/fluxos: api() engole o erro, então o afterEach confere a lista
+let falhas; // k → quantas vezes ainda responde 500
 function servir() {
-    chamadas = [];
+    chamadas = []; violacoes = []; falhas = {};
     vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
         const u = new URL(url, 'http://localhost');
         const k = `${opts.method || 'GET'} ${u.pathname}`;
-        if (/^(POST|PUT|DELETE) .*\/ot\/(ativos|fluxos)(\/[^/]+)?$/.test(k)) throw new Error(`escrita direta: ${k}`);
+        if (/^(POST|PUT|DELETE) .*\/ot\/(ativos|fluxos)(\/[^/]+)?$/.test(k)) { violacoes.push(k); throw new Error(`escrita direta: ${k}`); }
         chamadas.push({ k, corpo: opts.body ? JSON.parse(opts.body) : undefined });
+        if (falhas[k] > 0) { falhas[k]--; return resposta({ error: 'Falha forçada' }, 500); }
         return k in ROTAS ? resposta(ROTAS[k]) : resposta({ error: `sem rota ${k}` }, 404);
     }));
 }
+const contar = (k) => chamadas.filter((x) => x.k === k).length;
 const corpoDe = (k) => chamadas.find((x) => x.k === k)?.corpo;
 async function responder(p, texto) {
     await pausa();
@@ -59,12 +65,15 @@ beforeEach(async () => {
     S.token = 'tok';
     S.user = { id: 'u-consultor', role: 'consultor' };
     S.activeProject = { id: 'p9', modulos: ['ot'] };
-    Object.assign(S, { otSite: null, otZona: null, otLote: null, otLevantamento: null });
+    Object.assign(S, { otSite: null, otZona: null, otLote: null, otLevantamento: null, otVisitaInventario: null });
     window.render = vi.fn();
     servir();
     await desenhar('inventario');
 });
-afterEach(() => { vi.unstubAllGlobals(); document.querySelectorAll('.confirmar').forEach((x) => x.remove()); });
+afterEach(() => {
+    expect(violacoes).toEqual([]);
+    vi.unstubAllGlobals(); document.querySelectorAll('.confirmar').forEach((x) => x.remove());
+});
 
 describe('inventário: os botões viram achado', () => {
     it('não há escrita direta: Registrar ativo, Propor alteração, Propor remoção e Registrar fluxo', async () => {
@@ -101,7 +110,40 @@ describe('Registrar ativo: o levantamento aberto na tela ou um de visita novo', 
         expect(corpoDe(`POST ${B}/levantamentos`)).toEqual({ site_id: 's1', tipo: 'visita', realizado_em: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
         expect(corpoDe(`POST ${B}/levantamentos/lv-novo/achados`)).toMatchObject({ entidade: 'ativo', dados: { nome: 'RTU-09' }, evidencia: 'Visto no painel da sala de controle' });
         expect(chamadas.some((x) => x.k.includes('/l-ent'))).toBe(false);
-        expect(document.body.textContent).toContain('Achado registrado: envie para revisão em Revisar');
+        expect(document.body.textContent).toContain('Achado registrado: envie para revisão em Revisão e aprovação');
+    });
+    it('vários achados pelo inventário vão à mesma visita que ele criou; fora da tela do site, outra', async () => {
+        await registrar();
+        await registrar();
+        expect(contar(`POST ${B}/levantamentos`)).toBe(1);
+        expect(contar(`POST ${B}/levantamentos/lv-novo/achados`)).toBe(2);
+        await window.otTela('painel');
+        await desenhar('inventario');
+        await registrar();
+        expect(contar(`POST ${B}/levantamentos`)).toBe(2);
+    });
+    it('visita de outra pessoa nunca é reaproveitada', async () => {
+        S.otVisitaInventario = { projeto: 'p9', usuario: 'u-outra', site: 's1', id: 'l-alheia' };
+        await registrar();
+        expect(chamadas.some((x) => x.k.includes('l-alheia'))).toBe(false);
+        expect(contar(`POST ${B}/levantamentos`)).toBe(1);
+    });
+    it('achado que falha logo depois de criar a visita: a nova tentativa usa a mesma visita (nenhuma fica vazia a mais)', async () => {
+        falhas[`POST ${B}/levantamentos/lv-novo/achados`] = 1;
+        await registrar();
+        await window.otSalvarAchado(); // o modal segue aberto: tentar de novo
+        expect(contar(`POST ${B}/levantamentos`)).toBe(1);
+        expect(contar(`POST ${B}/levantamentos/lv-novo/achados`)).toBe(2);
+    });
+    it('protocolos e "firmware não se aplica" vão no achado', async () => {
+        await window.otRegistrarAtivo();
+        el('lev-evidencia').value = 'Visto no painel';
+        el('ot-f-nome').value = 'RTU-11';
+        el('ot-f-protocolos').value = 'DNP3:20000, Modbus';
+        el('ot-f-firmware-na').checked = true;
+        await window.otSalvarAchado();
+        expect(corpoDe(`POST ${B}/levantamentos/lv-novo/achados`).dados).toMatchObject({ nome: 'RTU-11',
+            protocolos_portas: [{ protocolo: 'DNP3', porta: 20000 }, { protocolo: 'Modbus' }], firmware_nao_aplicavel: true });
     });
     it('com o levantamento aberto na tela, o achado vai a ele', async () => {
         S.otLevantamento = 'l1';
@@ -128,6 +170,17 @@ describe('Propor alteração e remoção', () => {
         await window.otSalvarAchado();
         expect(chamadas.some((x) => x.k.endsWith('/achados'))).toBe(false);
     });
+    it('alteração de fluxo: formulário com o fluxo, e só o campo mudado com alvo_id', async () => {
+        await desenhar('fluxos');
+        await window.otProporAlteracaoFluxo('f1');
+        expect([el('lev-fx-origem').value, el('lev-fx-destino').value, el('lev-fx-protocolo').value, el('lev-fx-porta').value, el('lev-fx-externo').value, el('lev-fx-vpn').value])
+            .toEqual(['a:a1', '', 'HTTPS', '443', 'sim', 'nao']);
+        expect(document.querySelector('input[name="ach-entidade"]')).toBeNull();
+        el('lev-evidencia').value = 'VPN instalada no acesso de suporte';
+        el('lev-fx-vpn').value = 'sim';
+        await window.otSalvarAchado();
+        expect(corpoDe(`POST ${B}/levantamentos/lv-novo/achados`)).toEqual({ entidade: 'fluxo', dados: { via_vpn: true, alvo_id: 'f1' }, evidencia: 'VPN instalada no acesso de suporte' });
+    });
     it('remoção pede a evidência e manda { alvo_id, remover: true }', async () => {
         await responder(window.otProporRemocao('ativos', 'a1'), 'Equipamento retirado do painel');
         expect(corpoDe(`POST ${B}/levantamentos/lv-novo/achados`)).toEqual({ entidade: 'ativo', dados: { alvo_id: 'a1', remover: true }, evidencia: 'Equipamento retirado do painel' });
@@ -147,12 +200,28 @@ describe('Propor alteração e remoção', () => {
 });
 
 describe('IA vira achado', () => {
-    it('"Propor esta zona": achado com alvo_id e zona_id', async () => {
+    it('"Propor esta zona": a sugestão não grava antes do clique; depois, achado com alvo_id e zona_id', async () => {
         await window.otSugerirZona('a1');
+        expect(el('modal-content').textContent).toContain('Rascunho');
+        expect(el('modal-content').textContent).toContain('DMZ');
         expect(acoes(el('modal-content'))).toContain('otProporZona');
+        expect(chamadas.filter((x) => x.k.startsWith('POST')).map((x) => x.k)).toEqual([`POST ${B}/ia/zona-sugerida`]);
         await window.otProporZona('a1', 'z3');
         await window.otSalvarAchado();
         expect(corpoDe(`POST ${B}/levantamentos/lv-novo/achados`).dados).toEqual({ zona_id: 'z3', alvo_id: 'a1' });
+    });
+    it('completude incompleta mostra o que falta (Função, Firmware/SO) e nada grava', async () => {
+        ROTAS[`POST ${B}/ia/completude`] = { rascunho: true, campos: { tipo_dispositivo: 'RTU', fabricante: 'ACME', modelo: null, funcao: null, ip: null, mac: null, protocolos_portas: [], firmware_so_versao: null },
+            faltando: ['Função', 'Firmware/SO'], completo: false, texto_apoio: 'Colete a função e o firmware.' };
+        try {
+            window.otRascunhoIa();
+            el('ot-ia-desc').value = 'RTU ACME falando DNP3 no painel';
+            await window.otChecarCompletude();
+            const t = el('modal-content').textContent;
+            expect(t).toContain('Falta para o 4.3.1: Função, Firmware/SO');
+            expect(t).toContain('Colete a função e o firmware.');
+            expect(chamadas.filter((x) => x.k.startsWith('POST')).map((x) => x.k)).toEqual([`POST ${B}/ia/completude`]);
+        } finally { ROTAS[`POST ${B}/ia/completude`] = COMPLETUDE; }
     });
     it('"Rascunho por IA" leva ao formulário do achado', async () => {
         window.otRascunhoIa();

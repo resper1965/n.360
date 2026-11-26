@@ -157,6 +157,13 @@ describe('nomes_alvos em GET /lotes/:id', () => {
     const [outro] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'Do outro site' } }] });
     const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }, { entidade: 'fluxo', dados: { alvo_id: f, porta: 1 } }, { dados: { alvo_id: outro, nome: 'X' } }]);
     for (const h of [gestor, cons]) expect((await lerLote(h, l)).nomes_alvos).toEqual({ [a]: 'Switch velho', [f]: 'A → B' });
+    // a fila de revisão e o levantamento (achados ainda em rascunho) trazem o mesmo nome do alvo, só do site
+    const lev = await ok<{ id: string }>(chamar(cons, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-26' }), 201);
+    for (const dados of [{ alvo_id: a, remover: true }, { alvo_id: outro, nome: 'Y' }]) await ok(chamar(cons, 'POST', `${P}/levantamentos/${lev.id}/achados`, { dados, evidencia: 'teste' }), 201);
+    const fila = (await ok<{ nomes_alvos: Record<string, string> }>(chamar(cons, 'GET', `${P}/achados?site_id=${ids.s1}`), 200)).nomes_alvos;
+    expect(fila).toMatchObject({ [a]: 'Switch velho' });
+    expect(fila).not.toHaveProperty(outro);
+    expect((await ok<{ nomes_alvos: Record<string, string> }>(chamar(cons, 'GET', `${P}/levantamentos/${lev.id}`), 200)).nomes_alvos).toEqual({ [a]: 'Switch velho' });
   });
 });
 

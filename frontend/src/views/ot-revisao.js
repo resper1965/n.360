@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, falhaDeCarga, showToast, formatarData, confirmar } from '../ui.js';
-import { podeCriarLote, mensagemDeErro, lista, rotaDoFluxo, classePrimario } from '../ot-comum.js';
+import { podeCriarLote, mensagemDeErro, lista, rotaDoFluxo, rotuloDoAlvo, classePrimario } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 
 // n.ot, "Revisão e aprovação" do site (spec 2026-11-11 fluidez E2): fila de achados em rascunho de todos os levantamentos do site,
@@ -17,10 +17,11 @@ const origemDe = (x) => (String(x.evidencia || '').startsWith('Sensor de rede (Z
 let ctx = null; // { c, a, p, site }
 let fila = [];
 let nomes = {}; // `nomes_pontas` da fila: id → nome das pontas dos fluxos
+let alvos = {}; // `nomes_alvos`: id → nome do que o achado altera ou remove
 let filtro = { origem: '', tipo: '' };
 let sel = new Set();
 
-const nomeDe = (x) => (x.entidade === 'fluxo' ? rotaDoFluxo(x.dados, nomes) : x.dados?.nome || 'achado sem nome');
+const nomeDe = (x) => rotuloDoAlvo(x.dados, alvos) || (x.entidade === 'fluxo' ? rotaDoFluxo(x.dados, nomes) : x.dados?.nome || 'achado sem nome');
 const visiveis = () => fila.filter((x) => (!filtro.origem || origemDe(x) === filtro.origem) && (!filtro.tipo || x.entidade === filtro.tipo));
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const opt = (pares, atual) => pares.map(([v, r]) => `<option value="${v}"${v === atual ? ' selected' : ''}>${escapeHTML(r)}</option>`).join('');
@@ -61,7 +62,7 @@ async function carregar(c, a, p, { siteFixo, semPrimario } = {}) {
     if (S.otLote) { await montarColeta(c, a, p, { siteFixo, semPrimario }); return; } // lote aberto: só o detalhe do lote
     try {
         const r = await api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${encodeURIComponent(siteFixo)}&situacao=rascunho`);
-        fila = lista(r, 'achados'); nomes = r.nomes_pontas || {};
+        fila = lista(r, 'achados'); nomes = r.nomes_pontas || {}; alvos = r.nomes_alvos || {};
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a fila de revisão do site.', e); return; }
     sel = new Set([...sel].filter((id) => fila.some((x) => x.id === id)));
     c.innerHTML = '<h3 class="mb-3">Fila de revisão</h3><div id="ot-rev-fila"></div><h3 class="mt-6 mb-3">Lotes de aprovação</h3><div id="ot-rev-lotes"></div>';

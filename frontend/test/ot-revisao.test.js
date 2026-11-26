@@ -150,4 +150,13 @@ describe('montarRevisao', () => {
         expect(el('ot-rev-fila').textContent).toContain('RTU-01');
         expect(el('ot-rev-fila').textContent).toContain('Supervisão');
     });
+    it('achado com alvo_id mostra "Remover: X" e "Alterar: X" (nomes_alvos), nunca "achado sem nome"', async () => {
+        rotas[`GET ${B}/achados`] = { achados: [ach('a1', { dados: { alvo_id: 'x1', remover: 1 } }), ach('a2', { entidade: 'fluxo', dados: { alvo_id: 'f1', via_vpn: true } })],
+            nomes_pontas: {}, nomes_alvos: { x1: 'Switch velho', f1: 'RTU-01 → Fora da empresa' } };
+        await montar();
+        const t = el('ot-rev-fila').textContent;
+        expect(t).toContain('Remover: Switch velho');
+        expect(t).toContain('Alterar: RTU-01 → Fora da empresa');
+        expect(t).not.toContain('achado sem nome');
+    });
 });

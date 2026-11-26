@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
-import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, dataDoSqlite, classePrimario } from '../ot-comum.js';
+import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, rotuloDoAlvo, dataDoSqlite, classePrimario } from '../ot-comum.js';
 import { hojeSP, emDiasSP } from '../hoje.js';
 
 // Coleta do n.ot (N3; spec §7, P0-3, P0-5): a entrada manual (e o que o Levantamento envia) cai em lotes que outra pessoa
@@ -142,7 +142,7 @@ async function montarLote(c, a, id) {
         ${renderDataTable(['Linha', 'Nome', 'Tipo', 'Fabricante', 'IP', 'MAC', 'Erros', 'Duplicata', 'Decisão'], itens.map((i) => {
         const d = i.dados || {};
         // Com alvo_id, o item altera ou remove um registro do site: o nome é o do alvo (`nomes_alvos`, só nomes).
-        const alvo = d.alvo_id ? `${d.remover ? 'Remover' : 'Alterar'}: ${r.nomes_alvos?.[d.alvo_id] || '—'}` : null;
+        const alvo = rotuloDoAlvo(d, r.nomes_alvos);
         if (i.entidade === 'fluxo') {
             return [escapeHTML(String(i.linha)), escapeHTML(alvo || `Fluxo: ${rotaDoFluxo(d, r.nomes_pontas)}`), '—', '—', '—', '—', listaDeErros(i.erros, 't-perigo'),
                 i.possivel_duplicata ? renderStatusBadge('warning', 'Atualiza fluxo existente') : '—', decisao(i)];

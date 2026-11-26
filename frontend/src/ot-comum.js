@@ -98,6 +98,8 @@ const ponta = (d, lado, nomes) => {
 };
 /** "origem → destino" de um fluxo (texto, a escapar por quem mostra). `nomes`: `nomes_pontas` da API (id → nome; nunca IP/MAC). */
 export const rotaDoFluxo = (d = {}, nomes = {}) => `${ponta(d, 'origem', nomes)} → ${ponta(d, 'destino', nomes)}`;
+/** Item ou achado com `alvo_id`: "Remover: X" ou "Alterar: X", com `nomes_alvos` da API (só nomes); sem alvo, null. */
+export const rotuloDoAlvo = (d = {}, nomes = {}) => (d?.alvo_id ? `${d.remover ? 'Remover' : 'Alterar'}: ${(Object.hasOwn(nomes, d.alvo_id) && nomes[d.alvo_id]) || '—'}` : null);
 
 /**
  * Campos do ativo (4.3.1 da RO-CB.BR.01), para o cadastro e para a entrada manual da coleta. `d` é o ativo como a API devolve ou o
