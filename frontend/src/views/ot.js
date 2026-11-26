@@ -46,11 +46,16 @@ async function renderOt(c, h, a) {
         S.otTela = null; S.otModo = null; S.otSub = null;
     }
     // Pedido de uma só vez (sino): vence o endereço velho e sobrevive à troca de projeto.
-    if (S.otPedido) { Object.assign(S, { otTela: S.otPedido.tela, otSite: null, otModo: 'projeto' }); S.otPedido = null; }
-    else if (trocou) { S.otTela = 'inicio'; S.otModo = 'projeto'; } // o endereço ainda é o do projeto anterior
+    // O site vai com modo nulo (a fase decide, montarSite); o desvio segue o caminho do endereço /ot/desvios/<id>, logo abaixo.
+    let desvioPedido = null;
+    if (S.otPedido) {
+        const p = S.otPedido; S.otPedido = null;
+        if (p.desvio) { desvioPedido = p.desvio; S.otTela = null; }
+        else Object.assign(S, { otTela: p.tela, otSite: p.site ?? null, otModo: p.site ? null : 'projeto' });
+    } else if (trocou) { S.otTela = 'inicio'; S.otModo = 'projeto'; } // o endereço ainda é o do projeto anterior
     let desvio = null;
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
-        const e = lerEndereco();
+        const e = desvioPedido ? { tela: 'inicio', site: null, modo: 'projeto', desvio: desvioPedido } : lerEndereco();
         Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: e.modo });
         if (e.desvio) {
             let r = await resolverDesvio(proj(), e.desvio);

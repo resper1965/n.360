@@ -65,7 +65,11 @@ describe('fontes do n.ot', () => {
     await avisosDePrazo(workerEnv(), HOJE);
     const g = await sinos('u-g');
     expect(g.map((s) => s.type)).toEqual(['prazo_ot_aceite', 'prazo_ot_obra', 'prazo_ot_revisao']);
-    expect(g.every((s) => s.link === '/projects/p1/ot')).toBe(true);
+    // Spec 2026-11-26 §7: o link leva o alvo (o id, nunca o nome do site: o sino não leva texto do n.ot no endereço).
+    const links = (await env.DB.prepare(`SELECT type, link FROM notifications WHERE type LIKE 'prazo_ot_%' AND user_id = 'u-g'`).all<{ type: string; link: string }>()).results;
+    expect(links.find((n) => n.type === 'prazo_ot_obra')?.link).toMatch(/^\/projects\/p1\/ot\?site=[A-Za-z0-9_-]+$/);
+    expect(links.find((n) => n.type === 'prazo_ot_aceite')?.link).toMatch(/^\/projects\/p1\/ot\?desvio=[A-Za-z0-9_-]+$/);
+    expect(links.find((n) => n.type === 'prazo_ot_revisao')?.link).toBe('/projects/p1/ot?ot=assessment');
     expect(await sinos('u-o')).toEqual([]);
     expect((await sinos(c!.id)).map((s) => s.type)).toEqual(['prazo_ot_revisao']);
     expect((await sinos('u-t')).map((s) => s.type)).toEqual(['prazo_ot_revisao']);

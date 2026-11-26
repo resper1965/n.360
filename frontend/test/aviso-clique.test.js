@@ -109,6 +109,18 @@ describe('handleNotificationClick', () => {
       }
     });
 
+    it('aviso de prazo com alvo no link (spec 2026-11-26 §7): obra abre o site; aceite, o desvio', async () => {
+      history.replaceState(null, '', '/ot');
+      for (const [type, link, pedido] of [['prazo_ot_obra', '/projects/p9/ot?site=s1', { tela: 'site', site: 's1' }], ['prazo_ot_aceite', '/projects/p9/ot?desvio=d1', { desvio: 'd1' }],
+        ['prazo_ot_revisao', '/projects/p9/ot?ot=assessment', { tela: 'assessment' }]]) {
+        S.otPedido = null;
+        S.projects = [{ id: 'p9', modulos: ['iso', 'ot'] }];
+        S.notifications = [{ id: 'n1', type, link, message: 'Prazo do n.ot', read: 0 }];
+        await window.handleNotificationClick('n1');
+        expect(S.otPedido).toEqual(pedido);
+      }
+    });
+
     it('no n.iso: vai à casca /ot com o projeto e o aviso guardados (o n.ot o reabre no boot)', async () => {
       history.replaceState(null, '', '/iso');
       await clicarOt(EXPORTOU);
