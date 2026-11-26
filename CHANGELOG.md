@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Riscos: ligar e desligar a evidência do tratamento pela tela
+- **Detalhe do risco (n.iso):** "Ligar evidência" escolhe uma evidência do projeto que ainda não está ligada e chama `POST /api/v1/evidence/:id/riscos`; cada evidência da lista tem "Desligar", com confirmação (`DELETE /api/v1/evidence/:id/riscos/:riskId`). Só quem edita risco vê os botões; quem só lê vê a lista. Ligar e desligar não mudam o risco nem o aceite. Sem migration.
+
 ### Requisito não aplicável pelo agente; evidência do tratamento ligada ao risco
 - **`niso_excluir_requisito` passa a funcionar com os ids do catálogo** (`lgpd:art23`, `anpd:res2-2022`): a ferramenta codificava ":" em "%3A" e o filtro de caminho do próprio MCP recusava o "%", então nenhum requisito passava. O ":" agora vai sem codificar no segmento; "%", "#", "/" e ".." seguem recusados. A rota (`PUT`/`DELETE /api/v1/projects/{p}/requisitos/{requisitoId}/exclusao`) entrou no mapa do `niso_contexto`.
 - **Evidência do tratamento ligada ao risco (migration 0122):** `POST /api/v1/evidence/:id/riscos` (`{ risk_id }`) e `DELETE /api/v1/evidence/:id/riscos/:riskId`, com trilha (`evidence.risco_ligado`, `evidence.risco_desligado`). Prova que o plano foi cumprido sem editar o plano: não muda o hash do aceite nem o derruba. A lista de riscos (n.iso e da atividade) traz `evidencias_tratamento`, e o detalhe do risco no n.iso mostra "Evidências do tratamento". O agente do consultor liga pelo `niso_executar`; desligar pede confirmação.
