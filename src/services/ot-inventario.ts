@@ -34,6 +34,9 @@ export const podeEditarOt = (u: AtorOt) => !naoEhPessoa(u) && ['org_admin', 'con
 export const ESCRITAS_DO_TECNICO = new RegExp('^(/levantamentos(/[^/]+(?:/enviar|/achados|/achados/[^/]+|/depara/(planilha/(proposta|aplicar)|texto))?)?'
   + '|/sites/[^/]+/enviar|/lotes/manual)$');
 
+/** Spec 2026-11-26, decisão 4: o cliente leitor (`ehLeitorOt`) lê só o resumo da organização (GET); site, desvio e inventário ficam fora. */
+export const ROTAS_DO_LEITOR = /^\/(requisitos|assessment|conformidade|indicadores|relatorio\/conformidade|permissoes)$/;
+
 /** Escrita do técnico: o POST/PUT da lista fechada acima, só nos sites vinculados (a rota confere). */
 export const podeCriarLote = (u: AtorOt) => podeEditarOt(u) || (!naoEhPessoa(u) && u.role === 'org_user');
 

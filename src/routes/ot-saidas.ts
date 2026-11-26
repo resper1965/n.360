@@ -8,6 +8,7 @@ import { otExportarSchema } from '../schemas/ot';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { chavesOt } from '../services/ot-cifra';
 import { podeEditarOt, podeVerCompleto, sitesPermitidos } from '../services/ot-inventario';
+import { ehLeitorOt } from '../services/ot-permissoes';
 import { indicadoresOt } from '../services/ot-indicadores';
 import { TIPO_XLSX, csvDoInventario, linhasDoSite, xlsxDoInventario } from '../services/ot-exportacao';
 import { RecusaIa, perguntarIa } from '../services/ot-ia';
@@ -30,8 +31,11 @@ const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade
 
 otSaidasApp.get('/indicadores', async (c) => {
   try {
-    const { db, projectId, sites } = await contexto(c);
-    return c.json(await indicadoresOt(db, projectId, sites));
+    const { db, user, projectId, sites } = await contexto(c);
+    const r = await indicadoresOt(db, projectId, sites);
+    if (!ehLeitorOt(user, projectId)) return c.json(r);
+    const { por_zona: _z, ...resumo } = r; // leitor: por_zona tem nome e id de zona e site (spec 2026-11-26 §6); fica por_nivel
+    return c.json(resumo);
   } catch (e) { return erro500(c, 'Falha ao calcular os indicadores', e); }
 });
 

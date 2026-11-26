@@ -11,7 +11,7 @@ import {
 import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
-import { ESCRITAS_DO_TECNICO, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { ESCRITAS_DO_TECNICO, ROTAS_DO_LEITOR, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { ehGestorArciberOt, ehLeitorOt, permissoesOt } from '../services/ot-permissoes';
 import { conformidadeOt } from '../services/ot-conformidade';
@@ -50,6 +50,14 @@ otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
   const doTecnico = (c.req.method === 'POST' || c.req.method === 'PUT') && ESCRITAS_DO_TECNICO.test(c.req.path.replace(/^.*?\/ot(?=\/)/, ''));
   if (!(doTecnico ? podeCriarLote(u) : podeEditarOt(u))) {
     return c.json({ error: 'Forbidden: seu papel não altera o inventário do n.ot' }, 403);
+  }
+  await next();
+});
+
+// Leitor (spec 2026-11-26, decisão 4): só os GET de ROTAS_DO_LEITOR. Vale também para otSaidasApp e otDeparaApp (mesmo prefixo, src/index.ts).
+otApp.use('*', async (c, next) => {
+  if (ehLeitorOt(c.get('user'), c.req.param('projectId')!) && !(c.req.method === 'GET' && ROTAS_DO_LEITOR.test(c.req.path.replace(/^.*?\/ot(?=\/)/, '')))) {
+    return c.json({ error: 'Forbidden: o seu papel lê o Painel, o Assessment e os Relatórios do n.ot' }, 403);
   }
   await next();
 });
@@ -766,7 +774,9 @@ const respostaAvaliacao = (c: C, r: { ok: true } | { ok: false; status: 400 | 40
 otApp.get('/assessment', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
-    return c.json(await montarAssessment(db, projectId, JSON.parse(sites), user.id));
+    const r = await montarAssessment(db, projectId, JSON.parse(sites), user.id);
+    // Leitor: sem o subsídio (respostas de levantamento por site, spec 2026-11-26 §6)
+    return c.json(ehLeitorOt(user, projectId) ? { ...r, itens: r.itens.map((i) => { if (!('subsidio' in i)) return i; const { subsidio: _s, ...resto } = i; return resto; }) } : r);
   } catch (e) { return erro500(c, 'Falha ao montar o assessment', e); }
 });
 

@@ -138,8 +138,10 @@ describe('P0-6: máscara única por papel', () => {
     }
   });
 
-  it('client, org_user, platform_admin e consultoria_admin não designado veem mascarado igual na lista e no detalhe; cifra e hash nunca saem', async () => {
-    for (const h of [cli, tec, plat, caNao]) {
+  it('org_user, platform_admin e consultoria_admin não designado veem mascarado igual na lista e no detalhe; cifra e hash nunca saem', async () => {
+    // client (leitor) não lê o inventário: 403 (spec 2026-11-26, decisão 4; test/ot-leitor.test.ts)
+    expect((await chamar(cli, 'GET', `${P}/ativos`)).status).toBe(403);
+    for (const h of [tec, plat, caNao]) {
       const { a1, texto, detalhe } = await ver(h);
       expect(a1).toMatchObject({ ip: '•••', mac: 'aa:bb:cc:••:••:••', mascarado: true });
       expect(JSON.parse(detalhe)).toMatchObject({ ip: '•••', mac: 'aa:bb:cc:••:••:••', mascarado: true });
