@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { gerarSegredoTotp, gerarCodigoTotp } from '../src/services/totp';
 import { TETOS_OT } from '../src/services/ot-stepup';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos } from './helpers/d1';
 
 // Modelo de ameaças do n.ot, P1-1: revelar IP/MAC e exportar o inventário exigem TOTP do n.360 confirmado nos últimos 10 minutos
@@ -61,7 +62,9 @@ beforeAll(async () => {
     return ((await r.json()) as { id: string }).id;
   };
   ids.s1 = await criar('sites', { nome: 'SE Norte' });
-  ids.a1 = await criar('ativos', { site_id: ids.s1, nome: 'RTU 1', ip: IP1, mac: 'AA-BB-CC-11-22-33' });
+  // Inventário por lote (spec 2026-11-26, decisão 3): o suplente decide o lote que o Gestor criou.
+  const sup = await sessionFor({ id: 'u-sup', email: 'suplente@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
+  [ids.a1] = await inventarioPorLote(chamar, { autor: gestor, decisor: sup, site: ids.s1, itens: [{ dados: { nome: 'RTU 1', ip: IP1, mac: 'AA-BB-CC-11-22-33' } }] });
 });
 
 beforeEach(async () => {

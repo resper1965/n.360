@@ -3,6 +3,7 @@ import { env, createExecutionContext } from 'cloudflare:test';
 import worker, { ROTAS_OAUTH } from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { aadOt, chavesOt, decifrarOt } from '../src/services/ot-cifra';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Endpoint MCP do agente de coleta do n.ot (L5, Task 3). D1 real, chave `ot_coleta` no Bearer.
@@ -56,7 +57,7 @@ beforeAll(async () => {
   const gestor = await sessionFor({ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
   cons = await sessionFor({ id: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', role: 'consultor' });
   ids.s1 = await criar(cons, 'sites', { nome: 'SE Norte' });
-  ids.a1 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'RTU 1', ip: '10.1.1.10' });
+  [ids.a1] = await inventarioPorLote(humano, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'RTU 1', ip: '10.1.1.10' } }] });
   ids.z1 = await criar(cons, 'zonas', { site_id: ids.s1, nome: 'Zona Real', nivel_purdue: 2 });
   const rb = await humano(cons, 'POST', '/api/v1/projects/proj-b/ot/sites', { nome: 'SE de B' });
   ids.sB = (await rb.json<{ id: string }>()).id;

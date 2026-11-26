@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import JSZip from 'jszip';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Saídas do n.ot (N4): exportação do inventário (serializador único, P0-6; fórmulas, T15; trilha, P1-7), indicadores derivados do
@@ -27,7 +28,7 @@ const ATIVO = {
 const CHAVE = 'chave-ot-saidas';
 const AGENTE = { userId: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', projectId: 'proj-a', concessaoId: 'c-ot-s' };
 
-let plat: H, gestor: H, tec: H, tec0: H, cli: H, cons: H, caNao: H;
+let plat: H, gestorB: H, gestor: H, tec: H, tec0: H, cli: H, cons: H, caNao: H;
 const ids: Record<string, string> = {};
 const criar = async (h: H, rota: string, corpo: unknown, base = P) => {
   const r = await chamar(h, 'POST', `${base}/${rota}`, corpo);
@@ -45,14 +46,16 @@ beforeAll(async () => {
       ('u-tec', 'tec@cliente.teste', 'x', 'Técnico', 'org_user', 'proj-a'),
       ('u-tec0', 'tec0@cliente.teste', 'x', 'Técnico sem site', 'org_user', 'proj-a'),
       ('u-cli', 'cli@cliente.teste', 'x', 'Leitura', 'client', 'proj-a'),
-      ('u-ca-n', 'ca-n@ness.lat', 'x', 'Admin não designado', 'consultoria_admin', NULL)`),
+      ('u-ca-n', 'ca-n@ness.lat', 'x', 'Admin não designado', 'consultoria_admin', NULL),
+      ('u-gestor-b', 'gestor-b@cliente.teste', 'x', 'Gestor B', 'org_admin', 'proj-b')`),
     env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-ot-s', 'proj-a', ?, 'escrita', 'write', 'Active')`).bind(await sha256Hex(CHAVE)),
   ]);
   await designarConsultor(AGENTE.email, 'proj-a');
   await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES (?, ?, 'proj-a', datetime('now', '+30 days'))`).bind(AGENTE.concessaoId, AGENTE.userId).run();
-  await concederModulos(['u-gestor', 'u-tec', 'u-tec0', 'u-cli', 'u-ca-n', AGENTE.userId], ['ot']);
+  await concederModulos(['u-gestor', 'u-tec', 'u-tec0', 'u-cli', 'u-ca-n', 'u-gestor-b', AGENTE.userId], ['ot']);
   plat = await sessionFor({ ...{ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin' }, totp_em: Date.now() });
   gestor = await sessionFor({ ...{ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' }, totp_em: Date.now() });
+  gestorB = await sessionFor({ id: 'u-gestor-b', email: 'gestor-b@cliente.teste', role: 'org_admin', client_project_id: 'proj-b' });
   tec = await sessionFor({ ...{ id: 'u-tec', email: 'tec@cliente.teste', role: 'org_user', client_project_id: 'proj-a' }, totp_em: Date.now() });
   tec0 = await sessionFor({ ...{ id: 'u-tec0', email: 'tec0@cliente.teste', role: 'org_user', client_project_id: 'proj-a' }, totp_em: Date.now() });
   cli = await sessionFor({ ...{ id: 'u-cli', email: 'cli@cliente.teste', role: 'client', client_project_id: 'proj-a' }, totp_em: Date.now() });
@@ -63,15 +66,20 @@ beforeAll(async () => {
   ids.s2 = await criar(cons, 'sites', { nome: 'SE Sul' });
   ids.sb = await criar(plat, 'sites', { nome: 'SE B' }, PB);
   for (const [k, nivel] of [['z2', 2], ['z3', 3], ['z4', 4]] as const) ids[k] = await criar(cons, 'zonas', { site_id: ids.s1, nome: `Zona ${nivel}`, nivel_purdue: nivel });
-  ids.a1 = await criar(gestor, 'ativos', { site_id: ids.s1, zona_id: ids.z2, nome: 'RTU Bay 1', ...ATIVO });
-  ids.a2 = await criar(cons, 'ativos', { site_id: ids.s1, zona_id: ids.z3, nome: '=HYPERLINK("http://x")', fabricante: '+SUM(1)', funcao: '-2+3', modelo: '@cmd', ip: IP2 });
-  ids.a3 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'Switch sem zona', tipo_dispositivo: 'Switch' });
-  ids.a4 = await criar(cons, 'ativos', { site_id: ids.s2, nome: 'IED Sul', mac: '00:11:22:33:44:55' });
-  ids.ab = await criar(plat, 'ativos', { site_id: ids.sb, nome: 'IED B', ...ATIVO }, PB);
-  await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true, via_vpn: false, finalidade: 'Manutenção remota' });
-  await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true, via_vpn: true, finalidade: 'Acesso do ONS' });
-  await criar(cons, 'fluxos', { site_id: ids.s2, origem_ativo_id: ids.a4, externo: true, via_vpn: false, finalidade: 'Telemetria' });
-  await criar(plat, 'fluxos', { site_id: ids.sb, origem_ativo_id: ids.ab, externo: true, via_vpn: false, finalidade: 'B' }, PB);
+  // Inventário por lote (spec 2026-11-26, decisão 3). O B é preparado pelo platform_admin e decidido por um Gestor de B (o platform_admin
+  // não decide lote). A aprovação carimba a verificação do 4.3.1 nos itens completos (a rota direta não carimbava).
+  [ids.a1, ids.a2, ids.a3] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [
+    { dados: { zona_id: ids.z2, nome: 'RTU Bay 1', ...ATIVO } },
+    { dados: { zona_id: ids.z3, nome: '=HYPERLINK("http://x")', fabricante: '+SUM(1)', funcao: '-2+3', modelo: '@cmd', ip: IP2 } },
+    { dados: { nome: 'Switch sem zona', tipo_dispositivo: 'Switch' } }] });
+  [ids.a4] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'IED Sul', mac: '00:11:22:33:44:55' } }] });
+  [ids.ab] = await inventarioPorLote(chamar, { autor: plat, decisor: gestorB, site: ids.sb, projeto: 'proj-b', itens: [{ dados: { nome: 'IED B', ...ATIVO } }] });
+  await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [
+    { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, externo: true, via_vpn: false, finalidade: 'Manutenção remota' } },
+    // outra ponta: o lote casa fluxo pelas pontas, e dois externos da mesma origem sem destino viram um só
+    { entidade: 'fluxo', dados: { origem_ativo_id: ids.a2, externo: true, via_vpn: true, finalidade: 'Acesso do ONS' } }] });
+  await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: ids.a4, externo: true, via_vpn: false, finalidade: 'Telemetria' } }] });
+  await inventarioPorLote(chamar, { autor: plat, decisor: gestorB, site: ids.sb, projeto: 'proj-b', itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: ids.ab, externo: true, via_vpn: false, finalidade: 'B' } }] });
   expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s2 })).status).toBe(201);
 });
 
@@ -217,7 +225,7 @@ describe('indicadores do projeto', () => {
 
   it('4.3.1: ativos completos mas nenhum do ARCiber não é evidência do item (que é dos ativos do ARCiber)', async () => {
     const s3 = await criar(cons, 'sites', { nome: 'SE Leste' });
-    await criar(cons, 'ativos', { site_id: s3, nome: 'RTU fora do ARCiber', ...ATIVO, no_arciber: false, categoria_arciber: null, ip: '10.3.3.30', mac: null });
+    await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: s3, itens: [{ dados: { nome: 'RTU fora do ARCiber', ...ATIVO, no_arciber: false, categoria_arciber: null, ip: '10.3.3.30', mac: null } }] });
     expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec0', site_id: s3 })).status).toBe(201);
     const i = await ler(tec0);
     expect(i.completude).toMatchObject({ total: 1, completos: 1, situacao: 'sem_evidencia', arciber: { total: 0, completos: 0 } });

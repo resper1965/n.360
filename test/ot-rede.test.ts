@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { aadOt, chavesOt, decifrarOt, hmacOt } from '../src/services/ot-cifra';
+import { inventarioPorLote } from './helpers/ot';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // n.ot L3: importação do resumo do sensor de rede na sessão de documento. O arquivo fica em memória: nada ao R2, sem IA. D1 real.
@@ -101,7 +102,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash, mac_hash) VALUES ('a-ihm', 'proj-a', ?, 'IHM', ?, 'mh')`).bind(ids.s1, await hmacOt(chaves, 'proj-a', '10.1.1.20')),
   ]);
   // Fluxo externo do inventário igual ao externo da IHM no sensor (mesma ponta, protocolo e porta: não vira achado); o da RTU não tem par (novo).
-  ids.fext = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: 'a-ihm', externo: true, protocolo: 'https', porta: 443 });
+  [ids.fext] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: 'a-ihm', externo: true, protocolo: 'https', porta: 443 } }] });
   ids.doc = await doc('Sensor SE Norte');
   ids.ent = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'entrevista', realizado_em: '2026-11-04' });
 });
