@@ -228,6 +228,11 @@ export const evidenciaControleSchema = z.object({
   control_id: z.string().trim().min(1).max(200),
 }).strict();
 
+// Ligar a evidência ao risco, como prova do tratamento (migration 0122). Desligar é DELETE .../riscos/:riskId.
+export const evidenciaRiscoSchema = z.object({
+  risk_id: z.string().trim().min(1).max(200),
+}).strict();
+
 export const evidenciaAvaliacaoSchema = z.object({
   evaluation_notes: z.string().max(20000).nullable().optional(),
   evaluation_status: z.enum(['pending', 'partial', 'non_conforming']).optional(),

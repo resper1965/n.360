@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Requisito não aplicável pelo agente; evidência do tratamento ligada ao risco
+- **`niso_excluir_requisito` passa a funcionar com os ids do catálogo** (`lgpd:art23`, `anpd:res2-2022`): a ferramenta codificava ":" em "%3A" e o filtro de caminho do próprio MCP recusava o "%", então nenhum requisito passava. O ":" agora vai sem codificar no segmento; "%", "#", "/" e ".." seguem recusados. A rota (`PUT`/`DELETE /api/v1/projects/{p}/requisitos/{requisitoId}/exclusao`) entrou no mapa do `niso_contexto`.
+- **Evidência do tratamento ligada ao risco (migration 0122):** `POST /api/v1/evidence/:id/riscos` (`{ risk_id }`) e `DELETE /api/v1/evidence/:id/riscos/:riskId`, com trilha (`evidence.risco_ligado`, `evidence.risco_desligado`). Prova que o plano foi cumprido sem editar o plano: não muda o hash do aceite nem o derruba. A lista de riscos (n.iso e da atividade) traz `evidencias_tratamento`, e o detalhe do risco no n.iso mostra "Evidências do tratamento". O agente do consultor liga pelo `niso_executar`; desligar pede confirmação.
+- **Testes do aceite:** mudar `residual_probability` ou `treatment_plan` derruba o aceite; mudar o prazo do tratamento não.
+
 ### Aceite do risco residual independente do status; evidência por id e por controle
 - **Mudança de comportamento: o aceite do risco residual não muda mais o status do risco** (decisão do dono, ISO 27001 6.1.3 e). Aceitar grava a prova e o carimbo de quem aceitou; revogar e invalidar encerram o aceite; nenhum dos três mexe no status. O status do tratamento (aberto, mitigado, encerrado) muda livremente e não derruba o aceite: fechar um risco aceito mantém o aceite, salvo se o residual, a estratégia, o plano ou o controle mudarem. "Aceito" continua não gravável pela edição do risco (403). A situação do aceite vem do aceite vigente; o aceite antigo (status "Aceito" sem registro com senha) segue aparecendo como aceito.
 - **Migration 0121 (só dados):** os riscos com status "Aceito" e aceite vigente voltam ao status que tinham antes do aceite, com uma linha de trilha por risco (`risk.status_corrigido_aceite`). A prova dos aceites (`risco_aceites`) não muda. Esperado em produção: 25 riscos.

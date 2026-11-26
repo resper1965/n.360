@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0121** (`ls migrations/*.sql | tail -1`). São 122 arquivos
+- Última migration no repositório: **0122** (`ls migrations/*.sql | tail -1`). São 123 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -48,6 +48,10 @@ cliente. O arquivo fica porque `d1_migrations` guarda o nome.
 ---
 
 Seções por número, da mais nova para a mais antiga (as anteriores à 0035 não têm seção). Migration nova entra no topo.
+
+## 0122 — evidência do tratamento ligada ao risco (2026-11-26)
+
+Cria `evidencia_riscos` (`evidence_id`, `risk_id`, `project_id`, `ligado_por`, `created_at`; chave `(evidence_id, risk_id)`; CASCADE da evidência, do risco e do projeto), dois índices e o gatilho `evidencia_riscos_do_projeto` (recusa evidência ou risco de outro projeto). Aditiva: não altera nenhuma linha existente de nenhum projeto. A tabela fica fora do estado aceito do risco (`COLUNAS_RISCO`): ligar e desligar não mudam o hash do aceite. **Antes de aplicar**: `npm run db:backup`. **Depois**: `PRAGMA table_info(evidencia_riscos)` lista 5 colunas e `SELECT COUNT(*) FROM evidencia_riscos` devolve 0. Rotas `POST /api/v1/evidence/:id/riscos` e `DELETE /api/v1/evidence/:id/riscos/:riskId`; sem a tabela, elas e as listas de riscos dão 500, então aplique antes de publicar. **Status: NÃO aplicada.**
 
 ## 0121 — aceite do residual independente do status (2026-11-25)
 

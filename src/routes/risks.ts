@@ -5,6 +5,7 @@ import { validateBody, createRiskSchema, riskUpdateSchema, riscoAceiteSchema, ri
 import { aceitarRisco, revogarAceite, conferirAceite, recusaDoStatus, comAceite, alcadasDoProjeto, NIVEIS_RISCO, RECUSA_STATUS_ACEITO, RECUSA_EXCLUIR_COM_ACEITE, temAceiteRegistrado, type RiscoBase } from '../services/aceite-risco';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { escopoRopa } from '../services/escopo-itens';
+import { comEvidenciasDoTratamento } from '../services/evidencia-riscos';
 import { riskLevel, residualLevel, carimboDeAceite, aceiteCaiu } from '../services/riscos-atividade';
 
 const risks = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -20,7 +21,9 @@ risks.get('/api/v1/projects/:projectId/risks', async (c) => {
      ORDER BY r.impact * r.probability DESC`
   ).bind(c.req.param('projectId')).all<RiscoBase>();
   // `aceite`: situação do aceite do risco residual (aceito, pendente, revogado), quem e quando, e se esta pessoa pode aceitar.
-  return c.json({ ok: true, risks: await comAceite(c.env.DB, c.get('user'), c.req.param('projectId') ?? '', results) });
+  const projectId = c.req.param('projectId') ?? '';
+  // `evidencias_tratamento`: evidências ligadas ao risco como prova do tratamento (0122); fora do estado aceito.
+  return c.json({ ok: true, risks: await comEvidenciasDoTratamento(c.env.DB, projectId, await comAceite(c.env.DB, c.get('user'), projectId, results)) });
 });
 
 risks.post('/api/v1/projects/:projectId/risks', async (c) => {
