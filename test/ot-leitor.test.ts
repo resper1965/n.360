@@ -12,7 +12,9 @@ const chamar = (h: H, metodo: string, caminho: string) =>
 
 const LE = ['/requisitos', '/assessment', '/conformidade', '/indicadores', '/relatorio/conformidade', '/permissoes'];
 const NAO = ['/sites', '/zonas', '/ativos', '/fluxos', '/desvios', '/desvios?contagem=1', '/lotes', '/levantamentos', '/achados?site_id=s1', '/acessos',
-  '/referencias', '/fornecedores', '/sensores/pontos', '/sites/s1/situacao', '/sites/s1/sensores', '/agente', '/roteiro'];
+  '/referencias', '/fornecedores', '/sensores/pontos', '/sites/s1/situacao', '/sites/s1/sensores', '/agente', '/roteiro', '/depara/perfis'];
+// o middleware do otApp vale também para otSaidasApp e otDeparaApp (mesmo prefixo, src/index.ts)
+const NAO_ESCRITA = ['/exportacao', '/ia/completude', '/levantamentos/l1/depara/texto'];
 
 let gestor: H, tec: H, cli: H, cons: H;
 beforeAll(async () => {
@@ -43,8 +45,18 @@ describe('leitor do n.ot no servidor', () => {
   it('leitor: 403 em todo o resto, sem nome de site no corpo', async () => {
     for (const p of NAO) { const r = await chamar(cli, 'GET', P + p); expect(r.status, p).toBe(403); expect(await r.text()).not.toContain('SE Norte'); }
   });
-  it('leitor: nenhuma escrita (o guarda de escrita já cortava; o do leitor também)', async () => {
+  it('leitor: nenhuma escrita, nem nas saídas nem no de-para', async () => {
     expect((await chamar(cli, 'POST', `${P}/sites`)).status).toBe(403);
+    for (const p of NAO_ESCRITA) expect((await chamar(cli, 'POST', P + p)).status, p).toBe(403);
+  });
+  it('leitor: nenhum id de site no assessment nem no relatório; nome e fase ficam (decisão 1)', async () => {
+    const ass = await (await chamar(cli, 'GET', `${P}/assessment`)).text();
+    expect(ass).not.toMatch(/site_id|"s1"/);
+    expect(ass).toContain('SE Norte Exemplo');
+    const rel = await (await chamar(cli, 'GET', `${P}/relatorio/conformidade`)).text();
+    expect(rel).not.toMatch(/site_id|"s1"/);
+    expect(rel).toContain('SE Norte Exemplo');
+    expect(await (await chamar(cons, 'GET', `${P}/assessment`)).text()).toContain('"site_id":"s1"');
   });
   it('leitor: nada de inventário nas rotas que lê (por_zona tem nome e id de zona e site; subsidio, respostas de levantamento por site)', async () => {
     const ind = await (await chamar(cli, 'GET', `${P}/indicadores`)).json<Record<string, unknown>>();

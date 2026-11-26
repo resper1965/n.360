@@ -167,6 +167,40 @@ describe('permissões do servidor na casca (spec 2026-11-26 §6, decisão 4)', (
         expect(el('c').textContent).not.toContain('Exportação do inventário');
         expect(doInventario(f)).toEqual([]);
     });
+    it('troca de conta no mesmo projeto: o Gestor sai, o client entra e recebe o menu e a tela do leitor (o cache é da conta)', async () => {
+        const GESTOR = { ...LEITOR, editar: true, criar_lote: true, aprovar_lote: true, ver_sondas: true, gestor: true, leitor: false, acao_corretiva: true };
+        S.user = { id: 'u-g', role: 'org_admin', modulos: ['ot'] };
+        servir({ [`GET ${B}/permissoes`]: GESTOR, [`GET ${B}/sites`]: { sites: [] } });
+        await abrir('/ot?ot=sites');
+        expect(S.otTela).toBe('sites');
+        expect(el('nav-ot-sites').hidden).toBe(false);
+        S.user = { id: 'u-c', role: 'client', modulos: ['ot'] }; S.otTela = null;
+        const f = servir({ [`GET ${B}/permissoes`]: LEITOR, 'GET /api/v1/projects/p9/painel': PAINEL });
+        await abrir('/ot?ot=sites');
+        expect(f.mock.calls.some(([u]) => String(u).includes('/ot/permissoes'))).toBe(true);
+        expect(S.otTela).toBe('painel');
+        expect(el('nav-ot-sites').hidden).toBe(true);
+        expect(doInventario(f)).toEqual([]);
+    });
+    it('a falha fechada não fica guardada: a próxima tela pede as permissões de novo', async () => {
+        S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
+        vi.stubGlobal('fetch', vi.fn(async (url) => (String(url).includes('/permissoes') ? resposta({ error: 'falhou' }, 500) : resposta(PAINEL))));
+        await abrir('/ot?ot=sites');
+        expect(S.otTela).toBe('painel');
+        S.otTela = null;
+        const f = servir({ [`GET ${B}/permissoes`]: { ...LEITOR, editar: true, leitor: false }, [`GET ${B}/sites`]: { sites: [] } });
+        await abrir('/ot?ot=sites');
+        expect(f.mock.calls.some(([u]) => String(u).includes('/ot/permissoes'))).toBe(true);
+        expect(S.otTela).toBe('sites');
+        expect(S.otPermissoes.editar).toBe(true);
+    });
+    it('menu desenhado fora do renderOt, antes de as permissões chegarem: estado fechado (sem Início, Sites, Fornecedores e Acessos)', () => {
+        S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
+        ir('/ot'); document.body.innerHTML = NAV;
+        atualizarItemOt();
+        for (const t of ['inicio', 'sites', 'fornecedores', 'acessos']) expect(el(`nav-ot-${t}`).hidden, t).toBe(true);
+        for (const t of ['painel', 'assessment', 'relatorios']) expect(el(`nav-ot-${t}`).hidden, t).toBe(false);
+    });
     it('a leitura das permissões falha (500): falha fechada, Painel e nenhum botão de escrita', async () => {
         S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
         vi.stubGlobal('fetch', vi.fn(async (url) => (String(url).includes('/permissoes') ? resposta({ error: 'falhou' }, 500)

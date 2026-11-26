@@ -26,6 +26,6 @@ export function permissoesDoPapel(role) {
 export function permissoesPeloPapel() {
     let proprio;
     Object.defineProperty(S, 'otPermissoes', { configurable: true,
-        get: () => (proprio !== undefined ? proprio : { projeto: S.activeProject?.id, ...permissoesDoPapel(S.user?.role) }),
+        get: () => (proprio !== undefined ? proprio : { projeto: S.activeProject?.id, usuario: S.user?.id ?? null, ...permissoesDoPapel(S.user?.role) }),
         set: (v) => { proprio = v ?? undefined; } });
 }

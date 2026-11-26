@@ -239,7 +239,8 @@ Leitor no servidor: um middleware no `otApp` responde 403 ao leitor em toda rota
 `GET /permissoes`. `sitesPermitidos` não muda (os agregados dos relatórios seguem sobre todos os sites do projeto). Nessas rotas, o
 que é inventário sai da resposta do leitor: `por_zona` dos indicadores (nome e id de zona e site, `ot-indicadores.ts:24-27,54`; fica
 `por_nivel`) e o `subsidio` de cada item do assessment (`ot-avaliacao.ts:82-114`). O Relatório de conformidade mantém a tabela de
-sites (decisão 1). Na régua comum, o próximo passo do leitor não leva `site` (o Início do n.360 também o mostra, `painel.ts:477`).
+sites (decisão 1). No `por_site` do assessment o leitor recebe nome e fase do site, coerente com a decisão 1, mas nenhum `site_id`
+(revisão do PR2); a tela não lhe mostra "Abrir site" nem o subsídio. Na régua comum, o próximo passo do leitor não leva `site` (o Início do n.360 também o mostra, `painel.ts:477`).
 
 O técnico vê no Painel **Meus sites** (o "Por site" dele, já cortado por `sitesPermitidos`) e **Meu trabalho**: os achados em
 rascunho dos sites dele que ele criou e os lotes dele recusados nos últimos 7 dias (depois disso a retenção já os apagou, `src/manutencao.ts:155`), com link ao site e à etapa.

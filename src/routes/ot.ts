@@ -775,8 +775,13 @@ otApp.get('/assessment', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
     const r = await montarAssessment(db, projectId, JSON.parse(sites), user.id);
-    // Leitor: sem o subsídio (respostas de levantamento por site, spec 2026-11-26 §6)
-    return c.json(ehLeitorOt(user, projectId) ? { ...r, itens: r.itens.map((i) => { if (!('subsidio' in i)) return i; const { subsidio: _s, ...resto } = i; return resto; }) } : r);
+    if (!ehLeitorOt(user, projectId)) return c.json(r);
+    // Leitor (spec 2026-11-26 §6): sem o subsídio (respostas de levantamento por site) e sem id de site; nome e fase ficam (decisão 1)
+    return c.json({ ...r, itens: r.itens.map((i) => {
+      if ('subsidio' in i) { const { subsidio: _s, ...resto } = i; return resto; }
+      if ('por_site' in i) return { ...i, por_site: i.por_site.map(({ site_id: _id, ...s }) => s) };
+      return i;
+    }) });
   } catch (e) { return erro500(c, 'Falha ao montar o assessment', e); }
 });
 

@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { podeEditarOt, pode } from './ot-comum.js';
+import { podeEditarOt, pode, permissoesCarregadas } from './ot-comum.js';
 import { api } from './api.js';
 import { showToast, openModal, escapeHTML, renderEmptyState } from './ui.js';
 import { filtroValido } from './filtro-painel.js';
@@ -465,7 +465,9 @@ export function atualizarItemOt(doc = document) {
     const dentro = produtoAtual() === 'ot' && !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
     for (const id of ['secao-ot-organizacao', 'nav-ot-painel', 'nav-ot-assessment', 'nav-ot-relatorios']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro; }
     // o leitor lê só Painel, Assessment e Relatórios (spec 2026-11-26, decisão 4; GET /ot/permissoes)
-    for (const id of ['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-fornecedores']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro || pode('leitor'); }
+    // sem as permissões carregadas, o estado fechado (o de leitor) até o renderOt as ler
+    const fechado = !permissoesCarregadas() || pode('leitor');
+    for (const id of ['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-fornecedores']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro || fechado; }
     const ac = doc.getElementById('nav-ot-acessos');
     if (ac) ac.hidden = !(dentro && podeEditarOt());
 }

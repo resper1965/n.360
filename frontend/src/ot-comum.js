@@ -15,12 +15,16 @@ const papel = () => S.user?.role || '';
 /** Classe do botão principal da tela: a tela do site tem um só primário (o cartão Próximo passo), as sub-abas pedem `semPrimario`. */
 export const classePrimario = (sem) => (sem ? 'btn' : 'btn btn-primary');
 const NADA = { editar: false, criar_lote: false, aprovar_lote: false, ver_sondas: false, gestor: false, leitor: true, tecnico: false, acao_corretiva: false, tela_inicial: 'painel' };
-/** Spec 2026-11-26 §6: o que a pessoa pode vem do servidor (GET /ot/permissoes); a tela não recalcula papel. Falha fechada. */
+/** As permissões guardadas valem para este projeto e esta conta (outra conta no mesmo navegador pede de novo). */
+export const permissoesCarregadas = (projectId = S.activeProject?.id) =>
+    !!S.otPermissoes && !S.otPermissoes.falhou && S.otPermissoes.projeto === projectId && S.otPermissoes.usuario === (S.user?.id ?? null);
+/** Spec 2026-11-26 §6: o que a pessoa pode vem do servidor (GET /ot/permissoes); a tela não recalcula papel. Falha fechada: o objeto
+ *  fechado vale para esta tela, marcado `falhou`, e a próxima tenta de novo. */
 export async function carregarPermissoes(projectId) {
-    if (S.otPermissoes?.projeto === projectId) return S.otPermissoes;
-    let p = NADA;
-    try { p = { ...NADA, ...(await api('GET', `/api/v1/projects/${projectId}/ot/permissoes`)) }; } catch { /* falha fechada */ }
-    S.otPermissoes = { projeto: projectId, ...p };
+    if (permissoesCarregadas(projectId)) return S.otPermissoes;
+    const quem = { projeto: projectId, usuario: S.user?.id ?? null };
+    try { S.otPermissoes = { ...NADA, ...(await api('GET', `/api/v1/projects/${projectId}/ot/permissoes`)), ...quem }; }
+    catch { S.otPermissoes = { ...NADA, ...quem, falhou: true }; }
     return S.otPermissoes;
 }
 export const pode = (chave) => !!(S.otPermissoes && S.otPermissoes[chave]);
