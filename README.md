@@ -92,9 +92,12 @@ Requisitos LGPD/ANPD); LIA e consentimentos ficam no tratamento e no titular; **
 de titulares, incidentes e consentimentos, e uma pessoa da equipe revisa item a item antes de
 gravar).
 
-**n.ot (`/ot`).** Uma tela com subtelas no menu: Início, Sites e Site (Modo projeto: Levantamento,
-Revisão e aprovação, Base; Modo operação: Saúde da coleta, Desvios, Inventário), Assessment
-RO-CB.BR.01, Relatórios, Fornecedores e Acessos e sondas (só quem edita). IP e MAC cifrados e mascarados por papel; revelar e exportar pedem o segundo fator.
+**n.ot (`/ot`).** Uma tela com subtelas no menu, em três grupos. **Operação:** Painel (a tela inicial), Sites, Desvios (de todos os
+sites), Assessment RO-CB.BR.01 e Relatórios. **Implantação:** a lista de verificação do projeto e os sites em implantação. **Configuração**
+(só quem edita): Acessos de técnicos, Sondas, Agente de coleta, Integração ness.OS e Fornecedores de OT. Cada site está em **Implantação**
+(assistente de 4 etapas: Cadastrar, Levantar, Revisar, Aprovar a base), em **Operação** (abas Desvios, Saúde da coleta, Inventário, Mudanças e
+Revalidação) ou em **Obra**. Ativo e fluxo só entram, mudam ou saem por lote, aprovado por outra pessoa. O cliente que só lê vê o Painel, o
+Assessment e os Relatórios. IP e MAC cifrados e mascarados por papel; revelar e exportar pedem o segundo fator.
 
 **Compartilhado pelo n.iso e pelo n.privacy.** Partes, Documentos, Evidências, Treinamento, Governança, ROPA e
 DPIA, Assistente e a trilha de auditoria.

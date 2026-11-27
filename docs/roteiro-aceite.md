@@ -15,7 +15,7 @@ Antes de começar:
   curl -s https://n360.ness.com.br/health
   ```
 
-- Ligue o segundo fator na sua conta (cartão de perfil, no rodapé da barra lateral). Sem ele, o passo 11.6 (exportar do n.ot) não funciona.
+- Ligue o segundo fator na sua conta (cartão de perfil, no rodapé da barra lateral). Sem ele, o passo 11.15 (exportar do n.ot) não funciona.
 - Para a seção 11, uma segunda conta da equipe no mesmo projeto: o lote do n.ot não é aprovado por quem o criou.
 
 ## 1. Entrada (n.360)
@@ -155,17 +155,36 @@ Antes de começar:
 
 ## 11. n.ot
 
-Antes: em Projetos, habilite o n.ot no projeto de teste e, em Usuários, marque o n.ot nas duas contas (a caixa nunca vem marcada).
+Antes: em Projetos, habilite o n.ot no projeto de teste e, em Usuários, marque o n.ot nas contas (a caixa nunca vem marcada). Use duas contas
+que editam o n.ot: a **A** (equipe) faz o cadastro e o levantamento; a **B** é a do **Gestor ARCiber** do projeto (comitê de governança) e decide. Uma
+terceira conta de **técnico** (com acesso ao site) e uma de **cliente leitor** são opcionais (11.13 e 11.14). Vocabulário: o site está em **Implantação**
+(etapas 1 Cadastrar, 2 Levantar, 3 Revisar, 4 Aprovar a base), em **Operação** ou em **Obra**.
 
-| # | Faça | Esperado |
-|---|---|---|
-| 11.1 | No início do n.360, "Abrir no n.ot" na linha do projeto | Menu com Início, Sites, Assessment RO-CB.BR.01, Relatórios, Fornecedores e, para quem edita, Acessos e sondas. Uma conta sem o n.ot não vê o botão. |
-| 11.2 | Sites: "+ Novo site"; no site, Modo operação → Inventário: "+ Nova zona" e "Registrar ativo" | O site e a zona aparecem na lista. O ativo vira achado num levantamento de visita e só aparece no inventário depois de o lote ser aprovado por outra pessoa. |
-| 11.3 | No site, Modo projeto → Revisão e aprovação: "Entrada manual", "Adicionar ao lote" e "Enviar lote" | O lote fica para revisão. Quem o criou não consegue aprová-lo. |
-| 11.4 | Com a segunda conta: "Revisar" e "Aprovar lote" | O ativo entra no inventário. |
-| 11.5 | No site, Modo projeto → Levantamento: "+ Novo levantamento" (entrevista), responda uma pergunta do roteiro; em Revisão e aprovação, "Enviar para aprovação" | O achado vira item de lote; nada entra no inventário sem aprovação. |
-| 11.6 | Relatórios: "Exportar CSV" com uma justificativa | Pede o código do autenticador; com ele, baixa a planilha. |
-| 11.7 | Acessos e sondas: "Nova sonda" | A credencial aparece uma vez só; a sonda fica na lista com a saúde da coleta. Revogue-a no fim. |
+### Implantar um site
+
+| # | Quem | Faça | Esperado |
+|---|---|---|---|
+| 11.1 | A | No início do n.360, "Abrir no n.ot" na linha do projeto | O n.ot abre. O menu tem três grupos: **Operação** (Painel, Sites, Desvios, Assessment RO-CB.BR.01, Relatórios), **Implantação** e **Configuração** (Acessos de técnicos, Sondas, Agente de coleta, Integração ness.OS, Fornecedores de OT). Sem nenhum site em Operação, a tela inicial é a **Implantação**, com a lista de verificação do projeto (9 passos: o que falta, o que está feito e o agente como opcional) e os sites em implantação. Uma conta sem o n.ot não vê o botão. |
+| 11.2 | A | Em Sites, "+ Novo site" (ou "Cadastrar o primeiro site") | O site abre em **Implantação · 1. Cadastrar**. O cartão "Para avançar" diz "Faltam zonas nos níveis Purdue 2, 3 e 4"; as etapas seguintes aparecem como "(ainda não)". |
+| 11.3 | A | Na etapa 1, "+ Nova zona", uma zona de cada nível Purdue 2, 3 e 4 | As zonas aparecem na lista e o site passa para **2. Levantar**. |
+| 11.4 | A | Na etapa 2, "Novo levantamento" (entrevista ou visita); responda uma pergunta do roteiro e registre um ativo ("Registrar achado") | O ativo é um achado em rascunho; nada entra no inventário. Não existe "Novo ativo" nem "Editar" que grave direto. |
+| 11.5 | A | Na etapa 3 (**3. Revisar**), marque os achados e "Enviar para aprovação (N)" | Nasce um lote em revisão; o cartão diz "Aguardando o Gestor decidir o lote". Quem criou o lote não consegue aprová-lo. |
+| 11.6 | B | Abra o lote ("Abrir o lote"): "Aprovar lote", ou "Recusar" um item com motivo | O ativo entra no inventário. O site chega a **4. Aprovar a base**; o cartão diz "Tudo aprovado: peça a aprovação da base". |
+| 11.7 | A | "Pedir aprovação da base" | O cartão diz "Aguardando o Gestor aprovar a base". A conta A não vê "Aprovar a base" (quem pediu não aprova). Sem ativo no site, o pedido é recusado (a base exige ao menos um ativo). |
+| 11.8 | B | "Aprovar a base" e confirme a declaração; para testar a recusa, antes use "Devolver" com um motivo | A base aprovada abre o site em **Operação**, na aba **Desvios**. Só o Gestor ARCiber aprova ou devolve. |
+
+### Operar o site
+
+| # | Quem | Faça | Esperado |
+|---|---|---|---|
+| 11.9 | A | No site em Operação, percorra as abas **Desvios**, **Saúde da coleta**, **Inventário**, **Mudanças**, **Revalidação** | Cinco abas, Desvios primeiro. O Inventário e os fluxos só se leem: não há "Registrar ativo" nem "Propor alteração" ali. A aba Revalidação mostra "Revalidar até dd/mm/aaaa" (ou "Sem prazo de revalidação definido") e a lista de ativos do ARCiber a vencer em 60 dias. |
+| 11.10 | A | Em Mudanças, "Registrar mudança"; registre um achado de alteração ("Propor alteração") ou de remoção e envie para aprovação | A mudança aparece em **Abertas**. A conta B a decide; ao aprovar, passa a **Concluídas**. Uma mudança recusada fica em "Recusadas nos últimos 7 dias" e sai da lista depois disso. Remover um ativo que ainda tem fluxo ativo é recusado. |
+| 11.11 | B | Em Sites, abra o site e use "Abrir obra" (fim e justificativa, até 90 dias) | O site passa para **Obra**; "Renovar obra" vale uma vez. A zona só muda na Implantação e na Obra. Ao aprovar a base de novo, a obra fecha. |
+| 11.12 | A | Painel: use o botão "Abrir" de um item da lista de pendências que envolve um só site | O endereço leva `?ot=site&site=<id>&aba=<aba>` e a página recarregada mantém a aba. O sino de um aviso de obra ou de aceite abre o site ou o desvio certo. |
+| 11.13 | Técnico | Entre com a conta do técnico | O Painel mostra "Meu trabalho" (achados dele em rascunho e lote dele recusado nos últimos 7 dias), só dos sites dele. O técnico cria levantamento e lote, mas não aprova, não vê Configuração e não pede a base. |
+| 11.14 | Leitor | Entre com a conta do cliente leitor | O menu mostra só Painel, Assessment e Relatórios; o resto do endereço volta ao Painel e a API responde 403. |
+| 11.15 | A | Relatórios: "Exportar CSV" com uma justificativa | Pede o código do autenticador; com ele, baixa a planilha. |
+| 11.16 | A | Configuração > Sondas: "Nova sonda" | A credencial aparece uma vez só; a sonda fica na lista com a saúde da coleta. Revogue-a no fim. |
 
 ## Resultado
 

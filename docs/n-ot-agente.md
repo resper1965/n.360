@@ -4,7 +4,7 @@ Um agente de IA (Claude Code, Cursor) lê documentos técnicos de OT no computad
 
 ## Ligar (Gestor ARCiber)
 
-Só o Gestor ARCiber liga ou desliga. Em **Acessos e sondas** do n.ot, no cartão **Agente de coleta**, ligue o interruptor. Desligado, todas as chaves do projeto deixam de valer. Desligar não revoga: ao religar, as chaves ainda não vencidas voltam a valer; revogue-as se não for essa a intenção.
+Só o Gestor ARCiber liga ou desliga. No n.ot, em **Configuração** > **Agente de coleta**, ligue o interruptor. Desligado, todas as chaves do projeto deixam de valer. Desligar não revoga: ao religar, as chaves ainda não vencidas voltam a valer; revogue-as se não for essa a intenção.
 
 ## Emitir a chave
 
@@ -55,8 +55,8 @@ Os arquivos passam pelo modelo do agente antes de chegar ao n.ot, **sem a másca
 
 ## Onde o técnico traz dados
 
-Quem tem acesso ao site, inclusive o técnico, usa **Sites** > o site > **Modo projeto** > **Levantamento** > **Trazer dados**: escolhe a planilha ou o documento, o n.ot abre um levantamento documental de hoje e segue o de-para. O JSON do sensor só quem aprova importa. O técnico não pede a aprovação da base; isso é da equipe.
+Quem tem acesso ao site, inclusive o técnico, usa **Sites** > o site > etapa **2. Levantar** (site em Implantação) ou aba **Mudanças** (site em Operação) > **Trazer dados**: escolhe a planilha ou o documento, o n.ot abre um levantamento documental de hoje e segue o de-para. O JSON do sensor só quem aprova importa. O técnico não pede a aprovação da base; isso é da equipe.
 
 ## Onde se revisa e se aprova
 
-O agente só grava achados em rascunho. Em **Sites** > o site > **Modo projeto** > **Revisão e aprovação** a pessoa vê a fila de rascunhos do site (com a origem "Agente"), marca os que valem e usa **Enviar para aprovação (N)**. O Lote de aprovação é decidido item a item por quem não o criou: **Recusar** com motivo, ou **Aprovar lote** / **Aprovar os restantes**. Só então o item entra no inventário. O agente não envia para aprovação nem aprova.
+O agente só grava achados em rascunho. Em **Sites** > o site > etapa **3. Revisar** a pessoa vê a fila de rascunhos do site (com a origem "Agente"), marca os que valem e usa **Enviar para aprovação (N)**. O Lote de aprovação é decidido item a item por quem não o criou: **Recusar** com motivo, ou **Aprovar lote** / **Aprovar os restantes**. Só então o item entra no inventário. O agente não envia para aprovação nem aprova.
