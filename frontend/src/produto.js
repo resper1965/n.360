@@ -30,7 +30,8 @@ export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 
  * O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`). `nav-ot` não é mais item de menu (o n.ot abre
  * pelo "Abrir no n.ot" da linha do projeto no Início), mas fica aqui: é o que diz que a tela `ot` é do n.ot (`produtoDaTela`).
  */
-export const SO_OT = ['nav-ot', 'nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
+export const SO_OT = ['nav-ot', 'nav-ot-painel', 'nav-ot-sites', 'nav-ot-desvios', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-implantacao',
+    'nav-ot-acessos', 'nav-ot-sondas', 'nav-ot-agente', 'nav-ot-integracao', 'nav-ot-fornecedores'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -463,13 +464,15 @@ export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos 
 /** Os itens do menu do n.ot: só dentro do /ot, com o projeto ativo E a pessoa com o módulo (a trava de verdade é do servidor, P0-1). */
 export function atualizarItemOt(doc = document) {
     const dentro = produtoAtual() === 'ot' && !!(S.activeProject && modulosVisiveis(S.activeProject).includes('ot'));
-    for (const id of ['secao-ot-organizacao', 'nav-ot-painel', 'nav-ot-assessment', 'nav-ot-relatorios']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro; }
-    // o leitor lê só Painel, Assessment e Relatórios (spec 2026-11-26, decisão 4; GET /ot/permissoes)
-    // sem as permissões carregadas, o estado fechado (o de leitor) até o renderOt as ler
+    // Três grupos (spec 2026-11-26): Operação, Implantação e Configuração. O leitor lê só Painel, Assessment e Relatórios (decisão 4;
+    // GET /ot/permissoes); Configuração é de quem edita, e Sondas pede também `ver_sondas`. Sem as permissões carregadas, o estado fechado.
     const fechado = !permissoesCarregadas() || pode('leitor');
-    for (const id of ['nav-ot-sites', 'nav-ot-fornecedores']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro || fechado; }
-    const ac = doc.getElementById('nav-ot-acessos');
-    if (ac) ac.hidden = !(dentro && podeEditarOt());
+    const editar = podeEditarOt();
+    const quem = { 'grupo-ot-operacao': true, 'grupo-ot-implantacao': !fechado, 'grupo-ot-configuracao': editar, 'secao-ot-operacao': true, 'nav-ot-painel': true, 'nav-ot-assessment': true, 'nav-ot-relatorios': true,
+        'nav-ot-sites': !fechado, 'nav-ot-desvios': !fechado, 'secao-ot-implantacao': !fechado, 'nav-ot-implantacao': !fechado,
+        'secao-ot-configuracao': editar, 'nav-ot-acessos': editar, 'nav-ot-agente': editar, 'nav-ot-integracao': editar, 'nav-ot-fornecedores': editar,
+        'nav-ot-sondas': editar && pode('ver_sondas') };
+    for (const [id, ok] of Object.entries(quem)) { const n = doc.getElementById(id); if (n) n.hidden = !(dentro && ok); }
 }
 
 /**

@@ -381,7 +381,7 @@ describe('início do n.360', () => {
 
     it('painelAbrir e abrirModulo: só destinos da lista fechada', () => {
         window.painelAbrir('ot', 'desvios', null);
-        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=desvios');
         window.painelAbrir('ot', '<script>', null); // aba fora do mapa, sem site: a lista Sites, e a aba não vai ao endereço
         expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
         window.painelAbrir('ot', '<script>', null, 's1'); // com site, a aba vai escapada (a tela do site a confere)

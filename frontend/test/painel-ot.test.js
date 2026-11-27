@@ -109,11 +109,20 @@ describe('Painel do n.ot: "Abrir" leva ao site e à aba (PR1b)', () => {
         window.painelAbrir(...JSON.parse(botoes[0].dataset.args));
         expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s1&aba=revisar');
         window.painelAbrir(...JSON.parse(botoes[1].dataset.args));
-        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=desvios');
         window.painelAbrir('ot', null, null, 's<1>');
         expect(irPara).toHaveBeenLastCalledWith('/ot?ot=site&site=s%3C1%3E');
         window.painelAbrir('ot', 'sondas', null);
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sondas');
+        window.painelAbrir('ot', 'revisar', null); // sem site: o lote recusado pode ser de um site em Operação
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
+        window.painelAbrir('ot', 'desvios', 'aceitos');
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=desvios&situacao=aceito');
+        for (const aba of ['base', 'implantacao']) { window.painelAbrir('ot', aba, null); expect(irPara).toHaveBeenLastCalledWith('/ot?ot=implantacao'); }
+        window.painelAbrir('ot', 'acessos', null);
         expect(irPara).toHaveBeenLastCalledWith('/ot?ot=acessos');
+        window.painelAbrir('ot', 'qualquer', null);
+        expect(irPara).toHaveBeenLastCalledWith('/ot?ot=sites');
         window.painelAbrir('ot', 'assessment', null);
         expect(irPara).toHaveBeenLastCalledWith('/ot?ot=assessment');
     });

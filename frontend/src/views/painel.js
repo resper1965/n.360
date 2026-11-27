@@ -634,11 +634,11 @@ window.painelAbrir = function (tela, aba, filtro, site = null) {
     // As faixas são as do painel do n.privacy desenhado agora (encarregado.js as guarda); em outra entrada, a tela das atividades.
     if (filtro === 'acoes_vencidas' && proj && S.view === 'encarregado' && typeof window.abrirFaixaPrazo === 'function' && window.abrirFaixaPrazo(proj.id, 'vencidas')) return;
     // O hub navega por recarga: tela, site e aba do n.ot vão no endereço (lido por ot-navegacao.js), não em S.otTela. Com site, o
-    // site na aba (a tela do site confere a aba contra a área); sem site, a tela da aba, e o resto (desvios, revisar, base,
-    // implantacao) na lista Sites até o PR5, que troca este mapa pelas telas novas.
+    // site na aba (a tela do site confere a aba contra a área); sem site, a tela da aba, e o resto cai na lista Sites. `revisar` sem site fica em Sites (o lote recusado do técnico pode ser de um site em Operação) até o PR6/PR7.
     if (tela === 'ot') {
-        const SEM_SITE = { assessment: 'assessment', sondas: 'acessos', acessos: 'acessos' };
-        irPara(site ? `${enderecoDoProduto('ot')}?ot=site&site=${encodeURIComponent(site)}${aba ? `&aba=${encodeURIComponent(aba)}` : ''}` : `${enderecoDoProduto('ot')}?ot=${SEM_SITE[aba] || 'sites'}`);
+        const SEM_SITE = { assessment: 'assessment', sondas: 'sondas', acessos: 'acessos', desvios: 'desvios', base: 'implantacao', implantacao: 'implantacao' };
+        const aceitos = !site && aba === 'desvios' && filtro === 'aceitos' ? '&situacao=aceito' : ''; // aceites que vencem: a lista de abertos não os mostra
+        irPara(site ? `${enderecoDoProduto('ot')}?ot=site&site=${encodeURIComponent(site)}${aba ? `&aba=${encodeURIComponent(aba)}` : ''}` : `${enderecoDoProduto('ot')}?ot=${SEM_SITE[aba] || 'sites'}${aceitos}`);
         return;
     }
     if (aba === 'pedidos' || aba === 'incidentes' || aba === 'consentimentos') S.titularAba = aba;

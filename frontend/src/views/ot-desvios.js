@@ -42,7 +42,7 @@ export async function montarDesvios(c, a, p, { siteFixo, destacar } = {}) {
     c.innerHTML = `<p class="org-header-intro">Tráfego que a sonda viu e que o inventário aprovado não prevê. Trate ou aceite cada desvio; o que ficar fora do inventário continua aparecendo.</p>
         <div class="d-flex gap-3">${filtro('des-f-situacao', 'Situação', 'situacao', sit)}${siteFixo ? '' : filtro('des-f-site', 'Site', 'site_id', sites.map((s) => [s.id, s.nome]))}${filtro('des-f-tipo', 'Tipo', 'tipo', Object.entries(TIPO))}</div>
         ${renderDataTable(['Tipo', 'Site', 'Origem', 'Destino', 'Protocolo', 'Visto', 'Ocorrências', 'Situação', 'Ações'], desvios.map(linha),
-        vazio)}${semSonda && podeEditarOt() ? '<p><button class="btn" data-action="otTela" data-args=\'["acessos"]\'>Cadastrar sonda</button></p>' : ''}`;
+        vazio)}${semSonda && podeEditarOt() ? '<p><button class="btn" data-action="otTela" data-args=\'["sondas"]\'>Cadastrar sonda</button></p>' : ''}`;
     const alvo = destacar && c.querySelectorAll('tbody tr')[desvios.findIndex((d) => d.id === destacar)];
     if (alvo) { alvo.setAttribute('aria-current', 'true'); alvo.scrollIntoView?.({ block: 'center' }); }
 }
