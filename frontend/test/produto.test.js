@@ -102,12 +102,12 @@ describe('projetos do produto', () => {
 });
 
 describe('casca', () => {
-    it('casca ot: menu com Início, Sites e a seção Organização; fora do n.ot, nada disso aparece', () => {
+    it('casca ot: menu em Operação, Implantação e Configuração; fora do n.ot, nada disso aparece', () => {
         montarApp();
-        const ids = ['nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
+        const ids = ['nav-ot-painel', 'nav-ot-sites', 'nav-ot-desvios', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-implantacao', 'nav-ot-acessos', 'nav-ot-sondas', 'nav-ot-agente', 'nav-ot-integracao', 'nav-ot-fornecedores'];
         aplicarCasca('ot');
         for (const id of ids) expect(el(id).dataset.foraDoProduto, id).toBeUndefined();
-        expect(el('secao-ot-organizacao').classList.contains('sidebar-secao')).toBe(true);
+        expect(el('secao-ot-operacao').classList.contains('sidebar-secao')).toBe(true);
         expect(el('nav-ot-sites').dataset.args).toBe('["sites"]');
         for (const p of ['iso', 'privacy', 'n360']) {
             aplicarCasca(p);
@@ -123,7 +123,8 @@ describe('casca', () => {
         atualizarItemOt(document);
         expect(el('nav-ot')).toBeNull();
         expect(el('nav-ot-painel').hidden).toBe(false);
-        expect(el('secao-ot-organizacao').hidden).toBe(false);
+        expect(el('secao-ot-operacao').hidden).toBe(false);
+        expect(el('secao-ot-configuracao').hidden).toBe(true);
         expect(el('nav-ot-acessos').hidden).toBe(true);
         S.user = { role: 'consultor' };
         atualizarItemOt(document);

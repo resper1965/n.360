@@ -35,7 +35,7 @@ describe('casca do n.ot', () => {
     it('no /ot o menu tem só os itens do n.ot; a marca é n.ot em minúsculas, com o ponto em accent', () => {
         montarApp();
         aplicarCasca('ot');
-        expect(visiveis()).toEqual(['nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos']);
+        expect(visiveis()).toEqual(['nav-ot-painel', 'nav-ot-sites', 'nav-ot-desvios', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-implantacao', 'nav-ot-acessos', 'nav-ot-sondas', 'nav-ot-agente', 'nav-ot-integracao', 'nav-ot-fornecedores']);
         expect(document.title).toMatch(/^n\.ot \| ness\./);
         expect(el('sidebar-logo-mark').textContent).toBe('n.ot');
         expect(el('sidebar-logo-mark').innerHTML).toContain('var(--accent)');
@@ -240,7 +240,7 @@ describe('casca por subtela', () => {
         await window.otTela('painel'); await window.renderOt(el('c'), el('h'), el('a'));
         expect(el('h').textContent).toBe('Painel');
         expect(el('nav-ot-painel').classList.contains('active')).toBe(true);
-        expect(location.search).toBe(''); // o Painel é a tela inicial: o endereço é só /ot
+        expect(location.search).toBe('?ot=painel'); // /ot limpo é a tela_inicial de quem olha, então o Painel escreve o próprio endereço
         expect(f.mock.calls.some(([u]) => String(u).includes('/painel?modulo=ot'))).toBe(true);
     });
     it('link direto /ot?ot=painel sem projeto (S.projects vazio): "sem projeto" e nenhuma chamada ao /painel', async () => {
@@ -314,14 +314,14 @@ describe('casca por subtela', () => {
         expect([S.otSite, S.otModo, S.otSub]).toEqual([null, null, null]);
         expect(S.otTela).toBe('painel');
     });
-    it('trocar de projeto não lê o endereço velho: abre o Início e limpa ?ot=', async () => {
+    it('trocar de projeto não lê o endereço velho: abre a tela inicial e troca o ?ot= velho', async () => {
         servir({});
         S.otTela = 'site'; S.otSite = 's1'; S.otModo = 'operacao';
         ir('/ot?ot=site&site=s1&modo=operacao');
         S.activeProject = { id: 'p8', modulos: ['ot'] };
         await abrir();
         expect([S.otTela, S.otSite]).toEqual(['painel', null]);
-        expect(location.search).not.toContain('ot=');
+        expect(location.search).toBe('?ot=painel');
     });
     it('pedido do sino de outro projeto leva a Relatórios, mesmo com endereço velho; no mesmo projeto também', async () => {
         servir({});
@@ -358,7 +358,7 @@ describe('casca por subtela', () => {
         expect(el('h').textContent).toBe('Assessment RO-CB.BR.01');
         S.otTela = null; ir('/ot?ot=acessos');
         await abrir();
-        expect(el('h').textContent).toBe('Acessos e sondas');
+        expect(el('h').textContent).toBe('Acessos de técnicos');
     });
     it('trocar de site pela otTela limpa lote e levantamento do site anterior', async () => {
         S.otTela = 'site'; S.otSite = 's1'; S.otLote = 'x'; S.otLevantamento = 'l1';

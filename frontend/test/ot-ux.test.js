@@ -415,10 +415,10 @@ describe('E1 T6: saídas diretas no lugar de texto sem link', () => {
         await montarDesvios(el('c'), el('a'), S.activeProject, { siteFixo: 's1' });
     };
     beforeEach(() => { S.otDesvioFiltro = null; });
-    it('Desvios vazio sem sonda: aviso e botão para Acessos', async () => {
+    it('Desvios vazio sem sonda: aviso e botão para Sondas', async () => {
         await desvios([]);
         expect(el('c').textContent).toContain('Sem vigilância de rede neste site');
-        expect(JSON.parse(document.querySelector('#c button[data-action="otTela"]').dataset.args)).toEqual(['acessos']);
+        expect(JSON.parse(document.querySelector('#c button[data-action="otTela"]').dataset.args)).toEqual(['sondas']);
     });
     it('Desvios vazio com sonda ou com falha: texto neutro', async () => {
         await desvios([{ id: 'k1' }]);

@@ -6,9 +6,8 @@ import { podeEditarOt, podeAprovarOt, podeRevelar, carregarPermissoes, pode, men
     nomesDeAtivos, TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS, classePrimario } from '../ot-comum.js';
 import { montarSaidas } from './ot-saidas.js';
 import { esvaziarNotas } from './ot-levantamento.js';
-import { cartaoAgente } from './ot-agente.js';
-import { areaSondas } from './ot-sensores.js';
-import { cartaoIntegracao } from './ot-integracao.js';
+import { montarSondas, montarAgente, montarIntegracao, montarImplantacao } from './ot-configuracao.js';
+import { montarDesvios } from './ot-desvios.js';
 import { montarAssessment } from './ot-assessment.js';
 import { montarFornecedoresOt } from './ot-fornecedores.js';
 import { montarSites, montarSite, resolverDesvio, modoDaAba } from './ot-site.js';
@@ -29,9 +28,10 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const TITULOS = { painel: 'Painel', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores de OT', acessos: 'Acessos e sondas' };
+const TITULOS = { painel: 'Painel', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores de OT', desvios: 'Desvios', implantacao: 'Implantação', acessos: 'Acessos de técnicos', sondas: 'Sondas', agente: 'Agente de coleta', integracao: 'Integração ness.OS' };
 // O Painel do n.ot é o mesmo painel do n.iso e do n.privacy (views/painel.js), pelo `?modulo=ot`; o título fica o desta casca.
-const MONTAR = { painel: (c, a) => renderPainel(c, null, a, 'ot'), sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, acessos: (c, a, p) => montarAcessos(c, a, p) };
+const MONTAR = { painel: (c, a) => renderPainel(c, null, a, 'ot'), sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, desvios: (c, a, p) => montarDesvios(c, a, p, {}), implantacao: montarImplantacao,
+    acessos: (c, a, p) => montarAcessos(c, a, p), sondas: montarSondas, agente: montarAgente, integracao: montarIntegracao };
 
 async function renderOt(c, h, a) {
     a.innerHTML = '';
@@ -48,15 +48,17 @@ async function renderOt(c, h, a) {
     // Pedido de uma só vez (sino): vence o endereço velho e sobrevive à troca de projeto.
     // O site vai com modo nulo (a área decide, montarSite); o desvio segue o caminho do endereço /ot/desvios/<id>, logo abaixo.
     let desvioPedido = null;
+    let inicial = false;
     if (S.otPedido) {
         const p = S.otPedido; S.otPedido = null;
         if (p.desvio) { desvioPedido = p.desvio; S.otTela = null; }
         else Object.assign(S, { otTela: p.tela, otSite: p.site ?? null, otModo: null, otSub: null });
-    } else if (trocou) { S.otTela = 'painel'; S.otModo = null; S.otSub = null; } // o endereço ainda é o do projeto anterior
+    } else if (trocou) { S.otTela = 'painel'; S.otModo = null; S.otSub = null; inicial = true; } // o endereço ainda é o do projeto anterior
     let desvio = null;
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
         const e = desvioPedido ? { tela: 'painel', site: null, aba: null, desvio: desvioPedido } : lerEndereco();
-        Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: null, otSub: e.aba }); // a área do site decide o modo e confere a aba
+        inicial = !e.tela && !e.desvio; // sem ?ot=: a tela inicial é a que o servidor manda (GET /ot/permissoes)
+        Object.assign(S, { otTela: e.tela || 'painel', otSite: e.site, otModo: null, otSub: e.aba }); // a área do site decide o modo e confere a aba
         if (e.desvio && !pode('leitor')) { // o leitor não lê desvio (403): o endereço cai no Painel, abaixo
             let r = await resolverDesvio(proj(), e.desvio);
             // O link não traz o projeto: se não está no ativo, procura nos outros n.ot (um a um) e troca para o que o tem.
@@ -73,13 +75,17 @@ async function renderOt(c, h, a) {
         }
     }
     await carregarPermissoes(proj().id); // o link de desvio pode ter trocado o projeto
+    if (inicial && pode('editar')) S.otTela = S.otPermissoes.tela_inicial === 'implantacao' ? 'implantacao' : 'painel';
     atualizarItemOt();
-    if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'painel';
+    // Configuração é de quem edita (Sondas pede também `ver_sondas`); quem não pode cai no Painel (o servidor recusa de qualquer jeito)
+    if (['acessos', 'agente', 'integracao', 'fornecedores', 'sondas'].includes(S.otTela) && !podeEditarOt()) S.otTela = 'painel';
+    if (S.otTela === 'sondas' && !pode('ver_sondas')) S.otTela = 'painel';
     // o leitor lê só Painel, Assessment e Relatórios (spec 2026-11-26, decisão 4): Início, Sites e o resto caem no Painel
     if (pode('leitor') && !['painel', 'assessment', 'relatorios'].includes(S.otTela)) S.otTela = 'painel';
+    if (pode('leitor')) inicial = false;
     const tela = S.otTela;
     escreverEndereco({ tela, site: S.otSite, aba: S.otSub });
-    for (const t of ['painel', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
+    for (const t of Object.keys(TITULOS)) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
     h.textContent = TITULOS[tela];
     c.innerHTML = '<div class="loading"></div>';
     if (tela === 'site') {
@@ -93,6 +99,7 @@ async function renderOt(c, h, a) {
 // `aba` nula no site: a área decide (montarSite); a aba pedida aqui leva o modo dela (o endereço, não: lá a área manda)
 window.otTela = async (tela, site = null, aba = null, extra = {}) => {
     await esvaziarNotas();
+    if (tela === 'desvios') S.otDesvioFiltro = null; // o filtro de site da aba do site não vira recorte escondido na lista de todos os sites
     Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modoDaAba(aba), otSub: aba, otZona: null, otLote: null, otLevantamento: null }, extra);
     if (S.otTela !== 'site' || S.otVisitaInventario?.site !== S.otSite) S.otVisitaInventario = null; // fora da tela do site, a visita do inventário não é reaproveitada
     window.render();
@@ -368,9 +375,8 @@ export async function montarAcessos(c, a, p) {
         const [s, ac] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/acessos`)]);
         D.sites = lista(s, 'sites'); acessos = lista(ac, 'acessos');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os acessos por site.', e); return; }
-    // Secundários: sem a lista de contas, a tabela mostra o id e o formulário avisa; sem o agente, a aba segue sem o cartão.
-    const [contas, agente] = await Promise.all([api('GET', '/api/v1/users').then((r) => (Array.isArray(r) ? r : []), () => []), cartaoAgente(p)]);
-    const [sondas, integracao] = await Promise.all([areaSondas(p, D.sites), cartaoIntegracao(p)]);
+    // Secundário: sem a lista de contas, a tabela mostra o id e o formulário avisa.
+    const contas = await api('GET', '/api/v1/users').then((r) => (Array.isArray(r) ? r : []), () => []);
     tecnicos = contas.filter((u) => u.role === 'org_user' && u.client_project_id === p.id);
     const email = (id) => (contas.find((u) => u.id === id) || {}).email || id;
     if (D.sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoAcesso">+ Conceder acesso</button>';
@@ -378,7 +384,7 @@ export async function montarAcessos(c, a, p) {
         ${renderDataTable(['Site', 'Técnico', 'Concedido por', 'Desde', 'Ações'], acessos.map((x) => [
         escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(email(x.user_id)), escapeHTML(x.concedido_por || '—'), escapeHTML(formatarData(x.created_at)),
         linhaMais([{ rotulo: 'Revogar acesso', action: 'otRevogarAcesso', args: [x.site_id, x.user_id], perigo: true }], email(x.user_id)),
-    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site em Sites antes de conceder acesso.' })}${agente}${integracao}${sondas}`;
+    ]), { emptyMessage: 'Nenhum acesso concedido.', emptyHint: D.sites.length ? 'Conceda ao técnico os sites em que ele coleta.' : 'Cadastre um site em Sites antes de conceder acesso.' })}`;
 }
 window.otNovoAcesso = () => {
     openModal(`<div class="modal-header"><span class="modal-title">Conceder acesso a um site</span></div>

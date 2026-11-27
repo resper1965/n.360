@@ -35,7 +35,7 @@ function servirOt(rotas) {
 const BASE = { [`GET ${B}/sites`]: { sites: [] }, [`GET ${B}/acessos`]: { acessos: [] }, 'GET /api/v1/users': [] };
 async function abrir(rotas) {
     servirOt({ ...BASE, ...rotas });
-    await desenhar('acessos');
+    await desenhar('agente');
 }
 const cartao = () => el('ot-agente');
 
@@ -59,10 +59,10 @@ describe('cartão Agente de coleta', () => {
         await abrir({ [`GET ${B}/agente`]: AGENTE({ pode_emitir: false }) });
         expect(cartao()).toBeNull();
         expect(chamadas.some((x) => x.k === `GET ${B}/agente/chaves`)).toBe(false);
-        // Falha ao ler o agente: a aba de acessos segue, sem o cartão.
+        // Falha ao ler o agente: a tela diz que está indisponível, sem o cartão.
         await abrir({});
         expect(cartao()).toBeNull();
-        expect(el('c').textContent).toContain('Nenhum acesso concedido.');
+        expect(el('c').textContent).toContain('Agente de coleta indisponível');
     });
 
     it('diz o que o agente faz, com o aviso do modelo em negrito, e lista as chaves escapadas', async () => {

@@ -34,7 +34,7 @@ function servir(rotas) {
     }));
 }
 const BASE = { [`GET ${B}/sites`]: { sites: [] }, [`GET ${B}/acessos`]: { acessos: [] }, 'GET /api/v1/users': [] };
-async function abrir(rotas) { servir({ ...BASE, ...rotas }); await desenhar('acessos'); }
+async function abrir(rotas) { servir({ ...BASE, ...rotas }); await desenhar('integracao'); }
 const cartao = () => el('ot-integracao');
 const gestor = () => { S.user = { id: 'u-g', role: 'org_admin' }; };
 
@@ -71,10 +71,10 @@ describe('cartão Integração ness.OS', () => {
     expect(cartao().querySelector('.btn-primary')).toBeNull();
   });
 
-  it('a falha da leitura deixa a aba sem o cartão', async () => {
+  it('a falha da leitura deixa a tela sem o cartão, com o aviso', async () => {
     await abrir({});
     expect(cartao()).toBeNull();
-    expect(el('c').textContent).toContain('Nenhum acesso concedido.');
+    expect(el('c').textContent).toContain('Integração indisponível');
   });
 
   it('Gestor cadastra com o corpo certo e vê o segredo uma vez', async () => {

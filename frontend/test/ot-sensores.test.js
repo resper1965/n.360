@@ -50,7 +50,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('área Sondas', () => {
     it('lista nome (escapado), saúde em texto, último envio, aviso de perda acima de 5% e validade', async () => {
-        await abrir('acessos', { [`GET ${B}/sites/s1/sensores`]: SONDAS });
+        await abrir('sondas', { [`GET ${B}/sites/s1/sensores`]: SONDAS });
         const area = el('ot-sondas');
         expect(area.textContent).toContain('Em dia');
         expect(area.textContent).toContain('Parada');
@@ -63,12 +63,12 @@ describe('área Sondas', () => {
     });
 
     it('quem vê mascarado (403) não vê a área', async () => {
-        await abrir('acessos', { [`GET ${B}/sites/s1/sensores`]: [403, { error: 'Forbidden' }] });
+        await abrir('sondas', { [`GET ${B}/sites/s1/sensores`]: [403, { error: 'Forbidden' }] });
         expect(el('ot-sondas')).toBeNull();
     });
 
     it('Nova sonda exige nome e faixa; depois mostra a credencial e o conf uma vez, e apaga ao fechar', async () => {
-        await abrir('acessos', { [`GET ${B}/sites/s1/sensores`]: SONDAS,
+        await abrir('sondas', { [`GET ${B}/sites/s1/sensores`]: SONDAS,
             [`POST ${B}/sites/s1/sensores`]: [201, { sensor: { id: 'z9' }, credencial: SEGREDO, expira_em: dias(365), conf: `# /etc/n-ot-sonda.conf\ncredencial = ${SEGREDO}\n` }] });
         window.otNovaSonda('s1');
         expect(el('ot-so-nome').maxLength).toBe(80); // livreSemPii(80) no servidor
@@ -92,7 +92,7 @@ describe('área Sondas', () => {
     });
 
     it('Gerar nova credencial e Revogar pedem confirmação', async () => {
-        await abrir('acessos', { [`GET ${B}/sites/s1/sensores`]: SONDAS,
+        await abrir('sondas', { [`GET ${B}/sites/s1/sensores`]: SONDAS,
             [`POST ${B}/sensores/z1/credenciais`]: [201, { credencial: SEGREDO, expira_em: dias(365) }], [`DELETE ${B}/sensores/z1/credenciais/c1`]: { ok: true }, [`DELETE ${B}/sensores/z1`]: { ok: true } });
         for (const [fn, a, rota] of [['otNovaCredencialSonda', ['z1'], 'POST'], ['otRevogarCredencialSonda', ['z1', 'c1'], 'DELETE'], ['otRevogarSonda', ['z1', 'Sonda'], 'DELETE']]) {
             const p = window[fn](...a);
@@ -137,7 +137,7 @@ describe('cartões do Levantamento', () => {
 
 describe('falha que não é 403', () => {
     it('a área avisa e mantém os sites que carregaram', async () => {
-        await abrir('acessos', { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] },
+        await abrir('sondas', { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] },
             [`GET ${B}/sites/s1/sensores`]: SONDAS, [`GET ${B}/sites/s2/sensores`]: [500, { error: 'boom' }] });
         const area = el('ot-sondas');
         expect(area.textContent).toContain('Não foi possível carregar as sondas de alguns sites');

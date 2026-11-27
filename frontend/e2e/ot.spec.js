@@ -62,7 +62,7 @@ async function abrirOt(page) {
   await page.goto('/ot');
 }
 
-// Navegação nova: menu (Painel, Sites, Assessment, Relatórios, Acessos e sondas) e, dentro do site, área (Implantação, Operação) + sub-aba.
+// Navegação nova: menu (Painel, Sites, Assessment, Relatórios, Desvios, Implantação, Configuração) e, dentro do site, área (Implantação, Operação) + sub-aba.
 async function noSite(page, modo, sub) {
   await page.locator('#nav-ot-sites').click();
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
@@ -76,7 +76,7 @@ test('projeto e pessoa com o n.ot: "Abrir no n.ot" da linha leva a /ot e à list
   const botao = page.getByRole('button', { name: 'Abrir Cliente E2E no n.ot' });
   await expect(botao).toHaveText('Abrir no n.ot');
   await botao.click();
-  await expect(page).toHaveURL(/\/ot$/);
+  await expect(page).toHaveURL(/\/ot\?ot=painel$/);
   await expect(page).toHaveTitle('n.ot | ness. ARCiber');
   // A entrada é o Painel (o Início saiu); o catálogo fica no item Assessment do menu.
   await expect(page.locator('#nav-ot-painel')).toHaveClass(/active/);
@@ -85,6 +85,16 @@ test('projeto e pessoa com o n.ot: "Abrir no n.ot" da linha leva a /ot e à list
   await expect(page.locator('#content')).toContainText('4.1.1');
   await expect(page.locator('#content')).toContainText('09/01/2023');
   await expect(page.locator('#content')).toContainText('Sem prazo');
+});
+
+test('menu em Operação, Implantação e Configuração; ?ot=acessos abre Acessos de técnicos', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  await entrar(page);
+  await abrirOt(page);
+  await expect(page.locator('[id^="secao-ot-"]:not([hidden])')).toHaveText(['Operação', 'Implantação', 'Configuração']);
+  await page.goto('/ot?ot=acessos');
+  await expect(page.locator('#nav-ot-acessos')).toHaveClass(/active/);
+  await expect(page.locator('#nav-ot-acessos')).toContainText('Acessos de técnicos');
 });
 
 test('pessoa sem o n.ot (projeto com ele): a linha não oferece o n.ot', async ({ page }) => {
@@ -330,7 +340,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
   expect(enviados[0]).toContain('"formato":"n.ot-resumo-rede/1"');
 });
 
-// L5: o cartão "Agente de coleta" em Acessos e sondas. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
+// L5: o cartão "Agente de coleta", tela Agente de coleta da Configuração. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
 // que aparece uma vez no modal com o comando do Claude Code e some do DOM ao fechar. API mockada.
 const ENDPOINT = 'https://app.example/ot-coleta/mcp';
 async function rotasAgente(page, agente, extra = {}) {
@@ -355,7 +365,7 @@ test('agente de coleta: o gestor liga depois de confirmar o aviso do modelo', as
   const puts = await rotasAgente(page, { ligado: false, pode_ligar: true, pode_emitir: true, endpoint: ENDPOINT }, { [`GET ${B}/agente/chaves`]: () => [{ chaves: [] }] });
   await entrar(page);
   await abrirOt(page);
-  await page.locator('#nav-ot-acessos').click();
+  await page.locator('#nav-ot-agente').click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Um agente externo (Claude Code, Cursor)');
   const sw = cartao.getByRole('switch', { name: 'Agente de coleta' });
@@ -382,7 +392,7 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   });
   await entrar(page);
   await abrirOt(page);
-  await page.locator('#nav-ot-acessos').click();
+  await page.locator('#nav-ot-agente').click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Ligado');
   await expect(cartao.getByRole('switch')).toHaveCount(0);
@@ -403,7 +413,7 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   expect(posts).toHaveLength(1);
 });
 
-// Sonda com envio automático: a área "Sondas" em Acessos e sondas (credencial uma vez) e o cartão de saúde em Saúde da coleta do site. API mockada.
+// Sonda com envio automático: a tela Sondas da Configuração (credencial uma vez) e o cartão de saúde em Saúde da coleta do site. API mockada.
 test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de saúde aparece', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
   const sensores = [];
@@ -428,7 +438,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
   });
   await entrar(page);
   await abrirOt(page);
-  await page.locator('#nav-ot-acessos').click();
+  await page.locator('#nav-ot-sondas').click();
   const area = page.locator('#ot-sondas');
   await expect(area).toContainText('Nenhuma sonda neste site.');
   await area.getByRole('button', { name: 'Nova sonda em SE Norte' }).click();
@@ -445,7 +455,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
 
   // Recarregar: a credencial não volta.
   await page.reload();
-  await page.locator('#nav-ot-acessos').click();
+  await page.locator('#nav-ot-sondas').click();
   await expect(page.locator('#ot-sondas')).toContainText('Sonda do barramento');
   expect(await page.content()).not.toContain('ots_e2e_SEGREDO');
 
