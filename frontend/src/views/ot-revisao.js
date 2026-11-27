@@ -4,7 +4,7 @@ import { escapeHTML, renderDataTable, renderStatusBadge, falhaDeCarga, showToast
 import { podeCriarLote, mensagemDeErro, lista, rotaDoFluxo, rotuloDoAlvo, classePrimario } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 
-// n.ot, "Revisão e aprovação" do site (spec 2026-11-11 fluidez E2): fila de achados em rascunho de todos os levantamentos do site,
+// n.ot, "Revisar" (etapa 3) do site (spec 2026-11-11 fluidez E2): fila de achados em rascunho de todos os levantamentos do site,
 // envio de vários de uma vez ao Lote de aprovação e, logo abaixo, a lista de lotes (montarColeta). Tudo da API passa por escapeHTML.
 
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
@@ -65,7 +65,7 @@ async function carregar(c, a, p, { siteFixo, semPrimario } = {}) {
         fila = lista(r, 'achados'); nomes = r.nomes_pontas || {}; alvos = r.nomes_alvos || {};
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a fila de revisão do site.', e); return; }
     sel = new Set([...sel].filter((id) => fila.some((x) => x.id === id)));
-    c.innerHTML = '<h3 class="mb-3">Fila de revisão</h3><div id="ot-rev-fila"></div><h3 class="mt-6 mb-3">Lotes de aprovação</h3><div id="ot-rev-lotes"></div>';
+    c.innerHTML = '<h3 class="mb-3">Achados para revisar</h3><div id="ot-rev-fila"></div><h3 class="mt-6 mb-3">Lotes para decidir</h3><div id="ot-rev-lotes"></div>';
     desenharFila();
     const lotes = el('ot-rev-lotes');
     await montarColeta(lotes, a, p, { siteFixo, semPrimario });
@@ -74,8 +74,8 @@ async function carregar(c, a, p, { siteFixo, semPrimario } = {}) {
 const redesenhar = () => carregar(ctx.c, ctx.a, ctx.p, { siteFixo: ctx.site, semPrimario: semPri });
 window.otRevFiltro = (campo, v) => { filtro = { ...filtro, [campo]: v }; desenharFila(); };
 window.otRevMarcar = (id, caixa) => { sel[caixa.checked ? 'add' : 'delete'](id); desenharFila(); };
-window.otRevNovoLevantamento = (site) => window.otTela('site', site, 'levantamento');
-window.otRevAbrirLevantamento = (site, id) => window.otTela('site', site, 'levantamento', { otLevantamento: id });
+window.otRevNovoLevantamento = (site) => window.otTela('site', site, 'levantar');
+window.otRevAbrirLevantamento = (site, id) => window.otTela('site', site, 'levantar', { otLevantamento: id });
 const url = (lev, id) => `/api/v1/projects/${ctx.p.id}/ot/levantamentos/${encodeURIComponent(lev)}/achados/${encodeURIComponent(id)}`;
 window.otRevDescartar = async (lev, id) => {
     try { await api('PUT', url(lev, id), { situacao: 'descartado' }); showToast('Achado descartado.', 'success'); await redesenhar(); } catch (e) { falhou(e, 'Não foi possível descartar o achado.'); }

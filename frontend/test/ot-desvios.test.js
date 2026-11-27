@@ -179,7 +179,7 @@ describe('aba Desvios', () => {
         await abrir('desvios');
         const botao = el('c').querySelector('[data-action="otVerAchadoDesvio"]');
         await window.otVerAchadoDesvio(...JSON.parse(botao.getAttribute('data-args')));
-        expect([S.otTela, S.otModo, S.otSub]).toEqual(['site', 'projeto', 'levantamento']);
+        expect([S.otTela, S.otModo, S.otSub]).toEqual(['site', 'projeto', 'levantar']);
         expect(S.otLevantamento).toBe('lv7');
     });
 

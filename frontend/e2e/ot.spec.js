@@ -65,10 +65,18 @@ async function abrirOt(page) {
 }
 
 // Navegação nova: menu (Painel, Sites, Assessment, Relatórios, Desvios, Implantação, Configuração) e, dentro do site, área (Implantação, Operação) + sub-aba.
+// Implantação: abas das etapas ("1. Cadastrar" ... "4. Aprovar a base"). Operação: o servidor diria area "operacao"; aqui o mock da situação troca por ela.
+const SITUACAO_OP = { fase: 'em_operacao', area: 'operacao', etapa: null, falta: [], base_pedida_em: null, base_aprovada_em: '2026-11-10 12:00:00', rascunhos: 0, lotes_em_revisao: 0, zonas_4_1_1: true, tem_conteudo: true, proximo_passo: 'em_operacao', lote_em_revisao_id: null };
+// 'pronta': todo o inventário aprovado (sem lote, zonas ok, ativo), a etapa 4 como o servidor a calcularia.
+const SITUACAO_PRONTA = { fase: 'em_levantamento', area: 'implantacao', etapa: 4, falta: [], base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 0, zonas_4_1_1: true, tem_conteudo: true, proximo_passo: 'pedir_base', lote_em_revisao_id: null };
 async function noSite(page, modo, sub) {
+  const rota = `**${B}/sites/s1/situacao`;
+  const corpo = modo === 'operacao' ? SITUACAO_OP : SITUACAO_PRONTA;
+  const trocar = (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(corpo) });
+  if (page.__rotaOp) { await page.unroute(rota, page.__rotaOp); page.__rotaOp = null; }
+  if (modo !== 'projeto') { await page.route(rota, trocar); page.__rotaOp = trocar; }
   await page.locator('#nav-ot-sites').click();
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
-  if (modo === 'operacao') await page.getByRole('tab', { name: 'Operação', exact: true }).click();
   await page.getByRole('tab', { name: sub, exact: true }).click();
 }
 
@@ -151,21 +159,22 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guard
   await page.locator('#nav-ot-assessment').click();
   await expect(conteudo).toContainText('4.1.1');
 
-  await noSite(page, 'projeto', 'Base');
+  await noSite(page, 'pronta', '4. Aprovar a base');
   await expect(conteudo).toContainText('RTU-01');
   await expect(conteudo).toContainText('aa:bb:cc:••:••:••');
-  // o único primário da tela é o do cartão Próximo passo; a sub-aba Base fica com os botões comuns
+  // o único primário da tela é o do cartão Próximo passo; a etapa 4 fica sem botões de gravação
   await expect(page.locator('#content .btn-primary, #header-actions .btn-primary')).toHaveCount(1);
-  await expect(page.locator('#content .card .btn-primary')).toHaveText('Abrir Base');
-  await expect(page.locator('#header-actions').getByRole('button', { name: 'Registrar ativo' })).toBeVisible();
+  await expect(page.locator('#content .card .btn-primary')).toHaveText('Pedir aprovação da base');
+  // a base é só leitura: ativo e fluxo só entram por achado e lote (etapas Levantar e Revisar)
+  await expect(page.getByRole('button', { name: 'Registrar ativo' })).toHaveCount(0);
 
   await expect(conteudo).toContainText('Fluxo externo sem VPN: viola 4.1.2 e 4.1.3');
 
-  await page.getByRole('tab', { name: 'Revisão e aprovação' }).click();
+  await page.getByRole('tab', { name: '3. Revisar' }).click();
   await expect(page.locator('#ot-coleta-privacidade')).toContainText('Trazer dados');
   await expect(conteudo).toContainText('Em revisão');
 
-  await page.getByRole('tab', { name: 'Levantamento', exact: true }).click();
+  await page.getByRole('tab', { name: '2. Levantar', exact: true }).click();
   await expect(conteudo).toContainText('Entrevista');
   await expect(conteudo).toContainText('Operador · turno B');
 
@@ -211,7 +220,7 @@ test('levantamento: abre o levantamento, registra um achado e envia para aprova�
   await entrar(page);
   await abrirOt(page);
   const conteudo = page.locator('#content');
-  await noSite(page, 'projeto', 'Levantamento');
+  await noSite(page, 'projeto', '2. Levantar');
   await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
   await expect(conteudo).toContainText('Roteiro');
 
@@ -242,7 +251,7 @@ test('levantamento: abre o levantamento, registra um achado e envia para aprova�
   await page.locator('#header-actions').getByRole('button', { name: 'Enviar para aprovação' }).click();
   await expect(page.locator('.confirmar')).toContainText('1 ativo e 1 fluxo');
   await page.locator('.confirmar').getByRole('button', { name: 'Enviar para aprovação' }).click();
-  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '3. Revisar' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de');
   await expect(conteudo).toContainText('Notebook IHM');
   await expect(conteudo).toContainText('Fluxo: RTU-01 → Fora da empresa');
@@ -280,7 +289,7 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
   await entrar(page);
   await abrirOt(page);
   const conteudo = page.locator('#content');
-  await noSite(page, 'projeto', 'Levantamento');
+  await noSite(page, 'projeto', '2. Levantar');
   await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
   await expect(conteudo.locator('tr', { hasText: 'CLP-07' }).locator('.badge', { hasText: 'Sugerido pela IA' })).toBeVisible();
 
@@ -330,7 +339,7 @@ test('levantamento documento: importa o resumo do sensor de rede e os achados ap
   await entrar(page);
   await abrirOt(page);
   const conteudo = page.locator('#content');
-  await noSite(page, 'projeto', 'Levantamento');
+  await noSite(page, 'projeto', '2. Levantar');
   await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
 
   await page.getByRole('button', { name: 'Importar arquivo' }).click();
@@ -472,7 +481,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Último resumo há 2 h');
 
   // Os pontos que a sonda trouxe seguem no topo do Levantamento (Implantação).
-  await noSite(page, 'projeto', 'Levantamento');
+  await noSite(page, 'projeto', '2. Levantar');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Achados da sonda para revisar');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
 });
@@ -539,7 +548,7 @@ test('painel: o gestor vê o lote de aprovação de outra pessoa e o botão abre
   await expect(conteudo).toContainText('decidir até 20/11');
   await page.getByRole('button', { name: /Revisar os lotes/ }).click();
   await expect(conteudo.getByRole('heading', { name: 'SE Norte', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '3. Revisar' })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Em revisão'); // o lote l1 do mock, na lista da aba
 });
 
@@ -594,7 +603,7 @@ test('revisão: marca achados de dois levantamentos, envia para aprovação e o 
   await entrar(page);
   await abrirOt(page);
   const conteudo = page.locator('#content');
-  await noSite(page, 'projeto', 'Revisão e aprovação');
+  await noSite(page, 'projeto', '3. Revisar');
   await expect(conteudo).toContainText('Notebook IHM');
   await expect(conteudo).toContainText('Câmera CFTV');
   await expect(page.getByRole('button', { name: 'Enviar para aprovação (0)' })).toBeDisabled();
@@ -646,7 +655,7 @@ test('decisão: o gestor recusa um item com motivo, aprova o restante e o levant
   await entrar(page);
   await abrirOt(page);
   const conteudo = page.locator('#content');
-  await noSite(page, 'projeto', 'Revisão e aprovação');
+  await noSite(page, 'projeto', '3. Revisar');
   await page.getByRole('button', { name: /^Revisar lote/ }).click();
   await expect(conteudo).toContainText('Decidir até');
   await expect(page.getByRole('button', { name: 'Aprovar lote' })).toBeVisible();
@@ -662,7 +671,7 @@ test('decisão: o gestor recusa um item com motivo, aprova o restante e o levant
   await expect(page.getByRole('button', { name: /^Aprovar/ })).toHaveCount(0);
   await expect(conteudo).toContainText('Concluído');
 
-  await page.getByRole('tab', { name: 'Levantamento', exact: true }).click();
+  await page.getByRole('tab', { name: '2. Levantar', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
   await expect(conteudo).toContainText('Recusado: Equipamento pessoal, fora do escopo');
   await expect(conteudo).toContainText('No inventário');
@@ -724,7 +733,7 @@ test('técnico: vê "Trazer dados" e "Novo levantamento" e não vê "Pedir aprov
   });
   await entrar(page);
   await abrirOt(page);
-  await noSite(page, 'projeto', 'Levantamento');
+  await noSite(page, 'projeto', '2. Levantar');
   await expect(page.getByRole('button', { name: 'Trazer dados' })).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Novo levantamento' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Pedir aprovação da base' })).toHaveCount(0);
@@ -785,7 +794,7 @@ test('desvios: Regularizar envia o achado do desvio e abre o lote', async ({ pag
   await noSite(page, 'operacao', 'Desvios');
   await page.getByRole('button', { name: /Regularizar Fluxo/ }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Regularizar' }).click();
-  await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '3. Revisar' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#content')).toContainText('Lote de planilha · SE Norte');
   expect(posts).toEqual([{ achados: ['ach1'] }]);
 });

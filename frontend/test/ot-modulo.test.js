@@ -224,6 +224,7 @@ describe('casca por subtela', () => {
     const NAV = ['painel', 'sites', 'assessment', 'relatorios', 'acessos'].map((t) => `<div id="nav-ot-${t}"></div>`).join('');
     const abrir = () => { document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`; return window.renderOt(el('c'), el('h'), el('a')); };
     const SITES = { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] };
+    const OPERACAO_S2 = { fase: 'em_operacao', area: 'operacao', etapa: null, falta: [], base_aprovada_em: '2026-11-10 12:00:00', proximo_passo: 'em_operacao' };
     beforeEach(() => {
         S.activeProject = { id: 'p9', modulos: ['ot'] }; S.user = { id: 'u', role: 'consultor' };
         S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otModo = null; S.otSub = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null;
@@ -289,7 +290,7 @@ describe('casca por subtela', () => {
         expect(location.search).toBe('?ot=relatorios');
     });
     it('a subtela escolhida marca o item do menu; o site marca Sites', async () => {
-        servir({ [`GET ${B}/sites`]: SITES });
+        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/sites/s1/situacao`]: { fase: 'em_levantamento', area: 'implantacao', etapa: 2, falta: [], proximo_passo: 'levantar' } });
         document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`;
         await window.otTela('assessment'); await window.renderOt(el('c'), el('h'), el('a'));
         expect(el('nav-ot-assessment').classList.contains('active')).toBe(true);
@@ -336,7 +337,7 @@ describe('casca por subtela', () => {
         expect(el('h').textContent).toBe('Sites');
     });
     it('pedido do sino com site abre o site; com desvio, o site do desvio em Desvios (spec 2026-11-26 §7)', async () => {
-        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [{ id: 'd9', site_id: 's2', tipo: 'ativo_novo', situacao: 'aberto' }] } });
+        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [{ id: 'd9', site_id: 's2', tipo: 'ativo_novo', situacao: 'aberto' }] }, [`GET ${B}/sites/s2/situacao`]: OPERACAO_S2 });
         ir('/ot?ot=relatorios');
         S.otPedido = { tela: 'site', site: 's2' };
         await abrir();
@@ -373,11 +374,11 @@ describe('casca por subtela', () => {
     it('otIrParaLote abre o site na sub-aba Lote de aprovação com o lote, depois do zerar', async () => {
         S.otLote = 'velho';
         await window.otIrParaLote('s2', 'x9');
-        expect([S.otTela, S.otSite, S.otModo, S.otSub, S.otLote]).toEqual(['site', 's2', 'projeto', 'aprovacao', 'x9']);
+        expect([S.otTela, S.otSite, S.otModo, S.otSub, S.otLote]).toEqual(['site', 's2', 'projeto', 'revisar', 'x9']);
         expect(window.render).toHaveBeenCalled();
     });
     it('deep link /ot/desvios/<id>: abre o site do desvio em Operação, sub Desvios', async () => {
-        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [{ id: 'd9', site_id: 's2', tipo: 'ativo_novo', situacao: 'aberto' }] } });
+        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [{ id: 'd9', site_id: 's2', tipo: 'ativo_novo', situacao: 'aberto' }] }, [`GET ${B}/sites/s2/situacao`]: OPERACAO_S2 });
         ir('/ot/desvios/d9');
         await abrir();
         expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
@@ -399,7 +400,7 @@ describe('casca por subtela', () => {
         });
         it('o desvio está em p2: troca o projeto ativo e abre Desvios', async () => {
             servir({ [`GET ${B}/desvios`]: { desvios: [] }, [`GET ${B2}/desvios`]: { desvios: [{ id: 'd1', site_id: 's2', situacao: 'aberto' }] },
-                [`GET ${B2}/sites`]: SITES });
+                [`GET ${B2}/sites`]: SITES, [`GET ${B2}/sites/s2/situacao`]: OPERACAO_S2 });
             ir('/ot/desvios/d1');
             await abrir();
             expect(S.activeProject.id).toBe('p2');

@@ -76,7 +76,7 @@ window.otFiltrarDesvios = (campo) => {
 
 // Abre o levantamento em que está o achado rascunho do desvio (na tela do site, Modo projeto).
 window.otVerAchadoDesvio = (levId, siteId) => {
-    return window.otTela('site', siteId || S.otSite, 'levantamento', { otLevantamento: levId || null });
+    return window.otTela('site', siteId || S.otSite, 'levantar', { otLevantamento: levId || null });
 };
 
 window.otRegularizarDesvio = (site, achado) => semRepetir('otRegularizarDesvio', async () => {

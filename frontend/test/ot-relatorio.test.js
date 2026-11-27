@@ -73,7 +73,7 @@ describe('Relatórios: relatório de conformidade e indicadores clicáveis', () 
     it('"Ativos sem zona" leva à Base de cada site com o filtro sem zona; a zona leva à Base filtrada por ela', async () => {
         await montarSaidas(el('c'), el('a'), S.activeProject);
         el('c').querySelector('[data-action="otIrBase"][data-args*="s2"][data-args*="sem"]').click();
-        expect(window.otTela).toHaveBeenLastCalledWith('site', 's2', 'base', { otZona: 'sem' });
+        expect(window.otTela).toHaveBeenLastCalledWith('site', 's2', 'cadastrar', { otZona: 'sem' });
         el('c').querySelector('[data-action="otIrBase"][data-args*="z2"]').click();
         expect(window.otTela).toHaveBeenLastCalledWith('site', 's2', 'base', { otZona: 'z2' });
         expect(el('c').querySelectorAll('[data-action="otIrBase"]')).toHaveLength(3); // dois sites + uma zona; sem IP/MAC e VPN não têm destino

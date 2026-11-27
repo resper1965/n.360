@@ -104,8 +104,8 @@ window.otTela = async (tela, site = null, aba = null, extra = {}) => {
     if (S.otTela !== 'site' || S.otVisitaInventario?.site !== S.otSite) S.otVisitaInventario = null; // fora da tela do site, a visita do inventário não é reaproveitada
     window.render();
 };
-// Abre o lote de um site vindo de fora: sub-aba Lote de aprovação.
-window.otIrParaLote = (site, lote) => window.otTela('site', site, 'aprovacao', { otLote: lote });
+// Abre o lote de um site vindo de fora: etapa Revisar.
+window.otIrParaLote = (site, lote) => window.otTela('site', site, 'revisar', { otLote: lote });
 
 // ─── inventário (N2) ────────────────────────────────────────────────────────
 const doSite = () => (S.otSite ? `?site_id=${encodeURIComponent(S.otSite)}` : '');
@@ -131,7 +131,30 @@ window.otFiltrarZona = (v) => { S.otZona = v || null; window.render(); };
 
 const linhaMais = (itens, nome) => renderMaisAcoes(itens, { nome });
 
-export async function montarInventario(c, a, p, { siteFixo, semPrimario, somenteLeitura } = {}) {
+/** Tabela de zonas do recorte carregado (D.zonas); com `editar`, Editar e Remover por linha. */
+function tabelaDeZonas(editar) {
+    const mais = (x) => linhaMais([{ rotulo: 'Remover', action: 'otRemover', args: ['zonas', x.id], perigo: true }], x.nome);
+    return renderDataTable(['Zona', 'Site', 'Nível Purdue', 'Tipo', ...(editar ? ['Ações'] : [])], D.zonas.map((z) => [
+        escapeHTML(z.nome), escapeHTML(nomeDe(D.sites, z.site_id)), escapeHTML(String(z.nivel_purdue)), escapeHTML(TIPOS_ZONA[z.tipo] || z.tipo),
+        ...(editar ? [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otEditarZona" data-args='${args(z.id)}' aria-label="${escapeHTML(`Editar ${z.nome}`)}">Editar</button>${mais(z)}</div>`] : []),
+    ]), { emptyMessage: 'Nenhuma zona registrada.', emptyHint: 'A RO-CB.BR.01 (4.1.1) pede as zonas de supervisão, DMZ operativa e corporativa (níveis 2, 3 e 4) em cada site.' });
+}
+
+/** Etapa 1 do assistente (Cadastrar): os dados do site e as zonas. Ativos e fluxos não se gravam aqui (só por achado e lote). */
+export async function montarCadastro(c, a, p, { siteFixo, somenteLeitura } = {}) {
+    siteTravado = siteFixo || null;
+    try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o cadastro do site.', e); return; }
+    const editar = podeEditarOt() && !somenteLeitura; // zona só muda na Implantação e na Obra (o servidor dá 409 fora delas)
+    const s = D.sites.find((x) => x.id === siteFixo);
+    if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
+    if (editar) a.innerHTML = '<button class="btn" data-action="otNovaZona">+ Nova zona</button>';
+    c.innerHTML = `<h3 class="mb-3">Dados do site</h3>${renderDataTable(['Tipo', 'Criticidade', 'Localização', ...(editar ? ['Ações'] : [])], [[
+        escapeHTML(TIPOS_SITE[s.tipo] || s.tipo), escapeHTML(CRITICIDADE[s.criticidade] || '—'), escapeHTML(s.localizacao || '—'),
+        ...(editar ? [`<button class="btn btn-sm" data-action="otEditarSite" data-args='${args(s.id)}' aria-label="${escapeHTML(`Editar ${s.nome}`)}">Editar</button>`] : []),
+    ]])}<h3 class="mt-6 mb-3">Zonas</h3>${tabelaDeZonas(editar)}`;
+}
+
+export async function montarInventario(c, a, p, { siteFixo, semPrimario, somenteLeitura, zonasSomenteLeitura } = {}) {
     siteTravado = siteFixo || null;
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o inventário do n.ot.', e); return; }
     const editar = podeEditarOt() && !somenteLeitura;
@@ -143,7 +166,7 @@ export async function montarInventario(c, a, p, { siteFixo, semPrimario, somente
         return;
     }
     if (editar) {
-        a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}<button class="btn" data-action="otNovaZona">+ Nova zona</button>`
+        a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}${zonasSomenteLeitura ? '' : '<button class="btn" data-action="otNovaZona">+ Nova zona</button>'}`
             + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="${classePrimario(semPrimario)}" data-action="otRegistrarAtivo">Registrar ativo</button>`;
     }
     const zonaVale = (x) => !S.otZona || (S.otZona === 'sem' ? !x.zona_id : x.zona_id === S.otZona);
@@ -155,10 +178,7 @@ export async function montarInventario(c, a, p, { siteFixo, semPrimario, somente
         `<strong>${escapeHTML(s.nome)}</strong>`, escapeHTML(TIPOS_SITE[s.tipo] || s.tipo), escapeHTML(CRITICIDADE[s.criticidade] || '—'), escapeHTML(s.localizacao || '—'),
         ...(editar ? [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otEditarSite" data-args='${args(s.id)}' aria-label="${escapeHTML(`Editar ${s.nome}`)}">Editar</button>${mais('sites', s)}</div>`] : []),
     ]));
-    const tabelaZonas = renderDataTable(['Zona', 'Site', 'Nível Purdue', 'Tipo', ...(editar ? ['Ações'] : [])], D.zonas.map((z) => [
-        escapeHTML(z.nome), escapeHTML(nomeDe(D.sites, z.site_id)), escapeHTML(String(z.nivel_purdue)), escapeHTML(TIPOS_ZONA[z.tipo] || z.tipo),
-        ...(editar ? [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otEditarZona" data-args='${args(z.id)}' aria-label="${escapeHTML(`Editar ${z.nome}`)}">Editar</button>${mais('zonas', z)}</div>`] : []),
-    ]), { emptyMessage: 'Nenhuma zona registrada.', emptyHint: 'A RO-CB.BR.01 (4.1.1) pede as zonas de supervisão, DMZ operativa e corporativa (níveis 2, 3 e 4) em cada site.' });
+    const tabelaZonas = tabelaDeZonas(editar && !zonasSomenteLeitura);
     const acoesAtivo = (x) => {
         if (!editar) return [];
         const extra = [{ rotulo: 'Sugerir zona (IA)', action: 'otSugerirZona', args: [x.id] }, podeRevelar(x) && { rotulo: 'Revelar IP/MAC', action: 'otRevelar', args: [x.id] },

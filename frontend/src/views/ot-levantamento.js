@@ -61,10 +61,11 @@ window.otAbrirLevantamento = (id) => { S.otLevantamento = id; window.render(); }
 window.otVoltarLevantamentos = async () => { await esvaziarNotas(); S.otLevantamento = null; window.render(); };
 
 // ─── nova sessão ───────────────────────────────────────────────────────────
-window.otNovoLevantamento = () => {
+window.otNovoLevantamento = (siteId) => {
+    const travado = siteId || fixo;
     const campo = (id, rotulo, tipo = 'text', extra = '') => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><input class="form-input" type="${tipo}" id="${id}"${extra}></div>`;
     openModal(`<div class="modal-header"><span class="modal-title">Novo levantamento</span></div>
-        ${fixo ? `<input type="hidden" id="lev-f-site" value="${escapeHTML(fixo)}">` : `<div class="form-group"><label class="form-label" for="lev-f-site">Site</label><select class="form-input" id="lev-f-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>`}
+        ${travado ? `<input type="hidden" id="lev-f-site" value="${escapeHTML(travado)}">` : `<div class="form-group"><label class="form-label" for="lev-f-site">Site</label><select class="form-input" id="lev-f-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>`}
         <div class="form-group"><label class="form-label" for="lev-f-tipo">Tipo</label><select class="form-input" id="lev-f-tipo" data-action-change="otTipoLevantamento" data-arg-val>${opcoes(Object.entries(TIPO), 'entrevista')}</select></div>
         ${campo('lev-f-data', 'Data', 'date', ` value="${hojeSP()}"`)}
         <div id="lev-f-pessoa">${campo('lev-f-funcao', 'Função (sem nome da pessoa)', 'text', ' maxlength="100"')}${campo('lev-f-turno', 'Turno', 'text', ' maxlength="50"')}</div>
@@ -364,7 +365,7 @@ window.otRegistrarAchado = async (siteId, { entidade = 'ativo', dados = {}, alvo
 window.otRegistrarMudanca = async (siteId) => {
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: siteId, tipo: 'visita', realizado_em: hojeSP() });
-        await window.otTela('site', siteId, 'levantamento', { otLevantamento: r.id });
+        await window.otTela('site', siteId, 'levantar', { otLevantamento: r.id });
     } catch (e) { falhou(e, 'Não foi possível abrir o levantamento da mudança.'); }
 };
 // A visita que o próprio inventário criou (desta pessoa, deste projeto e site) recebe os achados seguintes enquanto a tela do site
@@ -387,7 +388,7 @@ async function gravarAchado(entidade, dados, evidencia) {
         forceCloseModal();
         const avisos = r.erros?.length ? ` com ${r.erros.length} aviso(s)` : '';
         // até o PR7 (assistente com "3. Revisar"), a aba de hoje
-        if (d.daTela) { showToast(`Achado registrado${avisos}: envie para revisão em Revisão e aprovação.`, 'success'); window.render(); return; }
+        if (d.daTela) { showToast(`Achado registrado${avisos}: envie para revisão em Revisar.`, 'success'); window.render(); return; }
         showToast(`Achado registrado${avisos}.`, 'success');
         await redesenhar();
     } catch (e) {
@@ -466,7 +467,7 @@ window.otEnviarAchados = async () => {
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
-        await window.otTela('site', atual.site_id || S.otSite, 'aprovacao', { otLote: r.id });
+        await window.otTela('site', atual.site_id || S.otSite, 'revisar', { otLote: r.id });
     } catch (e) { falhou(e, 'Não foi possível enviar os achados para aprovação.'); }
 };
 

@@ -18,11 +18,12 @@ const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPrimario }) {
     const botao = mkBotao(semPrimario); // com lote ou levantamento aberto, o primário é o da tela de dentro
     switch (sit.proximo_passo) {
-        case 'comecar': return { texto: 'Comece o levantamento', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
+        case 'comecar': return sit.etapa === 1 ? { texto: 'Cadastre as zonas do site', acao: botao('Cadastrar as zonas', 'otSiteSub', 'cadastrar') }
+            : { texto: 'Comece o levantamento', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
         case 'revisar': {
             const n = sit.rascunhos || 0;
-            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Revisar', 'otSiteSub', 'aprovacao') }
-                : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Abrir Base', 'otSiteSub', 'base') };
+            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Revisar', 'otSiteSub', 'revisar') }
+                : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Cadastrar as zonas', 'otSiteSub', 'cadastrar') };
         }
         case 'aguardar_lote': return { texto: 'Aguardando o Gestor decidir o lote', acao: sit.lote_em_revisao_id ? botao('Abrir o lote', 'otIrParaLote', site, sit.lote_em_revisao_id) : '' };
         case 'levantar': return { texto: 'Levante os ativos do site', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
@@ -64,10 +65,10 @@ async function enviar(fn, ok, erro, depois = () => window.render()) {
 }
 const proj = () => S.activeProject;
 
-window.otNovoLevantamentoDoSite = async () => {
+window.otNovoLevantamentoDoSite = async (site) => {
     // em operação (revalidar) o Levantamento é aba da implantação: o modo vai junto, senão a tela cai em Saúde da coleta
-    if (S.otSub !== 'levantamento' || S.otModo !== 'projeto') { S.otSub = 'levantamento'; S.otModo = 'projeto'; await window.render(); }
-    window.otNovoLevantamento();
+    if (S.otSub !== 'levantar' || S.otModo !== 'projeto') { S.otSub = 'levantar'; S.otModo = 'projeto'; await window.render(); }
+    window.otNovoLevantamento(site || S.otSite); // o site vai explícito: o estado do módulo pode ser de outro site
 };
 window.otPedirBase = async (site) => {
     if (!(await confirmar('Pedir ao Gestor a aprovação da base deste site?', { rotulo: 'Pedir aprovação' }))) return;
