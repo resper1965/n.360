@@ -18,12 +18,12 @@ const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPrimario }) {
     const botao = mkBotao(semPrimario); // com lote ou levantamento aberto, o primário é o da tela de dentro
     switch (sit.proximo_passo) {
-        case 'comecar': return sit.etapa === 1 ? { texto: 'Cadastre as zonas do site', acao: botao('Cadastrar as zonas', 'otSiteSub', 'cadastrar') }
+        case 'comecar': return sit.etapa === 1 ? { texto: 'Cadastre as zonas do site', acao: botao('Cadastrar as zonas', 'otSiteAba', 'cadastrar') }
             : { texto: 'Comece o levantamento', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
         case 'revisar': {
             const n = sit.rascunhos || 0;
-            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Revisar', 'otSiteSub', 'revisar') }
-                : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Cadastrar as zonas', 'otSiteSub', 'cadastrar') };
+            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Revisar', 'otSiteAba', 'revisar') }
+                : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Cadastrar as zonas', 'otSiteAba', 'cadastrar') };
         }
         case 'aguardar_lote': return { texto: 'Aguardando o Gestor decidir o lote', acao: sit.lote_em_revisao_id ? botao('Abrir o lote', 'otIrParaLote', site, sit.lote_em_revisao_id) : '' };
         case 'levantar': return { texto: 'Levante os ativos do site', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
@@ -32,7 +32,7 @@ export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPri
             ? { texto: 'Aguardando o Gestor aprovar a base', acao: `${sit.eu_pedi_a_base ? '<p class="org-dica">Quem pediu a base não a aprova: peça a outra pessoa.</p>' : botao('Aprovar a base', 'otAprovarBase', site)}<button class="btn" data-action="otDevolverBase" data-args='${args(site)}'>Devolver</button>` }
             : { texto: 'Aguardando o Gestor aprovar a base', acao: '' };
         case 'revalidar': return { texto: `Revalide o inventário até ${sit.revalidar_em ? ddmm(sit.revalidar_em) : 'o prazo'}`, acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
-        case 'em_operacao': return { texto: 'Acompanhe a operação do site', acao: botao('Abrir a operação', 'otSiteModo', 'operacao') };
+        case 'em_operacao': return { texto: 'Acompanhe a operação do site', acao: '' };
         default: return { texto: 'Situação do site indisponível', acao: '' };
     }
 }
@@ -66,8 +66,8 @@ async function enviar(fn, ok, erro, depois = () => window.render()) {
 const proj = () => S.activeProject;
 
 window.otNovoLevantamentoDoSite = async (site) => {
-    // em operação (revalidar) o Levantamento é aba da implantação: o modo vai junto, senão a tela cai em Saúde da coleta
-    if (S.otSub !== 'levantar' || S.otModo !== 'projeto') { S.otSub = 'levantar'; S.otModo = 'projeto'; await window.render(); }
+    // em operação (revalidar) a lista de levantamentos abre dentro de Mudanças (montarSite); o pedido 'levantar' vai junto
+    if (S.otSub !== 'levantar') { S.otSub = 'levantar'; await window.render(); }
     window.otNovoLevantamento(site || S.otSite); // o site vai explícito: o estado do módulo pode ser de outro site
 };
 window.otPedirBase = async (site) => {

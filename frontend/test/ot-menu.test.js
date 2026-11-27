@@ -25,7 +25,7 @@ async function abrirOt(perm, caminho = '/ot', extra = {}) {
     document.open(); document.write(html); document.close();
     document.body.insertAdjacentHTML('beforeend', '<h1 id="h"></h1><div id="a"></div><div id="c"></div>');
     S.activeProject = { id: 'p9', modulos: ['ot'] }; S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
-    S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otModo = null; S.otSub = null; S.otPedido = null; S.otPermissoes = null; S.otDesvioFiltro = null; S.painel = {};
+    S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otSub = null; S.otPedido = null; S.otPermissoes = null; S.otDesvioFiltro = null; S.painel = {};
     const f = servir({ [`GET ${B}/permissoes`]: perm, 'GET /api/v1/projects/p9/painel': PAINEL, [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [] },
         [`GET ${B}/acessos`]: { acessos: [] }, [`GET ${B}/implantacao`]: { passos: [] }, 'GET /api/v1/users': [], ...extra });
     await window.renderOt(el('c'), el('h'), el('a'));

@@ -36,14 +36,13 @@ describe('cabeçalho do site', () => {
 
     it.each([
         ['comecar', { etapa: 2 }, 'Comece o levantamento', 'otNovoLevantamentoDoSite'],
-        ['comecar', { etapa: 1 }, 'Cadastre as zonas do site', 'otSiteSub'],
-        ['revisar', { rascunhos: 3 }, 'Revise 3 achados', 'otSiteSub'],
-        ['revisar', { rascunhos: 0 }, 'Defina as zonas dos níveis 2, 3 e 4', 'otSiteSub'], // abre a etapa 1, Cadastrar
+        ['comecar', { etapa: 1 }, 'Cadastre as zonas do site', 'otSiteAba'],
+        ['revisar', { rascunhos: 3 }, 'Revise 3 achados', 'otSiteAba'],
+        ['revisar', { rascunhos: 0 }, 'Defina as zonas dos níveis 2, 3 e 4', 'otSiteAba'], // abre a etapa 1, Cadastrar
         ['aguardar_lote', { lote_em_revisao_id: 'k1' }, 'Aguardando o Gestor decidir o lote', 'otIrParaLote'],
         ['levantar', {}, 'Levante os ativos do site', 'otNovoLevantamentoDoSite'],
         ['pedir_base', {}, 'Tudo aprovado: peça a aprovação da base', 'otPedirBase'],
         ['aguardar_base', {}, 'Aguardando o Gestor aprovar a base', 'otAprovarBase'],
-        ['em_operacao', { ...OPERACAO, base_aprovada_em: '2026-11-10 12:00:00' }, 'Acompanhe a operação do site', 'otSiteModo'],
     ])('%s: texto e um só primário', (passo, extra, texto, acao) => {
         const c = render(sit(passo, extra), GE);
         expect(c.textContent).toContain(texto);
@@ -56,7 +55,9 @@ describe('cabeçalho do site', () => {
         expect(proximoPasso(sit('revisar', { rascunhos: 1 }), 's1', EQ).texto).toBe('Revise 1 achado');
         expect(JSON.parse(render(sit('revisar', { rascunhos: 2 }), EQ).querySelector('.btn-primary').getAttribute('data-args'))).toEqual(['revisar']);
         expect(render(sit('revisar', { rascunhos: 2 }), EQ).querySelector('.btn-primary').textContent).toBe('Revisar');
-        expect(render(sit('em_operacao', OPERACAO), EQ).querySelector('.btn-primary').textContent).toBe('Abrir a operação');
+        const op = render(sit('em_operacao', OPERACAO), EQ); // em Operação o cartão só informa; as abas fazem o trabalho
+        expect(op.textContent).toContain('Acompanhe a operação do site');
+        expect(op.querySelector('button')).toBeNull();
     });
 
     it('aguardar_base: o Gestor vê aprovar e devolver; os demais só o texto', () => {

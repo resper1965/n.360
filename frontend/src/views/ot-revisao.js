@@ -57,21 +57,22 @@ export async function montarRevisao(c, a, p, o = {}) {
     filtro = { origem: '', tipo: '' }; sel = new Set(); // entrada pela casca recomeça; descartar/editar recarregam por `carregar`
     return carregar(c, a, p, o);
 }
-async function carregar(c, a, p, { siteFixo, semPrimario } = {}) {
-    ctx = { c, a, p, site: siteFixo };
+async function carregar(c, a, p, { siteFixo, semPrimario, semLotes } = {}) {
+    ctx = { c, a, p, site: siteFixo, semLotes };
     if (S.otLote) { await montarColeta(c, a, p, { siteFixo, semPrimario }); return; } // lote aberto: só o detalhe do lote
     try {
         const r = await api('GET', `/api/v1/projects/${p.id}/ot/achados?site_id=${encodeURIComponent(siteFixo)}&situacao=rascunho`);
         fila = lista(r, 'achados'); nomes = r.nomes_pontas || {}; alvos = r.nomes_alvos || {};
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a fila de revisão do site.', e); return; }
     sel = new Set([...sel].filter((id) => fila.some((x) => x.id === id)));
-    c.innerHTML = '<h3 class="mb-3">Achados para revisar</h3><div id="ot-rev-fila"></div><h3 class="mt-6 mb-3">Lotes para decidir</h3><div id="ot-rev-lotes"></div>';
+    c.innerHTML = `<h3 class="mb-3">Achados para revisar</h3><div id="ot-rev-fila"></div>${semLotes ? '' : '<h3 class="mt-6 mb-3">Lotes para decidir</h3><div id="ot-rev-lotes"></div>'}`;
     desenharFila();
+    if (semLotes) return; // Mudanças (Operação) já lista os lotes
     const lotes = el('ot-rev-lotes');
     await montarColeta(lotes, a, p, { siteFixo, semPrimario });
 }
 
-const redesenhar = () => carregar(ctx.c, ctx.a, ctx.p, { siteFixo: ctx.site, semPrimario: semPri });
+const redesenhar = () => carregar(ctx.c, ctx.a, ctx.p, { siteFixo: ctx.site, semPrimario: semPri, semLotes: ctx.semLotes });
 window.otRevFiltro = (campo, v) => { filtro = { ...filtro, [campo]: v }; desenharFila(); };
 window.otRevMarcar = (id, caixa) => { sel[caixa.checked ? 'add' : 'delete'](id); desenharFila(); };
 window.otRevNovoLevantamento = (site) => window.otTela('site', site, 'levantar');
