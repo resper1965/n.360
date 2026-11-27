@@ -38,7 +38,7 @@ describe('?modulo=ot: o item leva o site quando é de um site só', () => {
     expect(item(f, /base aguardando/)).toMatchObject({ aba: 'base', site: 'sC' });
     expect(item(f, /obra vence/)).toMatchObject({ site: 'sB' });
     expect(item(f, /obra vence/)).not.toHaveProperty('aba');
-    expect(item(f, /aceite de desvio/)).toMatchObject({ aba: 'desvios', site: 'sA' });
+    expect(item(f, /aceite de desvio/)).toMatchObject({ aba: 'desvios', site: 'sA', filtro: 'aceitos' }); // a tela abre a lista dos aceitos
   });
   it('dois sites no mesmo grupo: o item vai sem site (a tela abre a lista)', async () => {
     await env.DB.batch([

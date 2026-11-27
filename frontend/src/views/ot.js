@@ -58,6 +58,7 @@ async function renderOt(c, h, a) {
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
         const e = desvioPedido ? { tela: 'painel', site: null, aba: null, desvio: desvioPedido } : lerEndereco();
         inicial = !e.tela && !e.desvio; // sem ?ot=: a tela inicial é a que o servidor manda (GET /ot/permissoes)
+        if (e.situacao) S.otDesvioFiltro = { situacao: e.situacao, site_id: '', tipo: '' }; // ?ot=desvios&situacao=aceito (item do Painel)
         Object.assign(S, { otTela: e.tela || 'painel', otSite: e.site, otModo: null, otSub: e.aba }); // a área do site decide o modo e confere a aba
         if (e.desvio && !pode('leitor')) { // o leitor não lê desvio (403): o endereço cai no Painel, abaixo
             let r = await resolverDesvio(proj(), e.desvio);
@@ -82,7 +83,6 @@ async function renderOt(c, h, a) {
     if (S.otTela === 'sondas' && !pode('ver_sondas')) S.otTela = 'painel';
     // o leitor lê só Painel, Assessment e Relatórios (spec 2026-11-26, decisão 4): Início, Sites e o resto caem no Painel
     if (pode('leitor') && !['painel', 'assessment', 'relatorios'].includes(S.otTela)) S.otTela = 'painel';
-    if (pode('leitor')) inicial = false;
     const tela = S.otTela;
     escreverEndereco({ tela, site: S.otSite, aba: S.otSub });
     for (const t of Object.keys(TITULOS)) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));

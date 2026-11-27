@@ -42,6 +42,24 @@ describe('menu do n.ot em três grupos (PR5)', () => {
         expect(itens()).toEqual(['nav-ot-painel', 'nav-ot-sites', 'nav-ot-desvios', 'nav-ot-assessment', 'nav-ot-relatorios',
             'nav-ot-implantacao', 'nav-ot-acessos', 'nav-ot-sondas', 'nav-ot-agente', 'nav-ot-integracao', 'nav-ot-fornecedores']);
     });
+    it('cada grupo é um role=group rotulado pelo cabeçalho; o item de Implantação não repete o nome do grupo', async () => {
+        await abrirOt(EDITA);
+        for (const g of ['operacao', 'implantacao', 'configuracao']) {
+            const grupo = el(`grupo-ot-${g}`);
+            expect(grupo.getAttribute('role')).toBe('group');
+            expect(grupo.hidden).toBe(false);
+            expect(el(grupo.getAttribute('aria-labelledby'))).toBe(el(`secao-ot-${g}`));
+            expect(grupo.contains(el(`secao-ot-${g}`))).toBe(true);
+        }
+        expect(el('nav-ot-implantacao').textContent.trim()).toBe('Sites em implantação');
+        await abrirOt({ ...FECHADO, leitor: true });
+        expect(el('grupo-ot-configuracao').hidden).toBe(true);
+    });
+    it('?ot=desvios&situacao=aceito abre Desvios já filtrado nos aceitos', async () => {
+        const f = await abrirOt(EDITA, '/ot?ot=desvios&situacao=aceito');
+        expect(f.mock.calls.map(([u]) => String(u)).some((u) => u.includes('/ot/desvios?situacao=aceito'))).toBe(true);
+        expect(location.search).toBe('?ot=desvios');
+    });
     it('quem edita sem ver_sondas não vê Sondas', async () => {
         await abrirOt({ ...EDITA, ver_sondas: false });
         expect(itens()).not.toContain('nav-ot-sondas');

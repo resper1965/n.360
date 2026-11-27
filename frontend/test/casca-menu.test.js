@@ -49,7 +49,7 @@ describe('Segurança do projeto', () => {
 // A estrutura do menu do n.iso e do n.360, medida antes da alternativa A do n.privacy: não pode mudar (rótulos, ordem, grupos
 // e quem começa aberto). Formato: item `id=rótulo`, `[rótulo de grupo] aria-expanded` e `grupo (aberto): itens`.
 const estrutura = () => [...document.querySelector('.sidebar-nav-list').children]
-    .filter((n) => n.dataset.foraDoProduto !== '1' && !n.id.startsWith('secao-ot-'))
+    .filter((n) => n.dataset.foraDoProduto !== '1' && !/^(secao|grupo)-ot-/.test(n.id))
     .map((n) => (n.matches('.sidebar-label') ? `[${n.textContent.trim()}] ${n.getAttribute('aria-expanded')}`
         : n.matches('.sidebar-group') ? `${n.id}${n.classList.contains('expanded') ? ' (aberto)' : ''}: ${[...n.querySelectorAll('.sidebar-nav')].filter((i) => i.dataset.foraDoProduto !== '1').map((i) => `${i.id}=${i.querySelector('.sidebar-nav-text').textContent.trim()}`).join(', ')}`
         : `${n.id}=${n.querySelector('.sidebar-nav-text').textContent.trim()}`));

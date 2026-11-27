@@ -468,7 +468,7 @@ export function atualizarItemOt(doc = document) {
     // GET /ot/permissoes); Configuração é de quem edita, e Sondas pede também `ver_sondas`. Sem as permissões carregadas, o estado fechado.
     const fechado = !permissoesCarregadas() || pode('leitor');
     const editar = podeEditarOt();
-    const quem = { 'secao-ot-operacao': true, 'nav-ot-painel': true, 'nav-ot-assessment': true, 'nav-ot-relatorios': true,
+    const quem = { 'grupo-ot-operacao': true, 'grupo-ot-implantacao': !fechado, 'grupo-ot-configuracao': editar, 'secao-ot-operacao': true, 'nav-ot-painel': true, 'nav-ot-assessment': true, 'nav-ot-relatorios': true,
         'nav-ot-sites': !fechado, 'nav-ot-desvios': !fechado, 'secao-ot-implantacao': !fechado, 'nav-ot-implantacao': !fechado,
         'secao-ot-configuracao': editar, 'nav-ot-acessos': editar, 'nav-ot-agente': editar, 'nav-ot-integracao': editar, 'nav-ot-fornecedores': editar,
         'nav-ot-sondas': editar && pode('ver_sondas') };

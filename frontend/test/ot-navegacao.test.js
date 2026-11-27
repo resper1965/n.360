@@ -43,6 +43,11 @@ describe('ot-navegacao', () => {
         expect(spy).toHaveBeenLastCalledWith(history.state, '', '/ot?ot=painel'); // /ot limpo abriria Implantação para quem edita
     });
     it('a lista de subtelas é fechada', () => { expect(TELAS_OT).toEqual(['painel', 'sites', 'site', 'desvios', 'assessment', 'relatorios', 'implantacao', 'acessos', 'sondas', 'agente', 'integracao', 'fornecedores']); });
+    it('?ot=desvios&situacao=aceito pede o filtro; situação desconhecida ou fora de Desvios não', () => {
+        expect(lerEndereco(loc('/ot', '?ot=desvios&situacao=aceito')).situacao).toBe('aceito');
+        expect(lerEndereco(loc('/ot', '?ot=desvios&situacao=<x>'))).not.toHaveProperty('situacao');
+        expect(lerEndereco(loc('/ot', '?ot=sites&situacao=aceito'))).not.toHaveProperty('situacao');
+    });
     it('?ot=painel abre o Painel do n.ot', () => {
         expect(lerEndereco({ pathname: '/ot', search: '?ot=painel' })).toMatchObject({ tela: 'painel', site: null });
     });
