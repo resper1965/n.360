@@ -97,20 +97,10 @@ describe('P0-8: IP/MAC só cifrados, pelo servidor', () => {
     expect(b!.ip_hash, 'mesmo IP em outro projeto, outro hash').not.toBe(l!.ip_hash);
   });
 
-  it('corpo com project_id, status, verificado_por, ultima_verificacao_em, ip_cifrado ou ip_hash é recusado (400)', async () => {
-    for (const extra of [{ project_id: 'proj-b' }, { status: 'removido' }, { verificado_por: 'x' }, { ultima_verificacao_em: '2026-01-01' },
-      { ip_cifrado: 'ot1:k1:a:b' }, { ip_hash: 'abc' }, { mac_hash: 'abc' }]) {
-      const r = await chamar(cons, 'POST', `${P}/ativos`, { site_id: ids.s1, nome: 'X', ...extra });
-      expect(r.status, JSON.stringify(extra)).toBe(400);
-      expect((await chamar(cons, 'PUT', `${P}/ativos/${ids.a2}`, extra)).status, `PUT ${JSON.stringify(extra)}`).toBe(400);
-    }
-  });
-
-  it('sem OT_INVENTARIO_KEY ou OT_INVENTARIO_HMAC_KEY: 503 em toda rota de ativos e nada é gravado', async () => {
+  it('sem OT_INVENTARIO_KEY ou OT_INVENTARIO_HMAC_KEY: 503 em toda rota de ativos (leitura e revelar) e nada é gravado', async () => {
     const antes = (await env.DB.prepare(`SELECT count(*) AS n FROM ot_ativos`).first<{ n: number }>())!.n;
     for (const falta of [{ OT_INVENTARIO_KEY: undefined }, { OT_INVENTARIO_HMAC_KEY: undefined }]) {
-      for (const [m, c, corpo] of [['GET', `${P}/ativos`], ['GET', `${P}/ativos/${ids.a1}`], ['POST', `${P}/ativos`, { site_id: ids.s1, nome: 'Y', ip: '10.9.9.9' }],
-        ['PUT', `${P}/ativos/${ids.a2}`, { nome: 'Z' }], ['DELETE', `${P}/ativos/${ids.a2}`], ['POST', `${P}/ativos/${ids.a1}/revelar`, { justificativa: 'conferência de campo' }]] as const) {
+      for (const [m, c, corpo] of [['GET', `${P}/ativos`], ['GET', `${P}/ativos/${ids.a1}`], ['POST', `${P}/ativos/${ids.a1}/revelar`, { justificativa: 'conferência de campo' }]] as const) {
         const r = await chamar(plat, m, c, corpo, falta);
         expect(r.status, `${m} ${c} ${JSON.stringify(falta)}`).toBe(503);
       }
@@ -120,12 +110,9 @@ describe('P0-8: IP/MAC só cifrados, pelo servidor', () => {
   });
 
   it('IP e MAC inválidos são recusados; MAC em outro formato vira o mesmo hash', async () => {
-    expect((await chamar(cons, 'POST', `${P}/ativos`, { site_id: ids.s1, nome: 'X', ip: '999.1.1.1' })).status).toBe(400);
-    expect((await chamar(cons, 'POST', `${P}/ativos`, { site_id: ids.s1, nome: 'X', mac: 'zz' })).status).toBe(400);
-    const id = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'Mesmo MAC', mac: 'aabb.cc11.2233' });
+    const [id] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Mesmo MAC', mac: 'aabb.cc11.2233' } }] });
     const [x, y] = await Promise.all([ids.a1, id].map((i) => env.DB.prepare(`SELECT mac_hash FROM ot_ativos WHERE id = ?`).bind(i).first<{ mac_hash: string }>()));
     expect(x!.mac_hash).toBe(y!.mac_hash);
-    expect((await chamar(cons, 'DELETE', `${P}/ativos/${id}`)).status).toBe(200);
   });
 });
 
@@ -188,8 +175,6 @@ describe('P0-6: máscara única por papel', () => {
   it('campo livre com IPv4, IPv6 ou MAC é recusado na validação', async () => {
     for (const [rota, corpo] of [
       ['sites', { nome: 'SE 10.0.0.1' }], ['sites', { nome: 'SE', localizacao: 'rack fe80::1' }], ['zonas', { site_id: ids.s1, nome: 'Z', nivel_purdue: 2, descricao: 'gw 2001:db8:0:0:1:0:0:1' }],
-      ['ativos', { site_id: ids.s1, nome: 'aa:bb:cc:dd:ee:ff' }], ['ativos', { site_id: ids.s1, nome: 'X', funcao: 'responde em 192.168.0.1' }],
-      ['fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true, finalidade: 'para aabb.ccdd.eeff' }],
     ] as const) {
       const r = await chamar(cons, 'POST', `${P}/${rota}`, corpo);
       expect(r.status, `${rota} ${JSON.stringify(corpo)}`).toBe(400);
@@ -222,20 +207,14 @@ describe('P0-4: filtro de site único', () => {
     expect(conf.itens.find((i) => i.codigo === '4.1.2')!.numeros).toEqual({ externos: 0, sem_vpn: 0 });
   });
 
-  it('entre projetos: conta de B não entra em A; id de B pela URL de A é 404; site/zona/ativo de B no corpo é recusado', async () => {
+  it('entre projetos: conta de B não entra em A; id de B pela URL de A é 404; site/zona de B no corpo é recusado', async () => {
     expect((await chamar(tecB, 'GET', `${P}/ativos`)).status).toBe(403);
     expect(await lista(plat, 'ativos')).not.toContain(ids.ab);
     expect((await chamar(plat, 'GET', `${P}/ativos/${ids.ab}`)).status).toBe(404);
     expect((await chamar(plat, 'PUT', `${P}/sites/${ids.sb}`, { nome: 'Tomado' })).status).toBe(404);
-    expect((await chamar(plat, 'DELETE', `${P}/ativos/${ids.ab}`)).status).toBe(404);
     expect((await chamar(plat, 'POST', `${P}/zonas`, { site_id: ids.sb, nome: 'Z', nivel_purdue: 2 })).status).toBe(400);
-    expect((await chamar(plat, 'POST', `${P}/fluxos`, { site_id: ids.s1, origem_ativo_id: ids.a1, destino_ativo_id: ids.ab })).status).toBe(400);
-    expect((await chamar(plat, 'POST', `${P}/ativos`, { site_id: ids.sb, nome: 'X' })).status).toBe(400);
-    expect((await chamar(plat, 'POST', `${P}/fluxos`, { site_id: ids.sb, origem_ativo_id: ids.a1, externo: true })).status).toBe(400);
     expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tecb', site_id: ids.s1 })).status).toBe(400);
     expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.sb })).status).toBe(400);
-    // zona de outro site do mesmo projeto também não serve ao ativo
-    expect((await chamar(cons, 'POST', `${P}/ativos`, { site_id: ids.s1, zona_id: ids.zs2, nome: 'X' })).status).toBe(400);
     expect((await env.DB.prepare(`SELECT nome FROM ot_sites WHERE id = ?`).bind(ids.sb).first<{ nome: string }>())!.nome).toBe('SE Outro cliente');
   });
 
@@ -256,7 +235,7 @@ describe('P0-4: filtro de site único', () => {
 describe('papéis e escrita', () => {
   it('org_user e client não escrevem; chave de API e agente MCP recebem 403 nas rotas novas (P0-2)', async () => {
     for (const h of [tec, cli]) {
-      for (const [m, c, corpo] of [['POST', `${P}/sites`, { nome: 'X' }], ['PUT', `${P}/ativos/${ids.a1}`, { nome: 'X' }], ['DELETE', `${P}/fluxos/${ids.f11}`],
+      for (const [m, c, corpo] of [['POST', `${P}/sites`, { nome: 'X' }], ['DELETE', `${P}/zonas/${ids.z2}`],
         ['POST', `${P}/acessos`, { user_id: 'u-tec0', site_id: ids.s1 }]] as const) {
         expect((await chamar(h, m, c, corpo)).status, `${m} ${c}`).toBe(403);
       }
@@ -278,24 +257,12 @@ describe('papéis e escrita', () => {
     expect((await chamar(cons, 'DELETE', `${P}/sites/${id}`)).status).toBe(200);
     expect((await chamar(cons, 'DELETE', `${P}/sites/${id}`)).status).toBe(404);
     // site removido não recebe cadastro novo
-    for (const [rota, corpo] of [['zonas', { nome: 'Z', nivel_purdue: 2 }], ['ativos', { nome: 'X' }], ['fluxos', { origem_ativo_id: ids.a1, externo: true }]] as const) {
+    for (const [rota, corpo] of [['zonas', { nome: 'Z', nivel_purdue: 2 }]] as const) {
       expect((await chamar(cons, 'POST', `${P}/${rota}`, { site_id: id, ...corpo })).status, rota).toBe(400);
     }
     expect(await env.DB.prepare(`SELECT status, criticidade FROM ot_sites WHERE id = ?`).bind(id).first()).toEqual({ status: 'removido', criticidade: 'baixa' });
     const ids0 = (await json<{ sites: { id: string }[] }>(await chamar(cons, 'GET', `${P}/sites`))).sites.map((s) => s.id);
     expect(ids0).not.toContain(id);
-  });
-
-  it('4.3.1: ativo do ARCiber incompleto é recusado com a lista dos campos, na criação e na edição', async () => {
-    const r = await chamar(cons, 'POST', `${P}/ativos`, { ...ATIVO_ARCIBER, site_id: ids.s1, protocolos_portas: [] });
-    expect(r.status).toBe(400);
-    expect((await json<{ error: string }>(r)).error).toContain('4.3.1');
-    const e = await chamar(cons, 'PUT', `${P}/ativos/${ids.a1}`, { ip: null, mac: null });
-    expect(e.status).toBe(400);
-    expect((await json<{ error: string }>(e)).error).toContain('4.3.1');
-    expect((await chamar(cons, 'PUT', `${P}/ativos/${ids.a1}`, { ip: null })).status, 'fica o MAC').toBe(200);
-    expect((await chamar(cons, 'PUT', `${P}/ativos/${ids.a1}`, { ip: IP1 })).status).toBe(200);
-    expect((await json<{ ip: string }>(await chamar(gestor, 'GET', `${P}/ativos/${ids.a1}`))).ip).toBe(IP1);
   });
 
   it('a trilha do n.ot não leva IP, MAC nem nome de ativo', async () => {
@@ -307,18 +274,14 @@ describe('papéis e escrita', () => {
 
 describe('4.1.2/4.1.3 e conformidade por item da RO-CB.BR.01', () => {
   it('fluxo externo sem VPN sai marcado como violação; com VPN, não; fluxo interno exige as duas pontas', async () => {
-    const r = await chamar(cons, 'POST', `${P}/fluxos`, { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true });
-    const criado = await json<{ id: string; violacoes: string[] }>(r);
-    expect(criado.violacoes).toEqual(['4.1.2', '4.1.3']);
-    const vpn = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true, via_vpn: true });
+    const [semVpn, vpn] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [
+      { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, externo: true, finalidade: 'Sem VPN' } },
+      { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, externo: true, via_vpn: true, finalidade: 'Com VPN' } }] });
     const fluxos = (await json<{ fluxos: { id: string; violacoes: string[]; externo: boolean }[] }>(await chamar(tec, 'GET', `${P}/fluxos`))).fluxos;
     expect(fluxos.find((f) => f.id === ids.fext)).toMatchObject({ externo: true, violacoes: ['4.1.2', '4.1.3'] });
     expect(fluxos.find((f) => f.id === vpn)!.violacoes).toEqual([]);
     expect(fluxos.find((f) => f.id === ids.f11)!.violacoes).toEqual([]);
-    const meia = await chamar(cons, 'POST', `${P}/fluxos`, { site_id: ids.s1, origem_ativo_id: ids.a1 });
-    expect(meia.status).toBe(400);
-    expect((await json<{ error: string }>(meia)).error).toContain('ponta');
-    expect((await chamar(cons, 'DELETE', `${P}/fluxos/${criado.id}`)).status).toBe(200);
+    expect(fluxos.find((f) => f.id === semVpn)!.violacoes).toEqual(['4.1.2', '4.1.3']);
   });
 
   it('25 itens com prazo de 18/27 meses; só afirma o que o inventário sustenta', async () => {
@@ -332,8 +295,8 @@ describe('4.1.2/4.1.3 e conformidade por item da RO-CB.BR.01', () => {
     expect(item('4.1.1')).toMatchObject({ prazo_meses: 27, prazo_em: '2023-10-09', situacao: 'nao_atende' }); // s2 só tem o nível 2
     expect(item('4.1.1').evidencia).toContain('1 de 2');
     expect(item('5.1.1')).toMatchObject({ prazo_meses: null, prazo_em: null, situacao: 'sem_evidencia' });
-    // campos completos, mas sem verificação registrada: não se afirma o 4.3.1
-    expect(item('4.3.1').situacao).toBe('sem_evidencia');
+    // o ativo entrou por lote completo no 4.3.1: a aprovação carimbou a verificação (antes, a rota direta o deixava sem)
+    expect(item('4.3.1').situacao).toBe('evidencia_no_inventario');
     expect(item('4.2.1').situacao).toBe('sem_evidencia');
     expect(Object.values(c.resumo).reduce((a, b) => a + b, 0)).toBe(25);
     expect(c.itens.some((i) => !['nao_atende', 'evidencia_no_inventario', 'sem_evidencia'].includes(i.situacao))).toBe(false);
@@ -351,6 +314,16 @@ describe('4.1.2/4.1.3 e conformidade por item da RO-CB.BR.01', () => {
     const c = await json<{ itens: { codigo: string; situacao: string }[] }>(await chamar(gestor, 'GET', `${P}/conformidade`));
     expect(c.itens.find((i) => i.codigo === '4.2.1')!.situacao).toBe('evidencia_no_inventario');
     expect(c.itens.find((i) => i.codigo === '4.3.1')!.situacao).toBe('nao_atende');
+  });
+
+  it('alteração por lote que muda campo do 4.3.1 sem recoletar zera a verificação, e a conformidade deixa de dizer evidência', async () => {
+    const [id] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { ...ATIVO_ARCIBER, nome: 'Verificado por lote' } }] });
+    const lido = () => env.DB.prepare(`SELECT verificado_por, ultima_verificacao_em FROM ot_ativos WHERE id = ?`).bind(id).first<{ verificado_por: string | null; ultima_verificacao_em: string | null }>();
+    expect((await lido())!.verificado_por).not.toBeNull();
+    await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { alvo_id: id, fabricante: 'Outro fabricante' } }] });
+    expect(await lido()).toEqual({ verificado_por: null, ultima_verificacao_em: null });
+    const c = await json<{ itens: { codigo: string; situacao: string }[] }>(await chamar(gestor, 'GET', `${P}/conformidade`));
+    expect(c.itens.find((i) => i.codigo === '4.3.1')!.situacao).not.toBe('evidencia_no_inventario');
   });
 });
 

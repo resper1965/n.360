@@ -67,6 +67,8 @@ export function prepararFluxo(bruto: Record<string, unknown>, pontas: { ativos: 
   // Espelha o CHECK de ot_fluxos: interno precisa das duas pontas; externo, de ao menos uma.
   // Com alvo_id, as pontas são as do alvo (o UPDATE nunca grava pontas).
   const n = ['origem_ativo_id', 'origem_zona_id', 'destino_ativo_id', 'destino_zona_id'].filter((k) => dados[k]).length;
+  // O UPDATE por alvo_id nunca grava pontas: mudar ponta (inclusive trocar ativo por zona) seria descartado em silêncio; vira erro do item.
+  if (dados.alvo_id && n > 0) erros.push({ campo: 'pontas', motivo: 'As pontas de um fluxo não mudam por alteração: remova o fluxo e registre outro' });
   if (!dados.alvo_id && n < 2 - Number(dados.externo ?? 0)) erros.push({ campo: 'pontas', motivo: 'Informe origem e destino (fluxo externo: ao menos um)' });
   return { dados, erros };
 }

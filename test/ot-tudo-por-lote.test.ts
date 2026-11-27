@@ -241,3 +241,49 @@ describe('revisão: fluxo por lote sem prender o lote e com a trava P1-4', () =>
     expect(await item0(gestor, l)).toMatchObject({ decisao: 'pendente' });
   });
 });
+
+describe('PR3c: some a gravação direta; troca de ponta no achado de fluxo', () => {
+  it('não há mais gravação direta de ativo nem de fluxo (decisão 3), para nenhum papel (404, nunca 405)', async () => {
+    for (const h of [gestor, cons]) {
+      expect((await chamar(h, 'POST', `${P}/ativos`, { site_id: ids.s1, nome: 'Direto' })).status).toBe(404);
+      expect((await chamar(h, 'PUT', `${P}/ativos/x`, { nome: 'Direto' })).status).toBe(404);
+      expect((await chamar(h, 'DELETE', `${P}/ativos/x`)).status).toBe(404);
+      expect((await chamar(h, 'POST', `${P}/fluxos`, { site_id: ids.s1 })).status).toBe(404);
+      expect((await chamar(h, 'PUT', `${P}/fluxos/x`, {})).status).toBe(404);
+      expect((await chamar(h, 'DELETE', `${P}/fluxos/x`)).status).toBe(404);
+    }
+  });
+
+  it('4.3.1 no lote: ativo do ARCiber incompleto é erro do item, com a lista dos campos', async () => {
+    await semTeto();
+    const l = await lote(cons, ids.s1, [{ dados: { nome: 'Sem campos', no_arciber: true, protocolos_portas: [] } }]);
+    expect((await item0(gestor, l)).erros).toContainEqual(expect.objectContaining({ campo: '4.3.1', motivo: expect.stringContaining('4.3.1') }));
+  });
+
+  it('campo livre com IPv4, IPv6 ou MAC no nome do ativo ou na finalidade do fluxo: erro do achado e nunca chega ao lote (PII)', async () => {
+    await semTeto();
+    const [a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Pii base' } }] });
+    const lev = await ok<{ id: string }>(chamar(cons, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-26' }), 201);
+    const achar = async (entidade: string, dados: Record<string, unknown>) => (await ok<{ id: string; erros?: { campo: string }[] }>(
+      chamar(cons, 'POST', `${P}/levantamentos/${lev.id}/achados`, { entidade, dados, evidencia: 'teste' }), 201));
+    for (const nome of ['gw 10.0.0.1', 'host 2001:db8::1', 'aa:bb:cc:dd:ee:ff']) {
+      const a = await achar('ativo', { nome });
+      expect(a.erros, nome).toContainEqual(expect.objectContaining({ campo: 'nome' }));
+    }
+    const f = await achar('fluxo', { origem_ativo_id: a1, externo: true, finalidade: 'para aabb.ccdd.eeff' });
+    expect(f.erros).toContainEqual(expect.objectContaining({ campo: 'finalidade' }));
+    const l = await ok<{ id: string }>(chamar(cons, 'POST', `${P}/levantamentos/${lev.id}/enviar`, { achados: [f.id] }), 201);
+    expect(JSON.stringify((await lerLote(gestor, l.id)).itens[0])).not.toContain('aabb.ccdd.eeff');
+  });
+
+  it('fluxo: achado por alvo_id que troca a ponta de ativo para zona (destino_zona_id sem limpar destino_ativo_id) nunca deixa as duas pontas do mesmo lado', async () => {
+    await semTeto();
+    const [a1, a2] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Z1' } }, { dados: { nome: 'Z2' } }] });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: a1, destino_ativo_id: a2 } }] });
+    const z = (await ok<{ id: string }>(chamar(cons, 'POST', `${P}/zonas`, { site_id: ids.s1, nome: 'Zona destino', nivel_purdue: 3 }), 201)).id;
+    const l = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, destino_zona_id: z } }]);
+    expect((await item0(gestor, l)).erros[0]).toMatchObject({ campo: 'pontas' });
+    expect(await aprovar(gestor, l)).toMatchObject({ atualizados: 0, pendentes: 0 });
+    expect(await env.DB.prepare('SELECT destino_ativo_id AS da, destino_zona_id AS dz FROM ot_fluxos WHERE id = ?').bind(f).first()).toEqual({ da: a2, dz: null });
+  });
+});

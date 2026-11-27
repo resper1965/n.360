@@ -142,8 +142,8 @@ import {
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
 import {
-  otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema, otReferenciaCriarSchema, otFornecedorCriarSchema,
+  otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema,
+  otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema, otReferenciaCriarSchema, otFornecedorCriarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
   otDesvioTratarSchema, otDesvioAcaoSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema,
 } from './schemas/ot';
@@ -327,14 +327,10 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/assessment/:codigo/evidencias', schema: otAvaliacaoEvidenciaSchema, nome: 'otAvaliacaoEvidenciaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/assessment/:codigo', schema: otAvaliacaoSchema, nome: 'otAvaliacaoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ativos/:id/revelar', schema: otRevelarSchema, nome: 'otRevelarSchema' },
-  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/ativos/:id', schema: otAtivoAtualizarSchema, nome: 'otAtivoAtualizarSchema' },
-  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ativos', schema: otAtivoCriarSchema, nome: 'otAtivoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/desvios/:id/acao', schema: otDesvioAcaoSchema, nome: 'otDesvioAcaoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/desvios/:id/aceitar', schema: otDesvioAceitarSchema, nome: 'otDesvioAceitarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/desvios/:id/tratar', schema: otDesvioTratarSchema, nome: 'otDesvioTratarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/exportacao', schema: otExportarSchema, nome: 'otExportarSchema' },
-  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/fluxos/:id', schema: otFluxoAtualizarSchema, nome: 'otFluxoAtualizarSchema' },
-  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/fluxos', schema: otFluxoCriarSchema, nome: 'otFluxoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/fornecedores', schema: otFornecedorCriarSchema, nome: 'otFornecedorCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ia/completude', schema: otIaCompletudeSchema, nome: 'otIaCompletudeSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ia/zona-sugerida', schema: otIaZonaSchema, nome: 'otIaZonaSchema' },

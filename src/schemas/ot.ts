@@ -59,7 +59,6 @@ const campoAtivo = {
   firmware_nao_aplicavel: z.boolean().optional(),
 };
 export const otAtivoCriarSchema = z.object({ site_id: id, ...campoAtivo }).strict();
-export const otAtivoAtualizarSchema = z.object(campoAtivo).partial().strict();
 
 export const campoFluxo = {
   origem_ativo_id: opcional(id),
@@ -73,8 +72,6 @@ export const campoFluxo = {
   externo: z.boolean().optional(),
   via_vpn: z.boolean().optional(),
 };
-export const otFluxoCriarSchema = z.object({ site_id: id, ...campoFluxo }).strict();
-export const otFluxoAtualizarSchema = z.object(campoFluxo).partial().strict();
 
 export const otAcessoCriarSchema = z.object({ user_id: id, site_id: id }).strict();
 

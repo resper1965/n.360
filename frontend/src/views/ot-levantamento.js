@@ -301,14 +301,15 @@ window.otEncerrarLevantamento = (situacao) => salvar({ situacao }, 'Não foi pos
 // Pontas do fluxo num select só: "a:<id>" ativo, "z:<id>" zona, "fora" fora da empresa (marca Externo = Sim e não vai ao servidor).
 // `d` (alteração): o fluxo como a API devolve; a ponta vazia fica "—" (o Externo diz se sai da empresa).
 const pontaDe = (d, lado) => (d[`${lado}_ativo_id`] ? `a:${d[`${lado}_ativo_id`]}` : d[`${lado}_zona_id`] ? `z:${d[`${lado}_zona_id`]}` : '');
-const selectPonta = (id, rotulo, zonas, atual = '') => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}" data-action-change="otPontaFluxo" data-arg-val><option value="">—</option>
+const selectPonta = (id, rotulo, zonas, atual = '', travado = false) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}"${travado ? ' disabled' : ''} data-action-change="otPontaFluxo" data-arg-val><option value="">—</option>
     <optgroup label="Ativos">${opcoes(ativosDoSite.map((x) => [`a:${x.id}`, x.nome]), atual)}</optgroup>
     <optgroup label="Zonas">${opcoes(zonas.map((x) => [`z:${x.id}`, x.nome]), atual)}</optgroup>
     <option value="fora">Fora da empresa</option></select></div>`;
 // Externo e Via VPN: "Não informado" não vai ao servidor, que então não compara nem grava o campo (nunca vira "não" por omissão).
 const simNao = (id, rotulo, v) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}"><option value="">Não informado</option>${opcoes([['sim', 'Sim'], ['nao', 'Não']], v === undefined || v === null ? '' : v ? 'sim' : 'nao')}</select></div>`;
 const valor = (v) => escapeHTML(v ?? '');
-const camposDoFluxo = (zonas, d = {}) => `${selectPonta('lev-fx-origem', 'Origem', zonas, pontaDe(d, 'origem'))}${selectPonta('lev-fx-destino', 'Destino', zonas, pontaDe(d, 'destino'))}
+// `travado` (alteração): o servidor não muda ponta de fluxo existente, então os selects ficam desabilitados com a dica.
+const camposDoFluxo = (zonas, d = {}, travado = false) => `${selectPonta('lev-fx-origem', 'Origem', zonas, pontaDe(d, 'origem'), travado)}${selectPonta('lev-fx-destino', 'Destino', zonas, pontaDe(d, 'destino'), travado)}${travado ? '<p class="org-dica mb-3">Para mudar as pontas, proponha a remoção e registre outro fluxo.</p>' : ''}
     <div class="form-group"><label class="form-label" for="lev-fx-protocolo">Protocolo</label><input class="form-input" id="lev-fx-protocolo" maxlength="50" value="${valor(d.protocolo)}"></div>
     <div class="form-group"><label class="form-label" for="lev-fx-porta">Porta</label><input class="form-input" type="number" id="lev-fx-porta" min="0" max="65535" step="1" value="${valor(d.porta)}"></div>
     <div class="form-group"><label class="form-label" for="lev-fx-direcao">Direção</label><select class="form-input" id="lev-fx-direcao"><option value="">—</option>${opcoes([['unidirecional', 'Unidirecional'], ['bidirecional', 'Bidirecional']], d.direcao)}</select></div>
@@ -337,7 +338,7 @@ async function formAchado({ evidencia = '', entidade = 'ativo', dados = {}, ativ
         <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
         ${alterar ? '' : `<fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>`}
         <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo(entidade === 'fluxo' ? {} : dados, { zonas, recolher: !alterar, edicao: alterar })}</div>
-        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo(zonas, entidade === 'fluxo' ? dados : {})}</div>
+        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo(zonas, entidade === 'fluxo' ? dados : {}, alterar && entidade === 'fluxo')}</div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
 }
 window.otNovoAchado = async (evidencia = '', perguntaId = null, entidade = 'ativo') => {
@@ -396,11 +397,12 @@ async function gravarAchado(entidade, dados, evidencia) {
     }
 }
 // Alteração: só o que difere do registro. IP/MAC só se digitados e nunca o mascarado.
-// shortcut: campo apagado no formulário não vira proposta (o lote não limpa campo), e trocar a ponta do fluxo de ativo para zona não
-// limpa a ponta antiga; se precisar, mande null onde o esquema aceita.
+// shortcut: campo apagado no formulário não vira proposta (o lote não limpa campo). Ponta de fluxo nunca vai: o servidor não a muda
+// por alteração (erro do item); para mudar, remover e registrar outro.
+const PONTAS_FLUXO = ['origem_ativo_id', 'origem_zona_id', 'destino_ativo_id', 'destino_zona_id'];
 function soOQueMudou(dados, o) {
     const antes = (k) => (['no_arciber', 'firmware_nao_aplicavel', 'externo', 'via_vpn'].includes(k) ? !!o[k] : o[k] ?? null);
-    return Object.fromEntries(Object.entries(dados).filter(([k, v]) => !((k === 'ip' || k === 'mac') && String(v).includes('•')) && JSON.stringify(v) !== JSON.stringify(antes(k))));
+    return Object.fromEntries(Object.entries(dados).filter(([k, v]) => !PONTAS_FLUXO.includes(k) && !((k === 'ip' || k === 'mac') && String(v).includes('•')) && JSON.stringify(v) !== JSON.stringify(antes(k))));
 }
 // Fluxo: só o que foi preenchido; externo e via_vpn só se escolhidos (Sim/Não). Devolve { erro } se a porta não for inteiro de 0 a 65535.
 function lerCamposDoFluxo() {

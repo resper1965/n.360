@@ -312,15 +312,6 @@ describe('4.3.1 e P1-4: verificação só com recoleta; alvo alterado depois da 
     nova = (await env.DB.prepare(`SELECT id FROM ot_ativos WHERE nome = 'RTU Nova'`).first<{ id: string }>())!.id;
   });
 
-  it('PUT direto: nome não mexe na verificação; campo do 4.3.1 a zera e o 4.3.1 deixa de dizer evidencia_no_inventario', async () => {
-    expect(await conf()).toBe('evidencia_no_inventario');
-    expect((await chamar(gestor, 'PUT', `${P}/ativos/${nova}`, { nome: 'RTU Nova 2' })).status).toBe(200);
-    expect(await ativo(nova)).toMatchObject({ verificado_por: 'gestor@cliente.teste' });
-    expect((await chamar(gestor, 'PUT', `${P}/ativos/${ids.a1}`, { firmware_so_versao: '3.0.1', ip: '10.1.1.11' })).status).toBe(200);
-    expect(await ativo(ids.a1)).toMatchObject({ verificado_por: null, ultima_verificacao_em: null });
-    expect(await conf()).not.toBe('evidencia_no_inventario');
-  });
-
   it('planilha parcial não renova a verificação: sem mudar campo do 4.3.1 mantém a data; mudando parte deles, zera', async () => {
     await env.DB.prepare(`UPDATE ot_ativos SET ultima_verificacao_em = '2026-01-01 00:00:00' WHERE id = ?`).bind(nova).run();
     const l1 = await loteDo(tec, `RTU Nova 2;10.1.1.90;;Fab;M8;;;;;;;`); // casa pelo IP; IP e fabricante iguais, muda o modelo
@@ -333,7 +324,8 @@ describe('4.3.1 e P1-4: verificação só com recoleta; alvo alterado depois da 
 
   it('alvo alterado depois da revisão: o item volta a pendente, o alvo não é sobrescrito e o lote fica em revisão', async () => {
     const l = await loteDo(tec, `Do lote;10.1.1.90;;;;;;;;;;`, `Item novo;10.1.1.91;;;;;;;;;;`);
-    expect((await chamar(gestor, 'PUT', `${P}/ativos/${nova}`, { nome: 'Editado depois' })).status).toBe(200);
+    // edição depois da revisão (1 ms depois do item); a volta a pendente carimba o item com a hora de agora, depois do alvo
+    await env.DB.prepare(`UPDATE ot_ativos SET nome = 'Editado depois', updated_at = (SELECT strftime('%Y-%m-%d %H:%M:%f', max(updated_at), '+0.001 seconds') FROM ot_lote_itens WHERE lote_id = ?) WHERE id = ?`).bind(l, nova).run();
     const r = await chamar(gestor, 'POST', `${P}/lotes/${l}/aprovar`);
     expect(r.status, await r.clone().text()).toBe(200);
     expect(await json(r)).toMatchObject({ criados: 1, atualizados: 0, pendentes: 1 });

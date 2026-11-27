@@ -150,6 +150,7 @@ describe('aba Levantamento', () => {
         expect(el('lev-ach-ativo').hidden).toBe(true);
         expect([...el('lev-fx-origem').querySelectorAll('optgroup')].map((g) => g.label)).toEqual(['Ativos', 'Zonas']);
         expect(el('lev-fx-origem').textContent).toContain('Fora da empresa');
+        expect([el('lev-fx-origem').disabled, el('lev-fx-destino').disabled]).toEqual([false, false]);
         el('lev-fx-origem').value = 'a:at1';
         el('lev-fx-destino').value = 'z:z1';
         el('lev-fx-protocolo').value = 'Modbus';
