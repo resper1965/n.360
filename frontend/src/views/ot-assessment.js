@@ -47,7 +47,7 @@ function pintar(c = raiz) {
         <div class="form-group"><label><input type="checkbox" id="ass-meus" data-action-change="otAssFiltrar" data-arg-el${filtro === 'meus' ? ' checked' : ''}> Só o que espera por mim</label>
             <label><input type="checkbox" id="ass-revisar" data-action-change="otAssFiltrar" data-arg-el${filtro === 'revisar' ? ' checked' : ''}> Só o que precisa de revisão</label></div>
         ${itens.length ? grupos : renderEmptyState({ titulo: filtro ? 'Nada espera por você' : 'Catálogo da RO-CB.BR.01 ainda não carregado', texto: filtro ? 'Desmarque o filtro para ver todos os itens.' : 'O catálogo é carregado pela migração do n.ot. Fale com o suporte da ness.' })}
-        <p class="org-dica">O Gestor e o suplente (4.2.1) vêm da governança do projeto${moduloPara('governance', S.activeProject) ? `: <a href="${enderecoDoProduto('n360')}?tela=governance">abrir governança</a>` : ''}.</p>`;
+        <p class="org-dica">O Gestor e o suplente (4.2.1) vêm da governança do projeto${moduloPara('governance', S.activeProject) ? `: <a href="${enderecoDoProduto(moduloPara('governance', S.activeProject))}?tela=governance">abrir governança</a>` : ''}.</p>`;
 }
 
 function linha(i) {

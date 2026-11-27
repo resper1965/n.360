@@ -1,12 +1,12 @@
 # n.ot: Implantação e Operação Implementation Plan
 
-> **Status (27/11/2026): executado.** PR1a a PR8 construídos (#633 a #639 e os PRs 5 a 8 da pilha `claude/ot-io-*`); PR3d (remover ativo com fluxo ativo) e a lista de verificação (PR6) entraram por branches próprias. O PR9 deste plano é a documentação. Arquivado por `docs/superpowers/INDEX.md`.
+> **Status (27/11/2026): executado.** PR1a a PR8 construídos (#633 a #643: 1a+1b #633, 2 #634, 3a #635, 3b #636, 3c #637, 3d #638, 4 #639, 5 #640, 6 #641, 7 #642, 8 #643). O PR3d (remover ativo com fluxo ativo é recusado) nasceu da revisão do PR3c e tem a seção própria abaixo. O PR9 deste plano é a documentação. Arquivado por `docs/superpowers/INDEX.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Separar no n.ot a Implantação (site em 4 etapas, por assistente) da Operação (desvios, saúde, inventário só leitura, Mudanças, Revalidação), com vocabulário único, papéis decididos pelo servidor, tudo por lote, o Painel como tela inicial e links que levam ao site e à aba exatos.
 
-**Architecture:** Doze PRs pequenos (1a, 1b, 2, 3a, 3b, 3c, 4 a 9), na ordem do risco. A fase do banco (`ot_sites.fase`) fica; o servidor ganha funções puras de área e etapa (`areaEEtapa`, `faltaParaAvancar` em `src/services/ot-fase.ts`), duas rotas de leitura (`GET /ot/permissoes`, `GET /ot/implantacao`), alteração e remoção por lote (`alvo_id`, `remover`), trava de zona fora da Implantação e da Obra, e perde as seis rotas de escrita direta de ativo e fluxo. A tela para de recalcular papel (lê `/ot/permissoes`), o Início some (o Painel do servidor absorve "Espera por você") e o menu vira três grupos. **Nenhuma migration.**
+**Architecture:** Treze PRs pequenos (1a, 1b, 2, 3a, 3b, 3c, 3d, 4 a 9), na ordem do risco. A fase do banco (`ot_sites.fase`) fica; o servidor ganha funções puras de área e etapa (`areaEEtapa`, `faltaParaAvancar` em `src/services/ot-fase.ts`), duas rotas de leitura (`GET /ot/permissoes`, `GET /ot/implantacao`), alteração e remoção por lote (`alvo_id`, `remover`), trava de zona fora da Implantação e da Obra, e perde as seis rotas de escrita direta de ativo e fluxo. A tela para de recalcular papel (lê `/ot/permissoes`), o Início some (o Painel do servidor absorve "Espera por você") e o menu vira três grupos. **Nenhuma migration.**
 
 **Tech Stack:** Cloudflare Worker (Hono) + D1, vitest (`@cloudflare/vitest-plugin` no backend, jsdom no frontend), SPA vanilla JS (Vite).
 
@@ -38,7 +38,7 @@
 
 - [x] `git fetch origin && git status --short && git log --oneline -1 origin/main`: árvore limpa; `git merge-base --is-ancestor e734f7a origin/main` responde 0.
 - [x] `gh pr list --search "head:claude/ot-io-" --state open --json number --jq length` responde 0 ou 1 (no máximo 2 abertos depois de abrir este).
-- [x] Branch: `git switch -c claude/ot-io-<N> origin/main` (N = 1a, 1b, 2, 3a, 3b, 3c, 4 a 9). Os PRs de que este depende (tabela "Ordem") estão na `origin/main`: `git log origin/main --oneline --grep "(PR<M> implantação e operação)"` acha cada um.
+- [x] Branch: `git switch -c claude/ot-io-<N> origin/main` (N = 1a, 1b, 2, 3a, 3b, 3c, 3d, 4 a 9). Os PRs de que este depende (tabela "Ordem") estão na `origin/main`: `git log origin/main --oneline --grep "(PR<M> implantação e operação)"` acha cada um.
 - [x] **Retomar:** `git log --oneline origin/main..HEAD` lista os tasks feitos pelo assunto do commit; comece pelo primeiro que falta.
 - [x] Ambiente: `ls node_modules/.bin/vitest frontend/node_modules/.bin/vitest` (se faltar: `npm ci` e `cd frontend && npm ci`).
 - [x] Reconfira as linhas citadas no task (`sed -n 'A,Bp' <arquivo>`): a `main` anda; se mudou, ajuste o Edit, não a regra.
@@ -54,6 +54,7 @@
 | 3a | Tudo por lote no servidor: `alvo_id`/`remover`, nome do alvo, base exige ativo, trava de zona | 2 | não |
 | 3b | Tela: ativo e fluxo viram achado | 3a | não |
 | 3c | Somem as seis rotas de escrita direta | 3b | não |
+| 3d | Remover ativo com fluxo ativo é recusado por lote (`FLUXO_ATIVO`) | 3c | não |
 | 4 | Painel como início (Meu trabalho; some o Início) | 2 | não |
 | 5 | Menu Operação / Implantação / Configuração; Acessos dividido; Desvios de todos os sites | 4 | não |
 | 6 | Lista de verificação do projeto | 5 | não |
@@ -844,7 +845,7 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 
 ## PR3c — Somem as escritas diretas de ativo e fluxo
 
-**Objetivo:** tirar do servidor as seis rotas que a tela já não usa. **Sem migration.** **Contrato:** somem `POST /ot/ativos`, `PUT /ot/ativos/:id`, `DELETE /ot/ativos/:id`, `POST /ot/fluxos`, `PUT /ot/fluxos/:id`, `DELETE /ot/fluxos/:id`; `npm run openapi` regenera. **P0:** só tira caminho de escrita. **Pronto quando:** `grep -nE "otApp\.(post|put)\('/(ativos|fluxos)(/:id)?'" src/routes/ot.ts` vazio (o `'/ativos/:id/revelar'` não casa) e o laço de DELETE (`ot.ts:375-386`) só tem `sites` e `zonas`. **Riscos:** algum script externo que chame a rota (não conferido; o spec lista em "Não conferido"). **Pendência (revisão do PR3c):** remover ativo por lote deixa ativo o fluxo que aponta para ele (`FLUXO_VISIVEL` o esconde; igual ao DELETE antigo); decidir: recusar a remoção com fluxo ativo ou propor remover os fluxos no mesmo lote.
+**Objetivo:** tirar do servidor as seis rotas que a tela já não usa. **Sem migration.** **Contrato:** somem `POST /ot/ativos`, `PUT /ot/ativos/:id`, `DELETE /ot/ativos/:id`, `POST /ot/fluxos`, `PUT /ot/fluxos/:id`, `DELETE /ot/fluxos/:id`; `npm run openapi` regenera. **P0:** só tira caminho de escrita. **Pronto quando:** `grep -nE "otApp\.(post|put)\('/(ativos|fluxos)(/:id)?'" src/routes/ot.ts` vazio (o `'/ativos/:id/revelar'` não casa) e o laço de DELETE (`ot.ts:375-386`) só tem `sites` e `zonas`. **Riscos:** algum script externo que chame a rota (não conferido; o spec lista em "Não conferido"). **Pendência (revisão do PR3c):** remover ativo por lote deixa ativo o fluxo que aponta para ele (`FLUXO_VISIVEL` o esconde; igual ao DELETE antigo); **Resolvido no PR3d:** remover ativo com fluxo ativo (origem ou destino) é recusado (erro do item na criação e recusa na aprovação, com a checagem no próprio UPDATE); permitido se o mesmo lote remove todos esses fluxos, que a aprovação aplica antes do ativo.
 
 ### Task 3c.1: Tirar as rotas **[P0] [revisor opus]**
 
@@ -872,6 +873,14 @@ it('não há mais gravação direta de ativo nem de fluxo (decisão 3), para nen
 - [x] **Step 3: Remover** os handlers e as entradas `ativos` e `fluxos` do laço. `npm run openapi`. `npx tsc --noEmit`.
 - [x] **Step 4: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-inventario.test.ts test/contrato-tela-api.test.ts test/contrato-isolamento-org.test.ts test/openapi.test.ts test/any-catraca.test.ts` → PASS (se o número de `any` cair, baixe o TETO no mesmo commit); `cd frontend && npx vitest run && npx playwright test e2e/ot.spec.js`.
 - [x] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: saem as rotas de gravação direta de ativo e fluxo."); `git commit -m "feat(ot)!: ativo e fluxo só entram, mudam ou saem por lote (PR3c implantação e operação)"`; push `claude/ot-io-3c`; PR.
+
+---
+
+## PR3d — Remover ativo com fluxo ativo é recusado
+
+**Objetivo:** fechar o buraco que a revisão do PR3c achou: a remoção de ativo por lote não pode deixar fluxo apontando para ativo removido. **Sem migration.** **Contrato:** o item `remover` de ativo com fluxo ativo é recusado (`FLUXO_ATIVO`, `src/services/ot-coleta.ts`), na criação do item e na aprovação (`NOT EXISTS` no UPDATE); passa se o mesmo lote remove os fluxos, que são aplicados antes do ativo. **P0:** só recusa; nada novo é gravado.
+
+- [x] **Entrega** — #638, `fix(n.ot): remover ativo por lote é recusado se ele ainda tem fluxo ativo (PR3d)`. Não estava na primeira versão do plano (que só tinha 3a a 3c); entrou como correção entre o 3c e o 4.
 
 ---
 
