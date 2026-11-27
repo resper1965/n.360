@@ -216,8 +216,6 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
   const idx = indice(ativos.results);
   const [pontas, fluxos] = entidades.includes('fluxo') ? await Promise.all([pontasDoSite(db, projectId, siteId), fluxosDoSite(db, projectId, siteId)])
     : [undefined, brutos.some((b) => b.remover !== undefined) ? await fluxosDoSite(db, projectId, siteId) : undefined];
-  // Remover ativo com fluxo ativo é recusado, salvo se este mesmo lote remove todos esses fluxos (a aprovação aplica os fluxos antes).
-  const fluxosRemovidosNoLote = new Set(brutos.flatMap((b, n) => entidades[n] === 'fluxo' && b.remover !== undefined && typeof b.alvo_id === 'string' ? [b.alvo_id] : []));
   const idxF = indiceFluxos(fluxos ?? []);
   const loteId = genId();
   await db.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, criado_por, levantamento_id) VALUES (?, ?, ?, ?, ?, ?)`)
@@ -226,10 +224,18 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
     let comErro = 0, dups = 0;
     const stmts: D1PreparedStatement[] = [];
     const itemIds: string[] = [];
+    const prep: { id: string; entidade: 'ativo' | 'fluxo'; dados: Record<string, unknown>; erros: Erro[] }[] = [];
     for (const [n, bruto] of brutos.entries()) {
       const id = genId();
       const entidade = entidades[n] ?? 'ativo';
-      const { dados, erros } = entidade === 'fluxo' ? prepararFluxo(bruto, pontas!) : await prepararItem(chaves, projectId, id, bruto, mapaZonas);
+      prep.push({ id, entidade, ...(entidade === 'fluxo' ? prepararFluxo(bruto, pontas!) : await prepararItem(chaves, projectId, id, bruto, mapaZonas)) });
+    }
+    // Mesma regra da aprovação: só conta remoção de item sem erro. Remover ativo com fluxo ativo é recusado, salvo se este lote remove todos esses fluxos;
+    // fluxo com ponta em ativo que este lote remove é erro do item (a aprovação aplica fluxos antes e remoções de ativo por último).
+    const removidosNoLote = (ent: string) => new Set(prep.flatMap((x) => x.entidade === ent && x.dados.remover && !x.erros.length && typeof x.dados.alvo_id === 'string' ? [x.dados.alvo_id] : []));
+    const fluxosRemovidosNoLote = removidosNoLote('fluxo'), ativosRemovidosNoLote = removidosNoLote('ativo');
+    for (const [n, { id, entidade, dados, erros }] of prep.entries()) {
+      if (entidade === 'fluxo' && !dados.remover) for (const l of ['origem', 'destino'] as const) if (ativosRemovidosNoLote.has(dados[`${l}_ativo_id`] as string)) erros.push({ campo: `${l}_ativo_id`, motivo: PONTA_REMOVIDA });
       // Com alvo_id, o alvo é ele (só do site do lote: outro site e inexistente dão o mesmo desfecho, P0-4/P0-5); senão, o índice.
       const dup = dados.alvo_id ? (entidade === 'fluxo' ? (fluxos ?? []).find((f) => f.id === dados.alvo_id) : ativos.results.find((a) => a.id === dados.alvo_id))
         : entidade === 'fluxo' ? idxF.achar(dados) : idx.achar(dados);
@@ -318,9 +324,13 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     n.recusados++;
     stmts.push(db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(motivo, i.id));
   };
-  // Ordem de aplicação: remoções de fluxo antes de tudo (a remoção do ativo do mesmo lote depende delas), depois a ordem das linhas.
-  const removeFluxo = (i: LinhaItem) => i.entidade === 'fluxo' && !!(JSON.parse(i.dados) as Record<string, unknown>).remover;
-  itens.sort((a, b) => Number(removeFluxo(b)) - Number(removeFluxo(a)));
+  // Ordem de aplicação (estável por linha dentro de cada grupo): remoções de fluxo, depois criações e alterações, e por último as remoções de ativo
+  // (assim o NOT EXISTS da remoção enxerga os fluxos que este lote removeu e os que criou).
+  const remove = (i: LinhaItem, ent: 'ativo' | 'fluxo') => (ent === 'fluxo') === (i.entidade === 'fluxo') && !!(JSON.parse(i.dados) as Record<string, unknown>).remover && !(JSON.parse(i.erros) as Erro[]).length;
+  const ordem = (i: LinhaItem) => remove(i, 'fluxo') ? 0 : remove(i, 'ativo') ? 2 : 1;
+  itens.sort((a, b) => ordem(a) - ordem(b));
+  const alvosDe = (ent: 'ativo' | 'fluxo') => new Set(itens.filter((i) => remove(i, ent)).map((i) => (JSON.parse(i.dados) as Record<string, unknown>).alvo_id as string));
+  const fluxosAlvo = alvosDe('fluxo'), ativosARemover = alvosDe('ativo'); // alvos de remoção deste lote (fluxo com ponta em ativo removido é recusado)
   const fluxosRemovidos = new Set<string>(); // fluxos cuja remoção já está na fila desta aprovação (o batch os aplica antes do ativo)
   for (const i of itens) {
     if ((JSON.parse(i.erros) as Erro[]).length) { recusar(i, ITEM_COM_ERRO); continue; }
@@ -329,7 +339,16 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       const tabela = i.entidade === 'fluxo' ? 'ot_fluxos' : 'ot_ativos';
       const alvo = (i.entidade === 'fluxo' ? fluxos : ativos.results).find((x) => x.id === d.alvo_id); // só do site do lote (P0-4)
       if (!alvo) { recusar(i, ALVO_INEXISTENTE); continue; } // outro site ou inexistente: o mesmo desfecho
-      if (i.entidade !== 'fluxo' && comFluxoAtivo(fluxos, alvo.id, fluxosRemovidos)) { recusar(i, FLUXO_ATIVO); continue; }
+      // Atalho em memória (só fluxos do site, até TETO_LEITURA_OT): a verdade é o NOT EXISTS do UPDATE, que olha o projeto todo e sem teto.
+      if (i.entidade !== 'fluxo') {
+        const bloqueiam = fluxos.filter((f) => !fluxosRemovidos.has(f.id) && (f.origem_ativo_id === alvo.id || f.destino_ativo_id === alvo.id));
+        // Todos os fluxos que bloqueiam são remoções deste lote que não andaram (item voltou a pendente): o ativo espera junto.
+        if (bloqueiam.length && bloqueiam.every((f) => fluxosAlvo.has(f.id))) {
+          stmts.push(db.prepare(`UPDATE ot_lote_itens SET motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(FLUXO_ATIVO, i.id));
+          continue;
+        }
+        if (bloqueiam.length) { recusar(i, FLUXO_ATIVO); continue; }
+      }
       // P1-4, a mesma trava da alteração: o alvo editado depois da revisão do item volta o item a pendente, nada é removido.
       if (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) {
         stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo.id, ALVO_MUDOU, i.id));
@@ -342,19 +361,21 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
         ` AND NOT EXISTS (SELECT 1 FROM ot_fluxos f WHERE f.project_id = ot_ativos.project_id AND f.status = 'ativo' AND ot_ativos.id IN (f.origem_ativo_id, f.destino_ativo_id))`}`)
         .bind(alvo.id, projectId, lote.site_id, alvo.updated_at),
       db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END, registro_id = CASE WHEN changes() > 0 THEN ? END,
-        motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo.id, ALVO_MUDOU, i.id)]);
+        motivo = CASE WHEN changes() > 0 THEN NULL ${i.entidade === 'fluxo' ? '' : `WHEN EXISTS (SELECT 1 FROM ot_fluxos f WHERE f.project_id = ? AND f.status = 'ativo' AND ? IN (f.origem_ativo_id, f.destino_ativo_id)) THEN ?`}
+        ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo.id, ...(i.entidade === 'fluxo' ? [] : [projectId, alvo.id, FLUXO_ATIVO]), ALVO_MUDOU, i.id)]);
       remocoes.push(i.id);
       if (i.entidade === 'fluxo') fluxosRemovidos.add(alvo.id);
       continue;
     }
     if (i.entidade === 'fluxo') {
-      const sumiu = (['origem', 'destino'] as const).some((l) => (d[`${l}_ativo_id`] && !pontas.ativos.has(d[`${l}_ativo_id`] as string))
+      const sumiu = (['origem', 'destino'] as const).some((l) => (d[`${l}_ativo_id`] && (!pontas.ativos.has(d[`${l}_ativo_id`] as string) || ativosARemover.has(d[`${l}_ativo_id`] as string)))
         || (d[`${l}_zona_id`] && !pontas.zonas.has(d[`${l}_zona_id`] as string)));
       if (sumiu) { recusar(i, PONTA_REMOVIDA); continue; }
       // Regra do confronto do fluxo: casou na chave (confirma ou contradiz, recalculado agora) atualiza só os campos do item; senão, cria.
       const alvo = d.alvo_id ? fluxos.find((f) => f.id === d.alvo_id) : idxF.achar(d);
       // Alvo que sumiu depois do envio: recusa (o INSERT de pontas vazias bateria no CHECK e prenderia o lote em `gravando`).
       if (d.alvo_id && !alvo) { recusar(i, FLUXO_SUMIU); continue; }
+      if (alvo && [alvo.origem_ativo_id, alvo.destino_ativo_id].some((a) => a && ativosARemover.has(a))) { recusar(i, PONTA_REMOVIDA); continue; } // este lote remove uma ponta
       // P1-4, como no ativo: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão): o item volta a pendente.
       if (alvo ? !tocadosF.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
         stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo?.id ?? null, FLUXO_MUDOU, i.id));
@@ -370,11 +391,15 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
         // O WHERE compara o updated_at lido (como no ativo): edição entre a leitura e a gravação deixa o item pendente.
         ? db.prepare(`UPDATE ot_fluxos SET ${cols.map((k) => `${k} = ?, `).join('')}updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo'
             AND (? OR updated_at = ?)`).bind(...cols.map((k) => d[k]), fluxoId, projectId, Number(tocadosF.has(fluxoId)), alvo.updated_at ?? null)
-        : db.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, ${COLS_FLUXO.join(', ')}) VALUES (?, ?, ?, ${COLS_FLUXO.map(() => '?').join(', ')})`)
-          .bind(fluxoId, projectId, lote.site_id, ...COLS_FLUXO.map((k) => novo[k] ?? null)),
-      db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END,
+        // Criação: só grava se cada ponta ainda está ativa neste site (outro lote pode tê-la removido depois da leitura); senão o item é recusado.
+        : db.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, ${COLS_FLUXO.join(', ')}) SELECT ?, ?, ?, ${COLS_FLUXO.map(() => '?').join(', ')}
+            WHERE ${(['ativo', 'zona'] as const).flatMap((t) => (['origem', 'destino'] as const).map((l) =>
+              `(? IS NULL OR EXISTS (SELECT 1 FROM ot_${t}s WHERE id = ? AND project_id = ? AND site_id = ? AND status = 'ativo'))`)).join(' AND ')}`)
+          .bind(fluxoId, projectId, lote.site_id, ...COLS_FLUXO.map((k) => novo[k] ?? null),
+            ...(['ativo', 'zona'] as const).flatMap((t) => (['origem', 'destino'] as const).flatMap((l) => { const v = novo[`${l}_${t}_id`] ?? null; return [v, v, projectId, lote.site_id]; }))),
+      db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE '${alvo ? 'pendente' : 'recusado'}' END,
         registro_id = CASE WHEN changes() > 0 THEN ? END, motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`)
-        .bind(fluxoId, FLUXO_MUDOU, i.id)]);
+        .bind(fluxoId, alvo ? FLUXO_MUDOU : PONTA_REMOVIDA, i.id)]);
       tocadosF.add(fluxoId);
       idxF.add({ ...(alvo ? { ...alvo, ...Object.fromEntries(cols.map((k) => [k, d[k]])) } : novo), id: fluxoId } as FluxoExistente);
       n[alvo ? 'atualizados' : 'criados']++;

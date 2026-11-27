@@ -350,6 +350,58 @@ describe('PR3d: remover ativo com fluxo ativo é recusado', () => {
     expect(await item0(gestor, l)).toMatchObject({ decisao: 'pendente' });
   });
 
+  it('remover ativo e criar fluxo para ele no mesmo lote (nas duas ordens de linha): o fluxo é erro do item, recusado, e o ativo é removido', async () => {
+    await semTeto();
+    for (const ordem of ['remove-primeiro', 'fluxo-primeiro']) {
+      const [a, b] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: `Ord A ${ordem}` } }, { dados: { nome: `Ord B ${ordem}` } }] });
+      const rem: Item = { dados: { alvo_id: a, remover: true } }, flu: Item = { entidade: 'fluxo', dados: { origem_ativo_id: a, destino_ativo_id: b } };
+      const l = await lote(cons, ids.s1, ordem === 'remove-primeiro' ? [rem, flu] : [flu, rem]);
+      const itens = (await lerLote(gestor, l)).itens;
+      expect(itens.find((x) => x.erros.length)!.erros[0].motivo).toMatch(/ponta do fluxo foi removida/);
+      expect(await aprovar(gestor, l)).toMatchObject({ removidos: 1, recusados: 1 });
+      expect(await status(a)).toBe('removido');
+      expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_fluxos WHERE status = 'ativo' AND ? IN (origem_ativo_id, destino_ativo_id)`).bind(a).first('n')).toBe(0);
+    }
+  });
+
+  it('aprovação: item de fluxo com ponta que o lote remove é recusado mesmo sem erro gravado (defesa)', async () => {
+    await semTeto();
+    const [a, b] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Def A' } }, { dados: { nome: 'Def B' } }] });
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }, { entidade: 'fluxo', dados: { origem_ativo_id: a, destino_ativo_id: b } }]);
+    await env.DB.prepare(`UPDATE ot_lote_itens SET erros = '[]' WHERE lote_id = ?`).bind(l).run();
+    expect(await aprovar(gestor, l)).toMatchObject({ removidos: 1, recusados: 1 });
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_fluxos WHERE status = 'ativo' AND ? IN (origem_ativo_id, destino_ativo_id)`).bind(a).first('n')).toBe(0);
+  });
+
+  it('corrida entre lotes: ponta removida depois da leitura do lote que cria o fluxo; o INSERT não grava e o item é recusado', async () => {
+    await semTeto();
+    const [a, b] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Lote A' } }, { dados: { nome: 'Lote B' } }] });
+    const l = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { origem_ativo_id: a, destino_ativo_id: b } }]);
+    await aprovarCom(dbCom(() => env.DB.prepare(`UPDATE ot_ativos SET status = 'removido' WHERE id = ?`).bind(a).run()), l);
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_fluxos WHERE status = 'ativo' AND ? IN (origem_ativo_id, destino_ativo_id)`).bind(a).first('n')).toBe(0);
+    expect(await item0(gestor, l)).toMatchObject({ decisao: 'recusado', motivo: expect.stringMatching(/ponta do fluxo foi removida/) });
+  });
+
+  it('remoção do fluxo do mesmo lote volta a pendente (fluxo editado depois da revisão): o ativo espera junto, não é recusado nem removido', async () => {
+    await semTeto();
+    const { a, f } = await par();
+    const l = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, remover: true } }, { dados: { alvo_id: a, remover: true } }]);
+    await env.DB.prepare(`UPDATE ot_fluxos SET porta = 9, updated_at = ${NO_FUTURO} WHERE id = ?`).bind(f).run();
+    expect(await aprovar(gestor, l)).toMatchObject({ removidos: 0, pendentes: 2, recusados: 0 });
+    expect(await status(a)).toBe('ativo');
+    expect((await lerLote(gestor, l)).itens.map((x) => x.decisao)).toEqual(['pendente', 'pendente']);
+  });
+
+  it('fluxo ativo de OUTRO site apontando para o ativo (inserido por SQL, fora da leitura em memória): o UPDATE barra e o motivo é o do fluxo ativo', async () => {
+    await semTeto();
+    const [a, b] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Cruz A' } }, { dados: { nome: 'Cruz B' } }] });
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }]);
+    await env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_ativo_id, direcao) VALUES ('f-cruz', 'proj-a', ?, ?, ?, 'unidirecional')`).bind(ids.s2, a, b).run();
+    expect(await aprovar(gestor, l)).toMatchObject({ removidos: 0, pendentes: 1 });
+    expect(await status(a)).toBe('ativo');
+    expect(await item0(gestor, l)).toMatchObject({ decisao: 'pendente', motivo: expect.stringMatching(/tem fluxo ativo/) });
+  });
+
   it('outro site: ativo de outro site segue com o desfecho de id inexistente, não o do fluxo', async () => {
     await semTeto();
     const { a } = await par(ids.s2);
