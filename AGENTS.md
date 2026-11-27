@@ -107,7 +107,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
   aprovar/rejeitar e de quem `podeVerCompleto` e nunca de quem criou o lote; a aprovacao grava `verificado_por` e
   `ultima_verificacao_em` (a evidencia do 4.3.1) so quando o item trouxe todos os campos do 4.3.1; item que muda um deles sem
-  recoletar zera a verificacao (`toca431`). Ativo e fluxo nao tem escrita direta (PR3c): `POST`/`PUT`/`DELETE` de `/ot/ativos` e `/ot/fluxos` respondem 404; so entram, mudam (`alvo_id`) ou saem (`remover`) por lote, e a alteracao de fluxo nao muda pontas (item com erro). Alvo da mescla alterado depois da revisao volta o
+  recoletar zera a verificacao (`toca431`). Ativo e fluxo nao tem escrita direta (PR3c): `POST`/`PUT`/`DELETE` de `/ot/ativos` e `/ot/fluxos` respondem 404; so entram, mudam (`alvo_id`) ou saem (`remover`) por lote, remover ativo com fluxo ativo e recusado (`FLUXO_ATIVO`, `NOT EXISTS` no UPDATE; passa se o mesmo lote remove os fluxos, aplicados antes do ativo), e a alteracao de fluxo nao muda pontas (item com erro). Alvo da mescla alterado depois da revisao volta o
   item a pendente e o lote a `em_revisao` (P1-4). A marca de duplicata (`possivel_duplicata`, `possiveis_duplicatas`) so sai para
   quem `podeVerCompleto` (A1). O export de portabilidade (`GET /projects/:id/export`) nunca leva tabela `ot_*` (prefixo, em
   `src/portabilidade.ts`). Troca de papel ou projeto nao concede `ot` (`recalcularModulos`). Export de ferramenta OT (Nozomi etc.)
