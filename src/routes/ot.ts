@@ -105,7 +105,7 @@ const paraBanco = (d: Record<string, unknown>) => Object.fromEntries(Object.entr
  * UPDATE dos campos validados (as chaves saem de esquema `.strict()`, nunca do corpo cru), preso ao projeto, ao site permitido e ao
  * registro ativo. 0 = não achou (inexistente, de outro projeto ou de site sem acesso: o mesmo 404, T27).
  */
-async function atualizar(db: D1Database, tabela: 'ot_sites' | 'ot_zonas' | 'ot_ativos' | 'ot_fluxos', id: string, projectId: string, sites: string, campos: Record<string, unknown>,
+async function atualizar(db: D1Database, tabela: 'ot_sites' | 'ot_zonas', id: string, projectId: string, sites: string, campos: Record<string, unknown>,
   extra = '') {
   const cols = Object.keys(campos);
   const doSite = tabela === 'ot_sites' ? 'id IN (SELECT value FROM json_each(?))' : NO_SITE;

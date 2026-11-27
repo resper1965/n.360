@@ -175,6 +175,8 @@ describe('Propor alteração e remoção', () => {
         await window.otProporAlteracaoFluxo('f1');
         expect([el('lev-fx-origem').value, el('lev-fx-destino').value, el('lev-fx-protocolo').value, el('lev-fx-porta').value, el('lev-fx-externo').value, el('lev-fx-vpn').value])
             .toEqual(['a:a1', '', 'HTTPS', '443', 'sim', 'nao']);
+        expect([el('lev-fx-origem').disabled, el('lev-fx-destino').disabled]).toEqual([true, true]);
+        expect(document.body.textContent).toContain('proponha a remoção e registre outro fluxo');
         expect(document.querySelector('input[name="ach-entidade"]')).toBeNull();
         el('lev-evidencia').value = 'VPN instalada no acesso de suporte';
         el('lev-fx-vpn').value = 'sim';

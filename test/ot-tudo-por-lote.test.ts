@@ -260,14 +260,20 @@ describe('PR3c: some a gravação direta; troca de ponta no achado de fluxo', ()
     expect((await item0(gestor, l)).erros).toContainEqual(expect.objectContaining({ campo: '4.3.1', motivo: expect.stringContaining('4.3.1') }));
   });
 
-  it('campo livre com IP, IPv6 ou MAC no nome do ativo ou na finalidade do fluxo nunca chega ao lote (PII)', async () => {
+  it('campo livre com IPv4, IPv6 ou MAC no nome do ativo ou na finalidade do fluxo: erro do achado e nunca chega ao lote (PII)', async () => {
     await semTeto();
     const [a1] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Pii base' } }] });
-    const l = await lote(cons, ids.s1, [{ dados: { nome: 'aa:bb:cc:dd:ee:ff' } },
-      { entidade: 'fluxo', dados: { origem_ativo_id: a1, externo: true, finalidade: 'para aabb.ccdd.eeff' } }]);
-    const { itens } = await lerLote(gestor, l);
-    expect(itens[0].erros.length).toBeGreaterThan(0);
-    expect(JSON.stringify(itens[1])).not.toContain('aabb.ccdd.eeff'); // a finalidade com MAC nem chega ao item
+    const lev = await ok<{ id: string }>(chamar(cons, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-26' }), 201);
+    const achar = async (entidade: string, dados: Record<string, unknown>) => (await ok<{ id: string; erros?: { campo: string }[] }>(
+      chamar(cons, 'POST', `${P}/levantamentos/${lev.id}/achados`, { entidade, dados, evidencia: 'teste' }), 201));
+    for (const nome of ['gw 10.0.0.1', 'host 2001:db8::1', 'aa:bb:cc:dd:ee:ff']) {
+      const a = await achar('ativo', { nome });
+      expect(a.erros, nome).toContainEqual(expect.objectContaining({ campo: 'nome' }));
+    }
+    const f = await achar('fluxo', { origem_ativo_id: a1, externo: true, finalidade: 'para aabb.ccdd.eeff' });
+    expect(f.erros).toContainEqual(expect.objectContaining({ campo: 'finalidade' }));
+    const l = await ok<{ id: string }>(chamar(cons, 'POST', `${P}/levantamentos/${lev.id}/enviar`, { achados: [f.id] }), 201);
+    expect(JSON.stringify((await lerLote(gestor, l.id)).itens[0])).not.toContain('aabb.ccdd.eeff');
   });
 
   it('fluxo: achado por alvo_id que troca a ponta de ativo para zona (destino_zona_id sem limpar destino_ativo_id) nunca deixa as duas pontas do mesmo lado', async () => {

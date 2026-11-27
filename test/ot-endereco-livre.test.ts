@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { otAtivoCriarSchema, otFluxoCriarSchema, otSiteCriarSchema, otLevantamentoAtualizarSchema, RECUSA_ENDERECO } from '../src/schemas/ot';
+import { z } from 'zod';
+import { otAtivoCriarSchema, campoFluxo, otSiteCriarSchema, otLevantamentoAtualizarSchema, RECUSA_ENDERECO } from '../src/schemas/ot';
 
 // P0-6: IP/MAC em campo livre sairia em claro para quem vê mascarado. `_`, letra colada e MAC sem separador ou com espaço
 // também são endereço; versão de firmware fica fora (campo próprio) e texto comum de OT passa.
 
+const fluxo = z.object(campoFluxo);
 const ativo = (extra: Record<string, unknown>) => otAtivoCriarSchema.safeParse({ site_id: 's1', nome: 'RTU', ...extra }).success;
 
 describe('P0-6: filtro de endereço em campo livre', () => {
@@ -16,8 +18,8 @@ describe('P0-6: filtro de endereço em campo livre', () => {
 
   it('protocolo do ativo e do fluxo também passam pelo filtro', () => {
     expect(ativo({ protocolos_portas: [{ protocolo: 'DNP3 10.1.1.10' }] })).toBe(false);
-    expect(otFluxoCriarSchema.safeParse({ site_id: 's1', protocolo: 'IEC104_10.1.1.10' }).success).toBe(false);
-    expect(otFluxoCriarSchema.safeParse({ site_id: 's1', protocolo: 'IEC 60870-5-104' }).success).toBe(true);
+    expect(fluxo.safeParse({ protocolo: 'IEC104_10.1.1.10' }).success).toBe(false);
+    expect(fluxo.safeParse({ protocolo: 'IEC 60870-5-104' }).success).toBe(true);
   });
 
   it('texto comum de OT e versão de firmware passam', () => {

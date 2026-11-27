@@ -315,6 +315,16 @@ describe('4.1.2/4.1.3 e conformidade por item da RO-CB.BR.01', () => {
     expect(c.itens.find((i) => i.codigo === '4.2.1')!.situacao).toBe('evidencia_no_inventario');
     expect(c.itens.find((i) => i.codigo === '4.3.1')!.situacao).toBe('nao_atende');
   });
+
+  it('alteração por lote que muda campo do 4.3.1 sem recoletar zera a verificação, e a conformidade deixa de dizer evidência', async () => {
+    const [id] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { ...ATIVO_ARCIBER, nome: 'Verificado por lote' } }] });
+    const lido = () => env.DB.prepare(`SELECT verificado_por, ultima_verificacao_em FROM ot_ativos WHERE id = ?`).bind(id).first<{ verificado_por: string | null; ultima_verificacao_em: string | null }>();
+    expect((await lido())!.verificado_por).not.toBeNull();
+    await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { alvo_id: id, fabricante: 'Outro fabricante' } }] });
+    expect(await lido()).toEqual({ verificado_por: null, ultima_verificacao_em: null });
+    const c = await json<{ itens: { codigo: string; situacao: string }[] }>(await chamar(gestor, 'GET', `${P}/conformidade`));
+    expect(c.itens.find((i) => i.codigo === '4.3.1')!.situacao).not.toBe('evidencia_no_inventario');
+  });
 });
 
 describe('C1: exportação de portabilidade não leva o inventário OT (P0-2, P0-4, P0-6)', () => {

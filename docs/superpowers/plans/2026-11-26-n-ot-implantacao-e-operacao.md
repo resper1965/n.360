@@ -842,7 +842,7 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 
 ## PR3c — Somem as escritas diretas de ativo e fluxo
 
-**Objetivo:** tirar do servidor as seis rotas que a tela já não usa. **Sem migration.** **Contrato:** somem `POST /ot/ativos`, `PUT /ot/ativos/:id`, `DELETE /ot/ativos/:id`, `POST /ot/fluxos`, `PUT /ot/fluxos/:id`, `DELETE /ot/fluxos/:id`; `npm run openapi` regenera. **P0:** só tira caminho de escrita. **Pronto quando:** `grep -nE "otApp\.(post|put)\('/(ativos|fluxos)(/:id)?'" src/routes/ot.ts` vazio (o `'/ativos/:id/revelar'` não casa) e o laço de DELETE (`ot.ts:375-386`) só tem `sites` e `zonas`. **Riscos:** algum script externo que chame a rota (não conferido; o spec lista em "Não conferido").
+**Objetivo:** tirar do servidor as seis rotas que a tela já não usa. **Sem migration.** **Contrato:** somem `POST /ot/ativos`, `PUT /ot/ativos/:id`, `DELETE /ot/ativos/:id`, `POST /ot/fluxos`, `PUT /ot/fluxos/:id`, `DELETE /ot/fluxos/:id`; `npm run openapi` regenera. **P0:** só tira caminho de escrita. **Pronto quando:** `grep -nE "otApp\.(post|put)\('/(ativos|fluxos)(/:id)?'" src/routes/ot.ts` vazio (o `'/ativos/:id/revelar'` não casa) e o laço de DELETE (`ot.ts:375-386`) só tem `sites` e `zonas`. **Riscos:** algum script externo que chame a rota (não conferido; o spec lista em "Não conferido"). **Pendência (revisão do PR3c):** remover ativo por lote deixa ativo o fluxo que aponta para ele (`FLUXO_VISIVEL` o esconde; igual ao DELETE antigo); decidir: recusar a remoção com fluxo ativo ou propor remover os fluxos no mesmo lote.
 
 ### Task 3c.1: Tirar as rotas **[P0] [revisor opus]**
 

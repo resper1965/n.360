@@ -111,8 +111,7 @@ export function falta431(l: Record<string, unknown>) {
     && (JSON.parse((l.protocolos_portas as string) ?? '[]') as unknown[]).length > 0 && (tem('firmware_so_versao') || l.firmware_nao_aplicavel === 1));
 }
 /**
- * Regra da verificação do 4.3.1: aprovação com todos os campos recoletados carimba; edição direta (PUT) que toca um deles, ou item de lote
- * que MUDA um deles em relação ao alvo, zera; o resto mantém. Sem `alvo`, basta tocar. IP/MAC comparados pelo hash (o staging não tem o claro).
+ * Regra da verificação do 4.3.1: aprovação com todos os campos recoletados carimba; item de lote que MUDA um deles em relação ao alvo, zera; o resto mantém. Sem `alvo`, basta tocar. IP/MAC comparados pelo hash (o staging não tem o claro).
  */
 const CAMPOS_4_3_1 = ['no_arciber', 'categoria_arciber', 'tipo_dispositivo', 'fabricante', 'funcao', 'ip', 'mac', 'protocolos_portas', 'firmware_so_versao', 'firmware_nao_aplicavel'];
 export const toca431 = (d: Record<string, unknown>, alvo?: Record<string, unknown>) => CAMPOS_4_3_1.some((k) => {
