@@ -20,13 +20,14 @@ const SITE = { id: 's1', nome: 'SE Norte Exemplo', tipo: 'subestacao', criticida
 const SIT = { fase: 'em_operacao', area: 'operacao', etapa: null, falta: [], base_aprovada_em: '2026-10-01 12:00:00', revalidar_em: '2026-12-20', proximo_passo: 'em_operacao', rascunhos: 0, lotes_em_revisao: 0 };
 const lote = (id, site_id, status, created_at, itens = 2) => ({ id, site_id, fonte: 'manual', status, created_at, itens, com_erro: 0, gravados: 0 });
 const LOTES = [lote('antes', 's1', 'concluido', '2026-09-20 10:00:00'), lote('aberto', 's1', 'em_revisao', '2026-10-05 10:00:00', 3), lote('feito', 's1', 'concluido', '2026-10-10 10:00:00'),
-    lote('recusado', 's1', 'rejeitado', '2026-10-12 10:00:00'), lote('outro', 's2', 'em_revisao', '2026-10-06 10:00:00')];
+    lote('recusado', 's1', 'rejeitado', new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 19).replace('T', ' ')), lote('recusado-velho', 's1', 'rejeitado', '2026-10-12 10:00:00'),
+    lote('gravando', 's1', 'gravando', '2026-10-15 10:00:00'), lote('outro', 's2', 'em_revisao', '2026-10-06 10:00:00')];
 const ativo = (id, nome, extra = {}) => ({ id, site_id: 's1', zona_id: null, nome, no_arciber: true, ultima_verificacao_em: '2026-11-01 10:00:00', verificado_por: 'u1', mascarado: true, ip: '•••', mac: '••', protocolos_portas: [], ...extra });
 
 let chamadas;
 function servir(extra = {}, sit = SIT) {
     chamadas = [];
-    const rotas = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/sites/s1/situacao`]: sit, [`GET ${B}/lotes`]: { lotes: LOTES }, [`GET ${B}/zonas`]: { zonas: [] },
+    const rotas = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/sites/s1/situacao`]: sit, [`GET ${B}/lotes`]: { lotes: LOTES }, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/achados`]: { achados: [] }, [`GET ${B}/levantamentos`]: { levantamentos: [] },
         [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/fluxos`]: { fluxos: [] }, [`GET ${B}/desvios`]: { desvios: [] }, ...extra };
     vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
         const u = new URL(url, 'http://localhost');
@@ -75,13 +76,25 @@ describe('site em Operação', () => {
         expect(chamadas.filter((x) => x.k === `GET ${B}/lotes`)).toHaveLength(1);
         expect(linhas('Abertas')).toHaveLength(1);
         expect(linhas('Concluídas')).toHaveLength(1);
-        expect(linhas('Recusadas')).toHaveLength(1);
+        expect(linhas('Recusadas')).toHaveLength(1); // o recusado de 2026-10-12 já passou de 7 dias
+        expect(linhas('Em andamento')).toHaveLength(1);
         expect(linhas('Abertas')[0].textContent).toContain('3');
-        expect(el('c').querySelectorAll('[data-action="otAbrirLote"]')).toHaveLength(3); // 'antes' (da base) e 'outro' (de s2) não entram
+        expect(el('c').querySelectorAll('[data-action="otAbrirLote"]')).toHaveLength(4); // 'antes' (da base) e 'outro' (de s2) não entram
         expect(texto()).toContain('sai desta lista em 7 dias');
         const reg = el('c').querySelector('[data-action="otRegistrarMudanca"]');
         expect(JSON.parse(reg.getAttribute('data-args'))).toEqual(['s1']);
         expect(el('c').querySelectorAll('.btn-primary')).toHaveLength(0);
+    });
+
+    it('Mudanças: mostra também os achados em rascunho e os levantamentos do site, sem os botões de cabeçalho dessas telas', async () => {
+        servir({ [`GET ${B}/achados`]: { achados: [{ id: 'x1', entidade: 'ativo', situacao: 'rascunho', origem: 'consultor', dados: { nome: 'rasc-unico' }, evidencia: 'e', levantamento_id: 'l1', levantamento_tipo: 'visita', levantamento_realizado_em: '2026-11-01', desfecho: null }] },
+            [`GET ${B}/levantamentos`]: { levantamentos: [{ id: 'l1', site_id: 's1', tipo: 'visita', realizado_em: '2026-11-20', funcao: 'Operador', turno: null, achados: 1, situacao: 'em_andamento' }, { id: 'l2', site_id: 's2', tipo: 'visita', realizado_em: '2026-11-20', funcao: 'OutroSite', turno: null, achados: 0, situacao: 'em_andamento' }] } });
+        await ir('mudancas');
+        expect(texto()).toContain('rasc-unico');
+        expect(el('c').querySelector('[data-action="otAbrirLevantamento"]')).not.toBeNull();
+        expect(texto()).not.toContain('OutroSite');
+        expect(acoes()).not.toContain('otNovoLevantamento');
+        expect(el('lev-f-site')).toBeNull();
     });
 
     it('Mudanças: um lote pedido abre o detalhe dentro de Mudanças', async () => {
@@ -115,6 +128,7 @@ describe('site em Operação', () => {
         expect(chamadas.find((x) => x.k === `GET ${B}/ativos`).url.search).toBe('?site_id=s1');
         expect(acoes()).toContain('otNovoLevantamentoDoSite');
         expect(texto()).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+        expect(texto()).toContain('Sem verificação: sem prazo');
     });
 
     it.each([['técnico', { id: 'u-tec', role: 'org_user' }], ['platform_admin', { id: 'u-pa', role: 'platform_admin' }]])('Revalidação para %s: só a data, nenhuma lista e nenhuma chamada a /ot/ativos', async (_n, user) => {

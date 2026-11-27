@@ -813,7 +813,7 @@ test('operação: Mudanças lista só o lote do site depois da base e Registrar 
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
   await page.getByRole('tab', { name: 'Mudanças', exact: true }).click();
   await expect(page.locator('#content')).toContainText('Abertas');
-  await expect(page.locator('#content tbody tr')).toHaveCount(1); // só m1: m0 é anterior à base
+  await expect(page.locator('#content [data-action="otAbrirLote"]')).toHaveCount(1); // só m1: m0 é anterior à base
   await page.getByRole('button', { name: 'Registrar mudança' }).click();
   await expect(page.locator('#content')).toContainText('Visita');
   expect(posts).toHaveLength(1);

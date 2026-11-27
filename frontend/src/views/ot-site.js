@@ -73,6 +73,8 @@ function abasDoAssistente(etapa, ativa) {
 }
 
 const dataBR = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const ANDAMENTO = { recebendo: ['neutral', 'Recebendo'], processando: ['neutral', 'Processando'], gravando: ['neutral', 'Gravando'], erro: ['danger', 'Erro na leitura'], erro_ia: ['danger', 'Erro da IA'] };
+const EM_ANDAMENTO = Object.keys(ANDAMENTO);
 const SELO_LOTE = { em_revisao: ['warning', 'Em revisão'], concluido: ['success', 'Concluído'], rejeitado: ['danger', 'Recusado'] };
 
 /** Mudanças: os lotes do site criados depois da base aprovada (sem coluna nova), numa só consulta; a recusa some em 7 dias (retenção). */
@@ -80,37 +82,45 @@ async function montarMudancas(c, a, p, { site, sit }) {
     let lotes;
     try { lotes = lista(await api('GET', `/api/v1/projects/${p.id}/ot/lotes`), 'lotes'); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar as mudanças do site.', e); return; }
     const base = sit.base_aprovada_em ? dataDoSqlite(sit.base_aprovada_em).getTime() : Infinity;
+    const hoje7 = emDiasSP(-7);
     const doSite = lotes.filter((l) => l.site_id === site && dataDoSqlite(l.created_at).getTime() >= base);
     const bloco = (titulo, status, vazio) => {
-        const ls = doSite.filter((l) => l.status === status);
+        const ls = doSite.filter((l) => (Array.isArray(status) ? status.includes(l.status) : l.status === status)
+            && (status !== 'rejeitado' || diaSP(dataDoSqlite(l.created_at).toISOString()) >= hoje7));
         return `<h3 class="mt-6 mb-3">${titulo}</h3>${renderDataTable(['Criado em', 'Itens', 'Situação', 'Ações'], ls.map((l) => [
-            escapeHTML(formatarData(l.created_at, { hora: true })), escapeHTML(String(l.itens ?? 0)), renderStatusBadge(...SELO_LOTE[status]),
+            escapeHTML(formatarData(l.created_at, { hora: true })), escapeHTML(String(l.itens ?? 0)), renderStatusBadge(...(SELO_LOTE[l.status] ?? ANDAMENTO[l.status] ?? ['neutral', l.status])),
             `<button class="btn btn-sm" data-action="otAbrirLote" data-args='${args(l.id)}' aria-label="${escapeHTML(`Abrir mudança de ${formatarData(l.created_at, { hora: true })}`)}">Abrir</button>`,
         ]), { emptyMessage: vazio })}`;
     };
     c.innerHTML = `<p class="org-header-intro">Em operação, o inventário só muda por uma mudança: um levantamento de visita enviado para aprovação de outra pessoa.</p>
         ${podeCriarLote() ? `<p><button class="btn" data-action="otRegistrarMudanca" data-args='${args(site)}'>Registrar mudança</button></p>` : ''}
-        ${bloco('Abertas', 'em_revisao', 'Nenhuma mudança esperando decisão.')}${bloco('Concluídas', 'concluido', 'Nenhuma mudança concluída desde a base.')}
+        ${bloco('Abertas', 'em_revisao', 'Nenhuma mudança esperando decisão.')}${bloco('Em andamento ou com erro', EM_ANDAMENTO, 'Nenhum lote em andamento ou com erro.')}${bloco('Concluídas', 'concluido', 'Nenhuma mudança concluída desde a base.')}
         ${bloco('Recusadas nos últimos 7 dias', 'rejeitado', 'Nenhuma mudança recusada nos últimos 7 dias.')}
-        <p class="org-dica mt-3">A recusa fica registrada na trilha; o lote recusado sai desta lista em 7 dias.</p>`;
+        <p class="org-dica mt-3">A recusa fica registrada na trilha; o lote recusado sai desta lista em 7 dias.</p>
+        <h3 class="mt-6 mb-3">Achados em rascunho do site</h3><div id="ot-mud-achados"></div><h3 class="mt-6 mb-3">Levantamentos do site</h3><div id="ot-mud-levs"></div>`;
+    const solta = () => document.createElement('div'); // os botões de cabeçalho dessas telas não entram: mudar é só por "Registrar mudança"
+    await montarRevisao(c.querySelector('#ot-mud-achados'), solta(), p, { siteFixo: site, semPrimario: true, semLotes: true });
+    await montarLevantamento(c.querySelector('#ot-mud-levs'), solta(), p, { siteFixo: site, semPrimario: true });
 }
 
 /** Revalidação: a data para todos; a lista de ativos só para quem vê o inventário completo (o técnico e o platform_admin não a pedem). */
 async function montarRevalidacao(c, a, p, { site, sit }) {
-    const prazo = sit.revalidar_em ? `Revalidar até ${dataBR(sit.revalidar_em)}` : 'Sem prazo de revalidação definido';
+    // o prazo é o do servidor (ot-fase.ts: menor verificação + 24 meses); a lista usa o mesmo dia (UTC do registro), sem recalcular fuso
+    const prazo = sit.revalidar_em ? `Revalidar até ${dataBR(sit.revalidar_em)}` : 'Sem prazo de revalidação: nenhum ativo do ARCiber foi verificado ainda';
     let lista24 = '';
     if (pode('aprovar_lote')) {
         let ativos;
         try { ativos = lista(await api('GET', `/api/v1/projects/${p.id}/ot/ativos?site_id=${encodeURIComponent(site)}`), 'ativos'); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os ativos a revalidar.', e); return; }
         const limite = emDiasSP(60);
-        const vence = (x) => { // verificação + 24 meses; sem verificação, já vencido
-            const d = x.ultima_verificacao_em ? new Date(`${diaSP(x.ultima_verificacao_em)}T00:00:00Z`) : null;
-            if (d) d.setUTCMonth(d.getUTCMonth() + 24);
-            return d ? d.toISOString().slice(0, 10) : '';
+        const vence = (x) => {
+            if (!x.ultima_verificacao_em) return '';
+            const d = new Date(`${String(x.ultima_verificacao_em).slice(0, 10)}T00:00:00Z`);
+            d.setUTCMonth(d.getUTCMonth() + 24);
+            return d.toISOString().slice(0, 10);
         };
-        const lin = ativos.filter((x) => x.no_arciber && vence(x) <= limite).sort((x, y) => vence(x).localeCompare(vence(y)));
+        const lin = ativos.filter((x) => x.no_arciber && (!x.ultima_verificacao_em || vence(x) <= limite)).sort((x, y) => (vence(x) || '9').localeCompare(vence(y) || '9'));
         lista24 = `<h3 class="mt-6 mb-3">Ativos do ARCiber a revalidar (vencidos ou a vencer em 60 dias)</h3>${renderDataTable(['Ativo', 'Última verificação', 'Vence em'], lin.map((x) => [
-            `<strong>${escapeHTML(x.nome)}</strong>`, escapeHTML(x.ultima_verificacao_em ? dataBR(diaSP(x.ultima_verificacao_em)) : 'Nunca verificado'), escapeHTML(vence(x) ? dataBR(vence(x)) : 'Vencido'),
+            `<strong>${escapeHTML(x.nome)}</strong>`, escapeHTML(x.ultima_verificacao_em ? dataBR(String(x.ultima_verificacao_em).slice(0, 10)) : 'Nunca verificado'), escapeHTML(vence(x) ? dataBR(vence(x)) : 'Sem verificação: sem prazo'),
         ]), { emptyMessage: 'Nenhum ativo do ARCiber vence nos próximos 60 dias.' })}`;
     }
     c.innerHTML = `<p><strong>${escapeHTML(prazo)}</strong></p>${podeCriarLote() ? `<p><button class="btn" data-action="otNovoLevantamentoDoSite" data-args='${args(site)}'>Nova visita de revalidação</button></p>` : ''}${lista24}`;
