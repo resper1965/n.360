@@ -14,6 +14,7 @@ import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedir
 import { ESCRITAS_DO_TECNICO, ROTAS_DO_LEITOR, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { ehGestorArciberOt, ehLeitorOt, permissoesOt } from '../services/ot-permissoes';
+import { listaDeVerificacao } from '../services/ot-implantacao';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
@@ -139,6 +140,14 @@ otApp.get('/permissoes', async (c) => {
     const { db, user, projectId } = await contexto(c);
     return c.json(await permissoesOt(db, user, projectId));
   } catch (e) { return erro500(c, 'Falha ao ler as permissões do n.ot', e); }
+});
+
+// Lista de verificação do projeto (spec 2026-11-26 §3): só quem implanta; um db.batch de contagens.
+otApp.get('/implantacao', async (c) => {
+  try {
+    if (!podeEditarOt(c.get('user'))) return c.json({ error: 'Forbidden: a lista de verificação é de quem implanta' }, 403);
+    return c.json(await listaDeVerificacao(c.env.DB, c.req.param('projectId')!));
+  } catch (e) { return erro500(c, 'Falha ao ler a lista de verificação', e); }
 });
 
 // ─── sites ──────────────────────────────────────────────────────────────────
