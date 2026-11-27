@@ -135,7 +135,7 @@ describe('permissões do servidor na casca (spec 2026-11-26 §6, decisão 4)', (
     beforeEach(() => {
         delete S.otPermissoes; S.otPermissoes = null; // aqui a tela pede GET /ot/permissoes de verdade (o fetch é dublado)
         S.activeProject = { id: 'p9', modulos: ['ot'] }; S.user = { id: 'u', role: 'client', modulos: ['ot'] };
-        S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otModo = null; S.otSub = null; S.otPedido = null; S.painel = {};
+        S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otSub = null; S.otPedido = null; S.painel = {};
     });
 
     it('leitor: /ot, ?ot=inicio e ?ot=sites desenham o Painel, sem pedir sites, lotes nem desvios', async () => {
@@ -227,7 +227,7 @@ describe('casca por subtela', () => {
     const OPERACAO_S2 = { fase: 'em_operacao', area: 'operacao', etapa: null, falta: [], base_aprovada_em: '2026-11-10 12:00:00', proximo_passo: 'em_operacao' };
     beforeEach(() => {
         S.activeProject = { id: 'p9', modulos: ['ot'] }; S.user = { id: 'u', role: 'consultor' };
-        S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otModo = null; S.otSub = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null;
+        S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otSub = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null;
         window.render = vi.fn();
     });
 
@@ -308,16 +308,16 @@ describe('casca por subtela', () => {
     });
     it('trocar de projeto zera site, subtela e aba', async () => {
         servir({});
-        S.otTela = 'site'; S.otSite = 's1'; S.otModo = 'operacao'; S.otSub = 'desvios';
+        S.otTela = 'site'; S.otSite = 's1'; S.otSub = 'desvios';
         S.activeProject = { id: 'p8', modulos: ['ot'] };
         ir('/ot');
         await abrir();
-        expect([S.otSite, S.otModo, S.otSub]).toEqual([null, null, null]);
+        expect([S.otSite, S.otSub]).toEqual([null, null]);
         expect(S.otTela).toBe('painel');
     });
     it('trocar de projeto não lê o endereço velho: abre a tela inicial e troca o ?ot= velho', async () => {
         servir({});
-        S.otTela = 'site'; S.otSite = 's1'; S.otModo = 'operacao';
+        S.otTela = 'site'; S.otSite = 's1';
         ir('/ot?ot=site&site=s1&modo=operacao');
         S.activeProject = { id: 'p8', modulos: ['ot'] };
         await abrir();
@@ -344,7 +344,7 @@ describe('casca por subtela', () => {
         expect([S.otTela, S.otSite, S.otPedido]).toEqual(['site', 's2', null]);
         S.otPedido = { desvio: 'd9' };
         await abrir();
-        expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
+        expect([S.otTela, S.otSite, S.otSub]).toEqual(['site', 's2', 'desvios']);
     });
     it('otTela("acessos") para client (leitor) cai no Painel (spec 2026-11-26, decisão 4)', async () => {
         S.user = { id: 'u', role: 'client' };
@@ -374,14 +374,14 @@ describe('casca por subtela', () => {
     it('otIrParaLote abre o site na sub-aba Lote de aprovação com o lote, depois do zerar', async () => {
         S.otLote = 'velho';
         await window.otIrParaLote('s2', 'x9');
-        expect([S.otTela, S.otSite, S.otModo, S.otSub, S.otLote]).toEqual(['site', 's2', 'projeto', 'revisar', 'x9']);
+        expect([S.otTela, S.otSite, S.otSub, S.otLote]).toEqual(['site', 's2', 'revisar', 'x9']);
         expect(window.render).toHaveBeenCalled();
     });
     it('deep link /ot/desvios/<id>: abre o site do desvio em Operação, sub Desvios', async () => {
         servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [{ id: 'd9', site_id: 's2', tipo: 'ativo_novo', situacao: 'aberto' }] }, [`GET ${B}/sites/s2/situacao`]: OPERACAO_S2 });
         ir('/ot/desvios/d9');
         await abrir();
-        expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
+        expect([S.otTela, S.otSite, S.otSub]).toEqual(['site', 's2', 'desvios']);
         expect(el('c').querySelector('[aria-current="true"]')).toBeTruthy();
     });
     it('deep link de desvio que não existe: aviso e Início', async () => {
@@ -406,7 +406,7 @@ describe('casca por subtela', () => {
             expect(S.activeProject.id).toBe('p2');
             expect(S.currentProject.id).toBe('p2');
             expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('p2');
-            expect([S.otTela, S.otSite, S.otModo, S.otSub]).toEqual(['site', 's2', 'operacao', 'desvios']);
+            expect([S.otTela, S.otSite, S.otSub]).toEqual(['site', 's2', 'desvios']);
         });
         it('nenhum projeto tem o desvio: aviso e Início, projeto ativo intacto', async () => {
             const toast = vi.spyOn(ui, 'showToast').mockImplementation(() => {});

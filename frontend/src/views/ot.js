@@ -10,7 +10,7 @@ import { montarSondas, montarAgente, montarIntegracao, montarImplantacao } from 
 import { montarDesvios } from './ot-desvios.js';
 import { montarAssessment } from './ot-assessment.js';
 import { montarFornecedoresOt } from './ot-fornecedores.js';
-import { montarSites, montarSite, resolverDesvio, modoDaAba } from './ot-site.js';
+import { montarSites, montarSite, resolverDesvio } from './ot-site.js';
 import { itemVisivel, enderecoDoProduto, modulosVisiveis, atualizarItemOt } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
 import { renderPainel } from './painel.js';
@@ -42,24 +42,24 @@ async function renderOt(c, h, a) {
         trocou = !!S.otProjeto; // sem projeto anterior é o primeiro desenho da página: o endereço vale
         await esvaziarNotas(); // notas digitadas no projeto anterior vão para ele, antes de a tela mudar
         S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; S.otDesvioFiltro = null; nomesDeAtivos.clear();
-        S.otTela = null; S.otModo = null; S.otSub = null; S.otPermissoes = null;
+        S.otTela = null; S.otSub = null; S.otPermissoes = null;
     }
     await carregarPermissoes(proj().id);
     // Pedido de uma só vez (sino): vence o endereço velho e sobrevive à troca de projeto.
-    // O site vai com modo nulo (a área decide, montarSite); o desvio segue o caminho do endereço /ot/desvios/<id>, logo abaixo.
+    // O site vai sem aba (a área decide, montarSite); o desvio segue o caminho do endereço /ot/desvios/<id>, logo abaixo.
     let desvioPedido = null;
     let inicial = false;
     if (S.otPedido) {
         const p = S.otPedido; S.otPedido = null;
         if (p.desvio) { desvioPedido = p.desvio; S.otTela = null; }
-        else Object.assign(S, { otTela: p.tela, otSite: p.site ?? null, otModo: null, otSub: null });
-    } else if (trocou) { S.otTela = 'painel'; S.otModo = null; S.otSub = null; inicial = true; } // o endereço ainda é o do projeto anterior
+        else Object.assign(S, { otTela: p.tela, otSite: p.site ?? null, otSub: null });
+    } else if (trocou) { S.otTela = 'painel'; S.otSub = null; inicial = true; } // o endereço ainda é o do projeto anterior
     let desvio = null;
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
         const e = desvioPedido ? { tela: 'painel', site: null, aba: null, desvio: desvioPedido } : lerEndereco();
         inicial = !e.tela && !e.desvio; // sem ?ot=: a tela inicial é a que o servidor manda (GET /ot/permissoes)
         if (e.situacao) S.otDesvioFiltro = { situacao: e.situacao, site_id: '', tipo: '' }; // ?ot=desvios&situacao=aceito (item do Painel)
-        Object.assign(S, { otTela: e.tela || 'painel', otSite: e.site, otModo: null, otSub: e.aba }); // a área do site decide o modo e confere a aba
+        Object.assign(S, { otTela: e.tela || 'painel', otSite: e.site, otSub: e.aba }); // a área do site confere a aba
         if (e.desvio && !pode('leitor')) { // o leitor não lê desvio (403): o endereço cai no Painel, abaixo
             let r = await resolverDesvio(proj(), e.desvio);
             // O link não traz o projeto: se não está no ativo, procura nos outros n.ot (um a um) e troca para o que o tem.
@@ -71,7 +71,7 @@ async function renderOt(c, h, a) {
                 window.updateActiveProjectWidget?.(); window.updateSidebarProjectSelector?.();
                 break;
             }
-            if (r) { Object.assign(S, { otTela: 'site', otSite: r.site_id, otModo: 'operacao', otSub: 'desvios' }); desvio = e.desvio; }
+            if (r) { Object.assign(S, { otTela: 'site', otSite: r.site_id, otSub: 'desvios' }); desvio = e.desvio; }
             else { showToast('Desvio não encontrado neste projeto', 'error'); Object.assign(S, { otTela: 'painel', otSite: null }); }
         }
     }
@@ -89,18 +89,18 @@ async function renderOt(c, h, a) {
     h.textContent = TITULOS[tela];
     c.innerHTML = '<div class="loading"></div>';
     if (tela === 'site') {
-        await montarSite(c, a, proj(), { site: S.otSite, modo: S.otModo, sub: S.otSub, desvio });
+        await montarSite(c, a, proj(), { site: S.otSite, sub: S.otSub, desvio });
         const nome = c.querySelector('h2')?.textContent;
         if (nome) h.textContent = nome;
     } else await MONTAR[tela](c, a, proj());
 }
 
 /** Despacho do menu e dos botões. `extra` (salto de dentro de uma tela: lote, levantamento) vale DEPOIS do zerar, para não ser apagado. */
-// `aba` nula no site: a área decide (montarSite); a aba pedida aqui leva o modo dela (o endereço, não: lá a área manda)
+// `aba` nula no site: a área decide (montarSite)
 window.otTela = async (tela, site = null, aba = null, extra = {}) => {
     await esvaziarNotas();
     if (tela === 'desvios') S.otDesvioFiltro = null; // o filtro de site da aba do site não vira recorte escondido na lista de todos os sites
-    Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otModo: modoDaAba(aba), otSub: aba, otZona: null, otLote: null, otLevantamento: null }, extra);
+    Object.assign(S, { otTela: tela, otSite: site ?? (tela === 'site' ? S.otSite : null), otSub: aba, otZona: null, otLote: null, otLevantamento: null }, extra);
     if (S.otTela !== 'site' || S.otVisitaInventario?.site !== S.otSite) S.otVisitaInventario = null; // fora da tela do site, a visita do inventário não é reaproveitada
     window.render();
 };

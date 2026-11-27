@@ -8,7 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ot.js';
-import { montarSite, montarSites, resolverDesvio, SUBS, modoDaAba } from '../src/views/ot-site.js';
+import { montarSite, montarSites, resolverDesvio, ABAS_IMPLANTACAO, ABAS_OPERACAO } from '../src/views/ot-site.js';
 import { desenhar } from './ot-abrir.js';
 import { permissoesPeloPapel } from './ot-abrir.js';
 
@@ -574,7 +574,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     const ir = (o) => montarSite(el('c'), el('a'), S.activeProject, o);
     beforeEach(() => { S.otSub = null; S.otDesvioFiltro = null; S.otLevantamento = null; });
 
-    it('lista de sites: Abrir leva ao site em modo projeto; cadastro de site fica aqui', async () => {
+    it('lista de sites: Abrir leva ao site; cadastro de site fica aqui', async () => {
         servirOt(ROTAS);
         await montarSites(el('c'), el('a'), S.activeProject);
         expect(el('c').textContent).toContain('SE Sul');
@@ -619,23 +619,24 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(chamadas.some((x) => x.k === `GET ${B}/ativos` && x.url.search === '?site_id=s1')).toBe(true);
     });
 
-    it('modo operação: Saúde da coleta, Desvios e Inventário; Desvios com o site fixo no filtro', async () => {
+    it('operação: cinco abas, Desvios primeiro; Desvios com o site fixo no filtro', async () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
-        await ir({ site: 's1', modo: 'operacao', sub: 'desvios' });
-        expect(abas()).toEqual(expect.arrayContaining(['Saúde da coleta', 'Desvios', 'Inventário']));
+        await ir({ site: 's1', sub: 'desvios' });
+        expect(abas()).toEqual(['Desvios', 'Saúde da coleta', 'Inventário', 'Mudanças', 'Revalidação']);
+        expect(texto()).not.toMatch(/Modo projeto|Modo operação/);
         expect(S.otDesvioFiltro).toEqual({ situacao: 'aberto', site_id: 's1', tipo: '' });
         expect(el('des-f-site')).toBeNull();
         expect(chamadas.some((x) => x.k === `GET ${B}/desvios` && x.url.search === '?situacao=aberto&site_id=s1')).toBe(true);
-        await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
+        await ir({ site: 's1', sub: 'saude' });
         expect(el('ot-sondas')).not.toBeNull();
-        await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });
+        await ir({ site: 's1', sub: 'inventario' });
         expect(el('ot-filtro-site')).toBeNull();
-        expect(SUBS.operacao).toEqual(['saude', 'desvios', 'inventario']);
+        expect(ABAS_OPERACAO).toEqual(['desvios', 'saude', 'inventario', 'mudancas', 'revalidacao']);
     });
 
     it('Saúde da coleta do site: só o cartão de saúde, sem pontos nem contagem de desvios do projeto', async () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }), [`GET ${B}/sites/s1/sensores`]: { sensores: [{ id: 'z1', nome: 'S', saude: 'em_dia', ultimo_envio: new Date().toISOString(), credenciais: [] }] } });
-        await ir({ site: 's1', modo: 'operacao', sub: 'saude' });
+        await ir({ site: 's1', sub: 'saude' });
         await vi.waitFor(() => expect(el('c').textContent).toContain('Saúde da coleta'));
         await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull());
         expect(el('c').textContent).not.toContain('Achados da sonda para revisar');
@@ -646,7 +647,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     it('sub-aba que não é da área cai na primeira da operação; site desconhecido mostra o aviso', async () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
         await ir({ site: 's1', sub: 'zzz' });
-        expect(S.otSub).toBe('saude');
+        expect(S.otSub).toBe('desvios');
         await ir({ site: 'sX' });
         expect(el('c').textContent).toContain('Site não encontrado');
     });
@@ -658,7 +659,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(S.otSub).toBe('levantar');
         expect(window.location.search).toBe('?ot=site&site=s1&aba=levantar');
         await ir({ site: 's1', sub: 'desvios' }); // desvios num site em implantação: a etapa atual
-        expect([S.otModo, S.otSub]).toEqual(['projeto', 'levantar']);
+        expect(S.otSub).toBe('levantar');
         await ir({ site: 's1', sub: 'revisar' }); // etapa que ainda não chegou: volta à atual
         expect(S.otSub).toBe('levantar');
         await ir({ site: 's1', sub: null }); // sem aba: a da etapa atual
@@ -666,15 +667,14 @@ describe('lista de sites e tela do site (Task 4)', () => {
         history.replaceState(null, '', '/');
     });
 
-    it('links antigos abrem a etapa certa por alias de leitura: aprovacao, levantamento e base; o endereço sai com o nome novo', async () => {
+    it('links antigos sem alias: aprovacao e levantamento abrem a etapa atual; base vale; o endereço sai com a aba efetiva', async () => {
         servirOt(ROTAS);
-        for (const [antiga, nova] of [['aprovacao', 'revisar'], ['levantamento', 'levantar'], ['base', 'base']]) {
+        for (const [antiga, nova] of [['aprovacao', 'base'], ['levantamento', 'base'], ['base', 'base'], ['revisar', 'revisar']]) {
             history.replaceState(null, '', `/ot?ot=site&site=s1&aba=${antiga}`);
             await ir({ site: 's1', sub: antiga });
             expect(S.otSub).toBe(nova);
             expect(window.location.search).toBe(`?ot=site&site=s1&aba=${nova}`);
         }
-        expect(modoDaAba('aprovacao')).toBe('projeto');
         history.replaceState(null, '', '/');
     });
 
@@ -727,22 +727,22 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(texto()).not.toMatch(/Modo projeto|Modo operação/);
     });
 
-    it('site em Operação: aba da implantação pedida (revisar, lote de revalidação) abre a aba, não a Saúde; Novo levantamento abre o Levantamento', async () => {
+    it('site em Operação: levantar e revisar caem em Mudanças, base em Inventário; Nova visita abre o levantamento dentro de Mudanças', async () => {
         const OP = sit('revalidar', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00', revalidar_em: '2026-12-20' });
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: OP });
-        await ir({ site: 's1', modo: null, sub: 'revisar' });
-        expect([S.otModo, S.otSub]).toEqual(['projeto', 'revisar']);
-        expect(window.location.search).toBe('?ot=site&site=s1&aba=revisar');
-        await ir({ site: 's1', modo: null, sub: null }); // sem aba, a área decide
-        expect([S.otModo, S.otSub]).toEqual(['operacao', 'saude']);
-        // "Revalide → Novo levantamento": o modo vai junto com a aba
+        for (const [pedida, efetiva] of [['revisar', 'mudancas'], ['levantar', 'mudancas'], ['base', 'inventario'], [null, 'desvios']]) {
+            await ir({ site: 's1', sub: pedida });
+            expect(S.otSub).toBe(efetiva);
+            expect(window.location.search).toBe(`?ot=site&site=s1&aba=${efetiva}`);
+        }
         S.otTela = 'site'; S.otSite = 's1';
         const original = window.otNovoLevantamento;
         window.otNovoLevantamento = vi.fn();
-        window.render = vi.fn(() => ir({ site: S.otSite, modo: S.otModo, sub: S.otSub }));
+        window.render = vi.fn(() => ir({ site: S.otSite, sub: S.otSub }));
         try {
-            await window.otNovoLevantamentoDoSite();
-            expect([S.otModo, S.otSub]).toEqual(['projeto', 'levantar']);
+            await window.otNovoLevantamentoDoSite('s1');
+            expect(S.otSub).toBe('mudancas');
+            expect(el('c').querySelector('[role="tab"][aria-selected="true"]').textContent).toBe('Mudanças');
             expect(window.otNovoLevantamento).toHaveBeenCalled();
         } finally { window.otNovoLevantamento = original; }
         history.replaceState(null, '', '/');
@@ -757,7 +757,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
 
     it('deep link: a linha do desvio fica marcada, em todas as situações', async () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s2/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
-        await ir({ site: 's2', modo: 'operacao', sub: 'desvios', desvio: 'd2' });
+        await ir({ site: 's2', sub: 'desvios', desvio: 'd2' });
         expect(S.otDesvioFiltro.situacao).toBe('');
         const linhas = el('c').querySelectorAll('tbody tr');
         expect(linhas).toHaveLength(2);
@@ -767,14 +767,14 @@ describe('lista de sites e tela do site (Task 4)', () => {
 
     it('próximo passo: o cartão tem o único primário em todas as sub-abas, com régua e etapa atual', async () => {
         servirOt(ROTAS);
-        for (const sub of SUBS.projeto) {
+        for (const sub of ABAS_IMPLANTACAO) {
             await ir({ site: 's1', sub });
             expect(primarios(), sub).toBe(1);
         }
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
-        for (const sub of SUBS.operacao) {
+        for (const sub of ABAS_OPERACAO) { // em Operação o cartão só informa: nenhum primário a mais
             await ir({ site: 's1', sub });
-            expect(primarios(), sub).toBe(1);
+            expect(primarios(), sub).toBeLessThanOrEqual(1);
         }
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('comecar', { etapa: 1 }) });
         await ir({ site: 's1', sub: 'cadastrar' });
@@ -782,31 +782,26 @@ describe('lista de sites e tela do site (Task 4)', () => {
         // etapa 1: o primeiro passo é cadastrar as zonas (não há levantamento antes disso)
         expect(el('c').textContent).toContain('Cadastre as zonas do site');
         const btn = el('c').querySelector('.card .btn-primary');
-        expect([btn.getAttribute('data-action'), JSON.parse(btn.getAttribute('data-args'))]).toEqual(['otSiteSub', ['cadastrar']]);
+        expect([btn.getAttribute('data-action'), JSON.parse(btn.getAttribute('data-args'))]).toEqual(['otSiteAba', ['cadastrar']]);
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('comecar', { etapa: 2 }) });
         await ir({ site: 's1', sub: 'levantar' });
         expect(el('c').querySelector('.card .btn-primary').getAttribute('data-action')).toBe('otNovoLevantamentoDoSite');
     });
 
-    it('modo inicial pela área: operação abre na Operação; sem modo e sem operação, na Implantação', async () => {
+    it('área inicial: operação abre em Desvios, sem barra Implantação/Operação; sem operação, no assistente', async () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
-        await ir({ site: 's1', modo: null });
-        expect(S.otModo).toBe('operacao');
+        await ir({ site: 's1' });
+        expect(S.otSub).toBe('desvios');
         expect(el('c').textContent).toContain('Operação desde 10/11/2026');
         expect(el('c').textContent).not.toContain('ainda não tem base aprovada');
-        await ir({ site: 's2', modo: null });
-        expect(S.otModo).toBe('projeto');
+        expect(el('c').querySelector('[data-action="otSiteModo"]')).toBeNull();
+        await ir({ site: 's2' });
+        expect(S.otSub).toBe('base'); // a etapa 4 do servidor
     });
 
-    it('revalidar em operação abre em Modo operação', async () => {
-        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('revalidar', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }) });
-        await ir({ site: 's1', modo: null });
-        expect(S.otModo).toBe('operacao');
-    });
-
-    it('modo operação num site sem base aprovada avisa que desvios não são calculados', async () => {
+    it('operação num site sem base aprovada avisa que desvios não são calculados', async () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null }) });
-        await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });
+        await ir({ site: 's1', sub: 'inventario' });
         expect(el('c').textContent).toContain('Este site ainda não tem base aprovada: desvios não são calculados.');
     });
 
@@ -829,17 +824,13 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(el('lev-f-site').type).toBe('hidden');
     });
 
-    it('Cadastrar em Operação é só leitura (zona só muda na implantação); "Implantação" da Operação abre o Levantamento', async () => {
+    it('Em Operação: Cadastrar não existe (cai em Desvios) e a tabela de zonas do Inventário é só leitura', async () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('revalidar', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }), [`GET ${B}/zonas`]: { zonas: [{ id: 'z1', site_id: 's1', nome: 'Zona-Sup', nivel_purdue: 2, tipo: 'supervisao' }] } });
         await ir({ site: 's1', sub: 'cadastrar' });
+        expect(S.otSub).toBe('desvios');
+        await ir({ site: 's1', sub: 'inventario' });
         expect(el('c').textContent).toContain('Zona-Sup');
-        expect(acoes(el('c')).concat(acoes(el('a')))).not.toEqual(expect.arrayContaining(['otEditarZona']));
-        for (const a of ['otNovaZona', 'otEditarZona', 'otEditarSite', 'otRemover']) expect([...acoes(el('c')), ...acoes(el('a'))]).not.toContain(a);
-        await ir({ site: 's1', sub: 'inventario' }); // a tabela de zonas do Inventário também
-        for (const a of ['otNovaZona', 'otEditarZona']) expect([...acoes(el('c')), ...acoes(el('a'))]).not.toContain(a);
-        S.otSite = 's1'; window.otTela = vi.fn();
-        await window.otSiteModo('projeto');
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantar');
+        for (const a of ['otNovaZona', 'otEditarZona', 'otEditarSite', 'otRemover', 'otRegistrarAtivo', 'otRegistrarFluxo', 'otProporAlteracao', 'otProporRemocao']) expect([...acoes(el('c')), ...acoes(el('a'))]).not.toContain(a);
     });
 
     it('Cadastrar: o técnico (sem editar) vê o cadastro sem botões', async () => {
@@ -869,7 +860,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
     it('inventário: ativo sem verificação ganha o selo 4.3.1; verificado não', async () => {
         const v = { ultima_verificacao_em: '2026-11-01 10:00:00', verificado_por: 'u1' };
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('em_operacao', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }), [`GET ${B}/ativos`]: { ativos: [{ ...ativo('a1', 'RTU-01', null), site_id: 's1' }, { ...ativo('a2', 'IHM-02', null), site_id: 's1', ...v }] } });
-        await ir({ site: 's1', modo: 'operacao', sub: 'inventario' });
+        await ir({ site: 's1', sub: 'inventario' });
         const linhas = [...el('c').querySelectorAll('tbody tr')].filter((tr) => /RTU-01|IHM-02/.test(tr.textContent));
         expect(linhas.find((tr) => tr.textContent.includes('RTU-01')).textContent).toContain('não verificado (4.3.1)');
         expect(linhas.find((tr) => tr.textContent.includes('IHM-02')).textContent).not.toContain('não verificado');

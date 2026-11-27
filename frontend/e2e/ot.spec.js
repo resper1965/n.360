@@ -545,7 +545,7 @@ test('painel: o gestor vê o lote de aprovação de outra pessoa e o botão abre
   await expect(conteudo).toContainText('Em revisão'); // o lote l1 do mock, na lista da aba
 });
 
-// Deep link /ot/desvios/<id>: abre o site do desvio, na Operação, na sub-aba Desvios, com a linha marcada; recarregar mantém a aba.
+// Deep link /ot/desvios/<id>: abre o site do desvio, em Operação, na aba Desvios, com a linha marcada; recarregar mantém a aba.
 test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a linha marcada', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
   const desvio = (id, ativo) => ({ id, site_id: 's1', site_nome: 'SE Norte', tipo: 'fluxo', situacao: 'aberto', protocolo: 'modbus', porta: 502, externo: false,
@@ -561,7 +561,7 @@ test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a
   await entrar(page);
   await expect(page.getByRole('button', { name: 'Ver situação de Cliente E2E' })).toBeVisible();
   await page.goto('/ot/desvios/d1');
-  await expect(page.getByRole('tab', { name: 'Operação', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Mudanças', exact: true })).toBeVisible(); // as cinco abas da Operação
   await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('tbody tr[aria-current="true"]')).toContainText('CLP-01');
   await expect(page.locator('tbody tr[aria-current="true"]')).toHaveCount(1);
@@ -569,7 +569,6 @@ test('deep link: /ot/desvios/<id> abre o site, em operação, nos Desvios, com a
   await expect(page).not.toHaveURL(/modo=/);
   await page.reload(); // a aba vive no endereço
   await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tab', { name: 'Operação', exact: true })).toHaveAttribute('aria-selected', 'true');
 });
 
 // Fluidez E2: na Revisão e aprovação do site, marcar achados de levantamentos diferentes e enviar de uma vez; o lote abre.
@@ -709,7 +708,6 @@ test('base: o consultor pede a aprovação e o gestor aprova; o site abre na Ope
   await expect(page.getByRole('alertdialog')).toContainText('Confirmo que este inventário representa o site.');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Aprovar a base' }).click();
   await expect(conteudo).toContainText('Operação desde');
-  await expect(page.getByRole('tab', { name: 'Operação', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: 'Desvios', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).not.toContainText('Modo operação');
   expect(posts[1]).toEqual(['aprovar', { declaracao: true }]);
@@ -787,9 +785,41 @@ test('desvios: Regularizar envia o achado do desvio e abre o lote', async ({ pag
   await noSite(page, 'operacao', 'Desvios');
   await page.getByRole('button', { name: /Regularizar Fluxo/ }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Regularizar' }).click();
-  await expect(page.getByRole('tab', { name: '3. Revisar' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Mudanças', exact: true })).toHaveAttribute('aria-selected', 'true'); // em Operação o lote abre dentro de Mudanças
   await expect(page.locator('#content')).toContainText('Lote de planilha · SE Norte');
   expect(posts).toEqual([{ achados: ['ach1'] }]);
+});
+
+// PR8: o site em Operação tem Mudanças (lotes do site depois da base) e Revalidação; Registrar mudança abre um levantamento de visita novo.
+test('operação: Mudanças lista só o lote do site depois da base e Registrar mudança cria uma visita; Revalidação mostra a data', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const posts = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (req.method() === 'POST' && path === `${B}/levantamentos`) { posts.push(req.postDataJSON()); return json({ id: 'lv-m' }); }
+    if (path === `${B}/levantamentos/lv-m`) return json({ levantamento: { id: 'lv-m', site_id: 's1', tipo: 'visita', realizado_em: '2026-11-20', funcao: null, turno: null, notas: '', roteiro: {}, situacao: 'aberto', achados: 0 }, achados: [] });
+    if (path === `${B}/lotes`) return json({ lotes: [
+      { id: 'm1', site_id: 's1', fonte: 'manual', status: 'em_revisao', created_at: '2026-11-12 10:00:00', itens: 2, com_erro: 0, gravados: 0 },
+      { id: 'm0', site_id: 's1', fonte: 'manual', status: 'concluido', created_at: '2026-10-30 10:00:00', itens: 9, com_erro: 0, gravados: 9 }] });
+    if (path === `${B}/sites/s1/situacao`) return json({ ...SITUACAO_OP, revalidar_em: '2027-01-15' });
+    if (path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await abrirOt(page);
+  await page.locator('#nav-ot-sites').click();
+  await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
+  await page.getByRole('tab', { name: 'Mudanças', exact: true }).click();
+  await expect(page.locator('#content')).toContainText('Abertas');
+  await expect(page.locator('#content tbody tr')).toHaveCount(1); // só m1: m0 é anterior à base
+  await page.getByRole('button', { name: 'Registrar mudança' }).click();
+  await expect(page.locator('#content')).toContainText('Visita');
+  expect(posts).toHaveLength(1);
+  expect(posts[0].tipo).toBe('visita');
+  await page.getByRole('tab', { name: 'Revalidação', exact: true }).click();
+  await expect(page.locator('#content')).toContainText('Revalidar até 15/01/2027');
 });
 
 // Fluidez E5: o consultor avalia um item de política; o Gestor ARCiber o vê "A confirmar" e confirma. API mockada com estado.

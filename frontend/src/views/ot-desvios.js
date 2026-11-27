@@ -74,7 +74,7 @@ window.otFiltrarDesvios = (campo) => {
     window.render();
 };
 
-// Abre o levantamento em que está o achado rascunho do desvio (na tela do site, Modo projeto).
+// Abre o levantamento em que está o achado rascunho do desvio (na tela do site).
 window.otVerAchadoDesvio = (levId, siteId) => {
     return window.otTela('site', siteId || S.otSite, 'levantar', { otLevantamento: levId || null });
 };
