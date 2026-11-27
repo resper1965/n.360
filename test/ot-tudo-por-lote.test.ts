@@ -287,3 +287,74 @@ describe('PR3c: some a gravação direta; troca de ponta no achado de fluxo', ()
     expect(await env.DB.prepare('SELECT destino_ativo_id AS da, destino_zona_id AS dz FROM ot_fluxos WHERE id = ?').bind(f).first()).toEqual({ da: a2, dz: null });
   });
 });
+
+describe('PR3d: remover ativo com fluxo ativo é recusado', () => {
+  const MOTIVO = /tem fluxo ativo/;
+  const par = async (site = ids.s1) => {
+    const [a, b] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site, itens: [{ dados: { nome: 'Par A' } }, { dados: { nome: 'Par B' } }] });
+    const [f] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: a, destino_ativo_id: b } }] });
+    return { a, b, f };
+  };
+  const status = (id: string) => env.DB.prepare('SELECT status FROM ot_ativos WHERE id = ?').bind(id).first('status');
+
+  it('recusa com fluxo ativo (origem ou destino): erro do item na criação e nada removido', async () => {
+    await semTeto();
+    const { a, b } = await par();
+    for (const alvo of [a, b]) {
+      const l = await lote(cons, ids.s1, [{ dados: { alvo_id: alvo, remover: true } }]);
+      expect((await item0(gestor, l)).erros).toEqual([{ campo: 'alvo_id', motivo: expect.stringMatching(MOTIVO) }]);
+      expect((await aprovar(gestor, l)).removidos).toBe(0);
+      expect(await status(alvo)).toBe('ativo');
+    }
+  });
+
+  it('permite com o fluxo já removido', async () => {
+    await semTeto();
+    const { a, f } = await par();
+    await aprovar(gestor, await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, remover: true } }]));
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }]);
+    expect((await item0(gestor, l)).erros).toEqual([]);
+    expect((await aprovar(gestor, l)).removidos).toBe(1);
+    expect(await status(a)).toBe('removido');
+  });
+
+  it('permite quando o mesmo lote remove os fluxos, mesmo com o ativo antes na ordem das linhas (fluxos são aplicados antes)', async () => {
+    await semTeto();
+    const { a, f } = await par();
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }, { entidade: 'fluxo', dados: { alvo_id: f, remover: true } }]);
+    expect((await lerLote(gestor, l)).itens.every((i) => i.erros.length === 0)).toBe(true);
+    expect(await aprovar(gestor, l)).toMatchObject({ removidos: 2, recusados: 0 });
+    expect([await status(a), await env.DB.prepare('SELECT status FROM ot_fluxos WHERE id = ?').bind(f).first('status')]).toEqual(['removido', 'removido']);
+  });
+
+  it('lote que remove só um dos dois fluxos do ativo: o ativo segue recusado', async () => {
+    await semTeto();
+    const { a, b } = await par();
+    await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ entidade: 'fluxo', dados: { origem_ativo_id: b, destino_ativo_id: a, protocolo: 'X' } }] });
+    const f1 = await env.DB.prepare(`SELECT id FROM ot_fluxos WHERE origem_ativo_id = ? AND destino_ativo_id = ? AND status = 'ativo'`).bind(a, b).first<string>('id');
+    const l = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f1, remover: true } }, { dados: { alvo_id: a, remover: true } }]);
+    expect((await item0(gestor, l)).erros).toEqual([]); // o item de fluxo; o do ativo recusa
+    expect((await lerLote(gestor, l)).itens[1].erros[0].motivo).toMatch(MOTIVO);
+    expect((await aprovar(gestor, l)).removidos).toBe(1);
+    expect(await status(a)).toBe('ativo');
+  });
+
+  it('corrida: fluxo criado entre a leitura e a gravação não deixa o ativo ser removido (o UPDATE recusa, o item fica pendente)', async () => {
+    await semTeto();
+    const [a, b] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s1, itens: [{ dados: { nome: 'Corrida A' } }, { dados: { nome: 'Corrida B' } }] });
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }]);
+    const r = await aprovarCom(dbCom(() => env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_ativo_id, direcao) VALUES ('f-corrida', 'proj-a', ?, ?, ?, 'unidirecional')`)
+      .bind(ids.s1, a, b).run()), l);
+    expect(r).toMatchObject({ ok: true, removidos: 0, pendentes: 1 });
+    expect(await status(a)).toBe('ativo');
+    expect(await item0(gestor, l)).toMatchObject({ decisao: 'pendente' });
+  });
+
+  it('outro site: ativo de outro site segue com o desfecho de id inexistente, não o do fluxo', async () => {
+    await semTeto();
+    const { a } = await par(ids.s2);
+    const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }]);
+    expect((await item0(gestor, l)).erros).toEqual([{ campo: 'alvo_id', motivo: 'registro não encontrado neste site' }]);
+    expect(await status(a)).toBe('ativo');
+  });
+});
