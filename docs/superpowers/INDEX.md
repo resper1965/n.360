@@ -1,7 +1,7 @@
 # Índice de specs e planos
 
 Uma linha por spec (`specs/`) e por plano sem spec própria. O status sai da evidência (PR mergeado e artefato na `main`), não do
-cabeçalho do documento; conferido em 23/11/2026 sobre `origin/main` `2fc1261`; as linhas dos painéis do n.ot e da spec de 26/11 foram reconferidas em 26/11/2026 sobre `e734f7a`.
+cabeçalho do documento; conferido em 23/11/2026 sobre `origin/main` `2fc1261`; as linhas dos painéis do n.ot foram reconferidas em 26/11/2026 sobre `e734f7a`; a da spec de 26/11 foi atualizada com os PRs da pilha em 27/11/2026.
 
 Regra: o status muda **no mesmo PR que constrói**, e o plano executado por inteiro vai para [`../arquivo/planos/`](../arquivo/planos/)
 no mesmo PR (`git mv`, consertando os links).
@@ -59,7 +59,7 @@ de apoio, não desenho de construção), **substituída**.
 | 2026-11-19 | [Avaliação por IA em campo separado](specs/2026-11-19-avaliacao-ia-campo-separado-design.md) | construída | #596 (`b290f94`); migration 0118, `evidence.avaliacao_ia` | — |
 | 2026-11-19 | [Canal do titular](specs/2026-11-19-canal-do-titular-design.md) | parcialmente construída (PR1 a PR3; PR4 a executar) | #597, #599, #600 (`14a89d5`, `be6ec3a`, `d04a2e0`); migration 0117 | [`plans/2026-11-19-canal-do-titular.md`](plans/2026-11-19-canal-do-titular.md) (Task 8 substituída por [`plans/2026-11-20-lote3-e-canal-pr4.md`](plans/2026-11-20-lote3-e-canal-pr4.md)) |
 | 2026-11-19 | [Painéis do n.ot](specs/2026-11-19-paineis-do-n-ot-design.md) | construída (PR 1 a 4; o PR 5, plano por onda, não será feito por ora: fora da spec de 26/11) | #611 (`2cda0ae`), #616 (`20b1dba`), #618 (`f6bdb22`), #619 (`597e503`); `src/services/painel-ot-quadros.ts` | [`plans/2026-11-20-paineis-do-n-ot.md`](plans/2026-11-20-paineis-do-n-ot.md) |
-| 2026-11-26 | [n.ot: Implantação e Operação](specs/2026-11-26-n-ot-implantacao-e-operacao-design.md) | aprovada (sem código) | o próprio documento; nenhuma migration prevista | [`plans/2026-11-26-n-ot-implantacao-e-operacao.md`](plans/2026-11-26-n-ot-implantacao-e-operacao.md) |
+| 2026-11-26 | [n.ot: Implantação e Operação](specs/2026-11-26-n-ot-implantacao-e-operacao-design.md) | construída (PR1a a PR8 e documentação; sem migration) | #631 (docs), #633 (PR1a + PR1b), #634 (PR2), #635 (PR3a), #636 (PR3b), #637 (PR3c), #638 (PR3d), #639 (PR4); PR5 a PR8 e PR9 (docs) sem número até a abertura; `src/services/ot-permissoes.ts`, `src/services/ot-implantacao.ts`, `frontend/src/views/ot-configuracao.js` | [`arquivo/planos/2026-11-26-n-ot-implantacao-e-operacao.md`](../arquivo/planos/2026-11-26-n-ot-implantacao-e-operacao.md) |
 
 ## Planos em `plans/` sem spec própria
 

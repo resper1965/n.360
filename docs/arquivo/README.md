@@ -81,3 +81,4 @@ Saíram de `docs/superpowers/plans/` com `git mv` depois de executados por intei
 | [`2026-11-16-entrada-n360.md`](planos/2026-11-16-entrada-n360.md) | #590 |
 | [`2026-11-16-onda1-organizacao-direta.md`](planos/2026-11-16-onda1-organizacao-direta.md), [`2026-11-17-onda2-catalogo-de-requisitos.md`](planos/2026-11-17-onda2-catalogo-de-requisitos.md) | #592 |
 | [`2026-11-17-remediacao-gaps-ondas-1-2.md`](planos/2026-11-17-remediacao-gaps-ondas-1-2.md), [`2026-11-17-onda3-n-ot-no-nucleo.md`](planos/2026-11-17-onda3-n-ot-no-nucleo.md), [`2026-11-18-onda4-jornada-comum.md`](planos/2026-11-18-onda4-jornada-comum.md) | #593 |
+| [`2026-11-26-n-ot-implantacao-e-operacao.md`](planos/2026-11-26-n-ot-implantacao-e-operacao.md) | #633 a #639 e PRs 5 a 9 |

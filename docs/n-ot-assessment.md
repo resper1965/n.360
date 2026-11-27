@@ -2,7 +2,7 @@
 
 ## O que é
 
-A tela **Assessment RO-CB.BR.01** (menu do n.ot, seção Organização) reúne a situação de cada item da norma no projeto. Há dois tipos de item:
+A tela **Assessment RO-CB.BR.01** (menu do n.ot, grupo **Operação**) reúne a situação de cada item da norma no projeto. Há dois tipos de item:
 
 | Tipo | De onde vem | Quem mexe |
 |---|---|---|
@@ -10,6 +10,8 @@ A tela **Assessment RO-CB.BR.01** (menu do n.ot, seção Organização) reúne a
 | **Política** | Autoavaliação do cliente | A equipe avalia; o **Gestor ARCiber** confirma |
 
 O item 5.1.1 (tratamento de exceções) fica fora deste ciclo e aparece como "Não avaliado".
+
+O cliente que só lê (sem ser o Gestor ARCiber do projeto nem técnico) abre apenas o **Painel**, o **Assessment** e os **Relatórios**, sem o subsídio do levantamento nem o código do site; o servidor recusa o resto.
 
 ## Avaliar um item de política
 
@@ -31,7 +33,7 @@ Uma evidência com validade vencida, ou uma próxima revisão que já passou, ma
 
 ## Confirmar (Gestor ARCiber)
 
-1. Marque **Só o que espera por mim**: aparecem os itens avaliados e ainda não confirmados. O Início também os lista.
+1. Marque **Só o que espera por mim**: aparecem os itens avaliados e ainda não confirmados. O Painel do n.ot também os lista.
 2. Abra o item, leia a avaliação e as evidências e clique em **Confirmar**.
 3. A tela registra quem confirmou e quando. A próxima revisão fica a data que o consultor gravou; se ele deixou em branco, passa a ser daqui a 12 meses.
 

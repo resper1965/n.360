@@ -1,6 +1,8 @@
 # n.ot: Implantação e Operação Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (27/11/2026): executado.** PR1a a PR8 construídos (#633 a #639 e os PRs 5 a 8 da pilha `claude/ot-io-*`); PR3d (remover ativo com fluxo ativo) e a lista de verificação (PR6) entraram por branches próprias. O PR9 deste plano é a documentação. Arquivado por `docs/superpowers/INDEX.md`.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Separar no n.ot a Implantação (site em 4 etapas, por assistente) da Operação (desvios, saúde, inventário só leitura, Mudanças, Revalidação), com vocabulário único, papéis decididos pelo servidor, tudo por lote, o Painel como tela inicial e links que levam ao site e à aba exatos.
 
@@ -34,13 +36,13 @@
 
 ## Preflight (antes de cada PR e ao retomar)
 
-- [ ] `git fetch origin && git status --short && git log --oneline -1 origin/main`: árvore limpa; `git merge-base --is-ancestor e734f7a origin/main` responde 0.
-- [ ] `gh pr list --search "head:claude/ot-io-" --state open --json number --jq length` responde 0 ou 1 (no máximo 2 abertos depois de abrir este).
-- [ ] Branch: `git switch -c claude/ot-io-<N> origin/main` (N = 1a, 1b, 2, 3a, 3b, 3c, 4 a 9). Os PRs de que este depende (tabela "Ordem") estão na `origin/main`: `git log origin/main --oneline --grep "(PR<M> implantação e operação)"` acha cada um.
-- [ ] **Retomar:** `git log --oneline origin/main..HEAD` lista os tasks feitos pelo assunto do commit; comece pelo primeiro que falta.
-- [ ] Ambiente: `ls node_modules/.bin/vitest frontend/node_modules/.bin/vitest` (se faltar: `npm ci` e `cd frontend && npm ci`).
-- [ ] Reconfira as linhas citadas no task (`sed -n 'A,Bp' <arquivo>`): a `main` anda; se mudou, ajuste o Edit, não a regra.
-- [ ] PR com tela: `grep -n "<texto que o PR muda>" frontend/e2e/ot.spec.js` e, no fim, `cd frontend && npx playwright install chromium && npx playwright test e2e/ot.spec.js` verde.
+- [x] `git fetch origin && git status --short && git log --oneline -1 origin/main`: árvore limpa; `git merge-base --is-ancestor e734f7a origin/main` responde 0.
+- [x] `gh pr list --search "head:claude/ot-io-" --state open --json number --jq length` responde 0 ou 1 (no máximo 2 abertos depois de abrir este).
+- [x] Branch: `git switch -c claude/ot-io-<N> origin/main` (N = 1a, 1b, 2, 3a, 3b, 3c, 4 a 9). Os PRs de que este depende (tabela "Ordem") estão na `origin/main`: `git log origin/main --oneline --grep "(PR<M> implantação e operação)"` acha cada um.
+- [x] **Retomar:** `git log --oneline origin/main..HEAD` lista os tasks feitos pelo assunto do commit; comece pelo primeiro que falta.
+- [x] Ambiente: `ls node_modules/.bin/vitest frontend/node_modules/.bin/vitest` (se faltar: `npm ci` e `cd frontend && npm ci`).
+- [x] Reconfira as linhas citadas no task (`sed -n 'A,Bp' <arquivo>`): a `main` anda; se mudou, ajuste o Edit, não a regra.
+- [x] PR com tela: `grep -n "<texto que o PR muda>" frontend/e2e/ot.spec.js` e, no fim, `cd frontend && npx playwright install chromium && npx playwright test e2e/ot.spec.js` verde.
 
 ## Ordem
 
@@ -97,7 +99,7 @@ PR1a e PR2 tocam arquivos diferentes do servidor, mas o PR2 mexe nas telas do PR
 **Interfaces:**
 - Produces: `type Area = 'implantacao' | 'operacao' | 'obra'`; `areaEEtapa(x: EntradaEtapa): { area: Area; etapa: 1 | 2 | 3 | 4 | null }`; `faltaParaAvancar(x: EntradaEtapa): string[]` (só o que falta para sair da etapa atual); `condicoesDaBase(x: EntradaEtapa): string[]` (todas as condições da base, na ordem de hoje; o 409 de `pedirBase` usa a primeira, Task 3a.4); `EntradaEtapa = { fase: Fase; obra_ate: string | null; ativos: number; zonas_4_1_1: boolean; rascunhos_bloqueiam: number; lotes_em_revisao: number }`; `SituacaoSite` ganha `area`, `etapa`, `falta: string[]`, `ativos: number`.
 
-- [ ] **Step 1: Teste puro que falha** — `test/ot-area-etapa.test.ts`:
+- [x] **Step 1: Teste puro que falha** — `test/ot-area-etapa.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
@@ -165,9 +167,9 @@ describe('falta: casos sem nada', () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e ver falhar** — `npx vitest run test/ot-area-etapa.test.ts` → FAIL (`areaEEtapa is not a function`).
+- [x] **Step 2: Rodar e ver falhar** — `npx vitest run test/ot-area-etapa.test.ts` → FAIL (`areaEEtapa is not a function`).
 
-- [ ] **Step 3: Implementar** — em `src/services/ot-fase.ts`, depois de `proximoPassoDe` (linha 42):
+- [x] **Step 3: Implementar** — em `src/services/ot-fase.ts`, depois de `proximoPassoDe` (linha 42):
 
 ```ts
 export type Area = 'implantacao' | 'operacao' | 'obra';
@@ -217,11 +219,11 @@ export function areaEEtapa(x: EntradaEtapa): { area: Area; etapa: 1 | 2 | 3 | 4 
   `const e = { fase: site.fase, obra_ate: row.obra_ate, ativos, zonas_4_1_1, rascunhos_bloqueiam, lotes_em_revisao };` com
   `...areaEEtapa(e), falta: faltaParaAvancar(e), ativos` no objeto devolvido. Acrescente `area: Area; etapa: 1 | 2 | 3 | 4 | null; falta: string[]; ativos: number` em `SituacaoSite`.
 
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-area-etapa.test.ts test/ot-fase.test.ts test/ot-fase-rotas.test.ts` → PASS. Em `test/ot-fase-rotas.test.ts`, no teste que lê `GET …/situacao`, acrescente `expect(corpo).toMatchObject({ area: 'implantacao', etapa: 1, falta: expect.any(Array) })`.
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-area-etapa.test.ts test/ot-fase.test.ts test/ot-fase-rotas.test.ts` → PASS. Em `test/ot-fase-rotas.test.ts`, no teste que lê `GET …/situacao`, acrescente `expect(corpo).toMatchObject({ area: 'implantacao', etapa: 1, falta: expect.any(Array) })`.
 
-- [ ] **Step 5: Mutação** — troque `!x.zonas_4_1_1 ? 1` por `!x.zonas_4_1_1 ? 2`; `npx vitest run test/ot-area-etapa.test.ts` falha; desfaça. Outra: no `case 1`, devolva `condicoesDaBase(x)`; o teste "etapa 1: só as zonas" falha; desfaça.
+- [x] **Step 5: Mutação** — troque `!x.zonas_4_1_1 ? 1` por `!x.zonas_4_1_1 ? 2`; `npx vitest run test/ot-area-etapa.test.ts` falha; desfaça. Outra: no `case 1`, devolva `condicoesDaBase(x)`; o teste "etapa 1: só as zonas" falha; desfaça.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/services/ot-fase.ts test/ot-area-etapa.test.ts test/ot-fase-rotas.test.ts
@@ -239,7 +241,7 @@ git commit -m "feat(ot): área e etapa do site (Implantação 1 a 4, Operação,
 - Consumes: `areaEEtapa` (Task 1.1).
 - Produces: `ItemFazer.site?: string`; `ItemFazer.aba` do n.ot ∈ `'desvios' | 'revisar' | 'base' | 'saude' | 'assessment' | 'sondas'`; `LinhaSiteOt` ganha `area` e `etapa`; `SiteNoPrograma` ganha `id`; `etapasDoOt(...).proximo` ganha `site`.
 
-- [ ] **Step 1: Testes que falham** — em `test/programa.test.ts` (e o caso do leitor em `test/painel-ot-papeis.test.ts`, abaixo):
+- [x] **Step 1: Testes que falham** — em `test/programa.test.ts` (e o caso do leitor em `test/painel-ot-papeis.test.ts`, abaixo):
 
 ```ts
 it('n.ot: o próximo passo diz a área e leva ao site mais atrasado (spec 2026-11-26 §1 e §7)', () => {
@@ -266,9 +268,9 @@ it('leitor (client): a régua não leva site, nem no n.360 nem no ?modulo=ot', a
 });
 ```
 
-- [ ] **Step 2: Rodar** — `npx vitest run test/programa.test.ts test/painel-ot-papeis.test.ts` → FAIL.
+- [x] **Step 2: Rodar** — `npx vitest run test/programa.test.ts test/painel-ot-papeis.test.ts` → FAIL.
 
-- [ ] **Step 3: Implementar.**
+- [x] **Step 3: Implementar.**
   - `src/services/programa.ts:47-50`:
 
 ```ts
@@ -284,11 +286,11 @@ export type SiteNoPrograma = { id: string; proximo_passo: ProximoPasso; desvios_
   - `src/services/painel-ot.ts`: o `item(...)` (`:77-78`) recebe `site?: string` e o devolve; os itens passam a usar as abas finais (a tela do site as traduz até o PR7) e o site quando o grupo tem um só site: sondas → `aba: 'sondas'`; revisões → `'assessment'`; desvios → `'desvios'` (site quando todos os desvios abertos fora de obra são de um site: some `mDesv`); lotes → `'revisar'` (site quando `mLotes.size === 1`); bases → `'base'` (site quando `emAprovacao.length === 1`); obras → sem aba, com o site quando há um só; aceites → `'desvios'`, com o site quando há um só. `sitesPrograma` (`:93`) leva `id: s.id`. `porSite` (`:100-105`) ganha `...areaEEtapa({ fase: s.fase as Fase, obra_ate: s.obra_ate, ativos: Number(mAtivos.get(s.id)?.n ?? 0), zonas_4_1_1: mZonas.has(s.id), rascunhos_bloqueiam: Number(mRasc.get(s.id)?.n ?? 0), lotes_em_revisao: Number(mLotes.get(s.id)?.n ?? 0) })`, com `mAtivos` de uma consulta **a mais no mesmo batch** (a `conteudo`, `:61-62`, fica como está): `SELECT site_id, count(*) AS n FROM ot_ativos WHERE project_id = ?1 AND status = 'ativo' AND ${NO_SITE} GROUP BY site_id`. Uma consulta agrupada a mais, constante (não cresce com os sites).
   - Leitor sem `site` na jornada: em `src/services/painel.ts:477`, o `otSites` passado a `etapasDoPrograma` vai sem `id` quando `ot.papel === 'leitor'` (`ot.sitesPrograma.map(({ id: _id, ...r }) => r)`), e `etapasDoOt` só põe `site` no `proximo` quando o site tem `id`. Vale no Início do n.360 e no `?modulo=ot` (o leitor também lê a régua).
 
-- [ ] **Step 4: Rodar** — `npx vitest run test/programa.test.ts test/programa-rota.test.ts test/painel-ot-papeis.test.ts test/painel-ot-rota.test.ts test/painel-ot.test.ts test/painel.test.ts test/onda2-numeros.test.ts` → PASS (o de 150 sites em `programa-rota.test.ts` segue com o mesmo número de consultas).
+- [x] **Step 4: Rodar** — `npx vitest run test/programa.test.ts test/programa-rota.test.ts test/painel-ot-papeis.test.ts test/painel-ot-rota.test.ts test/painel-ot.test.ts test/painel.test.ts test/onda2-numeros.test.ts` → PASS (o de 150 sites em `programa-rota.test.ts` segue com o mesmo número de consultas).
 
-- [ ] **Step 5: Mutação P0** — em `painel.ts:477`, passe `ot.sitesPrograma` com `id` também ao leitor; o teste "leitor (client): a régua não leva site" falha; desfaça.
+- [x] **Step 5: Mutação P0** — em `painel.ts:477`, passe `ot.sitesPrograma` com `id` também ao leitor; o teste "leitor (client): a régua não leva site" falha; desfaça.
 
-- [ ] **Step 6: Commit** — `git add src/services/programa.ts src/services/painel.ts src/services/painel-ot.ts test/programa.test.ts test/painel-ot-papeis.test.ts` e `git commit -m "feat(ot): jornada e Painel no vocabulário Implantação/Operação, com site e aba nos itens (PR1a implantação e operação)"`.
+- [x] **Step 6: Commit** — `git add src/services/programa.ts src/services/painel.ts src/services/painel-ot.ts test/programa.test.ts test/painel-ot-papeis.test.ts` e `git commit -m "feat(ot): jornada e Painel no vocabulário Implantação/Operação, com site e aba nos itens (PR1a implantação e operação)"`.
 
 ### Task 1.3: Aviso do sino com o site e o desvio **[P0]**
 
@@ -296,7 +298,7 @@ export type SiteNoPrograma = { id: string; proximo_passo: ProximoPasso; desvios_
 - Modify: `src/services/avisos-prazo.ts:259,355`; `frontend/src/globals.js:1240-1245`
 - Modify: `test/avisos-prazo-ot.test.ts`; `frontend/test/aviso-clique.test.js`
 
-- [ ] **Step 1: Testes que falham** — em `test/avisos-prazo-ot.test.ts`, no teste "aceite e obra vão só ao Gestor…":
+- [x] **Step 1: Testes que falham** — em `test/avisos-prazo-ot.test.ts`, no teste "aceite e obra vão só ao Gestor…":
 
 ```ts
 const links = (await env.DB.prepare(`SELECT type, link FROM notifications WHERE type LIKE 'prazo_ot_%'`).all<{ type: string; link: string }>()).results;
@@ -307,9 +309,9 @@ expect(links.find((n) => n.type === 'prazo_ot_revisao')?.link).toBe('/projects/p
 
   Em `frontend/test/aviso-clique.test.js`: clicar um aviso com link `/projects/p9/ot?site=s1` deixa `S.otPedido` igual a `{ tela: 'site', site: 's1' }`; com `?desvio=d1`, `{ desvio: 'd1' }`.
 
-- [ ] **Step 2: Rodar** — `npx vitest run test/avisos-prazo-ot.test.ts` e `cd frontend && npx vitest run test/aviso-clique.test.js` → FAIL.
+- [x] **Step 2: Rodar** — `npx vitest run test/avisos-prazo-ot.test.ts` e `cd frontend && npx vitest run test/aviso-clique.test.js` → FAIL.
 
-- [ ] **Step 3: Implementar** — em `avisos-prazo.ts`, troque o `TELA` fixo do n.ot por uma função do item (o `item_id` já é o id do site na obra e do desvio no aceite, `:159-166`):
+- [x] **Step 3: Implementar** — em `avisos-prazo.ts`, troque o `TELA` fixo do n.ot por uma função do item (o `item_id` já é o id do site na obra e do desvio no aceite, `:159-166`):
 
 ```ts
 const telaOt = (i: { fonte: Fonte; item_id: string }) => i.fonte === 'ot_obra' ? `/ot?site=${encodeURIComponent(i.item_id)}`
@@ -326,9 +328,9 @@ S.otPedido = q.get('site') ? { tela: 'site', site: q.get('site') } : q.get('desv
 
   e em `frontend/src/views/ot.js:49` o pedido passa a aceitar `site` e `desvio` (o desvio segue o caminho que já resolve `/ot/desvios/<id>`, `ot.js:55-68`).
 
-- [ ] **Step 4: Rodar** os dois arquivos → PASS. **Mutação P0:** troque o `site=` pelo nome do site (`s.nome`) na consulta e veja o teste do formato do link falhar (nome de site no link seria texto do n.ot no sino); desfaça.
+- [x] **Step 4: Rodar** os dois arquivos → PASS. **Mutação P0:** troque o `site=` pelo nome do site (`s.nome`) na consulta e veja o teste do formato do link falhar (nome de site no link seria texto do n.ot no sino); desfaça.
 
-- [ ] **Step 5: Commit e entrega do PR1a** — `git commit -m "feat(ot): aviso de obra e de aceite abre o site e o desvio certos (PR1a implantação e operação)"` com os quatro arquivos; `npx vitest run` dos arquivos dos Tasks 1.1 a 1.3 e `npx tsc --noEmit`; `cd frontend && npx vitest run` (o Task 1.3 toca `globals.js`); push `claude/ot-io-1a`; PR "n.ot: área e etapa do site, links profundos no servidor e no sino (PR1a)".
+- [x] **Step 5: Commit e entrega do PR1a** — `git commit -m "feat(ot): aviso de obra e de aceite abre o site e o desvio certos (PR1a implantação e operação)"` com os quatro arquivos; `npx vitest run` dos arquivos dos Tasks 1.1 a 1.3 e `npx tsc --noEmit`; `cd frontend && npx vitest run` (o Task 1.3 toca `globals.js`); push `claude/ot-io-1a`; PR "n.ot: área e etapa do site, links profundos no servidor e no sino (PR1a)".
 
 ---
 
@@ -346,7 +348,7 @@ Mesmo objetivo, contrato e "Pronto quando" do PR1a; só tela, relatório e E2E.
 - Consumes: `situacao.area`, `situacao.etapa`, `situacao.falta` (Task 1.1); `fazer[].site/aba`, `proximo.site` (Task 1.2).
 - Produces: `lerEndereco()` devolve `{ tela, site, aba, desvio }` (sem `modo`); `escreverEndereco({ tela, site, aba })`; `AREA` e `ETAPAS_IMPLANTACAO` em `ot-comum.js`; `window.otTela(tela, site, aba, extra)`.
 
-- [ ] **Step 1: Testes que falham** — `frontend/test/ot-navegacao.test.js` (substitui os casos de `modo`):
+- [x] **Step 1: Testes que falham** — `frontend/test/ot-navegacao.test.js` (substitui os casos de `modo`):
 
 ```js
 it('lê e escreve a aba do site; aba desconhecida fica nula (a tela escolhe a primeira da área)', () => {
@@ -364,9 +366,9 @@ it('o endereço antigo com modo= ainda abre o site (modo é ignorado)', () => {
   `frontend/test/ot-base.test.js`: com `sit = { area: 'implantacao', etapa: 3, falta: ['Há 2 achado(s) em rascunho para revisar'], proximo_passo: 'revisar' }`, a régua tem 4 itens (`1. Cadastrar` … `4. Aprovar a base`), o item 3 tem `aria-current="step"` e o cartão "Para avançar" lista o texto de `falta`; com `area: 'operacao'` não há régua e o cabeçalho diz "Operação"; com `area: 'obra'` diz "Obra até dd/mm". Nenhum texto "Levantar → Revisar e aprovar → Base aprovada", "Modo projeto" nem "Modo operação" no DOM.
   `frontend/test/painel-ot.test.js`: clicar "Abrir" de um item `{ tela: 'ot', aba: 'revisar', site: 's1' }` chama `irPara('/ot?ot=site&site=s1&aba=revisar')`; sem `site`, `aba: 'desvios'` vai a `/ot?ot=sites`.
 
-- [ ] **Step 2: Rodar** — `cd frontend && npx vitest run test/ot-navegacao.test.js test/ot-base.test.js test/ot-site.test.js test/painel-ot.test.js` → FAIL.
+- [x] **Step 2: Rodar** — `cd frontend && npx vitest run test/ot-navegacao.test.js test/ot-base.test.js test/ot-site.test.js test/painel-ot.test.js` → FAIL.
 
-- [ ] **Step 3: Implementar.**
+- [x] **Step 3: Implementar.**
   - `ot-navegacao.js`:
 
 ```js
@@ -400,11 +402,11 @@ export function escreverEndereco({ tela, site = null, aba = null }, loc = window
   - `painel.js:634`: `if (tela === 'ot') { const SEM_SITE = { assessment: 'assessment', sondas: 'acessos', acessos: 'acessos' }; irPara(site ? `${enderecoDoProduto('ot')}?ot=site&site=${encodeURIComponent(site)}${aba ? `&aba=${encodeURIComponent(aba)}` : ''}` : `${enderecoDoProduto('ot')}?ot=${SEM_SITE[aba] || 'sites'}`); return; }` (sem site, `desvios`, `revisar`, `base` e `implantacao` vão à lista Sites até o PR5, que troca o mapa pelas telas novas) e os botões de `listaFazer` (`:112`) e `regua` (`:137`) passam `i.site || null` como quarto argumento (`painelAbrir(tela, aba, filtro, site)`). `quadroPorSite` (`:212-213`) mostra a coluna "Área" com `AREA[l.area]` e a etapa.
   - `login.html:323` e `ot-sensores.js:7`: "Fornecedores de OT"; o rótulo da origem da sonda na tela passa a "Sonda de rede" (a constante que compara a evidência gravada não muda).
 
-- [ ] **Step 4: Rodar a suíte inteira do frontend, o build e o E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js` → verde e `✓ built in`.
+- [x] **Step 4: Rodar a suíte inteira do frontend, o build e o E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js` → verde e `✓ built in`.
 
-- [ ] **Step 5: CHANGELOG** — em "Não publicado": "n.ot: o site está em Implantação (1 Cadastrar, 2 Levantar, 3 Revisar, 4 Aprovar a base), Operação ou Obra; a aba do site fica no endereço; os itens do Painel, a jornada e os avisos de obra e de aceite abrem o site e a aba exatos."
+- [x] **Step 5: CHANGELOG** — em "Não publicado": "n.ot: o site está em Implantação (1 Cadastrar, 2 Levantar, 3 Revisar, 4 Aprovar a base), Operação ou Obra; a aba do site fica no endereço; os itens do Painel, a jornada e os avisos de obra e de aceite abrem o site e a aba exatos."
 
-- [ ] **Step 6: Commit e entrega** — `git add` dos arquivos do task; `git commit -m "feat(ot): régua de 4 etapas, aba no endereço e links profundos na tela (PR1b implantação e operação)"`; `git push -u origin claude/ot-io-1b`; `gh pr create --title "n.ot: vocabulário Implantação/Operação e links profundos na tela (PR1b)"` com o resumo, os testes rodados e as linhas de atribuição. O dono roda `bash scripts/ci/ship.sh <PR>`.
+- [x] **Step 6: Commit e entrega** — `git add` dos arquivos do task; `git commit -m "feat(ot): régua de 4 etapas, aba no endereço e links profundos na tela (PR1b implantação e operação)"`; `git push -u origin claude/ot-io-1b`; `gh pr create --title "n.ot: vocabulário Implantação/Operação e links profundos na tela (PR1b)"` com o resumo, os testes rodados e as linhas de atribuição. O dono roda `bash scripts/ci/ship.sh <PR>`.
 
 ---
 
@@ -421,7 +423,7 @@ export function escreverEndereco({ tela, site = null, aba = null }, loc = window
 **Interfaces:**
 - Produces: `permissoesOt(db, user, projectId): Promise<Permissoes>`; `type Permissoes = { editar: boolean; criar_lote: boolean; aprovar_lote: boolean; ver_sondas: boolean; gestor: boolean; leitor: boolean; tecnico: boolean; acao_corretiva: boolean; tela_inicial: 'painel' | 'implantacao' }`.
 
-- [ ] **Step 1: Teste que falha** — `test/ot-permissoes.test.ts` (no molde de `test/ot-tecnico.test.ts:25-42`: `seedTwoProjects`, `habilitarOt('proj-a')`, contas `org_admin`, `org_user`, `client`, consultor designado e um `consultoria_admin` de organização direta com o cargo Gestor ARCiber em `project_governance`, todos com `ot`):
+- [x] **Step 1: Teste que falha** — `test/ot-permissoes.test.ts` (no molde de `test/ot-tecnico.test.ts:25-42`: `seedTwoProjects`, `habilitarOt('proj-a')`, contas `org_admin`, `org_user`, `client`, consultor designado e um `consultoria_admin` de organização direta com o cargo Gestor ARCiber em `project_governance`, todos com `ot`):
 
 ```ts
 const permissoes = async (h: H) => { const r = await chamar(h, 'GET', `${P}/permissoes`); expect(r.status).toBe(200); return r.json<Record<string, unknown>>(); };
@@ -458,9 +460,9 @@ it('só booleanos e a tela inicial: nenhum id, e-mail ou nome', async () => {
 });
 ```
 
-- [ ] **Step 2: Rodar** — `npx vitest run test/ot-permissoes.test.ts` → FAIL (404).
+- [x] **Step 2: Rodar** — `npx vitest run test/ot-permissoes.test.ts` → FAIL (404).
 
-- [ ] **Step 3: Implementar** — `src/services/ot-permissoes.ts`:
+- [x] **Step 3: Implementar** — `src/services/ot-permissoes.ts`:
 
 ```ts
 import { ehPapelCliente } from '../helpers';
@@ -491,11 +493,11 @@ export async function permissoesOt(db: D1Database, u: AtorOt & { client_project_
 
   Em `src/routes/ot.ts`, antes de `// ─── sites`: `otApp.get('/permissoes', async (c) => { try { const { db, user, projectId } = await contexto(c); return c.json(await permissoesOt(db, user, projectId)); } catch (e) { return erro500(c, 'Falha ao ler as permissões do n.ot', e); } });`. `ehGestorArciber` passa a chamar a mesma regra (`(await permissoesOt(...)).gestor` não: mantenha a função atual, só a mova para cima; o teste cobra que as duas concordam).
 
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-permissoes.test.ts test/ot-modulo.test.ts test/contrato-tela-api.test.ts test/contrato-isolamento-org.test.ts` → PASS; `npx tsc --noEmit` limpo.
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-permissoes.test.ts test/ot-modulo.test.ts test/contrato-tela-api.test.ts test/contrato-isolamento-org.test.ts` → PASS; `npx tsc --noEmit` limpo.
 
-- [ ] **Step 5: Mutação P0** — em `permissoesOt`, troque `podeVerCompleto` por `async () => true` em `aprovar_lote`; o teste do técnico falha; desfaça.
+- [x] **Step 5: Mutação P0** — em `permissoesOt`, troque `podeVerCompleto` por `async () => true` em `aprovar_lote`; o teste do técnico falha; desfaça.
 
-- [ ] **Step 6: Commit** — `git commit -m "feat(ot): GET /ot/permissoes, o que a pessoa pode no n.ot pela regra do servidor (PR2 implantação e operação)"`.
+- [x] **Step 6: Commit** — `git commit -m "feat(ot): GET /ot/permissoes, o que a pessoa pode no n.ot pela regra do servidor (PR2 implantação e operação)"`.
 
 ### Task 2.2: Leitor só lê Painel, Assessment e Relatórios **[P0] [revisor opus]**
 
@@ -506,7 +508,7 @@ export async function permissoesOt(db: D1Database, u: AtorOt & { client_project_
 **Interfaces:**
 - Produces: `ROTAS_DO_LEITOR` (regex, exportada de `src/services/ot-inventario.ts`, ao lado de `ESCRITAS_DO_TECNICO`).
 
-- [ ] **Step 1: Teste que falha** — `test/ot-leitor.test.ts` (mesmas contas do Task 2.1, um site com ativo e um desvio criados por SQL):
+- [x] **Step 1: Teste que falha** — `test/ot-leitor.test.ts` (mesmas contas do Task 2.1, um site com ativo e um desvio criados por SQL):
 
 ```ts
 const LE = ['/requisitos', '/assessment', '/conformidade', '/indicadores', '/relatorio/conformidade', '/permissoes'];
@@ -529,9 +531,9 @@ it('Gestor, consultor e técnico seguem como antes', async () => {
 });
 ```
 
-- [ ] **Step 2: Rodar** — `npx vitest run test/ot-leitor.test.ts` → FAIL (200 em `/sites`).
+- [x] **Step 2: Rodar** — `npx vitest run test/ot-leitor.test.ts` → FAIL (200 em `/sites`).
 
-- [ ] **Step 3: Implementar** — em `src/services/ot-inventario.ts`, depois de `ESCRITAS_DO_TECNICO` (`:34-35`):
+- [x] **Step 3: Implementar** — em `src/services/ot-inventario.ts`, depois de `ESCRITAS_DO_TECNICO` (`:34-35`):
 
 ```ts
 /** Spec 2026-11-26, decisão 4: o cliente leitor (`client`) lê só o resumo da organização; site, desvio e inventário ficam fora. */
@@ -551,11 +553,11 @@ otApp.use('*', async (c, next) => {
 
   (O middleware do `otApp` vale também para `otSaidasApp` e `otDeparaApp`, montados no mesmo prefixo em `src/index.ts:500-504`; o teste cobra `/indicadores`, que é do `otSaidasApp`.) Nas rotas que o leitor lê, corte o que é inventário: em `/indicadores`, `const { por_zona: _z, ...r } = await indicadoresOt(...)` para o leitor (fica `por_nivel`); em `/assessment`, `itens.map(({ subsidio: _s, ...i }) => i)` para o leitor. `painel-ot.ts:38` passa a `ehLeitorOt(ator, projectId) ? 'leitor'` (mesmo resultado de hoje, uma regra só).
 
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-leitor.test.ts test/ot-tecnico.test.ts test/ot-inventario.test.ts test/ot-desvio-rotas.test.ts test/ot-saidas.test.ts test/ot-avaliacao.test.ts` → PASS. Se algum teste existente lê `/ot/sites` com `client`, ele travava o comportamento antigo: troque a expectativa para 403 e cite a decisão 4 no comentário.
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-leitor.test.ts test/ot-tecnico.test.ts test/ot-inventario.test.ts test/ot-desvio-rotas.test.ts test/ot-saidas.test.ts test/ot-avaliacao.test.ts` → PASS. Se algum teste existente lê `/ot/sites` com `client`, ele travava o comportamento antigo: troque a expectativa para 403 e cite a decisão 4 no comentário.
 
-- [ ] **Step 5: Mutação P0** — troque `c.req.method === 'GET' && ROTAS_DO_LEITOR.test(...)` por `c.req.method === 'GET'` (o leitor passa em qualquer GET); o teste de `/desvios` falha; desfaça.
+- [x] **Step 5: Mutação P0** — troque `c.req.method === 'GET' && ROTAS_DO_LEITOR.test(...)` por `c.req.method === 'GET'` (o leitor passa em qualquer GET); o teste de `/desvios` falha; desfaça.
 
-- [ ] **Step 6: Commit** — `git commit -m "feat(ot): o cliente leitor lê só Painel, Assessment e Relatórios do n.ot (PR2 implantação e operação)"`.
+- [x] **Step 6: Commit** — `git commit -m "feat(ot): o cliente leitor lê só Painel, Assessment e Relatórios do n.ot (PR2 implantação e operação)"`.
 
 ### Task 2.3: Tela lê as permissões do servidor
 
@@ -568,11 +570,11 @@ otApp.use('*', async (c, next) => {
 - Consumes: `GET /api/v1/projects/:id/ot/permissoes` (Task 2.1).
 - Produces: em `ot-comum.js`: `carregarPermissoes(projectId): Promise<Permissoes>` (guarda em `S.otPermissoes = { projeto, ...p }`; falha fechada: tudo `false`, `leitor: true`, `tela_inicial: 'painel'`), `pode(chave): boolean`; `podeEditarOt`, `podeCriarLote`, `podeAprovarOt`, `ehGestor` passam a ler `pode('editar')`, `pode('criar_lote')`, `pode('aprovar_lote')`, `pode('gestor')`.
 
-- [ ] **Step 1: Testes que falham** — `frontend/test/ot-desvios.test.js`: com `/ot/permissoes` respondendo `{ gestor: true, editar: true, aprovar_lote: true, acao_corretiva: false, … }` e `S.user.role = 'consultoria_admin'`, a linha do desvio aberto tem "Aceitar temporariamente" e **não** tem "Criar ação corretiva". `frontend/test/ot-modulo.test.js`: com `leitor: true`, o menu esconde Sites e Acessos (`#nav-ot-sites`, `#nav-ot-acessos` com `hidden`) e nenhuma chamada a `/ot/sites` é feita (o mock de `api` lança se a URL tiver `/ot/sites`). Com a leitura de permissões falhando (500), nenhum botão de escrita aparece. **Leitor:** abrir `/ot` (sem `?ot=`) ou `/ot?ot=inicio` ou `/ot?ot=sites` desenha o Painel, sem chamar `/ot/lotes`, `/ot/desvios` nem `/ot/sites` (o Início de hoje os chama, `ot-inicio.js:75-79`, e eles viram 403 neste PR); Relatórios desenha com `/indicadores` e `/conformidade` sem pedir `/ot/sites` (`ot-saidas.js:24`).
+- [x] **Step 1: Testes que falham** — `frontend/test/ot-desvios.test.js`: com `/ot/permissoes` respondendo `{ gestor: true, editar: true, aprovar_lote: true, acao_corretiva: false, … }` e `S.user.role = 'consultoria_admin'`, a linha do desvio aberto tem "Aceitar temporariamente" e **não** tem "Criar ação corretiva". `frontend/test/ot-modulo.test.js`: com `leitor: true`, o menu esconde Sites e Acessos (`#nav-ot-sites`, `#nav-ot-acessos` com `hidden`) e nenhuma chamada a `/ot/sites` é feita (o mock de `api` lança se a URL tiver `/ot/sites`). Com a leitura de permissões falhando (500), nenhum botão de escrita aparece. **Leitor:** abrir `/ot` (sem `?ot=`) ou `/ot?ot=inicio` ou `/ot?ot=sites` desenha o Painel, sem chamar `/ot/lotes`, `/ot/desvios` nem `/ot/sites` (o Início de hoje os chama, `ot-inicio.js:75-79`, e eles viram 403 neste PR); Relatórios desenha com `/indicadores` e `/conformidade` sem pedir `/ot/sites` (`ot-saidas.js:24`).
 
-- [ ] **Step 2: Rodar** — `cd frontend && npx vitest run test/ot-desvios.test.js test/ot-modulo.test.js` → FAIL.
+- [x] **Step 2: Rodar** — `cd frontend && npx vitest run test/ot-desvios.test.js test/ot-modulo.test.js` → FAIL.
 
-- [ ] **Step 3: Implementar** — `ot-comum.js`:
+- [x] **Step 3: Implementar** — `ot-comum.js`:
 
 ```js
 const NADA = { editar: false, criar_lote: false, aprovar_lote: false, ver_sondas: false, gestor: false, leitor: true, tecnico: false, acao_corretiva: false, tela_inicial: 'painel' };
@@ -593,9 +595,9 @@ export const podeAprovarOt = () => pode('aprovar_lote');
 
   `podeRevelar` fica (é por `platform_admin` + `mascarado`, que a API decide). Em `renderOt` (`ot.js:37`), `await carregarPermissoes(proj().id)` antes de escolher a tela, e `S.otPermissoes = null` na troca de projeto (`ot.js:45`). `ot-desvios.js:18` sai (usa `ehGestor`); "Criar ação corretiva" só com `pode('acao_corretiva')`. `ot-inicio.js:98` passa `podeAprovar: podeAprovarOt()` (o recorte do `consultoria_admin` some: vale o servidor). `atualizarItemOt` (`produto.js:464-469`) esconde Início, Sites e Fornecedores com `pode('leitor')`. Em `renderOt`, depois de carregar as permissões: `if (pode('leitor') && !['painel', 'assessment', 'relatorios'].includes(S.otTela)) S.otTela = 'painel';` (cobre o padrão `inicio` de `ot-navegacao.js:12` e o de `ot.js:50,67,70`). `montarSaidas` não pede `/ot/sites` quando `pode('leitor')` (`sites = []`; a coluna de site das saídas some para ele).
 
-- [ ] **Step 4: Rodar a suíte inteira do frontend, o build e o E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 4: Rodar a suíte inteira do frontend, o build e o E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
 
-- [ ] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: a tela mostra a cada pessoa o que o servidor permite; o Gestor ARCiber da organização direta passa a ver aprovar base, obra e aceite; o cliente leitor vê Painel, Assessment e Relatórios."); `git commit -m "feat(ot): a tela do n.ot lê as permissões do servidor (PR2 implantação e operação)"`; push `claude/ot-io-2`; PR "n.ot: papéis coerentes entre tela e servidor (PR2)".
+- [x] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: a tela mostra a cada pessoa o que o servidor permite; o Gestor ARCiber da organização direta passa a ver aprovar base, obra e aceite; o cliente leitor vê Painel, Assessment e Relatórios."); `git commit -m "feat(ot): a tela do n.ot lê as permissões do servidor (PR2 implantação e operação)"`; push `claude/ot-io-2`; PR "n.ot: papéis coerentes entre tela e servidor (PR2)".
 
 ---
 
@@ -612,7 +614,7 @@ export const podeAprovarOt = () => pode('aprovar_lote');
 **Interfaces:**
 - Produces: `inventarioPorLote(chamar, { autor, decisor, site, itens, projeto? }): Promise<string[]>` (ids gravados, na ordem de `itens`); `itens: { entidade?: 'ativo' | 'fluxo'; dados: Record<string, unknown> }[]`.
 
-- [ ] **Step 1: Escrever o ajudante** — `test/helpers/ot.ts`:
+- [x] **Step 1: Escrever o ajudante** — `test/helpers/ot.ts`:
 
 ```ts
 import { expect } from 'vitest';
@@ -644,11 +646,11 @@ export async function inventarioPorLote(chamar: Chamar, o: { autor: H; decisor: 
 }
 ```
 
-- [ ] **Step 2: Trocar as preparações** — em cada arquivo, os `criar(h, 'ativos', {...})` seguidos viram uma chamada `inventarioPorLote(chamar, { autor, decisor, site, itens })` (tire `site_id` de `dados`), e os `criar(h, 'fluxos', {...})`, uma segunda. Casos especiais:
+- [x] **Step 2: Trocar as preparações** — em cada arquivo, os `criar(h, 'ativos', {...})` seguidos viram uma chamada `inventarioPorLote(chamar, { autor, decisor, site, itens })` (tire `site_id` de `dados`), e os `criar(h, 'fluxos', {...})`, uma segunda. Casos especiais:
   - `test/ot-saidas.test.ts:65-74`: o projeto B é preparado pelo `platform_admin` (`:70,74`), que não decide lote. Crie no `beforeAll` um `org_admin` de `proj-b` com `ot` (`concederModulos`) e use-o como decisor com `projeto: 'proj-b'`. Os números do 4.3.1 (completos, verificados) passam a contar a verificação carimbada: ajuste as expectativas e cite esta linha no comentário.
   - Ativo de teste que precisa ficar "não verificado": crie-o incompleto (`no_arciber: false`) ou zere a verificação por SQL no teste, dizendo por quê.
-- [ ] **Step 3: Rodar os 9 arquivos** — verdes **com as rotas antigas ainda no lugar** (o ajudante não depende delas).
-- [ ] **Step 4: Commit** — `git commit -m "test(ot): ajudante que cria inventário por achado e lote nos testes (PR3a implantação e operação)"`.
+- [x] **Step 3: Rodar os 9 arquivos** — verdes **com as rotas antigas ainda no lugar** (o ajudante não depende delas).
+- [x] **Step 4: Commit** — `git commit -m "test(ot): ajudante que cria inventário por achado e lote nos testes (PR3a implantação e operação)"`.
 
 ### Task 3a.2: `alvo_id` e `remover` no achado e no lote **[P0] [revisor opus]**
 
@@ -659,7 +661,7 @@ export async function inventarioPorLote(chamar: Chamar, o: { autor: H; decisor: 
 **Interfaces:**
 - Produces: item de achado/lote com `alvo_id?: string` (ativo ou fluxo ativo do site do lote) e `remover?: true` (exige `alvo_id`); `aprovarLote` devolve também `removidos: number`.
 
-- [ ] **Step 1: Testes que falham** — `test/ot-tudo-por-lote.test.ts` (contas como em `test/ot-tecnico.test.ts:25-42`; `lote(h, site, itens)` cria levantamento, achados e envia, como o ajudante, e devolve o id do lote; `aprovar` e `item0` sobre `POST /lotes/:id/aprovar` e `GET /lotes/:id`):
+- [x] **Step 1: Testes que falham** — `test/ot-tudo-por-lote.test.ts` (contas como em `test/ot-tecnico.test.ts:25-42`; `lote(h, site, itens)` cria levantamento, achados e envia, como o ajudante, e devolve o id do lote; `aprovar` e `item0` sobre `POST /lotes/:id/aprovar` e `GET /lotes/:id`):
 
 ```ts
 const ATIVO_431 = { no_arciber: true, categoria_arciber: 'centro_operacao', tipo_dispositivo: 'RTU', fabricante: 'F', funcao: 'telecontrole',
@@ -723,9 +725,9 @@ it('fluxo: alterar por alvo_id sem repetir as pontas; remover por alvo_id', asyn
 
   Em `test/ot-agente-mcp.test.ts`: `registrar_achados` com `dados: { alvo_id: 'x', nome: 'Y' }` e com `dados: { remover: true }` volta em `recusados` com `motivo: 'campo não aceito pelo agente'`, a mesma resposta de `zona` (o caso de `zona` já existe no arquivo: siga o molde).
 
-- [ ] **Step 2: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-agente-mcp.test.ts` → FAIL (`campo não aceito: alvo_id`).
+- [x] **Step 2: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-agente-mcp.test.ts` → FAIL (`campo não aceito: alvo_id`).
 
-- [ ] **Step 3: Implementar.**
+- [x] **Step 3: Implementar.**
   - `prepararItem`: aceite `alvo_id` (`z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)`) e `remover` (`z.literal(true)`). Com `alvo_id`, o "nome obrigatório" (`:133`) não vale. Com `remover`: exige `alvo_id` (senão `{ campo: 'alvo_id', motivo: 'obrigatório para remover' }`), não checa o 4.3.1, e `dados = { alvo_id, remover: 1 }` (nada mais).
   - `prepararFluxo`: o mesmo par; com `alvo_id`, a exigência de pontas (`:61-62`) não vale (o UPDATE nunca grava pontas).
   - `criarLote` (`:213`): `const dup = dados.alvo_id ? (entidade === 'fluxo' ? (fluxos ?? []).find((f) => f.id === dados.alvo_id) : ativos.results.find((a) => a.id === dados.alvo_id)) : entidade === 'fluxo' ? idxF.achar(dados) : idx.achar(dados);` — o alvo de outro site não está em `ativos`/`fluxos` (lidos só do site), então `duplicata_de` fica nulo, como para id inexistente. Com `alvo_id` que não achou, acrescente o erro `{ campo: 'alvo_id', motivo: 'registro não encontrado neste site' }` (mesma mensagem nos dois casos). `fluxos` precisa ser lido também quando há item de fluxo com `alvo_id` (já é: `entidades.includes('fluxo')`).
@@ -755,9 +757,9 @@ it('fluxo: alterar por alvo_id sem repetir as pontas; remover por alvo_id', asyn
   - `registrarAchados` (`ot-agente.ts:142`): `if (['zona', 'zona_id', 'alvo_id', 'remover'].some((k) => k in it.dados)) { recusados.push({ indice, motivo: 'campo não aceito pelo agente' }); continue; }`.
   - Trilha da aprovação (`src/routes/ot.ts:483-484`): `, ${n.removidos} removido(s)`.
 
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-agente-mcp.test.ts test/ot-coleta.test.ts test/ot-lote-item.test.ts test/ot-levantamento-l2.test.ts test/ot-fluxo-achado.test.ts` → PASS.
-- [ ] **Step 5: Mutações P0** — (a) troque a busca do alvo por `find` em todos os ativos do projeto: o teste de outro site falha; (b) tire `'alvo_id'` da recusa do agente: o teste do agente falha; (c) tire a trava P1-4 da remoção: o teste "P1-4 na remoção" falha. Desfaça as três.
-- [ ] **Step 6: Commit** — `git commit -m "feat(ot): achado e lote alteram por alvo_id e removem ativo ou fluxo; o agente não usa (PR3a implantação e operação)"`.
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-agente-mcp.test.ts test/ot-coleta.test.ts test/ot-lote-item.test.ts test/ot-levantamento-l2.test.ts test/ot-fluxo-achado.test.ts` → PASS.
+- [x] **Step 5: Mutações P0** — (a) troque a busca do alvo por `find` em todos os ativos do projeto: o teste de outro site falha; (b) tire `'alvo_id'` da recusa do agente: o teste do agente falha; (c) tire a trava P1-4 da remoção: o teste "P1-4 na remoção" falha. Desfaça as três.
+- [x] **Step 6: Commit** — `git commit -m "feat(ot): achado e lote alteram por alvo_id e removem ativo ou fluxo; o agente não usa (PR3a implantação e operação)"`.
 
 ### Task 3a.3: Nome do alvo no lote **[P0]**
 
@@ -765,11 +767,11 @@ it('fluxo: alterar por alvo_id sem repetir as pontas; remover por alvo_id', asyn
 - Modify: `src/routes/ot.ts:438-452` (`GET /lotes/:id`); `src/services/ot-fluxo-achado.ts:32-40` (`nomesDasPontas`, reaproveitada)
 - Test: `test/ot-tudo-por-lote.test.ts`
 
-- [ ] **Step 1: Teste que falha** — `GET /lotes/:id` de um lote com `{ alvo_id: a, remover: true }` e `{ alvo_id: f }` (fluxo) traz `nomes_alvos: { [a]: 'Switch velho', [f]: 'A → B' }`; um `alvo_id` de outro site **não** aparece em `nomes_alvos` (P0-4).
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — na rota, depois de `nomes_pontas`: ids de `alvo_id` dos itens; uma consulta `SELECT id, nome FROM ot_ativos WHERE project_id = ? AND site_id = ? AND id IN (SELECT value FROM json_each(?))` e, para fluxo, as pontas por `nomesDasPontas` e o texto "origem → destino"; tudo preso a `lote.site_id`. Nome de ativo já sai nesta rota hoje (`nomes_pontas`): não é exposição nova.
-- [ ] **Step 4: Rodar** → PASS. **Mutação P0:** tire `AND site_id = ?`; o teste de outro site falha; desfaça.
-- [ ] **Step 5: Commit** — `git commit -m "feat(ot): o lote diz o nome do que vai alterar ou remover (PR3a implantação e operação)"`.
+- [x] **Step 1: Teste que falha** — `GET /lotes/:id` de um lote com `{ alvo_id: a, remover: true }` e `{ alvo_id: f }` (fluxo) traz `nomes_alvos: { [a]: 'Switch velho', [f]: 'A → B' }`; um `alvo_id` de outro site **não** aparece em `nomes_alvos` (P0-4).
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — na rota, depois de `nomes_pontas`: ids de `alvo_id` dos itens; uma consulta `SELECT id, nome FROM ot_ativos WHERE project_id = ? AND site_id = ? AND id IN (SELECT value FROM json_each(?))` e, para fluxo, as pontas por `nomesDasPontas` e o texto "origem → destino"; tudo preso a `lote.site_id`. Nome de ativo já sai nesta rota hoje (`nomes_pontas`): não é exposição nova.
+- [x] **Step 4: Rodar** → PASS. **Mutação P0:** tire `AND site_id = ?`; o teste de outro site falha; desfaça.
+- [x] **Step 5: Commit** — `git commit -m "feat(ot): o lote diz o nome do que vai alterar ou remover (PR3a implantação e operação)"`.
 
 ### Task 3a.4: Pedir e aprovar a base exigem ativo **[P0] [revisor opus]**
 
@@ -779,7 +781,7 @@ it('fluxo: alterar por alvo_id sem repetir as pontas; remover por alvo_id', asyn
 - Modify: `src/services/ot-fase.ts:71-76` (`faltaParaBase`), `:99-107` (`aprovarBase`)
 - Modify: `test/ot-fase.test.ts`, `test/ot-fase-rotas.test.ts`, `test/ot-obra.test.ts`
 
-- [ ] **Step 1: Teste que falha** — `test/ot-fase.test.ts`:
+- [x] **Step 1: Teste que falha** — `test/ot-fase.test.ts`:
 
 ```ts
 it('pedir a base sem nenhum ativo: 409 "Nenhum ativo no inventário do site"', async () => {
@@ -792,11 +794,11 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 ```
 
   Nos testes que pedem ou aprovam base só com zonas (`ot-fase.test.ts`, `ot-fase-rotas.test.ts`, `ot-obra.test.ts`), insira um ativo por SQL na preparação. As mensagens de hoje não mudam: `condicoesDaBase` (Task 1.1) lista rascunho, lote, zonas e só então o ativo, e `faltaParaBase` devolve o primeiro.
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `faltaParaBase(s)` passa a `condicoesDaBase(s)[0] ?? null` (com `obra_ate` e `ativos` vindos de `situacaoDoSite`, Task 1.1); em `aprovarBase`, `AND EXISTS (SELECT 1 FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo')` com os binds.
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-fase.test.ts test/ot-fase-rotas.test.ts test/ot-obra.test.ts test/ot-area-etapa.test.ts` → PASS.
-- [ ] **Step 5: Mutação P0** — tire o `EXISTS` do `aprovarBase`; o teste atômico falha; desfaça.
-- [ ] **Step 6: Commit** — `git commit -m "feat(ot): a base só é pedida e aprovada com ao menos um ativo (PR3a implantação e operação)"`.
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — `faltaParaBase(s)` passa a `condicoesDaBase(s)[0] ?? null` (com `obra_ate` e `ativos` vindos de `situacaoDoSite`, Task 1.1); em `aprovarBase`, `AND EXISTS (SELECT 1 FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo')` com os binds.
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-fase.test.ts test/ot-fase-rotas.test.ts test/ot-obra.test.ts test/ot-area-etapa.test.ts` → PASS.
+- [x] **Step 5: Mutação P0** — tire o `EXISTS` do `aprovarBase`; o teste atômico falha; desfaça.
+- [x] **Step 6: Commit** — `git commit -m "feat(ot): a base só é pedida e aprovada com ao menos um ativo (PR3a implantação e operação)"`.
 
 ### Task 3a.5: Zona só na Implantação e na Obra **[P0] [revisor opus]**
 
@@ -804,16 +806,16 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 - Modify: `src/routes/ot.ts:178-203` (`POST`/`PUT /zonas`), `:375-386` (o DELETE de zona no laço)
 - Create: `test/ot-zona-trava.test.ts`
 
-- [ ] **Step 1: Teste que falha** — `test/ot-zona-trava.test.ts`: com o site em `em_levantamento` e em `em_obra`, criar, editar e remover zona dão 201/200; com o site em `em_operacao` e em `base_em_aprovacao` (fase posta por SQL), os três dão 409 `{ error: 'Zona só muda com o site em implantação ou em obra' }` e a zona não muda no banco.
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — a fase vai **na própria mutação** (sem SELECT antes, que deixaria uma janela entre a leitura e a escrita):
+- [x] **Step 1: Teste que falha** — `test/ot-zona-trava.test.ts`: com o site em `em_levantamento` e em `em_obra`, criar, editar e remover zona dão 201/200; com o site em `em_operacao` e em `base_em_aprovacao` (fase posta por SQL), os três dão 409 `{ error: 'Zona só muda com o site em implantação ou em obra' }` e a zona não muda no banco.
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — a fase vai **na própria mutação** (sem SELECT antes, que deixaria uma janela entre a leitura e a escrita):
   - POST: `INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue, tipo, descricao) SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ot_sites WHERE id = ? AND project_id = ? AND status = 'ativo' AND fase IN ('em_levantamento', 'em_obra'))`.
   - PUT e DELETE (o ramo `zonas` do laço): o `atualizar` (`ot.ts:97-104`) ganha um parâmetro opcional `extra` de SQL, e as rotas de zona passam `AND EXISTS (SELECT 1 FROM ot_sites s WHERE s.id = ot_zonas.site_id AND s.project_id = ot_zonas.project_id AND s.fase IN ('em_levantamento', 'em_obra'))`.
   - Com `changes() = 0`, a rota distingue depois da escrita (só para a mensagem): zona/site não encontrado no projeto e nos sites permitidos → 404 como hoje; encontrado → 409 `Zona só muda com o site em implantação ou em obra`.
   Acrescente ao teste: pedir a base (fase vai a `base_em_aprovacao`) e, em seguida, `PUT` de zona → 409; a zona não muda no banco.
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-zona-trava.test.ts test/ot-inventario.test.ts test/ot-fase.test.ts` → PASS.
-- [ ] **Step 5: Mutação P0** — ponha `'base_em_aprovacao'` na lista de fases permitidas do `UPDATE`: o caso da base em aprovação falha (zona mudada depois do pedido mudaria a base que o Gestor vai aprovar); desfaça.
-- [ ] **Step 6: Commit e entrega** — CHANGELOG ("n.ot: ativo e fluxo podem ser alterados e removidos por lote; a base exige ao menos um ativo; zona só muda na implantação ou em obra."); `git commit -m "feat(ot): zona só muda com o site em implantação ou em obra (PR3a implantação e operação)"`; push `claude/ot-io-3a`; PR "n.ot: tudo por lote no servidor (PR3a)".
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-zona-trava.test.ts test/ot-inventario.test.ts test/ot-fase.test.ts` → PASS.
+- [x] **Step 5: Mutação P0** — ponha `'base_em_aprovacao'` na lista de fases permitidas do `UPDATE`: o caso da base em aprovação falha (zona mudada depois do pedido mudaria a base que o Gestor vai aprovar); desfaça.
+- [x] **Step 6: Commit e entrega** — CHANGELOG ("n.ot: ativo e fluxo podem ser alterados e removidos por lote; a base exige ao menos um ativo; zona só muda na implantação ou em obra."); `git commit -m "feat(ot): zona só muda com o site em implantação ou em obra (PR3a implantação e operação)"`; push `claude/ot-io-3a`; PR "n.ot: tudo por lote no servidor (PR3a)".
 
 ---
 
@@ -832,11 +834,11 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 - Consumes: `POST /levantamentos`, `POST /levantamentos/:id/achados` (com `alvo_id`/`remover`, Task 3a.2); `GET /lotes/:id` `nomes_alvos` (Task 3a.3).
 - Produces: `window.otRegistrarAchado(siteId, { entidade, dados, alvo_id, remover }, { levantamento })`: registra o achado **no levantamento indicado** (o que está aberto na tela, `S.otLevantamento`); sem levantamento indicado, cria um **novo de visita** (`tipo: 'visita'`, `realizado_em` = hoje, `hojeSP()`) e registra nele. Nunca reusa em silêncio outra sessão (entrevista, documento ou visita de outro assunto). Ao salvar: "Achado registrado: envie para revisão em Revisar". `window.otRegistrarMudanca(siteId)` (usado no PR8): sempre cria um levantamento de visita novo para a mudança e abre-o; os achados daquela mudança vão nele e o "Enviar" dele é a Mudança (um lote). `montarInventario(..., { somenteLeitura })` e `montarFluxos(..., { somenteLeitura })` (usados no PR7 e no PR8).
 
-- [ ] **Step 1: Teste que falha** — `frontend/test/ot-achado-manual.test.js`: com o inventário do site carregado, (a) não existe `[data-action="otNovoAtivo"]`, `otSalvarAtivo`, `otNovoFluxo`, `otSalvarFluxo`, `otAplicarZona`; (b) "Registrar ativo" sem levantamento aberto na tela faz `POST …/levantamentos` com `{ site_id: 's1', tipo: 'visita' }` e depois `POST …/levantamentos/<id>/achados`, **mesmo havendo uma entrevista aberta no site** (o mock de `GET …/levantamentos` devolve uma `entrevista` aberta e o teste confere que ela não recebe o achado); com `S.otLevantamento = 'l1'`, o achado vai a `…/levantamentos/l1/achados`; (c) "Propor remoção" pede confirmação e manda `{ dados: { alvo_id: 'a1', remover: true }, evidencia }`; (d) nenhuma chamada a `POST/PUT/DELETE …/ot/ativos` ou `…/ot/fluxos` (o mock lança se a URL casar; `…/ativos/a1/revelar` passa). `frontend/test/ot-lote-decisao.test.js`: o item `{ dados: { alvo_id: 'a1', remover: 1 } }` com `nomes_alvos: { a1: 'Switch velho' }` aparece como "Remover: Switch velho"; `{ alvo_id: 'a1', nome: 'X' }`, como "Alterar: Switch velho".
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `montarInventario` troca os botões: "+ Novo ativo" → "Registrar ativo" (`otRegistrarAchado`), "Editar" → "Propor alteração" (achado com `alvo_id` e só os campos que a pessoa mudou: IP e MAC mascarados (`•••`) nunca vão no corpo), "Remover" → "Propor remoção", "Sugerir zona (IA)" → o modal mostra a sugestão e "Propor esta zona" (achado com `alvo_id` e `zona_id`), "Rascunho por IA" → formulário de achado. Fluxos: "+ Novo fluxo" → "Registrar fluxo" (achado de fluxo, `ot-levantamento.js:313-318`). Com `somenteLeitura`, nenhum desses botões. Remova `formAtivo`, `otSalvarAtivo`, `otNovoFluxo`, `otSalvarFluxo`, `otAplicarZona` e os ramos `ativos`/`fluxos` de `otRemover` (`NOMES` fica com `sites` e `zonas`). Em `ot-coleta.js`, a coluna do item usa `nomes_alvos[d.alvo_id]` quando há `alvo_id`.
-- [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
-- [ ] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: na tela, ativo e fluxo passam sempre por achado e lote decidido por outra pessoa."); `git commit -m "feat(ot): na tela, ativo e fluxo viram achado (PR3b implantação e operação)"`; push `claude/ot-io-3b`; PR.
+- [x] **Step 1: Teste que falha** — `frontend/test/ot-achado-manual.test.js`: com o inventário do site carregado, (a) não existe `[data-action="otNovoAtivo"]`, `otSalvarAtivo`, `otNovoFluxo`, `otSalvarFluxo`, `otAplicarZona`; (b) "Registrar ativo" sem levantamento aberto na tela faz `POST …/levantamentos` com `{ site_id: 's1', tipo: 'visita' }` e depois `POST …/levantamentos/<id>/achados`, **mesmo havendo uma entrevista aberta no site** (o mock de `GET …/levantamentos` devolve uma `entrevista` aberta e o teste confere que ela não recebe o achado); com `S.otLevantamento = 'l1'`, o achado vai a `…/levantamentos/l1/achados`; (c) "Propor remoção" pede confirmação e manda `{ dados: { alvo_id: 'a1', remover: true }, evidencia }`; (d) nenhuma chamada a `POST/PUT/DELETE …/ot/ativos` ou `…/ot/fluxos` (o mock lança se a URL casar; `…/ativos/a1/revelar` passa). `frontend/test/ot-lote-decisao.test.js`: o item `{ dados: { alvo_id: 'a1', remover: 1 } }` com `nomes_alvos: { a1: 'Switch velho' }` aparece como "Remover: Switch velho"; `{ alvo_id: 'a1', nome: 'X' }`, como "Alterar: Switch velho".
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — `montarInventario` troca os botões: "+ Novo ativo" → "Registrar ativo" (`otRegistrarAchado`), "Editar" → "Propor alteração" (achado com `alvo_id` e só os campos que a pessoa mudou: IP e MAC mascarados (`•••`) nunca vão no corpo), "Remover" → "Propor remoção", "Sugerir zona (IA)" → o modal mostra a sugestão e "Propor esta zona" (achado com `alvo_id` e `zona_id`), "Rascunho por IA" → formulário de achado. Fluxos: "+ Novo fluxo" → "Registrar fluxo" (achado de fluxo, `ot-levantamento.js:313-318`). Com `somenteLeitura`, nenhum desses botões. Remova `formAtivo`, `otSalvarAtivo`, `otNovoFluxo`, `otSalvarFluxo`, `otAplicarZona` e os ramos `ativos`/`fluxos` de `otRemover` (`NOMES` fica com `sites` e `zonas`). Em `ot-coleta.js`, a coluna do item usa `nomes_alvos[d.alvo_id]` quando há `alvo_id`.
+- [x] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: na tela, ativo e fluxo passam sempre por achado e lote decidido por outra pessoa."); `git commit -m "feat(ot): na tela, ativo e fluxo viram achado (PR3b implantação e operação)"`; push `claude/ot-io-3b`; PR.
 
 ---
 
@@ -851,7 +853,7 @@ it('aprovar: o ativo removido depois do pedido barra a aprovação (WHERE atômi
 - Modify: `docs/openapi.json`, `mcp-server-niso/src/contrato-gerado.ts` (por `npm run openapi`); `test/ot-inventario.test.ts` (os testes das rotas que somem saem; os de 4.3.1 e `toca431` já estão cobertos por `test/ot-tudo-por-lote.test.ts`); `test/contrato-tela-api.test.ts`, `test/contrato-isolamento-org.test.ts` se listarem as rotas
 - Test: `test/ot-tudo-por-lote.test.ts`
 
-- [ ] **Step 1: Teste que falha** — em `test/ot-tudo-por-lote.test.ts`:
+- [x] **Step 1: Teste que falha** — em `test/ot-tudo-por-lote.test.ts`:
 
 ```ts
 it('não há mais gravação direta de ativo nem de fluxo (decisão 3), para nenhum papel', async () => {
@@ -866,10 +868,10 @@ it('não há mais gravação direta de ativo nem de fluxo (decisão 3), para nen
 });
 ```
 
-- [ ] **Step 2: Rodar** → FAIL (201/200/404 misturados).
-- [ ] **Step 3: Remover** os handlers e as entradas `ativos` e `fluxos` do laço. `npm run openapi`. `npx tsc --noEmit`.
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-inventario.test.ts test/contrato-tela-api.test.ts test/contrato-isolamento-org.test.ts test/openapi.test.ts test/any-catraca.test.ts` → PASS (se o número de `any` cair, baixe o TETO no mesmo commit); `cd frontend && npx vitest run && npx playwright test e2e/ot.spec.js`.
-- [ ] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: saem as rotas de gravação direta de ativo e fluxo."); `git commit -m "feat(ot)!: ativo e fluxo só entram, mudam ou saem por lote (PR3c implantação e operação)"`; push `claude/ot-io-3c`; PR.
+- [x] **Step 2: Rodar** → FAIL (201/200/404 misturados).
+- [x] **Step 3: Remover** os handlers e as entradas `ativos` e `fluxos` do laço. `npm run openapi`. `npx tsc --noEmit`.
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-tudo-por-lote.test.ts test/ot-inventario.test.ts test/contrato-tela-api.test.ts test/contrato-isolamento-org.test.ts test/openapi.test.ts test/any-catraca.test.ts` → PASS (se o número de `any` cair, baixe o TETO no mesmo commit); `cd frontend && npx vitest run && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: saem as rotas de gravação direta de ativo e fluxo."); `git commit -m "feat(ot)!: ativo e fluxo só entram, mudam ou saem por lote (PR3c implantação e operação)"`; push `claude/ot-io-3c`; PR.
 
 ---
 
@@ -886,7 +888,7 @@ it('não há mais gravação direta de ativo nem de fluxo (decisão 3), para nen
 **Interfaces:**
 - Produces: `respostaDoOt` do técnico ganha `meu_trabalho: ItemFazer[]`; `fazer` da equipe ganha "N achados em rascunho" (por site; com `site` quando um só), "N itens do assessment sem preencher"; o do Gestor, "N itens do assessment para confirmar" (sem os que ele avaliou).
 
-- [ ] **Step 1: Testes que falham** — em `test/painel-ot-papeis.test.ts`:
+- [x] **Step 1: Testes que falham** — em `test/painel-ot-papeis.test.ts`:
 
 ```ts
 it('técnico: meu_trabalho tem os achados em rascunho DELE e o lote DELE recusado (7 dias), só dos sites dele', async () => {
@@ -905,8 +907,8 @@ it('nada disso no Início do n.360 (sem ?modulo)', async () => {
 });
 ```
 
-- [ ] **Step 2: Rodar** — `npx vitest run test/painel-ot-papeis.test.ts` → FAIL.
-- [ ] **Step 3: Implementar** — no batch de `blocoOt` (`painel-ot.ts:40`), três consultas a mais, agrupadas, nenhuma por site:
+- [x] **Step 2: Rodar** — `npx vitest run test/painel-ot-papeis.test.ts` → FAIL.
+- [x] **Step 3: Implementar** — no batch de `blocoOt` (`painel-ot.ts:40`), três consultas a mais, agrupadas, nenhuma por site:
 
 ```ts
     db.prepare(`SELECT l.site_id, count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
@@ -920,9 +922,9 @@ it('nada disso no Início do n.360 (sem ?modulo)', async () => {
 ```
 
   (`ot_requisitos` não tem coluna de tipo: "política" é todo código fora de `ITENS_TECNICOS`, `src/services/ot-conformidade.ts:21`, e do 5.1.1 (`EXCECAO`, `src/services/ot-avaliacao.ts:8`, hoje não exportada: exporte). "A confirmar" é avaliação sem `confirmado_em`, e quem gravou (`atualizado_por`) não conta para si, como `eu_avaliei` em `ot-avaliacao.ts:111`. O `framework` do catálogo é `'ONS-RO-CB.BR.01'`, `migrations/0090_ot_requisitos.sql:27`.) `respostaDoOt` do técnico: `{ ...base, meu_trabalho }`, com `meu_trabalho` montado de `mMeusRasc` e `mMeusRecusados` (um item por grupo; `site` quando um site só, `aba: 'revisar'`).
-- [ ] **Step 4: Rodar** — `npx vitest run test/painel-ot-papeis.test.ts test/painel-ot-rota.test.ts test/painel-ot.test.ts test/programa-rota.test.ts test/painel.test.ts test/onda2-numeros.test.ts` → PASS.
-- [ ] **Step 5: Mutação P0** — tire `AND a.criado_por = ?3`; o teste do técnico falha (conta o achado do consultor); desfaça.
-- [ ] **Step 6: Commit** — `git commit -m "feat(ot): Painel com o trabalho do técnico e os itens do assessment (PR4 implantação e operação)"`.
+- [x] **Step 4: Rodar** — `npx vitest run test/painel-ot-papeis.test.ts test/painel-ot-rota.test.ts test/painel-ot.test.ts test/programa-rota.test.ts test/painel.test.ts test/onda2-numeros.test.ts` → PASS.
+- [x] **Step 5: Mutação P0** — tire `AND a.criado_por = ?3`; o teste do técnico falha (conta o achado do consultor); desfaça.
+- [x] **Step 6: Commit** — `git commit -m "feat(ot): Painel com o trabalho do técnico e os itens do assessment (PR4 implantação e operação)"`.
 
 ### Task 4.2: Some o Início; o Painel é a tela inicial
 
@@ -931,11 +933,11 @@ it('nada disso no Início do n.360 (sem ?modulo)', async () => {
 - Modify: `frontend/src/ot-navegacao.js:3,12` (`inicio` vira alias de `painel`); `frontend/src/views/ot.js:14,33,35,50,67,70,73`; `frontend/login.html:300-303` (sai `nav-ot-inicio`); `frontend/src/produto.js:33,466`; `frontend/src/views/painel.js:273-286` (quadro "Meu trabalho")
 - Modify: `frontend/test/ot-navegacao.test.js`, `ot-modulo.test.js`, `produto.test.js`, `painel-ot.test.js`; `frontend/e2e/ot.spec.js:43,59,484-501` (o teste "Fluidez E1: o Início mostra o que espera pela pessoa" passa a abrir o lote pelo quadro "O que fazer" do Painel)
 
-- [ ] **Step 1: Testes que falham** — `ot-navegacao.test.js`: `lerEndereco(loc('/ot')).tela === 'painel'` e `?ot=inicio` → `'painel'`. `painel-ot.test.js`: com `meu_trabalho` na resposta, o quadro `#pn-ot-meu` "Meu trabalho" lista os itens com "Abrir" para o site; sem a chave, o quadro não existe. `ot-modulo.test.js`: abrir `/ot` faz **uma** chamada ao painel e nenhuma a `/ot/sites/<id>/sensores`, `/ot/achados?…contagem=1` ou `/ot/sites/<id>/situacao`.
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `TELAS_OT` sem `inicio`; `lerEndereco`: `const pedida = q.get('ot') === 'inicio' ? 'painel' : q.get('ot'); let tela = TELAS_OT.includes(pedida) ? pedida : 'painel';`. Em `ot.js`, os fallbacks `'inicio'` viram `'painel'`; sai o import de `montarInicio` e `window.otIrParaLote` passa a `window.otTela('site', site, 'revisar', { otLote: lote })`. `telaDoOt` ganha `const meu = Array.isArray(b.meu_trabalho) ? [quadro('pn-ot-meu', 'Meu trabalho', listaFazer(b.meu_trabalho, false))] : [];` à esquerda, antes de "Por site" (que para o técnico se chama "Meus sites": título do quadro por `b.meu_trabalho ? 'Meus sites' : 'Por site'`).
-- [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
-- [ ] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: o Painel é a tela inicial; o Início saiu, e o que ele mostrava está no Painel, calculado no servidor."); `git commit -m "feat(ot): o Painel é a tela inicial do n.ot; sai o Início (PR4 implantação e operação)"`; push `claude/ot-io-4`; PR.
+- [x] **Step 1: Testes que falham** — `ot-navegacao.test.js`: `lerEndereco(loc('/ot')).tela === 'painel'` e `?ot=inicio` → `'painel'`. `painel-ot.test.js`: com `meu_trabalho` na resposta, o quadro `#pn-ot-meu` "Meu trabalho" lista os itens com "Abrir" para o site; sem a chave, o quadro não existe. `ot-modulo.test.js`: abrir `/ot` faz **uma** chamada ao painel e nenhuma a `/ot/sites/<id>/sensores`, `/ot/achados?…contagem=1` ou `/ot/sites/<id>/situacao`.
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — `TELAS_OT` sem `inicio`; `lerEndereco`: `const pedida = q.get('ot') === 'inicio' ? 'painel' : q.get('ot'); let tela = TELAS_OT.includes(pedida) ? pedida : 'painel';`. Em `ot.js`, os fallbacks `'inicio'` viram `'painel'`; sai o import de `montarInicio` e `window.otIrParaLote` passa a `window.otTela('site', site, 'revisar', { otLote: lote })`. `telaDoOt` ganha `const meu = Array.isArray(b.meu_trabalho) ? [quadro('pn-ot-meu', 'Meu trabalho', listaFazer(b.meu_trabalho, false))] : [];` à esquerda, antes de "Por site" (que para o técnico se chama "Meus sites": título do quadro por `b.meu_trabalho ? 'Meus sites' : 'Por site'`).
+- [x] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: o Painel é a tela inicial; o Início saiu, e o que ele mostrava está no Painel, calculado no servidor."); `git commit -m "feat(ot): o Painel é a tela inicial do n.ot; sai o Início (PR4 implantação e operação)"`; push `claude/ot-io-4`; PR.
 
 ---
 
@@ -955,7 +957,7 @@ it('nada disso no Início do n.360 (sem ?modulo)', async () => {
 **Interfaces:**
 - Produces: `TELAS_OT = ['painel', 'sites', 'site', 'desvios', 'assessment', 'relatorios', 'implantacao', 'acessos', 'sondas', 'agente', 'integracao', 'fornecedores']`; `montarAcessosTecnicos`, `montarSondas`, `montarAgente`, `montarIntegracao` em `ot-configuracao.js` (cada uma é o pedaço de `montarAcessos`, `ot.js:403-420`, que já existe: tabela de acessos, `areaSondas`, `cartaoAgente`, `cartaoIntegracao`).
 
-- [ ] **Step 1: Teste que falha** — `frontend/test/ot-menu.test.js`:
+- [x] **Step 1: Teste que falha** — `frontend/test/ot-menu.test.js`:
 
 ```js
 it('três grupos, na ordem, com os itens certos para quem edita', async () => {
@@ -972,10 +974,10 @@ it('sem ?ot=: tela_inicial do servidor decide', async () => { /* tela_inicial: '
 it('?ot=acessos abre Acessos de técnicos; Sondas sem ver_sondas cai no Painel', async () => {});
 ```
 
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `login.html:300-334`: seções `secao-ot-operacao` ("Operação"), `secao-ot-implantacao` ("Implantação"), `secao-ot-configuracao` ("Configuração") e os itens `nav-ot-desvios` ("Desvios"), `nav-ot-implantacao` ("Implantação"), `nav-ot-sondas`, `nav-ot-agente`, `nav-ot-integracao` (o `nav-ot-acessos` vira "Acessos de técnicos"; `nav-ot-fornecedores` desce para Configuração). `SO_OT` e `atualizarItemOt` (`produto.js:33,464-469`) acompanham, cada item com a sua permissão. Em `ot.js`, `TITULOS`/`MONTAR` com as telas novas (`desvios: (c, a, p) => montarDesvios(c, a, p, {})`, que já aceita sem site, `ot-desvios.js:44`), sem endereço: `tela = S.otPermissoes.tela_inicial`. A "Cadastrar sonda" do desvio sem sonda (`ot-desvios.js:46`) passa a `otTela('sondas')`.
-- [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
-- [ ] **Step 5: Commit e entrega** — CHANGELOG; `git commit -m "feat(ot): menu em Operação, Implantação e Configuração; Acessos dividido; Desvios de todos os sites (PR5 implantação e operação)"`; push `claude/ot-io-5`; PR.
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — `login.html:300-334`: seções `secao-ot-operacao` ("Operação"), `secao-ot-implantacao` ("Implantação"), `secao-ot-configuracao` ("Configuração") e os itens `nav-ot-desvios` ("Desvios"), `nav-ot-implantacao` ("Implantação"), `nav-ot-sondas`, `nav-ot-agente`, `nav-ot-integracao` (o `nav-ot-acessos` vira "Acessos de técnicos"; `nav-ot-fornecedores` desce para Configuração). `SO_OT` e `atualizarItemOt` (`produto.js:33,464-469`) acompanham, cada item com a sua permissão. Em `ot.js`, `TITULOS`/`MONTAR` com as telas novas (`desvios: (c, a, p) => montarDesvios(c, a, p, {})`, que já aceita sem site, `ot-desvios.js:44`), sem endereço: `tela = S.otPermissoes.tela_inicial`. A "Cadastrar sonda" do desvio sem sonda (`ot-desvios.js:46`) passa a `otTela('sondas')`.
+- [x] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 5: Commit e entrega** — CHANGELOG; `git commit -m "feat(ot): menu em Operação, Implantação e Configuração; Acessos dividido; Desvios de todos os sites (PR5 implantação e operação)"`; push `claude/ot-io-5`; PR.
 
 ---
 
@@ -992,7 +994,7 @@ it('?ot=acessos abre Acessos de técnicos; Sondas sem ver_sondas cai no Painel',
 **Interfaces:**
 - Produces: `listaDeVerificacao(db, projectId): Promise<{ passos: PassoImplantacao[] }>`; `type PassoImplantacao = { id: 'modulo' | 'gestor' | 'tecnicos' | 'site' | 'sonda' | 'agente' | 'fornecedores' | 'assessment' | 'base'; texto: string; estado: 'feito' | 'falta' | 'opcional'; detalhe: string; link: { tela: string; site?: string; aba?: string } }`.
 
-- [ ] **Step 1: Teste que falha** — `test/ot-implantacao.test.ts`:
+- [x] **Step 1: Teste que falha** — `test/ot-implantacao.test.ts`:
 
 ```ts
 it('projeto novo: tudo falta, agente é opcional, na ordem do spec', async () => {
@@ -1020,8 +1022,8 @@ it('P0-6: nenhum nome de pessoa, sonda ou ativo, nenhum IP/MAC no corpo', async 
 it('um db.batch: o número de consultas não cresce com 50 sites', async () => { /* molde de test/programa-rota.test.ts:109 */ });
 ```
 
-- [ ] **Step 2: Rodar** → FAIL (404).
-- [ ] **Step 3: Implementar** — `src/services/ot-implantacao.ts`, um `db.batch` com uma consulta de contagens:
+- [x] **Step 2: Rodar** → FAIL (404).
+- [x] **Step 3: Implementar** — `src/services/ot-implantacao.ts`, um `db.batch` com uma consulta de contagens:
 
 ```ts
 import { CARGO_GESTOR_ARCIBER } from './ot-inventario';
@@ -1065,9 +1067,9 @@ export async function listaDeVerificacao(db: D1Database, projectId: string) {
 ```
 
   (`ot_sensores`, `ot_sensor_credenciais` e `ot_sensor_envios` têm `project_id` e `situacao`, `migrations/0101_ot_sensores.sql:9-46`; `ot_fornecedores` não tem status, `migrations/0116_ot_fornecedores.sql:3-14`: todo vínculo conta.) Rota: `otApp.get('/implantacao', …)` com `if (!podeEditarOt(user)) return c.json({ error: 'Forbidden: a lista de verificação é de quem implanta' }, 403);`.
-- [ ] **Step 4: Rodar** — `npx vitest run test/ot-implantacao.test.ts test/contrato-tela-api.test.ts test/contrato-isolamento-org.test.ts` → PASS.
-- [ ] **Step 5: Mutação P0** — troque `podeEditarOt(user)` por `true`; o teste do técnico falha; desfaça.
-- [ ] **Step 6: Commit** — `git commit -m "feat(ot): GET /ot/implantacao, lista de verificação do projeto (PR6 implantação e operação)"`.
+- [x] **Step 4: Rodar** — `npx vitest run test/ot-implantacao.test.ts test/contrato-tela-api.test.ts test/contrato-isolamento-org.test.ts` → PASS.
+- [x] **Step 5: Mutação P0** — troque `podeEditarOt(user)` por `true`; o teste do técnico falha; desfaça.
+- [x] **Step 6: Commit** — `git commit -m "feat(ot): GET /ot/implantacao, lista de verificação do projeto (PR6 implantação e operação)"`.
 
 ### Task 6.2: Tela Implantação
 
@@ -1075,11 +1077,11 @@ export async function listaDeVerificacao(db: D1Database, projectId: string) {
 - Create: `frontend/src/views/ot-implantacao.js`; `frontend/test/ot-implantacao.test.js`
 - Modify: `frontend/src/views/ot.js` (`MONTAR.implantacao`), `frontend/src/views/ot.js:186-195` (`otSalvarSite`: depois de criar, `window.otTela('site', r.id, null)`)
 
-- [ ] **Step 1: Teste que falha** — `frontend/test/ot-implantacao.test.js`: com `/ot/implantacao` servido, a lista é um `<ol aria-label="Lista de verificação do projeto">` com nove itens, cada um com o estado em texto ("Feito", "Falta", "Opcional") e um botão "Abrir" com `data-action="otIrPasso"` e os `data-args` do link; o primeiro passo que falta tem o único `.btn-primary`. Abaixo, "Sites em implantação" com os sites de `por_site` cuja área não é Operação (uma chamada ao painel, a mesma do cache `S.painel`). Criar site: o `POST /ot/sites` devolve `{ id: 's9' }` e a tela chama `otTela('site', 's9', null)`. Com `/ot/implantacao` em 403 (técnico), a lista não aparece e só "Sites em implantação" fica.
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `montarImplantacao(c, a, p)`; `window.otIrPasso(link)`: `n360-usuarios` → `irPara(`${enderecoDoProduto('n360')}?tela=users`)`, `n360-governanca` → `?tela=governance`, `site` → `otTela('site', link.site, link.aba ?? null)`, `aba: 'novo-site'` → `otNovoSite()`, o resto → `otTela(link.tela)`.
-- [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
-- [ ] **Step 5: Commit e entrega** — CHANGELOG; `git commit -m "feat(ot): tela Implantação com a lista de verificação; criar site abre o site (PR6 implantação e operação)"`; push `claude/ot-io-6`; PR.
+- [x] **Step 1: Teste que falha** — `frontend/test/ot-implantacao.test.js`: com `/ot/implantacao` servido, a lista é um `<ol aria-label="Lista de verificação do projeto">` com nove itens, cada um com o estado em texto ("Feito", "Falta", "Opcional") e um botão "Abrir" com `data-action="otIrPasso"` e os `data-args` do link; o primeiro passo que falta tem o único `.btn-primary`. Abaixo, "Sites em implantação" com os sites de `por_site` cuja área não é Operação (uma chamada ao painel, a mesma do cache `S.painel`). Criar site: o `POST /ot/sites` devolve `{ id: 's9' }` e a tela chama `otTela('site', 's9', null)`. Com `/ot/implantacao` em 403 (técnico), a lista não aparece e só "Sites em implantação" fica.
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — `montarImplantacao(c, a, p)`; `window.otIrPasso(link)`: `n360-usuarios` → `irPara(`${enderecoDoProduto('n360')}?tela=users`)`, `n360-governanca` → `?tela=governance`, `site` → `otTela('site', link.site, link.aba ?? null)`, `aba: 'novo-site'` → `otNovoSite()`, o resto → `otTela(link.tela)`.
+- [x] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 5: Commit e entrega** — CHANGELOG; `git commit -m "feat(ot): tela Implantação com a lista de verificação; criar site abre o site (PR6 implantação e operação)"`; push `claude/ot-io-6`; PR.
 
 ---
 
@@ -1097,11 +1099,11 @@ export async function listaDeVerificacao(db: D1Database, projectId: string) {
 - Consumes: `situacao.area/etapa/falta` (PR1a), `montarInventario(..., { somenteLeitura })` e `montarFluxos(..., { somenteLeitura })` (PR3b), `montarLevantamento`, `montarRevisao`.
 - Produces: abas da Implantação `['cadastrar', 'levantar', 'revisar', 'base']` (a do endereço, ou a da etapa atual); `window.otSiteAba(aba)`.
 
-- [ ] **Step 1: Teste que falha** — `frontend/test/ot-site.test.js`: com `situacao = { area: 'implantacao', etapa: 2, falta: ['Nenhum ativo no inventário do site'] }`, a tela abre na aba "2. Levantar" (o `montarLevantamento` é chamado), as etapas 3 e 4 aparecem como "ainda não" (botão desabilitado com `aria-disabled="true"`), a 1 como "feita" (abre para leitura); só um `.btn-primary`. Com `etapa: 4`, a aba "4. Aprovar a base" mostra inventário e fluxos **sem** "Registrar ativo" nem "Propor", e "Pedir aprovação da base" para quem edita; com `pode('gestor')` e `eu_pedi_a_base: false`, "Aprovar a base" e "Devolver". Com `area: 'obra'`, a faixa "Obra até dd/mm" e as quatro etapas (a zona pode mudar na obra, Task 3a.5, então a etapa 1 existe também aqui); com `area: 'obra', etapa: 1`, abre em "1. Cadastrar". Aba do endereço que não é da área (`aba=desvios` em obra, `aba=zzz`) cai na aba da etapa atual. Nenhum "Modo projeto" no DOM.
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `montarSite`: lê sites e situação (como hoje, `ot-site.js:61-69`); `sit.area === 'operacao'` → `montarSiteOperacao` (PR8; até lá, a tela de operação de hoje); senão, as abas da implantação: `cadastrar` → formulário do site e zonas (o `formSite` e a tabela de zonas de `montarInventario`, que já existem), `levantar` → `montarLevantamento`, `revisar` → `montarRevisao`, `base` → `montarInventario(…, { somenteLeitura: true })` + `montarFluxos(…, { somenteLeitura: true })` + botões da base (`proximoPasso` de `ot-base.js`). Aba sem pedido no endereço = `['cadastrar', 'levantar', 'revisar', 'base'][sit.etapa - 1]`. `ALIAS_ABA` (PR1b) sai: `revisar` é aba de verdade agora.
-- [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
-- [ ] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: o site em implantação é um assistente de quatro etapas, com o que falta para avançar dito pelo servidor."); `git commit -m "feat(ot): site em Implantação como assistente de 4 etapas (PR7 implantação e operação)"`; push `claude/ot-io-7`; PR.
+- [x] **Step 1: Teste que falha** — `frontend/test/ot-site.test.js`: com `situacao = { area: 'implantacao', etapa: 2, falta: ['Nenhum ativo no inventário do site'] }`, a tela abre na aba "2. Levantar" (o `montarLevantamento` é chamado), as etapas 3 e 4 aparecem como "ainda não" (botão desabilitado com `aria-disabled="true"`), a 1 como "feita" (abre para leitura); só um `.btn-primary`. Com `etapa: 4`, a aba "4. Aprovar a base" mostra inventário e fluxos **sem** "Registrar ativo" nem "Propor", e "Pedir aprovação da base" para quem edita; com `pode('gestor')` e `eu_pedi_a_base: false`, "Aprovar a base" e "Devolver". Com `area: 'obra'`, a faixa "Obra até dd/mm" e as quatro etapas (a zona pode mudar na obra, Task 3a.5, então a etapa 1 existe também aqui); com `area: 'obra', etapa: 1`, abre em "1. Cadastrar". Aba do endereço que não é da área (`aba=desvios` em obra, `aba=zzz`) cai na aba da etapa atual. Nenhum "Modo projeto" no DOM.
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — `montarSite`: lê sites e situação (como hoje, `ot-site.js:61-69`); `sit.area === 'operacao'` → `montarSiteOperacao` (PR8; até lá, a tela de operação de hoje); senão, as abas da implantação: `cadastrar` → formulário do site e zonas (o `formSite` e a tabela de zonas de `montarInventario`, que já existem), `levantar` → `montarLevantamento`, `revisar` → `montarRevisao`, `base` → `montarInventario(…, { somenteLeitura: true })` + `montarFluxos(…, { somenteLeitura: true })` + botões da base (`proximoPasso` de `ot-base.js`). Aba sem pedido no endereço = `['cadastrar', 'levantar', 'revisar', 'base'][sit.etapa - 1]`. `ALIAS_ABA` (PR1b) sai: `revisar` é aba de verdade agora.
+- [x] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: o site em implantação é um assistente de quatro etapas, com o que falta para avançar dito pelo servidor."); `git commit -m "feat(ot): site em Implantação como assistente de 4 etapas (PR7 implantação e operação)"`; push `claude/ot-io-7`; PR.
 
 ---
 
@@ -1116,7 +1118,7 @@ export async function listaDeVerificacao(db: D1Database, projectId: string) {
 - Create: `frontend/test/ot-site-operacao.test.js`
 - Modify: `frontend/e2e/ot.spec.js:506-521,627-665` (o site em operação abre na aba Desvios; "Modo operação" não existe mais)
 
-- [ ] **Step 1: Teste que falha** — `frontend/test/ot-site-operacao.test.js`:
+- [x] **Step 1: Teste que falha** — `frontend/test/ot-site-operacao.test.js`:
 
 ```js
 it('em operação: cinco abas, Desvios primeiro; a aba do endereço vale', async () => {
@@ -1136,10 +1138,10 @@ it('Revalidação sem ver completo (técnico; platform_admin): só a data e o bo
 it('Gestor vê "Abrir obra"; os demais, não', async () => {});
 ```
 
-- [ ] **Step 2: Rodar** → FAIL.
-- [ ] **Step 3: Implementar** — `montarSiteOperacao(c, a, p, { site, aba, sit })`: `desvios` → `montarDesvios(…, { siteFixo })`; `saude` → o que `ot-site.js:92-93` já faz; `inventario` → `montarInventario(…, { somenteLeitura: true })` + `montarFluxos(…, { somenteLeitura: true })`; `mudancas` → `GET /ot/lotes`, filtro `l.site_id === site && l.created_at >= sit.base_aprovada_em`, em três blocos: **Abertas** (`em_revisao`), **Concluídas** (`concluido`) e **Recusadas nos últimos 7 dias** (`rejeitado`, com a nota "a recusa fica registrada na trilha; o lote sai daqui em 7 dias"), cada um com Criado em, Itens e Abrir → `otTela('site', site, 'mudancas', { otLote: l.id })` (abre `montarColeta` no lote), botão "Registrar mudança" → `otRegistrarMudanca(site)` (PR3b: sempre um levantamento de visita novo para a mudança); `revalidacao` → `sit.revalidar_em`; **só com `pode('aprovar_lote')`** (`podeVerCompleto` do servidor, que vê o inventário em claro), a lista de `GET /ot/ativos?site_id=` com `no_arciber` e `ultima_verificacao_em` + 24 meses ≤ hoje + 60 dias (técnico e platform_admin veem só a data, sem a chamada); botão "Nova visita de revalidação" → `otNovoLevantamentoDoSite`. Aba do endereço fora das cinco cai em Desvios. O cabeçalho em operação: "Operação desde dd/mm/aaaa" e, para `pode('gestor')`, "Abrir obra" (`ot-base.js:46-47`).
-- [ ] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
-- [ ] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: o site em operação tem Desvios, Saúde da coleta, Inventário só leitura, Mudanças e Revalidação."); `git commit -m "feat(ot): site em Operação com Mudanças e Revalidação (PR8 implantação e operação)"`; push `claude/ot-io-8`; PR.
+- [x] **Step 2: Rodar** → FAIL.
+- [x] **Step 3: Implementar** — `montarSiteOperacao(c, a, p, { site, aba, sit })`: `desvios` → `montarDesvios(…, { siteFixo })`; `saude` → o que `ot-site.js:92-93` já faz; `inventario` → `montarInventario(…, { somenteLeitura: true })` + `montarFluxos(…, { somenteLeitura: true })`; `mudancas` → `GET /ot/lotes`, filtro `l.site_id === site && l.created_at >= sit.base_aprovada_em`, em três blocos: **Abertas** (`em_revisao`), **Concluídas** (`concluido`) e **Recusadas nos últimos 7 dias** (`rejeitado`, com a nota "a recusa fica registrada na trilha; o lote sai daqui em 7 dias"), cada um com Criado em, Itens e Abrir → `otTela('site', site, 'mudancas', { otLote: l.id })` (abre `montarColeta` no lote), botão "Registrar mudança" → `otRegistrarMudanca(site)` (PR3b: sempre um levantamento de visita novo para a mudança); `revalidacao` → `sit.revalidar_em`; **só com `pode('aprovar_lote')`** (`podeVerCompleto` do servidor, que vê o inventário em claro), a lista de `GET /ot/ativos?site_id=` com `no_arciber` e `ultima_verificacao_em` + 24 meses ≤ hoje + 60 dias (técnico e platform_admin veem só a data, sem a chamada); botão "Nova visita de revalidação" → `otNovoLevantamentoDoSite`. Aba do endereço fora das cinco cai em Desvios. O cabeçalho em operação: "Operação desde dd/mm/aaaa" e, para `pode('gestor')`, "Abrir obra" (`ot-base.js:46-47`).
+- [x] **Step 4: Suíte inteira do frontend, build e E2E** — `cd frontend && npx vitest run && npm run build && npx playwright test e2e/ot.spec.js`.
+- [x] **Step 5: Commit e entrega** — CHANGELOG ("n.ot: o site em operação tem Desvios, Saúde da coleta, Inventário só leitura, Mudanças e Revalidação."); `git commit -m "feat(ot): site em Operação com Mudanças e Revalidação (PR8 implantação e operação)"`; push `claude/ot-io-8`; PR.
 
 ---
 

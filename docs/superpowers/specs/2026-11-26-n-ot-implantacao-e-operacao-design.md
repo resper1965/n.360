@@ -1,7 +1,7 @@
 # n.ot: Implantação e Operação
 
 Data: 26/11/2026. Situação: **aprovada (abordagem A e decisões do dono abaixo), não construída**; plano
-`docs/superpowers/plans/2026-11-26-n-ot-implantacao-e-operacao.md`. Base: leitura somente de uma cópia de trabalho sobre
+`docs/arquivo/planos/2026-11-26-n-ot-implantacao-e-operacao.md`. Base: leitura somente de uma cópia de trabalho sobre
 `origin/main` `e734f7a`; toda referência arquivo:linha foi conferida nessa base. Nada foi rodado (sem vitest, tsc nem npm).
 
 ## O pedido
