@@ -3,16 +3,16 @@ import type { Bindings, Variables } from '../index';
 import { erro500, genId, logAudit, refForaDoProjeto } from '../helpers';
 import { validateBody } from '../schemas';
 import {
-  otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
+  otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema,
+  otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema, otItemRecusarSchema, otBaseAprovarSchema, otBaseDevolverSchema, otObraSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
   otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema, otDesvioTratarSchema, otDesvioAceitarSchema, otAvaliacaoSchema, otAvaliacaoConfirmarSchema, otAvaliacaoEvidenciaSchema, otReferenciaCriarSchema, otDesvioAcaoSchema, otFornecedorCriarSchema,
 } from '../schemas/ot';
-import { aadOt, chavesOt, cifrarEnderecos, decifrarOt, type ChavesOt } from '../services/ot-cifra';
+import { aadOt, chavesOt, decifrarOt } from '../services/ot-cifra';
 import { avisar, entregarAbertos, projetarDesvios, type LinhaDesvio } from '../services/ot-desvio';
 import { abrirObra, renovarObra, aprovarBase, contarAchados, devolverBase, pedirBase, situacaoDoSite } from '../services/ot-fase';
 import { ESCRITAS_DO_TECNICO, ROTAS_DO_LEITOR, FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
+import { aprovarLote, criarLote, recusarItem, rejeitarLote, serializarItem, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { ehGestorArciberOt, ehLeitorOt, permissoesOt } from '../services/ot-permissoes';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { confirmarAvaliacao, desligarEvidencia, ligarEvidencia, montarAssessment, relatorioConformidade, salvarAvaliacao } from '../services/ot-avaliacao';
@@ -127,27 +127,7 @@ async function zonaNaoMudou(c: C, db: D1Database, id: string, projectId: string,
   return existe ? c.json({ error: TRAVA_ZONA }, 409) : NAO_ENCONTRADO(c, 'Zona');
 }
 
-/** Zona/ativo citado no corpo: ativo, do projeto e de site permitido (P1-3); `site` restringe ao mesmo site. Devolve o campo ruim. */
-async function refInvalida(db: D1Database, projectId: string, sites: string, corpo: Record<string, unknown>, campos: [string, 'ot_zonas' | 'ot_ativos'][], site?: string) {
-  for (const [campo, tabela] of campos) {
-    const id = corpo[campo];
-    if (id === undefined || id === null) continue;
-    const achou = await db.prepare(`SELECT 1 FROM ${tabela} WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${NO_SITE} AND (? IS NULL OR site_id = ?)`)
-      .bind(id, projectId, sites, site ?? null, site ?? null).first();
-    if (!achou) return campo;
-  }
-  return null;
-}
 const refRuim = (c: C, campo: string) => c.json({ error: `Referência inválida: ${campo}` }, 400);
-
-const FALTA_4_3_1 = 'Ativo do ARCiber exige os campos mínimos do 4.3.1 da RO-CB.BR.01: categoria, tipo de dispositivo, fabricante, função, IP ou MAC, ao menos um protocolo/porta e firmware/SO (ou "não aplicável")';
-/** CHECK do banco que o esquema não cobre (depende do registro inteiro): a mensagem certa em vez de 500. */
-function recusaDoBanco(c: C, e: unknown) {
-  const m = e instanceof Error ? e.message : '';
-  if (m.includes('ot_ativos_4_3_1')) return c.json({ error: FALTA_4_3_1 }, 400);
-  if (m.includes('CHECK constraint failed') && m.includes('origem')) return c.json({ error: 'Fluxo precisa de uma ponta de cada lado (ativo ou zona, não os dois); fluxo externo, de ao menos uma' }, 400);
-  return null;
-}
 
 /** P1-7: a trilha do n.ot leva só ids e contagens, nunca nome, IP ou MAC. */
 const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade?: { tipo: string; id: string }, justificativa = '') =>
@@ -242,9 +222,6 @@ const COLUNAS_ATIVO = `id, project_id, site_id, zona_id, nome, no_arciber, categ
   ip_cifrado, mac_cifrado, ip_hash, mac_hash, protocolos_portas, firmware_so_versao, firmware_nao_aplicavel, ultima_verificacao_em,
   verificado_por, status, created_at, updated_at`;
 
-const enderecos = (chaves: ChavesOt, projectId: string, id: string, d: { ip?: string | null; mac?: string | null }) =>
-  cifrarEnderecos(chaves, projectId, 'ot_ativos', id, d);
-
 /** Ativos pelo serializador único; uma linha de trilha por requisição que saiu sem máscara (P1-7), com a contagem. */
 async function responderAtivos(c: C, projectId: string, linhas: LinhaAtivo[], completo: boolean, justificativa = '') {
   const chaves = chavesOt(c.env)!;
@@ -299,59 +276,10 @@ otApp.post('/ativos/:id/revelar', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao revelar o ativo', e); }
 });
 
-otApp.post('/ativos', async (c) => {
-  try {
-    const { db, projectId, sites } = await contexto(c);
-    const v = await validateBody(c, otAtivoCriarSchema);
-    if (!v.success) return v.response;
-    const d = v.data;
-    if (!daLista(sites, d.site_id)) return refRuim(c, 'site_id');
-    const ruim = await refInvalida(db, projectId, sites, d, [['zona_id', 'ot_zonas']], d.site_id);
-    if (ruim) return refRuim(c, ruim);
-    const id = genId();
-    const e = await enderecos(chavesOt(c.env)!, projectId, id, { ip: d.ip ?? null, mac: d.mac ?? null });
-    try {
-      await db.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, zona_id, nome, no_arciber, categoria_arciber, tipo_dispositivo, fabricante,
-          modelo, funcao, ip_cifrado, mac_cifrado, ip_hash, mac_hash, protocolos_portas, firmware_so_versao, firmware_nao_aplicavel)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-        id, projectId, d.site_id, d.zona_id ?? null, d.nome, Number(d.no_arciber ?? false), d.categoria_arciber ?? null, d.tipo_dispositivo ?? null,
-        d.fabricante ?? null, d.modelo ?? null, d.funcao ?? null, e.ip_cifrado, e.mac_cifrado, e.ip_hash, e.mac_hash,
-        JSON.stringify(d.protocolos_portas ?? []), d.firmware_so_versao ?? null, Number(d.firmware_nao_aplicavel ?? false),
-      ).run();
-    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
-    await trilha(c, 'ot.ativo.criado', projectId, `Ativo ${id} criado no site ${d.site_id}`, { tipo: 'ot_ativo', id });
-    return c.json({ ok: true, id }, 201);
-  } catch (e) { return erro500(c, 'Falha ao criar o ativo', e); }
-});
-
-otApp.put('/ativos/:id', async (c) => {
-  try {
-    const { db, projectId, sites } = await contexto(c);
-    const v = await validateBody(c, otAtivoAtualizarSchema);
-    if (!v.success) return v.response;
-    const atual = await lerAtivo(db, c.req.param('id'), projectId, sites);
-    if (!atual) return NAO_ENCONTRADO(c, 'Ativo');
-    const { ip, mac, ...resto } = v.data;
-    const ruim = await refInvalida(db, projectId, sites, resto, [['zona_id', 'ot_zonas']], atual.site_id as string);
-    if (ruim) return refRuim(c, ruim);
-    const campos = { ...paraBanco(resto), ...await enderecos(chavesOt(c.env)!, projectId, atual.id, { ip, mac }) };
-    if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
-    // Edição direta de campo do 4.3.1 não é verificação: zera a que havia (só a aprovação de lote com recoleta carimba).
-    if (toca431(v.data)) Object.assign(campos, { verificado_por: null, ultima_verificacao_em: null });
-    try {
-      if (!await atualizar(db, 'ot_ativos', atual.id, projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Ativo');
-    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
-    await trilha(c, 'ot.ativo.atualizado', projectId, `Ativo ${atual.id} atualizado`, { tipo: 'ot_ativo', id: atual.id });
-    return c.json({ ok: true });
-  } catch (e) { return erro500(c, 'Falha ao atualizar o ativo', e); }
-});
-
 // ─── fluxos ─────────────────────────────────────────────────────────────────
 interface LinhaFluxo { externo: number; via_vpn: number; [campo: string]: unknown }
 /** 4.1.2/4.1.3: fluxo externo só por VPN. O cadastro aceita o fluxo como ele é (é o retrato) e o marca como violação. */
 const comViolacao = (f: LinhaFluxo) => ({ ...f, externo: f.externo === 1, via_vpn: f.via_vpn === 1, violacoes: f.externo === 1 && f.via_vpn !== 1 ? ['4.1.2', '4.1.3'] : [] });
-
-const PONTAS: [string, 'ot_zonas' | 'ot_ativos'][] = [['origem_ativo_id', 'ot_ativos'], ['origem_zona_id', 'ot_zonas'], ['destino_ativo_id', 'ot_ativos'], ['destino_zona_id', 'ot_zonas']];
 
 otApp.get('/fluxos', async (c) => {
   try {
@@ -365,49 +293,9 @@ otApp.get('/fluxos', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao listar os fluxos', e); }
 });
 
-otApp.post('/fluxos', async (c) => {
-  try {
-    const { db, projectId, sites } = await contexto(c);
-    const v = await validateBody(c, otFluxoCriarSchema);
-    if (!v.success) return v.response;
-    const d = v.data;
-    if (!daLista(sites, d.site_id)) return refRuim(c, 'site_id');
-    const ruim = await refInvalida(db, projectId, sites, d, PONTAS);
-    if (ruim) return refRuim(c, ruim);
-    const id = genId();
-    try {
-      await db.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, origem_zona_id, destino_ativo_id, destino_zona_id, protocolo, porta,
-          direcao, finalidade, externo, via_vpn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-        id, projectId, d.site_id, d.origem_ativo_id ?? null, d.origem_zona_id ?? null, d.destino_ativo_id ?? null, d.destino_zona_id ?? null,
-        d.protocolo ?? null, d.porta ?? null, d.direcao ?? 'unidirecional', d.finalidade ?? null, Number(d.externo ?? false), Number(d.via_vpn ?? false),
-      ).run();
-    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
-    await trilha(c, 'ot.fluxo.criado', projectId, `Fluxo ${id} criado no site ${d.site_id}`, { tipo: 'ot_fluxo', id });
-    return c.json({ ok: true, id, violacoes: d.externo && !d.via_vpn ? ['4.1.2', '4.1.3'] : [] }, 201);
-  } catch (e) { return erro500(c, 'Falha ao criar o fluxo', e); }
-});
-
-otApp.put('/fluxos/:id', async (c) => {
-  try {
-    const { db, projectId, sites } = await contexto(c);
-    const v = await validateBody(c, otFluxoAtualizarSchema);
-    if (!v.success) return v.response;
-    const ruim = await refInvalida(db, projectId, sites, v.data, PONTAS);
-    if (ruim) return refRuim(c, ruim);
-    const campos = paraBanco(v.data);
-    if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
-    try {
-      if (!await atualizar(db, 'ot_fluxos', c.req.param('id'), projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Fluxo');
-    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
-    await trilha(c, 'ot.fluxo.atualizado', projectId, `Fluxo ${c.req.param('id')} atualizado`, { tipo: 'ot_fluxo', id: c.req.param('id') });
-    return c.json({ ok: true });
-  } catch (e) { return erro500(c, 'Falha ao atualizar o fluxo', e); }
-});
-
-// ─── exclusão lógica (sites, zonas, ativos, fluxos) ─────────────────────────
+// ─── exclusão lógica (sites, zonas; ativo e fluxo saem por lote) ─────────────────────────
 for (const [rota, tabela, nome, tipo] of [
   ['sites', 'ot_sites', 'Site', 'ot_site'], ['zonas', 'ot_zonas', 'Zona', 'ot_zona'],
-  ['ativos', 'ot_ativos', 'Ativo', 'ot_ativo'], ['fluxos', 'ot_fluxos', 'Fluxo', 'ot_fluxo'],
 ] as const) {
   otApp.delete(`/${rota}/:id`, async (c) => {
     try {
