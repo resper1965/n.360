@@ -5,7 +5,7 @@ import { hojeEmSaoPaulo, mesesMaisSP } from './hoje';
 import { TETO_LEITURA_OT } from './ot-inventario';
 
 const FRAMEWORK = 'ONS-RO-CB.BR.01';
-const EXCECAO = '5.1.1';
+export const EXCECAO = '5.1.1';
 // shortcut: só IP e MAC saem por regex; nome de ativo citado em texto livre não tem padrão (a tela pede para não citar). Se aparecer
 // caso real, cruzar com os nomes do inventário do projeto.
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;

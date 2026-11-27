@@ -4,6 +4,8 @@ import { adminDireto } from './organizacao';
 import { gestorArciberDireto, podeVerCompleto, sitesPermitidos, TETO_LEITURA_OT, type AtorOt } from './ot-inventario';
 import { areaEEtapa, proximoPassoDe, sitesComZonas411, type Area, type Fase } from './ot-fase';
 import { TEXTO_OT, type SiteNoPrograma } from './programa';
+import { ITENS_TECNICOS } from './ot-conformidade';
+import { EXCECAO } from './ot-avaliacao';
 import { situacaoSensor, type Cred } from './ot-sensor';
 import type { ItemFazer, Passo, Proximo, Saude } from './painel';
 import { quadrosOt } from './painel-ot-quadros';
@@ -38,7 +40,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const veSondas = await podeVerCompleto(db, ator, projectId);
   const papel: PapelPainelOt = gestor ? 'gestor' : ator.role === 'org_user' ? 'tecnico' : ehLeitorOt(ator, projectId) ? 'leitor' : 'equipe';
   const NO_SITE = 'site_id IN (SELECT value FROM json_each(?2))';
-  const [sts, cont, sondas, creds, rasc, lotesRev, zonas, conteudo, revalid, desv, ativosPorSite] = await db.batch([
+  const [sts, cont, sondas, creds, rasc, lotesRev, zonas, conteudo, revalid, desv, ativosPorSite, meusRasc, meusRecusados, ass] = await db.batch([
     db.prepare(`SELECT id, nome, fase, substr(obra_ate, 1, 10) AS obra_ate, base_aprovada_em FROM ot_sites
       WHERE project_id = ?1 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?2)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites),
     db.prepare(`SELECT
@@ -46,6 +48,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aberto'
           AND site_id NOT IN (SELECT id FROM ot_sites WHERE project_id = ?1 AND obra_ate IS NOT NULL)) AS desvios_fora_de_obra,
         (SELECT count(*) FROM ot_lotes WHERE project_id = ?1 AND ${NO_SITE} AND status = 'em_revisao' AND criado_por IS NOT ?5) AS lotes,
+        (SELECT min(created_at) FROM ot_lotes WHERE project_id = ?1 AND ${NO_SITE} AND status = 'em_revisao' AND criado_por IS NOT ?5) AS lote_desde,
         (SELECT count(*) FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aceito' AND substr(aceito_ate, 1, 10) <= ?3) AS aceites,
         (SELECT CASE WHEN count(DISTINCT site_id) = 1 THEN min(site_id) END FROM ot_desvios WHERE project_id = ?1 AND ${NO_SITE} AND situacao = 'aceito' AND substr(aceito_ate, 1, 10) <= ?3) AS aceites_site,
         (SELECT count(*) FROM ot_avaliacoes WHERE project_id = ?1 AND proxima_revisao IS NOT NULL AND proxima_revisao < ?4) AS revisoes`)
@@ -67,9 +70,21 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
     db.prepare(`SELECT site_id, count(*) AS n FROM ot_desvios WHERE project_id = ?1 AND situacao = 'aberto' AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
     // Área e etapa por site (spec 2026-11-26 §1): a etapa 2 olha se há ativo; uma consulta agrupada, constante (não cresce com os sites).
     db.prepare(`SELECT site_id, count(*) AS n FROM ot_ativos WHERE project_id = ?1 AND status = 'ativo' AND ${NO_SITE} GROUP BY site_id`).bind(projectId, sites),
+    // PR4 (spec 2026-11-26 §7): o que o Início lia por site, agora no mesmo lote e só dos sites permitidos. "Meu trabalho" é do ator (criado_por).
+    db.prepare(`SELECT l.site_id, count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      WHERE a.project_id = ?1 AND l.status = 'ativo' AND a.situacao = 'rascunho' AND a.chave_sensor IS NULL AND a.criado_por = ?3 AND l.${NO_SITE} GROUP BY l.site_id`).bind(projectId, sites, ator.id),
+    // 7 dias: depois disso a retenção apaga o lote não concluído (manutencao.ts); a recusa fica na trilha (ot.lote.rejeitado)
+    db.prepare(`SELECT site_id, count(*) AS n FROM ot_lotes WHERE project_id = ?1 AND ${NO_SITE} AND status = 'rejeitado' AND criado_por = ?3
+      AND decidido_em >= datetime('now', '-7 days') GROUP BY site_id`).bind(projectId, sites, ator.id),
+    // Política = todo código do catálogo fora dos técnicos e do 5.1.1. "A confirmar": quem gravou não confirma (como `eu_avaliei`).
+    db.prepare(`SELECT
+        (SELECT count(*) FROM ot_requisitos r WHERE r.framework = 'ONS-RO-CB.BR.01' AND r.codigo NOT IN (SELECT value FROM json_each(?3))
+          AND NOT EXISTS (SELECT 1 FROM ot_avaliacoes v WHERE v.project_id = ?1 AND v.requisito_id = r.id)) AS sem_preencher,
+        (SELECT count(*) FROM ot_avaliacoes WHERE project_id = ?1 AND confirmado_em IS NULL AND atualizado_por IS NOT ?2) AS a_confirmar`)
+      .bind(projectId, ator.id, JSON.stringify([...ITENS_TECNICOS, EXCECAO])),
   ]);
   const lista = sts.results as { id: string; nome: string; fase: string; obra_ate: string | null; base_aprovada_em: string | null }[];
-  const c = cont.results[0] as { desvios: number; desvios_fora_de_obra: number; lotes: number; aceites: number; aceites_site: string | null; revisoes: number };
+  const c = cont.results[0] as { lote_desde: string | null; desvios: number; desvios_fora_de_obra: number; lotes: number; aceites: number; aceites_site: string | null; revisoes: number };
   const cs = creds.results as (Cred & { sensor_id: string })[];
   const sondasLidas = sondas.results as { id: string; site_id: string; created_at: string; ultimo_envio: string | null }[];
   const estados = sondasLidas.map((s) => ({ site_id: s.site_id, estado: situacaoSensor(s.ultimo_envio ?? s.created_at, cs.filter((k) => k.sensor_id === s.id), agora) }));
@@ -79,22 +94,35 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const obras = lista.filter((s) => (s.fase === 'em_obra' || s.fase === 'base_em_aprovacao') && s.obra_ate && s.obra_ate <= em7);
 
   const por = <T extends { site_id: string }>(r: unknown) => new Map((r as T[]).map((x) => [x.site_id, x]));
-  const [mRasc, mLotes, mRev, mDesv, mAtivos] = [rasc, lotesRev, revalid, desv, ativosPorSite].map((r) => por<{ site_id: string; n: number; em?: string | null }>(r.results));
+  const [mRasc, mLotes, mRev, mDesv, mAtivos, mMeusRasc, mMeusRecusados] = [rasc, lotesRev, revalid, desv, ativosPorSite, meusRasc, meusRecusados].map((r) => por<{ site_id: string; n: number; em?: string | null }>(r.results));
   // Spec 2026-11-26 §7: o item leva o site quando o grupo é de um site só (id de site permitido: tudo acima sai de `sites`); abas finais.
   const umSo = (ids: string[]) => { const u = [...new Set(ids)]; return u.length === 1 ? u[0] : undefined; };
   const comObra = new Set(lista.filter((s) => s.obra_ate).map((s) => s.id));
   const siteDesvios = umSo([...mDesv.keys()].filter((id) => !comObra.has(id)));
   const item = (grupo: ItemFazer['grupo'], q: number, um: string, varios: string, contexto: string, acao: string, aba?: string, site?: string): ItemFazer[] =>
     q > 0 ? [{ grupo, quando: grupo === 'atraso' ? 'Agora' : 'Nesta semana', texto: plural(q, um, varios), contexto, acao, tela: 'ot', ...(aba ? { aba } : {}), ...(site ? { site } : {}), modulo: 'ot' }] : [];
+  // O prazo do lote (7 dias do envio, dia de São Paulo) que o Início mostrava ("decidir até dd/mm") vai no contexto do item.
+  const prazoLote = (() => { const t = c.lote_desde ? Date.parse(c.lote_desde.replace(' ', 'T') + 'Z') : NaN; if (Number.isNaN(t)) return ''; const d = new Date(t + 7 * DIA_MS - 3 * 3_600_000).toISOString(); return `: decidir até ${d.slice(8, 10)}/${d.slice(5, 7)}`; })();
+  const a = ass.results[0] as { sem_preencher: number; a_confirmar: number };
+  const soma = (m: Map<string, { n: number }>) => [...m.values()].reduce((t, x) => t + Number(x.n), 0);
   const itens: ItemFazer[] = [
     ...(veSondas ? item('atraso', paradas.length, 'sonda parada', 'sondas paradas', exemplos([...new Set(paradas.map((s) => nome(s.site_id)))]), 'Ver as sondas', 'sondas') : []),
     ...(gestor ? item('atraso', c.revisoes, 'requisito com revisão vencida', 'requisitos com revisão vencida', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment') : []),
     // a tela tira os desvios de site com obra ativa (situacao.obra = obra_ate preenchida); o número do topo segue contando todos
     ...(aprova ? item('semana', c.desvios_fora_de_obra, 'desvio aberto', 'desvios abertos', 'O sensor viu o que não está na base aprovada', 'Ver os desvios', 'desvios', siteDesvios) : []),
-    ...(aprova ? item('semana', c.lotes, 'lote aguardando revisão', 'lotes aguardando revisão', 'Coleta enviada, esperando quem aprova', 'Revisar os lotes', 'revisar', umSo([...mLotes.keys()])) : []),
+    ...(aprova ? item('semana', c.lotes, 'lote aguardando revisão', 'lotes aguardando revisão', `Coleta enviada, esperando quem aprova${prazoLote}`, 'Revisar os lotes', 'revisar', umSo([...mLotes.keys()])) : []),
     ...(gestor ? item('semana', emAprovacao.length, 'base aguardando aprovação', 'bases aguardando aprovação', exemplos(emAprovacao.map((s) => s.nome)), 'Abrir os sites', 'base', umSo(emAprovacao.map((s) => s.id))) : []),
     ...(gestor ? item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', undefined, umSo(obras.map((s) => s.id))) : []),
     ...(gestor ? item('semana', c.aceites, 'aceite de desvio vence em até 7 dias', 'aceites de desvio vencem em até 7 dias', 'Depois do prazo, o desvio reabre', 'Ver os desvios', 'desvios', c.aceites_site ?? undefined) : []),
+    // Só no Painel do n.ot (`detalhe`): no Início do n.360 o bloco não ganha item novo (oráculo do inventário).
+    ...(detalhe && (gestor || papel === 'equipe') ? item('semana', soma(mRasc), 'achado em rascunho', 'achados em rascunho', 'Esperando revisão', 'Abrir os sites', 'revisar', umSo([...mRasc.keys()])) : []),
+    ...(detalhe && gestor ? item('semana', Number(a.a_confirmar), 'item do assessment para confirmar', 'itens do assessment para confirmar', 'Quem avaliou não confirma', 'Abrir o assessment', 'assessment') : []),
+    ...(detalhe && papel === 'equipe' ? item('semana', Number(a.sem_preencher), 'item do assessment sem preencher', 'itens do assessment sem preencher', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment') : []),
+  ];
+  // Técnico (P0-4): só o que é dele (criado_por = ator), dos sites dele.
+  const meuTrabalho: ItemFazer[] = [
+    ...item('semana', soma(mMeusRasc), 'achado seu em rascunho', 'achados seus em rascunho', 'Ainda não foi para revisão', 'Abrir o site', 'revisar', umSo([...mMeusRasc.keys()])),
+    ...item('semana', soma(mMeusRecusados), 'lote seu recusado', 'lotes seus recusados', 'Recusado nos últimos 7 dias', 'Abrir o site', 'revisar', umSo([...mMeusRecusados.keys()])),
   ];
   const [mZonas, mConteudo] = [zonas, conteudo].map((r) => new Set((r.results as { site_id: string }[]).map((x) => x.site_id)));
   // A régua do programa (P0-4): um item por site permitido, sem nome; a rota só o repassa a quem tem o bloco `ot`.
@@ -122,7 +150,7 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
     : null;
   const comecando = lista.length === 0;
   return {
-    comecando, papel, itens, sitesPrograma, porSite, proximo: (quadros?.proximo ?? null) as Proximo, quadros,
+    comecando, papel, itens, meuTrabalho, sitesPrograma, porSite, proximo: (quadros?.proximo ?? null) as Proximo, quadros,
     // Marco do programa (onda 4, decisão 8): a primeira base aprovada entre os sites DESTA pessoa (P0-4). O painel não o devolve.
     marco: lista.map((s) => s.base_aprovada_em).filter((d): d is string => !!d).sort()[0] ?? null,
     numeros: [[`${lista.filter((s) => s.fase === 'em_operacao').length} de ${lista.length}`, 'sites em operação'], [String(c.desvios), 'desvios abertos']] as [string, string][],
@@ -143,6 +171,6 @@ export function respostaDoOt(b: BlocoOt, saude: Saude) {
   // Leitor (decisão 3): a frase e o resumo da RO-CB em números; nada de desvio, site, sonda ou item por item.
   if (b.papel === 'leitor') return { saude, comecando: b.comecando, ...(q ? { conformidade: { resumo: q.resumo } } : {}) };
   const base = { saude, numeros: b.numeros, comecando: b.comecando, por_site: b.porSite };
-  if (b.papel === 'tecnico') return base;
+  if (b.papel === 'tecnico') return { ...base, meu_trabalho: b.meuTrabalho };
   return { ...base, fazer: b.itens, passos: b.passos, ...(q?.completo ?? {}) };
 }
