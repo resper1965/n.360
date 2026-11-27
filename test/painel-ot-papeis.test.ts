@@ -189,6 +189,18 @@ describe('?modulo=ot: Meu trabalho e itens do assessment (PR4 implantação e op
     expect(total).toBeGreaterThan(2);
     expect(texto((await ot(cons)).modulos.ot)).toContain(`${total - 2} itens do assessment sem preencher`);
   });
+  it('rascunhos e itens do assessment são do grupo plano: não entram na frase de saúde; o prazo do lote vai no contexto (dia de São Paulo + 7)', async () => {
+    await env.DB.prepare(`UPDATE ot_lotes SET created_at = '2026-11-20 01:00:00' WHERE id = 'l-1a'`).run(); // 22h de 19/11 em São Paulo
+    for (const h of [cons, gestor]) {
+      const d = await ot(h);
+      const r = d.modulos.ot.fazer.find((i: { texto: string }) => /achados? em rascunho/.test(i.texto));
+      expect(r, 'rascunho').toMatchObject({ grupo: 'plano', texto: '3 achados em rascunho' });
+      for (const i of d.modulos.ot.fazer.filter((x: { texto: string }) => /assessment/.test(x.texto))) expect(i.grupo).toBe('plano');
+      expect(d.saude.frase + d.saude.apoio.split(';')[0]).not.toMatch(/rascunho|assessment/);
+    }
+    const lote = (await ot(cons)).modulos.ot.fazer.find((i: { texto: string }) => /lote/.test(i.texto));
+    expect(lote).toMatchObject({ grupo: 'semana', contexto: 'Coleta enviada, esperando quem aprova: decidir até 26/11' });
+  });
   it('nada disso no Início do n.360 (sem ?modulo) nem para o leitor', async () => {
     const g = await n360(tecnico);
     expect(g.modulos.ot).not.toHaveProperty('meu_trabalho');

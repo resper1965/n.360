@@ -6,6 +6,7 @@ import { areaEEtapa, proximoPassoDe, sitesComZonas411, type Area, type Fase } fr
 import { TEXTO_OT, type SiteNoPrograma } from './programa';
 import { ITENS_TECNICOS } from './ot-conformidade';
 import { EXCECAO } from './ot-avaliacao';
+import { diaMaisSP } from './hoje';
 import { situacaoSensor, type Cred } from './ot-sensor';
 import type { ItemFazer, Passo, Proximo, Saude } from './painel';
 import { quadrosOt } from './painel-ot-quadros';
@@ -100,9 +101,9 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
   const comObra = new Set(lista.filter((s) => s.obra_ate).map((s) => s.id));
   const siteDesvios = umSo([...mDesv.keys()].filter((id) => !comObra.has(id)));
   const item = (grupo: ItemFazer['grupo'], q: number, um: string, varios: string, contexto: string, acao: string, aba?: string, site?: string): ItemFazer[] =>
-    q > 0 ? [{ grupo, quando: grupo === 'atraso' ? 'Agora' : 'Nesta semana', texto: plural(q, um, varios), contexto, acao, tela: 'ot', ...(aba ? { aba } : {}), ...(site ? { site } : {}), modulo: 'ot' }] : [];
+    q > 0 ? [{ grupo, quando: grupo === 'atraso' ? 'Agora' : grupo === 'plano' ? 'Planejar' : 'Nesta semana', texto: plural(q, um, varios), contexto, acao, tela: 'ot', ...(aba ? { aba } : {}), ...(site ? { site } : {}), modulo: 'ot' }] : [];
   // O prazo do lote (7 dias do envio, dia de São Paulo) que o Início mostrava ("decidir até dd/mm") vai no contexto do item.
-  const prazoLote = (() => { const t = c.lote_desde ? Date.parse(c.lote_desde.replace(' ', 'T') + 'Z') : NaN; if (Number.isNaN(t)) return ''; const d = new Date(t + 7 * DIA_MS - 3 * 3_600_000).toISOString(); return `: decidir até ${d.slice(8, 10)}/${d.slice(5, 7)}`; })();
+  const prazoLote = (() => { const t = c.lote_desde ? Date.parse(c.lote_desde.replace(' ', 'T') + 'Z') : NaN; if (Number.isNaN(t)) return ''; const d = diaMaisSP(7, new Date(t)); return `: decidir até ${d.slice(8, 10)}/${d.slice(5, 7)}`; })();
   const a = ass.results[0] as { sem_preencher: number; a_confirmar: number };
   const soma = (m: Map<string, { n: number }>) => [...m.values()].reduce((t, x) => t + Number(x.n), 0);
   const itens: ItemFazer[] = [
@@ -114,10 +115,10 @@ export async function blocoOt(db: D1Database, projectId: string, ator: AtorPaine
     ...(gestor ? item('semana', emAprovacao.length, 'base aguardando aprovação', 'bases aguardando aprovação', exemplos(emAprovacao.map((s) => s.nome)), 'Abrir os sites', 'base', umSo(emAprovacao.map((s) => s.id))) : []),
     ...(gestor ? item('semana', obras.length, 'obra vence em até 7 dias', 'obras vencem em até 7 dias', exemplos(obras.map((s) => s.nome)), 'Abrir os sites', undefined, umSo(obras.map((s) => s.id))) : []),
     ...(gestor ? item('semana', c.aceites, 'aceite de desvio vence em até 7 dias', 'aceites de desvio vencem em até 7 dias', 'Depois do prazo, o desvio reabre', 'Ver os desvios', 'desvios', c.aceites_site ?? undefined) : []),
-    // Só no Painel do n.ot (`detalhe`): no Início do n.360 o bloco não ganha item novo (oráculo do inventário).
-    ...(detalhe && (gestor || papel === 'equipe') ? item('semana', soma(mRasc), 'achado em rascunho', 'achados em rascunho', 'Esperando revisão', 'Abrir os sites', 'revisar', umSo([...mRasc.keys()])) : []),
-    ...(detalhe && gestor ? item('semana', Number(a.a_confirmar), 'item do assessment para confirmar', 'itens do assessment para confirmar', 'Quem avaliou não confirma', 'Abrir o assessment', 'assessment') : []),
-    ...(detalhe && papel === 'equipe' ? item('semana', Number(a.sem_preencher), 'item do assessment sem preencher', 'itens do assessment sem preencher', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment') : []),
+    // Trabalho de rotina, não prazo: grupo `plano`, que não pesa na frase de saúde. Só no Painel do n.ot (`detalhe`): no Início do n.360 o bloco não ganha item novo (oráculo do inventário).
+    ...(detalhe && (gestor || papel === 'equipe') ? item('plano', soma(mRasc), 'achado em rascunho', 'achados em rascunho', 'Esperando revisão', 'Abrir os sites', 'revisar', umSo([...mRasc.keys()])) : []),
+    ...(detalhe && gestor ? item('plano', Number(a.a_confirmar), 'item do assessment para confirmar', 'itens do assessment para confirmar', 'Quem avaliou não confirma', 'Abrir o assessment', 'assessment') : []),
+    ...(detalhe && papel === 'equipe' ? item('plano', Number(a.sem_preencher), 'item do assessment sem preencher', 'itens do assessment sem preencher', 'Assessment da RO-CB.BR.01', 'Abrir o assessment', 'assessment') : []),
   ];
   // Técnico (P0-4): só o que é dele (criado_por = ator), dos sites dele.
   const meuTrabalho: ItemFazer[] = [

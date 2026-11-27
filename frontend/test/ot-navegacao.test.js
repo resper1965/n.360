@@ -35,6 +35,13 @@ describe('ot-navegacao', () => {
         escreverEndereco({ tela: 'painel' }, loc('/ot', '?ot=site&site=s1&aba=base'));
         expect(spy).toHaveBeenLastCalledWith(history.state, '', '/ot');
     });
+    it('o Painel é a tela inicial: /ot e ?ot=inicio leem painel, e o Painel escreve /ot sem ?ot= (PR5 muda isto ao ligar tela_inicial)', () => {
+        expect(lerEndereco(loc('/ot')).tela).toBe('painel');
+        expect(lerEndereco(loc('/ot', '?ot=inicio')).tela).toBe('painel');
+        const spy = vi.spyOn(history, 'replaceState');
+        escreverEndereco({ tela: 'painel' }, loc('/ot'));
+        expect(spy).toHaveBeenLastCalledWith(history.state, '', '/ot');
+    });
     it('a lista de subtelas é fechada', () => { expect(TELAS_OT).toEqual(['painel', 'sites', 'site', 'assessment', 'relatorios', 'fornecedores', 'acessos']); });
     it('?ot=painel abre o Painel do n.ot', () => {
         expect(lerEndereco({ pathname: '/ot', search: '?ot=painel' })).toMatchObject({ tela: 'painel', site: null });
