@@ -194,3 +194,16 @@ describe('desfecho do achado no levantamento', () => {
         expect(linha('Ativo a3').textContent).toContain('Enviado para aprovação');
     });
 });
+
+describe('item que altera ou remove (alvo_id): o nome é o do alvo, de nomes_alvos', () => {
+    it('"Remover: X" e "Alterar: X", sem IP do alvo', async () => {
+        lote = { lote: LOTE, itens: [ITEM('i1', 2, { dados: { alvo_id: 'a1', remover: 1 } }), ITEM('i2', 3, { dados: { alvo_id: 'a1', nome: 'X' } }),
+            ITEM('i3', 4, { entidade: 'fluxo', dados: { alvo_id: 'f1', remover: 1 } })], nomes_alvos: { a1: 'Switch velho', f1: 'RTU-01 → Fora da empresa' } };
+        servir();
+        await desenhar('coleta');
+        const linhas = [...el('c').querySelectorAll('tbody tr')].map((l) => l.textContent);
+        expect(linhas[0]).toContain('Remover: Switch velho');
+        expect(linhas[1]).toContain('Alterar: Switch velho');
+        expect(linhas[2]).toContain('Remover: RTU-01 → Fora da empresa');
+    });
+});

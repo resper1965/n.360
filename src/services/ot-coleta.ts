@@ -3,7 +3,7 @@
 // Nada grava direto no inventário. O export de ativos do Nozomi tem perfil de fábrica no de-para (ot-depara.ts, `NOZOMI`); Claroty e
 // Tenable OT seriam outro mapa de cabeçalho como esse: não implementados sem amostra real de export.
 import { z, type ZodType } from 'zod';
-import { genId } from '../helpers';
+import { genId, logAudit } from '../helpers';
 import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
 import { aadOt, cifrarEnderecos, normalizarIp, normalizarMac, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
@@ -403,6 +403,12 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   try { await emBlocos(db, stmts); } catch (e) {
     // O lote nunca fica preso em `gravando`: volta a em revisão (o que um batch anterior gravou fica gravado; o resto segue pendente).
     await db.prepare(`UPDATE ot_lotes SET status = 'em_revisao', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'gravando'`).bind(loteId).run();
+    // Trilha só com contagem (P0-6); falha nela não esconde o erro original.
+    try {
+      const gravados = (await db.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'gravado'`).bind(loteId).first<{ n: number }>())?.n ?? 0;
+      await logAudit(db, 'ot.lote.aprovacao_interrompida', ator.email, `Aprovação do lote ${loteId} interrompida: ${gravados} item(ns) gravado(s) no lote; o resto segue pendente`,
+        '', '', projectId, { tipo: 'ot_lote', id: loteId });
+    } catch (err) { console.error('ot: trilha da aprovação interrompida falhou', err); }
     throw e;
   }
   const pendentes = (await db.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente'`).bind(loteId).first<{ n: number }>())?.n ?? 0;

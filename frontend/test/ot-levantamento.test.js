@@ -131,6 +131,15 @@ describe('aba Levantamento', () => {
     const FLUXO = (extra = {}) => ACH({ id: 'f1', entidade: 'fluxo', evidencia: 'acesso remoto',
         dados: { origem_ativo_id: 'at1', destino_zona_id: 'zx', protocolo: 'RDP', porta: 3389, externo: true, via_vpn: false }, ...extra });
 
+    it('achado com alvo_id aparece como "Alterar: X" ou "Remover: X" (nomes_alvos da sessão)', async () => {
+        servirOt({ [`GET ${B}/levantamentos/l1`]: { levantamento: LEV, achados: [ACH({ id: 'r1', dados: { alvo_id: 'at1', remover: 1 } }), FLUXO({ id: 'f2', dados: { alvo_id: 'fx', via_vpn: true } })],
+            ...NOMES, nomes_alvos: { at1: 'CLP 1', fx: 'CLP 1 → Fora da empresa' } }, [`GET ${B}/roteiro`]: ROTEIRO, ...PONTAS });
+        window.otAbrirLevantamento('l1');
+        await abrir('levantamento');
+        expect(el('c').textContent).toContain('Remover: CLP 1');
+        expect(el('c').textContent).toContain('Alterar: CLP 1 → Fora da empresa');
+    });
+
     it('achado de fluxo: "Sim" numa pergunta de fluxo abre com Fluxo marcado e salvar manda entidade, pontas e pergunta', async () => {
         await detalheFluxo([], { [`PUT ${B}/levantamentos/l1`]: { ok: true }, [`POST ${B}/levantamentos/l1/achados`]: { id: 'a9', erros: [] } });
         await window.otResponderRoteiro('rot-01', 'sim');

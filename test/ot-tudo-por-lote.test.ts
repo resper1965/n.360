@@ -157,6 +157,13 @@ describe('nomes_alvos em GET /lotes/:id', () => {
     const [outro] = await inventarioPorLote(chamar, { autor: cons, decisor: gestor, site: ids.s2, itens: [{ dados: { nome: 'Do outro site' } }] });
     const l = await lote(cons, ids.s1, [{ dados: { alvo_id: a, remover: true } }, { entidade: 'fluxo', dados: { alvo_id: f, porta: 1 } }, { dados: { alvo_id: outro, nome: 'X' } }]);
     for (const h of [gestor, cons]) expect((await lerLote(h, l)).nomes_alvos).toEqual({ [a]: 'Switch velho', [f]: 'A → B' });
+    // a fila de revisão e o levantamento (achados ainda em rascunho) trazem o mesmo nome do alvo, só do site
+    const lev = await ok<{ id: string }>(chamar(cons, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-26' }), 201);
+    for (const dados of [{ alvo_id: a, remover: true }, { alvo_id: outro, nome: 'Y' }]) await ok(chamar(cons, 'POST', `${P}/levantamentos/${lev.id}/achados`, { dados, evidencia: 'teste' }), 201);
+    const fila = (await ok<{ nomes_alvos: Record<string, string> }>(chamar(cons, 'GET', `${P}/achados?site_id=${ids.s1}`), 200)).nomes_alvos;
+    expect(fila).toMatchObject({ [a]: 'Switch velho' });
+    expect(fila).not.toHaveProperty(outro);
+    expect((await ok<{ nomes_alvos: Record<string, string> }>(chamar(cons, 'GET', `${P}/levantamentos/${lev.id}`), 200)).nomes_alvos).toEqual({ [a]: 'Switch velho' });
   });
 });
 
@@ -190,6 +197,9 @@ describe('revisão: fluxo por lote sem prender o lote e com a trava P1-4', () =>
     const l2 = await lote(cons, ids.s1, [{ entidade: 'fluxo', dados: { alvo_id: f, porta: 2 } }]);
     await expect(aprovarCom(dbCom(async () => null, true), l2)).rejects.toThrow('falha forçada');
     expect((await lerLote(gestor, l2)).lote.status).toBe('em_revisao');
+    // a trilha diz que a aprovação parou e quanto ficou gravado, só com contagem (P0-6: sem nome nem IP)
+    const t = await env.DB.prepare(`SELECT actor, details, entity_id FROM audit_logs WHERE action = 'ot.lote.aprovacao_interrompida' AND entity_id = ?`).bind(l2).all<{ actor: string; details: string; entity_id: string }>();
+    expect(t.results).toEqual([{ actor: 'gestor@cliente.teste', details: `Aprovação do lote ${l2} interrompida: 0 item(ns) gravado(s) no lote; o resto segue pendente`, entity_id: l2 }]);
     expect(await aprovar(gestor, l2)).toMatchObject({ atualizados: 1, pendentes: 0 });
   });
 

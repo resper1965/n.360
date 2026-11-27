@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
-import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir, classePrimario } from '../ot-comum.js';
+import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar, pedirTexto } from '../ui.js';
+import { podeEditarOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, rotuloDoAlvo, ROTULO_CAMPO, semRepetir, classePrimario } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 import { preencherCartoes } from './ot-sensores.js';
 
@@ -32,6 +32,7 @@ let atual = null;
 let perguntas = [];
 let achados = [];
 let nomesPontas = {}; // `nomes_pontas` da sessão: id → nome das pontas dos fluxos (nunca de /ativos, que traria IP/MAC)
+let nomesAlvos = {}; // `nomes_alvos`: id → nome do ativo ou fluxo que o achado altera ou remove
 let ativosDoSite = []; // `ativos_do_site`: { id, nome } para escolher a ponta
 let perguntaDoAchado = null;
 
@@ -124,6 +125,7 @@ async function montarSessao(c, a, p, id) {
     atualPid = p.id;
     achados = lista(r, 'achados');
     nomesPontas = r.nomes_pontas || {};
+    nomesAlvos = r.nomes_alvos || {};
     ativosDoSite = lista(r, 'ativos_do_site');
     const editar = podeCriarLote(); // o técnico faz tudo, menos Reabrir
     const aberto = l.situacao !== 'encerrado';
@@ -297,18 +299,21 @@ window.otResponderRoteiro = async (pergunta, resposta) => {
 window.otEncerrarLevantamento = (situacao) => salvar({ situacao }, 'Não foi possível alterar a situação do levantamento.', situacao === 'encerrado' ? 'Levantamento encerrado.' : 'Levantamento reaberto.');
 
 // Pontas do fluxo num select só: "a:<id>" ativo, "z:<id>" zona, "fora" fora da empresa (marca Externo = Sim e não vai ao servidor).
-const selectPonta = (id, rotulo, zonas) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}" data-action-change="otPontaFluxo" data-arg-val><option value="">—</option>
-    <optgroup label="Ativos">${opcoes(ativosDoSite.map((x) => [`a:${x.id}`, x.nome]))}</optgroup>
-    <optgroup label="Zonas">${opcoes(zonas.map((x) => [`z:${x.id}`, x.nome]))}</optgroup>
+// `d` (alteração): o fluxo como a API devolve; a ponta vazia fica "—" (o Externo diz se sai da empresa).
+const pontaDe = (d, lado) => (d[`${lado}_ativo_id`] ? `a:${d[`${lado}_ativo_id`]}` : d[`${lado}_zona_id`] ? `z:${d[`${lado}_zona_id`]}` : '');
+const selectPonta = (id, rotulo, zonas, atual = '') => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}" data-action-change="otPontaFluxo" data-arg-val><option value="">—</option>
+    <optgroup label="Ativos">${opcoes(ativosDoSite.map((x) => [`a:${x.id}`, x.nome]), atual)}</optgroup>
+    <optgroup label="Zonas">${opcoes(zonas.map((x) => [`z:${x.id}`, x.nome]), atual)}</optgroup>
     <option value="fora">Fora da empresa</option></select></div>`;
 // Externo e Via VPN: "Não informado" não vai ao servidor, que então não compara nem grava o campo (nunca vira "não" por omissão).
-const simNao = (id, rotulo) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}"><option value="">Não informado</option>${opcoes([['sim', 'Sim'], ['nao', 'Não']])}</select></div>`;
-const camposDoFluxo = (zonas) => `${selectPonta('lev-fx-origem', 'Origem', zonas)}${selectPonta('lev-fx-destino', 'Destino', zonas)}
-    <div class="form-group"><label class="form-label" for="lev-fx-protocolo">Protocolo</label><input class="form-input" id="lev-fx-protocolo" maxlength="50"></div>
-    <div class="form-group"><label class="form-label" for="lev-fx-porta">Porta</label><input class="form-input" type="number" id="lev-fx-porta" min="0" max="65535" step="1"></div>
-    <div class="form-group"><label class="form-label" for="lev-fx-direcao">Direção</label><select class="form-input" id="lev-fx-direcao"><option value="">—</option>${opcoes([['unidirecional', 'Unidirecional'], ['bidirecional', 'Bidirecional']])}</select></div>
-    <div class="form-group"><label class="form-label" for="lev-fx-finalidade">Finalidade</label><input class="form-input" id="lev-fx-finalidade" maxlength="500"></div>
-    ${simNao('lev-fx-externo', 'Externo')}${simNao('lev-fx-vpn', 'Via VPN')}`;
+const simNao = (id, rotulo, v) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}"><option value="">Não informado</option>${opcoes([['sim', 'Sim'], ['nao', 'Não']], v === undefined || v === null ? '' : v ? 'sim' : 'nao')}</select></div>`;
+const valor = (v) => escapeHTML(v ?? '');
+const camposDoFluxo = (zonas, d = {}) => `${selectPonta('lev-fx-origem', 'Origem', zonas, pontaDe(d, 'origem'))}${selectPonta('lev-fx-destino', 'Destino', zonas, pontaDe(d, 'destino'))}
+    <div class="form-group"><label class="form-label" for="lev-fx-protocolo">Protocolo</label><input class="form-input" id="lev-fx-protocolo" maxlength="50" value="${valor(d.protocolo)}"></div>
+    <div class="form-group"><label class="form-label" for="lev-fx-porta">Porta</label><input class="form-input" type="number" id="lev-fx-porta" min="0" max="65535" step="1" value="${valor(d.porta)}"></div>
+    <div class="form-group"><label class="form-label" for="lev-fx-direcao">Direção</label><select class="form-input" id="lev-fx-direcao"><option value="">—</option>${opcoes([['unidirecional', 'Unidirecional'], ['bidirecional', 'Bidirecional']], d.direcao)}</select></div>
+    <div class="form-group"><label class="form-label" for="lev-fx-finalidade">Finalidade</label><input class="form-input" id="lev-fx-finalidade" maxlength="500" value="${valor(d.finalidade)}"></div>
+    ${simNao('lev-fx-externo', 'Externo', d.externo)}${simNao('lev-fx-vpn', 'Via VPN', d.via_vpn)}`;
 window.otPontaFluxo = (v) => { if (v === 'fora') el('lev-fx-externo').value = 'sim'; };
 window.otEntidadeAchado = (v) => {
     el('lev-ach-ativo').hidden = v === 'fluxo';
@@ -316,18 +321,87 @@ window.otEntidadeAchado = (v) => {
     const r = document.querySelector(`input[name="ach-entidade"][value="${v === 'fluxo' ? 'fluxo' : 'ativo'}"]`);
     if (r) r.checked = true;
 };
+// Para onde vai o achado: { site, levantamento (id; nulo cria um de visita ao gravar), alvo_id e original (alteração), daTela (veio do inventário) }.
+let destino = null;
+async function formAchado({ evidencia = '', entidade = 'ativo', dados = {}, ativos } = {}) {
+    if (ativos) ativosDoSite = ativos;
+    destino.entidade = entidade;
+    const alterar = !!destino.alvo_id;
+    const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(destino.site)}`).catch(() => null), 'zonas');
+    const radio = (v, rot) => `<label class="d-flex gap-2 items-center"><input type="radio" name="ach-entidade" value="${v}" data-action-change="otEntidadeAchado" data-arg-val${v === entidade ? ' checked' : ''}> ${rot}</label>`;
+    const dica = alterar ? `Mude só o que está diferente no campo: só os campos alterados vão para o lote.${entidade === 'fluxo' ? '' : ' IP e MAC em branco mantêm o valor registrado.'}`
+        : destino.levantamento ? 'O achado fica neste levantamento até ser enviado para aprovação. Campos que faltam viram aviso, não impedem o registro.'
+            : 'O achado entra num levantamento de visita novo, de hoje, e fica lá até ser enviado para aprovação. Campos que faltam viram aviso, não impedem o registro.';
+    openModal(`<div class="modal-header"><span class="modal-title">${alterar ? 'Propor alteração' : 'Registrar achado'}</span></div>
+        <p class="org-dica mb-3">${dica}</p>
+        <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
+        ${alterar ? '' : `<fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>`}
+        <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo(entidade === 'fluxo' ? {} : dados, { zonas, recolher: !alterar, edicao: alterar })}</div>
+        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo(zonas, entidade === 'fluxo' ? dados : {})}</div>
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
+}
 window.otNovoAchado = async (evidencia = '', perguntaId = null, entidade = 'ativo') => {
     perguntaDoAchado = perguntaId;
-    const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(atual.site_id)}`).catch(() => null), 'zonas');
-    const radio = (v, rot) => `<label class="d-flex gap-2 items-center"><input type="radio" name="ach-entidade" value="${v}" data-action-change="otEntidadeAchado" data-arg-val${v === entidade ? ' checked' : ''}> ${rot}</label>`;
-    openModal(`<div class="modal-header"><span class="modal-title">Registrar achado</span></div>
-        <p class="org-dica mb-3">O achado fica neste levantamento até ser enviado para aprovação. Campos que faltam viram aviso, não impedem o registro.</p>
-        <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
-        <fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>
-        <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo({}, { zonas, recolher: true })}</div>
-        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo(zonas)}</div>
-        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
+    destino = { site: atual.site_id, levantamento: atual.id };
+    await formAchado({ evidencia, entidade });
 };
+/**
+ * Achado fora da sessão (inventário, IA): vai ao levantamento indicado (o aberto na tela) ou a um de visita novo, nunca a outra sessão do site.
+ * `alvo_id` + `original`: alteração (só os campos mudados); `remover`: pede a evidência e grava { alvo_id, remover: true }.
+ */
+window.otRegistrarAchado = async (siteId, { entidade = 'ativo', dados = {}, alvo_id = null, remover = false, original = null, evidencia = '', ativos } = {}, { levantamento = null } = {}) => {
+    perguntaDoAchado = null;
+    destino = { site: siteId, levantamento, alvo_id, original, daTela: true };
+    if (!remover) return formAchado({ evidencia, entidade, dados, ativos });
+    const motivo = await pedirTexto(`O que mostra que ${entidade === 'fluxo' ? 'este fluxo' : 'este ativo'} saiu do site? Isso vira a evidência do achado; a remoção só acontece quando outra pessoa aprovar o lote.`,
+        { titulo: 'Propor remoção', rotulo: 'Propor remoção' });
+    if (motivo === null) return;
+    if (!motivo.trim()) return showToast('Descreva a evidência da remoção.', 'error');
+    await gravarAchado(entidade, { alvo_id, remover: true }, motivo.trim());
+};
+// Mudança em operação: sempre um levantamento de visita novo, aberto na tela; o "Enviar" dele é a mudança (um lote).
+window.otRegistrarMudanca = async (siteId) => {
+    try {
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: siteId, tipo: 'visita', realizado_em: hojeSP() });
+        await window.otTela('site', siteId, 'levantamento', { otLevantamento: r.id });
+    } catch (e) { falhou(e, 'Não foi possível abrir o levantamento da mudança.'); }
+};
+// A visita que o próprio inventário criou (desta pessoa, deste projeto e site) recebe os achados seguintes enquanto a tela do site
+// segue aberta (otTela a esquece ao sair); falha no achado logo depois de criá-la não deixa outra visita vazia: a próxima tentativa a usa.
+const visitaDoInventario = (site) => {
+    const v = S.otVisitaInventario;
+    return v && v.projeto === S.activeProject.id && v.usuario === S.user?.id && v.site === site ? v.id : null;
+};
+async function gravarAchado(entidade, dados, evidencia) {
+    const d = destino;
+    let reusada = false;
+    try {
+        if (!d.levantamento && d.daTela) { d.levantamento = visitaDoInventario(d.site); reusada = !!d.levantamento; }
+        if (!d.levantamento) {
+            d.levantamento = (await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: d.site, tipo: 'visita', realizado_em: hojeSP() })).id;
+            if (d.daTela) S.otVisitaInventario = { projeto: S.activeProject.id, usuario: S.user?.id ?? null, site: d.site, id: d.levantamento };
+        }
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(d.levantamento)}/achados`,
+            { entidade, dados, evidencia, ...(perguntaDoAchado ? { pergunta_id: perguntaDoAchado } : {}) });
+        forceCloseModal();
+        const avisos = r.erros?.length ? ` com ${r.erros.length} aviso(s)` : '';
+        // até o PR7 (assistente com "3. Revisar"), a aba de hoje
+        if (d.daTela) { showToast(`Achado registrado${avisos}: envie para revisão em Revisão e aprovação.`, 'success'); window.render(); return; }
+        showToast(`Achado registrado${avisos}.`, 'success');
+        await redesenhar();
+    } catch (e) {
+        // a visita reaproveitada pode ter sido encerrada ou enviada: esquece-a, e a próxima tentativa cria outra
+        if (reusada) { S.otVisitaInventario = null; d.levantamento = null; }
+        falhou(e, 'Não foi possível registrar o achado.');
+    }
+}
+// Alteração: só o que difere do registro. IP/MAC só se digitados e nunca o mascarado.
+// shortcut: campo apagado no formulário não vira proposta (o lote não limpa campo), e trocar a ponta do fluxo de ativo para zona não
+// limpa a ponta antiga; se precisar, mande null onde o esquema aceita.
+function soOQueMudou(dados, o) {
+    const antes = (k) => (['no_arciber', 'firmware_nao_aplicavel', 'externo', 'via_vpn'].includes(k) ? !!o[k] : o[k] ?? null);
+    return Object.fromEntries(Object.entries(dados).filter(([k, v]) => !((k === 'ip' || k === 'mac') && String(v).includes('•')) && JSON.stringify(v) !== JSON.stringify(antes(k))));
+}
 // Fluxo: só o que foi preenchido; externo e via_vpn só se escolhidos (Sim/Não). Devolve { erro } se a porta não for inteiro de 0 a 65535.
 function lerCamposDoFluxo() {
     const v = (id) => el(id)?.value.trim() || '';
@@ -347,18 +421,17 @@ function lerCamposDoFluxo() {
     return { dados: d };
 }
 window.otSalvarAchado = async () => {
-    const entidade = document.querySelector('input[name="ach-entidade"]:checked')?.value === 'fluxo' ? 'fluxo' : 'ativo';
-    const { dados, erro } = entidade === 'fluxo' ? lerCamposDoFluxo() : lerCamposDoAtivo({ vazio: 'omitir' });
+    const entidade = destino.alvo_id ? destino.entidade : document.querySelector('input[name="ach-entidade"]:checked')?.value === 'fluxo' ? 'fluxo' : 'ativo';
+    let { dados, erro } = entidade === 'fluxo' ? lerCamposDoFluxo() : lerCamposDoAtivo({ vazio: 'omitir' });
     if (erro) return showToast(erro, 'error');
     const evidencia = el('lev-evidencia').value.trim();
     if (!evidencia) return showToast('Descreva a evidência do achado.', 'error');
-    try {
-        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/achados`,
-            { entidade, dados, evidencia, ...(perguntaDoAchado ? { pergunta_id: perguntaDoAchado } : {}) });
-        forceCloseModal();
-        showToast(r.erros?.length ? `Achado registrado com ${r.erros.length} aviso(s).` : 'Achado registrado.', 'success');
-        await redesenhar();
-    } catch (e) { falhou(e, 'Não foi possível registrar o achado.'); }
+    if (destino.alvo_id) {
+        dados = soOQueMudou(dados, destino.original || {});
+        if (!Object.keys(dados).length) return showToast('Nenhum campo mudou.', 'error');
+        dados.alvo_id = destino.alvo_id;
+    }
+    await gravarAchado(entidade, dados, evidencia);
 };
 window.otDescartarAchado = async (id) => {
     try {
@@ -370,7 +443,7 @@ window.otDescartarAchado = async (id) => {
 const marcados = () => [...document.querySelectorAll('input[id^="ach-sel-"]:checked')].map((x) => x.id.slice('ach-sel-'.length));
 function nomeDoAchado(id, padrao = 'achado sem nome') {
     const x = achados.find((a) => a.id === id);
-    return x?.entidade === 'fluxo' ? rotaDoFluxo(x.dados, nomesPontas) : x?.dados?.nome || padrao;
+    return rotuloDoAlvo(x?.dados, nomesAlvos) || (x?.entidade === 'fluxo' ? rotaDoFluxo(x.dados, nomesPontas) : x?.dados?.nome || padrao);
 }
 window.otMarcarAchado = () => {
     const n = marcados().length;

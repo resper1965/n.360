@@ -160,7 +160,7 @@ Antes: em Projetos, habilite o n.ot no projeto de teste e, em Usuários, marque 
 | # | Faça | Esperado |
 |---|---|---|
 | 11.1 | No início do n.360, "Abrir no n.ot" na linha do projeto | Menu com Início, Sites, Assessment RO-CB.BR.01, Relatórios, Fornecedores e, para quem edita, Acessos e sondas. Uma conta sem o n.ot não vê o botão. |
-| 11.2 | Sites: "+ Novo site"; no site, Modo operação → Inventário: "+ Nova zona" e "Novo ativo" | Cada um aparece na lista. |
+| 11.2 | Sites: "+ Novo site"; no site, Modo operação → Inventário: "+ Nova zona" e "Registrar ativo" | O site e a zona aparecem na lista. O ativo vira achado num levantamento de visita e só aparece no inventário depois de o lote ser aprovado por outra pessoa. |
 | 11.3 | No site, Modo projeto → Revisão e aprovação: "Entrada manual", "Adicionar ao lote" e "Enviar lote" | O lote fica para revisão. Quem o criou não consegue aprová-lo. |
 | 11.4 | Com a segunda conta: "Revisar" e "Aprovar lote" | O ativo entra no inventário. |
 | 11.5 | No site, Modo projeto → Levantamento: "+ Novo levantamento" (entrevista), responda uma pergunta do roteiro; em Revisão e aprovação, "Enviar para aprovação" | O achado vira item de lote; nada entra no inventário sem aprovação. |
