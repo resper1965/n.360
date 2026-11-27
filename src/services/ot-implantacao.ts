@@ -1,4 +1,5 @@
 import { CARGO_GESTOR_ARCIBER } from './ot-inventario';
+import { SQL_EH_FORNECEDOR } from './terceiros';
 
 export type PassoImplantacao = {
   id: 'modulo' | 'gestor' | 'tecnicos' | 'site' | 'sonda' | 'agente' | 'fornecedores' | 'assessment' | 'base';
@@ -10,19 +11,23 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 export async function listaDeVerificacao(db: D1Database, projectId: string): Promise<{ passos: PassoImplantacao[] }> {
   const [[c], [primeiro]] = (await db.batch([
     db.prepare(`SELECT
-      (SELECT count(*) FROM users u JOIN usuario_modulos m ON m.user_id = u.id AND m.modulo = 'ot' WHERE u.client_project_id = ?1) AS pessoas,
+      (SELECT count(*) FROM users u JOIN usuario_modulos m ON m.user_id = u.id AND m.modulo = 'ot' WHERE u.client_project_id = ?1 AND u.ativo <> 0) AS pessoas,
       (SELECT count(*) FROM project_governance WHERE project_id = ?1 AND ${CARGO_GESTOR_ARCIBER} AND coalesce(trim(email), '') <> '') AS gestor,
       (SELECT count(*) FROM ot_site_acessos a JOIN ot_sites s ON s.id = a.site_id AND s.project_id = a.project_id WHERE a.project_id = ?1 AND s.status = 'ativo') AS tecnicos,
       (SELECT count(*) FROM ot_sites WHERE project_id = ?1 AND status = 'ativo') AS sites,
       (SELECT count(*) FROM ot_sensores WHERE project_id = ?1 AND situacao = 'ativa') AS sondas,
       (SELECT count(DISTINCT c.sensor_id) FROM ot_sensor_credenciais c JOIN ot_sensores s ON s.id = c.sensor_id AND s.project_id = c.project_id
-        WHERE c.project_id = ?1 AND s.situacao = 'ativa' AND c.situacao = 'ativa' AND c.expira_em > datetime('now')) AS instaladas,
+        WHERE c.project_id = ?1 AND s.situacao = 'ativa' AND c.situacao = 'ativa' AND c.expira_em > ?2) AS instaladas,
       (SELECT count(DISTINCT e.sensor_id) FROM ot_sensor_envios e JOIN ot_sensores s ON s.id = e.sensor_id AND s.project_id = e.project_id
         WHERE e.project_id = ?1 AND s.situacao = 'ativa' AND e.situacao = 'concluido') AS com_envio,
       (SELECT agente_coleta_ot FROM projects WHERE id = ?1) AS agente,
-      (SELECT count(*) FROM ot_fornecedores WHERE project_id = ?1) AS fornecedores,
+      (SELECT count(*) FROM ot_fornecedores o
+        JOIN partes p ON p.id = o.parte_id AND p.project_id = o.project_id AND ${SQL_EH_FORNECEDOR}
+        LEFT JOIN ot_sites s ON s.id = o.ot_site_id AND s.project_id = o.project_id AND s.status = 'ativo'
+        LEFT JOIN ot_fluxos f ON f.id = o.ot_fluxo_id AND f.status = 'ativo' AND f.site_id IN (SELECT id FROM ot_sites WHERE project_id = ?1 AND status = 'ativo')
+        WHERE o.project_id = ?1 AND (s.id IS NOT NULL OR f.id IS NOT NULL)) AS fornecedores,
       (SELECT count(*) FROM ot_avaliacoes WHERE project_id = ?1) AS avaliacoes,
-      (SELECT count(*) FROM ot_sites WHERE project_id = ?1 AND status = 'ativo' AND base_aprovada_em IS NOT NULL) AS bases`).bind(projectId),
+      (SELECT count(*) FROM ot_sites WHERE project_id = ?1 AND status = 'ativo' AND base_aprovada_em IS NOT NULL) AS bases`).bind(projectId, new Date().toISOString()),
     db.prepare(`SELECT id FROM ot_sites WHERE project_id = ? AND status = 'ativo' AND fase <> 'em_operacao' ORDER BY created_at, id LIMIT 1`).bind(projectId),
   ])).map((r) => r.results as Record<string, number | string>[]);
   const n = (k: string) => Number(c?.[k] ?? 0);
