@@ -11,7 +11,6 @@ import { areaSondas } from './ot-sensores.js';
 import { cartaoIntegracao } from './ot-integracao.js';
 import { montarAssessment } from './ot-assessment.js';
 import { montarFornecedoresOt } from './ot-fornecedores.js';
-import { montarInicio } from './ot-inicio.js';
 import { montarSites, montarSite, resolverDesvio, modoDaAba } from './ot-site.js';
 import { itemVisivel, enderecoDoProduto, modulosVisiveis, atualizarItemOt } from '../produto.js';
 import { lerEndereco, escreverEndereco } from '../ot-navegacao.js';
@@ -30,9 +29,9 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const TITULOS = { inicio: 'n.ot · Início', painel: 'Painel', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores de OT', acessos: 'Acessos e sondas' };
+const TITULOS = { painel: 'Painel', sites: 'Sites', site: 'Site', assessment: 'Assessment RO-CB.BR.01', relatorios: 'Relatórios', fornecedores: 'Fornecedores de OT', acessos: 'Acessos e sondas' };
 // O Painel do n.ot é o mesmo painel do n.iso e do n.privacy (views/painel.js), pelo `?modulo=ot`; o título fica o desta casca.
-const MONTAR = { inicio: montarInicio, painel: (c, a) => renderPainel(c, null, a, 'ot'), sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, acessos: (c, a, p) => montarAcessos(c, a, p) };
+const MONTAR = { painel: (c, a) => renderPainel(c, null, a, 'ot'), sites: montarSites, assessment: montarAssessment, relatorios: montarSaidas, fornecedores: montarFornecedoresOt, acessos: (c, a, p) => montarAcessos(c, a, p) };
 
 async function renderOt(c, h, a) {
     a.innerHTML = '';
@@ -53,10 +52,10 @@ async function renderOt(c, h, a) {
         const p = S.otPedido; S.otPedido = null;
         if (p.desvio) { desvioPedido = p.desvio; S.otTela = null; }
         else Object.assign(S, { otTela: p.tela, otSite: p.site ?? null, otModo: null, otSub: null });
-    } else if (trocou) { S.otTela = 'inicio'; S.otModo = null; S.otSub = null; } // o endereço ainda é o do projeto anterior
+    } else if (trocou) { S.otTela = 'painel'; S.otModo = null; S.otSub = null; } // o endereço ainda é o do projeto anterior
     let desvio = null;
     if (!S.otTela) { // primeira entrada: o endereço decide. Lê antes de escrever, porque a primeira escrita apaga /ot/desvios/<id>.
-        const e = desvioPedido ? { tela: 'inicio', site: null, aba: null, desvio: desvioPedido } : lerEndereco();
+        const e = desvioPedido ? { tela: 'painel', site: null, aba: null, desvio: desvioPedido } : lerEndereco();
         Object.assign(S, { otTela: e.tela, otSite: e.site, otModo: null, otSub: e.aba }); // a área do site decide o modo e confere a aba
         if (e.desvio && !pode('leitor')) { // o leitor não lê desvio (403): o endereço cai no Painel, abaixo
             let r = await resolverDesvio(proj(), e.desvio);
@@ -70,17 +69,17 @@ async function renderOt(c, h, a) {
                 break;
             }
             if (r) { Object.assign(S, { otTela: 'site', otSite: r.site_id, otModo: 'operacao', otSub: 'desvios' }); desvio = e.desvio; }
-            else { showToast('Desvio não encontrado neste projeto', 'error'); Object.assign(S, { otTela: 'inicio', otSite: null }); }
+            else { showToast('Desvio não encontrado neste projeto', 'error'); Object.assign(S, { otTela: 'painel', otSite: null }); }
         }
     }
     await carregarPermissoes(proj().id); // o link de desvio pode ter trocado o projeto
     atualizarItemOt();
-    if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'inicio';
+    if (S.otTela === 'acessos' && !podeEditarOt()) S.otTela = 'painel';
     // o leitor lê só Painel, Assessment e Relatórios (spec 2026-11-26, decisão 4): Início, Sites e o resto caem no Painel
     if (pode('leitor') && !['painel', 'assessment', 'relatorios'].includes(S.otTela)) S.otTela = 'painel';
     const tela = S.otTela;
     escreverEndereco({ tela, site: S.otSite, aba: S.otSub });
-    for (const t of ['inicio', 'painel', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
+    for (const t of ['painel', 'sites', 'assessment', 'relatorios', 'fornecedores', 'acessos']) document.getElementById(`nav-ot-${t}`)?.classList.toggle('active', t === (tela === 'site' ? 'sites' : tela));
     h.textContent = TITULOS[tela];
     c.innerHTML = '<div class="loading"></div>';
     if (tela === 'site') {
@@ -98,7 +97,7 @@ window.otTela = async (tela, site = null, aba = null, extra = {}) => {
     if (S.otTela !== 'site' || S.otVisitaInventario?.site !== S.otSite) S.otVisitaInventario = null; // fora da tela do site, a visita do inventário não é reaproveitada
     window.render();
 };
-// Abre o lote de um site vindo de fora (Início): sub-aba Lote de aprovação.
+// Abre o lote de um site vindo de fora: sub-aba Lote de aprovação.
 window.otIrParaLote = (site, lote) => window.otTela('site', site, 'aprovacao', { otLote: lote });
 
 // ─── inventário (N2) ────────────────────────────────────────────────────────

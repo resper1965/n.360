@@ -54,6 +54,22 @@ describe('Painel do n.ot: equipe', () => {
     });
 });
 
+describe('Painel do n.ot: técnico (Meu trabalho, PR4)', () => {
+    const MEU = [{ grupo: 'semana', quando: 'Nesta semana', texto: '1 achado seu em rascunho', contexto: 'Ainda não foi para revisão', acao: 'Abrir o site', tela: 'ot', aba: 'revisar', site: 's1', modulo: 'ot' }];
+    it('com meu_trabalho no servidor: quadro "Meu trabalho" com "Abrir" para o site e "Meus sites"', async () => {
+        await abrir(painelOt('equipe', { numeros: [['1 de 1', 'sites em operação'], ['1', 'desvios abertos']], por_site: [SITES[0]], meu_trabalho: MEU }));
+        const q = el('pn-ot-meu').closest('section');
+        expect(q.textContent).toContain('Meu trabalho');
+        expect(q.textContent).toContain('1 achado seu em rascunho');
+        expect(JSON.parse(q.querySelector('button').getAttribute('data-args'))).toEqual(['ot', 'revisar', null, 's1']);
+        expect(el('pn-ot-sites').closest('section').querySelector('h2, h3').textContent).toBe('Meus sites');
+    });
+    it('sem a chave meu_trabalho o quadro não existe (equipe, Gestor, leitor)', async () => {
+        await abrir(painelOt('equipe', EQUIPE));
+        expect(el('pn-ot-meu')).toBeNull();
+    });
+});
+
 describe('Painel do n.ot: cliente', () => {
     it('lê a frase e a régua, sem "Abrir", sem "O que fazer" e sem números de desvio', async () => {
         await abrir(painelOt('cliente', { numeros: [['0 de 2', 'sites em operação'], ['1', 'desvios abertos']] }, EM_DIA));

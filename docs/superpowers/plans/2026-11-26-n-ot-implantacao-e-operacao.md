@@ -945,6 +945,8 @@ it('nada disso no Início do n.360 (sem ?modulo)', async () => {
 
 ### Task 5.1: Telas e endereços novos
 
+> **Do PR4:** `escreverEndereco` (`frontend/src/ot-navegacao.js:23`) hoje omite `?ot=` para o Painel (`/ot` limpo, `?ot=inicio` lido como `painel`). Ao ligar `tela_inicial = 'implantacao'` aqui, o Painel deixa de ser a tela do `/ot` e volta a escrever `?ot=painel`; atualize `frontend/test/ot-navegacao.test.js` (teste "o Painel é a tela inicial") no mesmo PR.
+
 **Files:**
 - Modify: `frontend/src/ot-navegacao.js:3`; `frontend/src/views/ot.js:33-35,70-73,401-420`; `frontend/src/views/painel.js:634` (o mapa `SEM_SITE` do PR1b passa a `{ assessment: 'assessment', sondas: 'sondas', acessos: 'acessos', desvios: 'desvios', revisar: 'implantacao', base: 'implantacao', implantacao: 'implantacao' }`); Create: `frontend/src/views/ot-configuracao.js`
 - Modify: `frontend/e2e/ot.spec.js:310-425` (`#nav-ot-acessos` do agente e das sondas passa a `#nav-ot-agente` e `#nav-ot-sondas`; `#nav-ot-acessos` fica para acessos de técnicos), `frontend/test/painel-ot.test.js` (item sem site com `aba: 'sondas'` vai a `?ot=sondas`; `desvios`, a `?ot=desvios`)

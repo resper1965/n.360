@@ -30,7 +30,7 @@ export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 
  * O n.ot tem uma tela só (`views/ot.js`); o menu dele são as subtelas (`window.otTela`). `nav-ot` não é mais item de menu (o n.ot abre
  * pelo "Abrir no n.ot" da linha do projeto no Início), mas fica aqui: é o que diz que a tela `ot` é do n.ot (`produtoDaTela`).
  */
-export const SO_OT = ['nav-ot', 'nav-ot-inicio', 'nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
+export const SO_OT = ['nav-ot', 'nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -467,7 +467,7 @@ export function atualizarItemOt(doc = document) {
     // o leitor lê só Painel, Assessment e Relatórios (spec 2026-11-26, decisão 4; GET /ot/permissoes)
     // sem as permissões carregadas, o estado fechado (o de leitor) até o renderOt as ler
     const fechado = !permissoesCarregadas() || pode('leitor');
-    for (const id of ['nav-ot-inicio', 'nav-ot-sites', 'nav-ot-fornecedores']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro || fechado; }
+    for (const id of ['nav-ot-sites', 'nav-ot-fornecedores']) { const n = doc.getElementById(id); if (n) n.hidden = !dentro || fechado; }
     const ac = doc.getElementById('nav-ot-acessos');
     if (ac) ac.hidden = !(dentro && podeEditarOt());
 }

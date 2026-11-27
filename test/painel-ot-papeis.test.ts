@@ -55,7 +55,7 @@ describe('?modulo=ot por papel', () => {
   });
   it('técnico: só os sites dele, sem "O que fazer" nem total do projeto (P0-4)', async () => {
     const d = await ot(tecnico);
-    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'numeros', 'por_site', 'saude']);
+    expect(Object.keys(d.modulos.ot).sort()).toEqual(['comecando', 'meu_trabalho', 'numeros', 'por_site', 'saude']);
     expect(d.modulos.ot.por_site.map((s: any) => s.id)).toEqual(['s1']);
     expect(d.modulos.ot.numeros).toEqual([['1 de 1', 'sites em operação'], ['1', 'desvios abertos']]);
     expect(d.programa.etapas.ot.total).toBe(1);
@@ -151,5 +151,60 @@ describe('?modulo=ot: área, etapa, site e aba (PR1a implantação e operação)
       expect(r.programa.etapas.ot?.proximo).toBeTruthy();
       expect(r.programa.etapas.ot?.proximo).not.toHaveProperty('site');
     }
+  });
+});
+
+// Spec 2026-11-26 §7 (PR4): "Meu trabalho" do técnico e os itens do assessment saem do servidor (o Início do n.ot some).
+describe('?modulo=ot: Meu trabalho e itens do assessment (PR4 implantação e operação)', () => {
+  const texto = (b: { fazer: { texto: string }[] }) => b.fazer.map((i) => i.texto);
+  beforeAll(async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, criado_por) VALUES ('lev4', 'proj-a', 's1', 'visita', '2026-11-01', 'u-t'), ('lev4b', 'proj-a', 's2', 'visita', '2026-11-01', 'u-c')`),
+      env.DB.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, criado_por) VALUES
+        ('ac4a', 'proj-a', 'lev4', '{}', 'x', 'u-t'), ('ac4b', 'proj-a', 'lev4', '{}', 'x', 'u-c'), ('ac4c', 'proj-a', 'lev4b', '{}', 'x', 'u-t')`),
+      env.DB.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, status, criado_por, decidido_em) VALUES
+        ('lr1', 'proj-a', 's1', 'manual', 'rejeitado', 'u-t', datetime('now')), ('lr2', 'proj-a', 's1', 'manual', 'rejeitado', 'u-t', datetime('now', '-8 days')),
+        ('lr3', 'proj-a', 's1', 'manual', 'rejeitado', 'u-c', datetime('now'))`),
+    ]);
+  });
+  it('técnico: meu_trabalho tem o achado em rascunho DELE e o lote DELE recusado (7 dias), só dos sites dele', async () => {
+    const b = (await ot(tecnico)).modulos.ot;
+    expect(b.meu_trabalho.map((i: { texto: string }) => i.texto)).toEqual(['1 achado seu em rascunho', '1 lote seu recusado']);
+    expect(b.meu_trabalho[0]).toMatchObject({ tela: 'ot', site: 's1', aba: 'revisar' });
+    expect(b.fazer).toBeUndefined();
+    expect(JSON.stringify(b)).not.toContain('SE Sul');
+  });
+  it('Gestor: itens do assessment para confirmar, sem os que ele mesmo avaliou', async () => {
+    const reqs = (await env.DB.prepare(`SELECT id FROM ot_requisitos WHERE codigo NOT IN ('4.1.1', '4.1.2', '4.1.3', '4.2.1', '4.3.1', '5.1.1') LIMIT 2`).all()).results as { id: string }[];
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, atualizado_por) VALUES ('av4a', 'proj-a', ?, 'atende', 'u-g')`).bind(reqs[0].id),
+      env.DB.prepare(`INSERT INTO ot_avaliacoes (id, project_id, requisito_id, situacao, atualizado_por) VALUES ('av4b', 'proj-a', ?, 'atende', 'u-outro')`).bind(reqs[1].id),
+    ]);
+    const t = texto((await ot(gestor)).modulos.ot);
+    expect(t).toContain('1 item do assessment para confirmar');
+    expect(t.join(' ')).not.toContain('sem preencher');
+  });
+  it('equipe: itens de política sem preencher (catálogo menos os avaliados)', async () => {
+    const total = (await env.DB.prepare(`SELECT count(*) AS n FROM ot_requisitos WHERE framework = 'ONS-RO-CB.BR.01' AND codigo NOT IN ('4.1.1', '4.1.2', '4.1.3', '4.2.1', '4.3.1', '5.1.1')`).first<{ n: number }>())!.n;
+    expect(total).toBeGreaterThan(2);
+    expect(texto((await ot(cons)).modulos.ot)).toContain(`${total - 2} itens do assessment sem preencher`);
+  });
+  it('rascunhos e itens do assessment são do grupo plano: não entram na frase de saúde; o prazo do lote vai no contexto (dia de São Paulo + 7)', async () => {
+    await env.DB.prepare(`UPDATE ot_lotes SET created_at = '2026-11-20 01:00:00' WHERE id = 'l-1a'`).run(); // 22h de 19/11 em São Paulo
+    for (const h of [cons, gestor]) {
+      const d = await ot(h);
+      const r = d.modulos.ot.fazer.find((i: { texto: string }) => /achados? em rascunho/.test(i.texto));
+      expect(r, 'rascunho').toMatchObject({ grupo: 'plano', texto: '3 achados em rascunho' });
+      for (const i of d.modulos.ot.fazer.filter((x: { texto: string }) => /assessment/.test(x.texto))) expect(i.grupo).toBe('plano');
+      expect(d.saude.frase + d.saude.apoio.split(';')[0]).not.toMatch(/rascunho|assessment/);
+    }
+    const lote = (await ot(cons)).modulos.ot.fazer.find((i: { texto: string }) => /lote/.test(i.texto));
+    expect(lote).toMatchObject({ grupo: 'semana', contexto: 'Coleta enviada, esperando quem aprova: decidir até 26/11' });
+  });
+  it('nada disso no Início do n.360 (sem ?modulo) nem para o leitor', async () => {
+    const g = await n360(tecnico);
+    expect(g.modulos.ot).not.toHaveProperty('meu_trabalho');
+    expect(JSON.stringify((await n360(cons)).modulos.ot.fazer)).not.toMatch(/assessment|rascunho/);
+    expect(JSON.stringify((await ot(leitor)).modulos.ot)).not.toMatch(/meu_trabalho|rascunho|assessment/);
   });
 });

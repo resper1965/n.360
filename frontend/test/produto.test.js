@@ -104,7 +104,7 @@ describe('projetos do produto', () => {
 describe('casca', () => {
     it('casca ot: menu com Início, Sites e a seção Organização; fora do n.ot, nada disso aparece', () => {
         montarApp();
-        const ids = ['nav-ot-inicio', 'nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
+        const ids = ['nav-ot-painel', 'nav-ot-sites', 'nav-ot-assessment', 'nav-ot-relatorios', 'nav-ot-fornecedores', 'nav-ot-acessos'];
         aplicarCasca('ot');
         for (const id of ids) expect(el(id).dataset.foraDoProduto, id).toBeUndefined();
         expect(el('secao-ot-organizacao').classList.contains('sidebar-secao')).toBe(true);
@@ -122,7 +122,6 @@ describe('casca', () => {
         S.user = { role: 'org_user' };
         atualizarItemOt(document);
         expect(el('nav-ot')).toBeNull();
-        expect(el('nav-ot-inicio').hidden).toBe(false);
         expect(el('nav-ot-painel').hidden).toBe(false);
         expect(el('secao-ot-organizacao').hidden).toBe(false);
         expect(el('nav-ot-acessos').hidden).toBe(true);
