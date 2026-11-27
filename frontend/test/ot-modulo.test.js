@@ -290,7 +290,7 @@ describe('casca por subtela', () => {
         expect(location.search).toBe('?ot=relatorios');
     });
     it('a subtela escolhida marca o item do menu; o site marca Sites', async () => {
-        servir({ [`GET ${B}/sites`]: SITES });
+        servir({ [`GET ${B}/sites`]: SITES, [`GET ${B}/sites/s1/situacao`]: { fase: 'em_levantamento', area: 'implantacao', etapa: 2, falta: [], proximo_passo: 'levantar' } });
         document.body.innerHTML = `<h1 id="h"></h1><div id="a"></div><div id="c"></div>${NAV}`;
         await window.otTela('assessment'); await window.renderOt(el('c'), el('h'), el('a'));
         expect(el('nav-ot-assessment').classList.contains('active')).toBe(true);

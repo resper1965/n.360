@@ -685,7 +685,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(el('c').querySelector('[role="tab"][aria-selected="true"]').textContent).toBe(['1. Cadastrar', '2. Levantar', '3. Revisar'][etapa - 1]);
         expect(el('c').querySelector('.card').textContent).toContain(falta);
         const desab = [...el('c').querySelectorAll('[role="tab"][aria-disabled="true"]')].map((t) => t.textContent);
-        expect(desab).toEqual(['1. Cadastrar', '2. Levantar', '3. Revisar', '4. Aprovar a base'].slice(etapa));
+        expect(desab).toEqual(['1. Cadastrar', '2. Levantar', '3. Revisar', '4. Aprovar a base'].slice(etapa).map((r) => `${r} (ainda não)`));
         for (const t of el('c').querySelectorAll('[role="tab"][aria-disabled="true"]')) expect(t.hasAttribute('data-action')).toBe(false);
         expect(primarios()).toBe(1);
     });
@@ -723,7 +723,7 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(S.otSub).toBe('cadastrar');
         expect(el('c').textContent).toContain('Obra até 20/12');
         expect(el('c').querySelectorAll('.ot-regua li')).toHaveLength(4);
-        expect(abas()).toEqual(['1. Cadastrar', '2. Levantar', '3. Revisar', '4. Aprovar a base']);
+        expect(abas()).toEqual(['1. Cadastrar', '2. Levantar (ainda não)', '3. Revisar (ainda não)', '4. Aprovar a base (ainda não)']);
         expect(texto()).not.toMatch(/Modo projeto|Modo operação/);
     });
 
@@ -779,7 +779,12 @@ describe('lista de sites e tela do site (Task 4)', () => {
         servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('comecar', { etapa: 1 }) });
         await ir({ site: 's1', sub: 'cadastrar' });
         expect(el('c').querySelector('[aria-current="step"]').textContent).toContain('1. Cadastrar');
-        expect(el('c').textContent).toContain('Comece o levantamento');
+        // etapa 1: o primeiro passo é cadastrar as zonas (não há levantamento antes disso)
+        expect(el('c').textContent).toContain('Cadastre as zonas do site');
+        const btn = el('c').querySelector('.card .btn-primary');
+        expect([btn.getAttribute('data-action'), JSON.parse(btn.getAttribute('data-args'))]).toEqual(['otSiteSub', ['cadastrar']]);
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('comecar', { etapa: 2 }) });
+        await ir({ site: 's1', sub: 'levantar' });
         expect(el('c').querySelector('.card .btn-primary').getAttribute('data-action')).toBe('otNovoLevantamentoDoSite');
     });
 
@@ -805,11 +810,60 @@ describe('lista de sites e tela do site (Task 4)', () => {
         expect(el('c').textContent).toContain('Este site ainda não tem base aprovada: desvios não são calculados.');
     });
 
-    it('situação que falha: o cartão avisa e a tela segue', async () => {
+    it('situação que falha: a tela falha fechada, com erro e "Tentar de novo", sem assistente nem abas', async () => {
         servirOt(ROTAS, { [`GET ${B}/sites/s1/situacao`]: [500, { error: 'x' }] });
         await ir({ site: 's1', sub: 'levantar' });
         expect(el('c').textContent).toContain('Não foi possível carregar a situação do site.');
-        expect(el('c').textContent).toContain('l1-texto-unico');
+        expect(el('c').textContent).toContain('Tentar de novo');
+        expect(el('c').querySelector('[role="tab"]')).toBeNull();
+        expect(el('c').textContent).not.toContain('l1-texto-unico');
+    });
+
+    it('novo levantamento do cartão cria no site certo, mesmo depois de abrir outro site antes', async () => {
+        servirOt(ROTAS);
+        await ir({ site: 's2', sub: 'levantar' }); // deixa o estado do módulo (site fixo, lista) no s2
+        window.render = vi.fn();
+        S.otSite = 's1';
+        await window.otNovoLevantamentoDoSite('s1');
+        expect(el('lev-f-site').value).toBe('s1');
+        expect(el('lev-f-site').type).toBe('hidden');
+    });
+
+    it('Cadastrar em Operação é só leitura (zona só muda na implantação); "Implantação" da Operação abre o Levantamento', async () => {
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('revalidar', { fase: 'em_operacao', area: 'operacao', etapa: null, base_aprovada_em: '2026-11-10 12:00:00' }), [`GET ${B}/zonas`]: { zonas: [{ id: 'z1', site_id: 's1', nome: 'Zona-Sup', nivel_purdue: 2, tipo: 'supervisao' }] } });
+        await ir({ site: 's1', sub: 'cadastrar' });
+        expect(el('c').textContent).toContain('Zona-Sup');
+        expect(acoes(el('c')).concat(acoes(el('a')))).not.toEqual(expect.arrayContaining(['otEditarZona']));
+        for (const a of ['otNovaZona', 'otEditarZona', 'otEditarSite', 'otRemover']) expect([...acoes(el('c')), ...acoes(el('a'))]).not.toContain(a);
+        await ir({ site: 's1', sub: 'inventario' }); // a tabela de zonas do Inventário também
+        for (const a of ['otNovaZona', 'otEditarZona']) expect([...acoes(el('c')), ...acoes(el('a'))]).not.toContain(a);
+        S.otSite = 's1'; window.otTela = vi.fn();
+        await window.otSiteModo('projeto');
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantar');
+    });
+
+    it('Cadastrar: o técnico (sem editar) vê o cadastro sem botões', async () => {
+        S.user = { id: 'u-tec', role: 'org_user' };
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('comecar', { etapa: 1 }), [`GET ${B}/zonas`]: { zonas: [{ id: 'z1', site_id: 's1', nome: 'Zona-Sup', nivel_purdue: 2, tipo: 'supervisao' }] } });
+        await ir({ site: 's1', sub: 'cadastrar' });
+        expect(el('c').textContent).toContain('Zona-Sup');
+        for (const a of ['otNovaZona', 'otEditarZona', 'otEditarSite']) expect([...acoes(el('c')), ...acoes(el('a'))]).not.toContain(a);
+    });
+
+    it('lote ou levantamento pedido: abre a aba que o contém se a etapa permite; senão aviso e o estado é limpo', async () => {
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('levantar', { etapa: 4 }), [`GET ${B}/levantamentos/l1`]: { levantamento: { id: 'l1', site_id: 's1', tipo: 'entrevista', realizado_em: '2026-11-01', funcao: 'O', turno: 'B', notas: '', roteiro: {}, situacao: 'aberto', achados: 0 }, achados: [] }, [`GET ${B}/roteiro`]: { perguntas: [] } });
+        S.otLevantamento = 'l1';
+        await ir({ site: 's1', sub: 'base' }); // pedido de aba qualquer: o levantamento manda
+        expect(S.otSub).toBe('levantar');
+        expect(S.otLevantamento).toBe('l1');
+        expect(el('c').textContent).not.toContain('etapa que ainda não chegou');
+        servirOt({ ...ROTAS, [`GET ${B}/sites/s1/situacao`]: sit('comecar', { etapa: 1 }) });
+        S.otLote = 'k1';
+        await ir({ site: 's1', sub: 'revisar' });
+        expect(S.otSub).toBe('cadastrar');
+        expect([S.otLote, S.otLevantamento]).toEqual([null, null]);
+        expect(el('c').textContent).toContain('Este item é de uma etapa que ainda não chegou');
+        S.otLevantamento = null;
     });
 
     it('inventário: ativo sem verificação ganha o selo 4.3.1; verificado não', async () => {

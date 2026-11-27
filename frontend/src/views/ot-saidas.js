@@ -65,7 +65,8 @@ export async function montarSaidas(c, a, p) {
         ${exportar}`;
 }
 
-window.otIrBase = (site, zona) => window.otTela('site', site, 'base', { otZona: zona });
+// ativos sem zona pedem zona: abre o Cadastrar; o resto abre a Base (antes da etapa 4, a tela abre a etapa atual)
+window.otIrBase = (site, zona) => window.otTela('site', site, zona === 'sem' ? 'cadastrar' : 'base', { otZona: zona });
 window.otRelatorioConformidade = () => montarRelatorio(raiz, acoes, S.activeProject);
 
 window.otExportar = async (formato) => {

@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes } from '../ui.js';
-import { podeEditarOt, podeCriarLote, ehGestor, lista, areaDaFase, TIPOS_SITE, CRITICIDADE, ETAPAS_IMPLANTACAO } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, ehGestor, lista, areaDaFase, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
 import { escreverEndereco } from '../ot-navegacao.js';
 import { montarInventario, montarFluxos, montarCadastro, formSite } from './ot.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
@@ -69,29 +69,38 @@ async function montarBase(c, a, p, o) {
 /** As 4 abas do assistente: a etapa atual e as anteriores abrem; as seguintes ficam "ainda não" (aria-disabled). */
 function abasDoAssistente(etapa, ativa) {
     return `<div class="abas mb-4" role="tablist">${SUBS.projeto.map((v, i) => (i + 1 > etapa
-        ? `<button type="button" role="tab" class="aba" aria-selected="false" aria-disabled="true" tabindex="-1" title="Ainda não: termine a etapa ${etapa} antes"><span>${ROTULO[v]}</span></button>`
+        ? `<button type="button" role="tab" class="aba" aria-selected="false" aria-disabled="true" tabindex="-1" aria-label="${ROTULO[v]} (ainda não)" title="Ainda não: termine a etapa ${etapa} antes"><span>${ROTULO[v]} (ainda não)</span></button>`
         : `<button type="button" role="tab" class="aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="otSiteSub" data-args='${args(v)}'><span>${ROTULO[v]}</span></button>`)).join('')}</div>`;
 }
 
 export async function montarSite(c, a, p, { site, sub, desvio } = {}) {
     let sites;
-    let sit = null; // sem a situação o cartão avisa e a tela segue
+    let sit = null;
+    let erroSit = null;
     try {
         const [rs, rt] = await Promise.allSettled([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(site)}/situacao`)]);
         if (rs.status === 'rejected') throw rs.reason;
         sites = lista(rs.value, 'sites');
-        if (rt.status === 'fulfilled') sit = rt.value;
+        if (rt.status === 'fulfilled') sit = rt.value; else erroSit = rt.reason;
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o site.', e); return; }
     const s = sites.find((x) => x.id === site);
     if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
+    if (!sit) { falhaDeCarga(c, a, 'Não foi possível carregar a situação do site.', erroSit); return; } // sem a situação não há área nem etapa: falha fechada
     // Implantação e Obra: o assistente; a aba pedida vale até a etapa atual, senão abre a etapa atual (spec 2026-11-26 §7). Operação: abas de hoje,
     // com as da implantação ainda válidas (lote de revalidação, Novo levantamento) até o PR8.
-    const area = sit?.area ?? areaDaFase(sit?.fase);
+    const area = sit.area ?? areaDaFase(sit.fase);
     const assistente = area !== 'operacao';
-    const comEtapa = sit?.etapa >= 1 && sit?.etapa <= 4;
-    const etapa = assistente && comEtapa ? sit.etapa : 4; // sem a etapa do servidor (leitura falhou), nenhuma aba trava
-    const pedida = nomeDaAba(sub);
-    const modo = assistente || modoDaAba(sub) === 'projeto' ? 'projeto' : 'operacao';
+    const comEtapa = sit.etapa >= 1 && sit.etapa <= 4;
+    const etapa = assistente && comEtapa ? sit.etapa : 4;
+    // lote ou levantamento pedido vale na aba que o contém, se a etapa permite; senão aviso e o pedido é descartado
+    const exigida = S.otLote ? 'revisar' : S.otLevantamento ? 'levantar' : null;
+    let aviso = '';
+    if (exigida && assistente && SUBS.projeto.indexOf(exigida) >= etapa) {
+        aviso = '<p class="org-dica mb-3" role="status">Este item é de uma etapa que ainda não chegou: abrimos a etapa atual.</p>';
+        S.otLote = null; S.otLevantamento = null;
+    }
+    const pedida = (!aviso && exigida) || nomeDaAba(sub);
+    const modo = assistente || modoDaAba(pedida) === 'projeto' ? 'projeto' : 'operacao';
     sub = SUBS[modo].includes(pedida) && (!assistente || SUBS.projeto.indexOf(pedida) < etapa) ? pedida : SUBS[modo][assistente && comEtapa ? etapa - 1 : 0];
     S.otSite = site; S.otSub = sub; S.otModo = modo;
     escreverEndereco({ tela: 'site', site, aba: sub }); // recarregar mantém a aba efetiva
@@ -102,14 +111,14 @@ export async function montarSite(c, a, p, { site, sub, desvio } = {}) {
     }
     const detalhe = !!(S.otLote || S.otLevantamento);
     a.innerHTML = '';
-    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site, { gestor: ehGestor(), editar: podeEditarOt(), criar: podeCriarLote(), semPrimario: detalhe })}${assistente ? abasDoAssistente(etapa, sub) : `${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}`}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
+    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site, { gestor: ehGestor(), editar: podeEditarOt(), criar: podeCriarLote(), semPrimario: detalhe })}${assistente ? abasDoAssistente(etapa, sub) : `${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}`}${aviso}${modo === 'operacao' && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
     const painel = c.querySelector('#ot-site-painel');
     const o = { siteFixo: site, semPrimario: !detalhe }; // um só primário: o do cartão, ou o da tela de dentro quando há lote ou levantamento aberto
-    if (sub === 'cadastrar') await montarCadastro(painel, a, p, o);
+    if (sub === 'cadastrar') await montarCadastro(painel, a, p, { ...o, somenteLeitura: area === 'operacao' });
     else if (sub === 'levantar') await montarLevantamento(painel, a, p, o);
     else if (sub === 'revisar') await montarRevisao(painel, a, p, o);
     else if (sub === 'base') await montarBase(painel, a, p, o);
-    else if (sub === 'inventario') await montarInventario(painel, a, p, o);
+    else if (sub === 'inventario') await montarInventario(painel, a, p, { ...o, zonasSomenteLeitura: true }); // inventário só existe em Operação: zona não muda
     else if (sub === 'desvios') await montarDesvios(painel, a, p, { ...o, destacar: desvio });
     else {
         painel.innerHTML = `<div id="ot-cartoes-slot"></div>${await areaSondas(p, [s])}`;
@@ -117,5 +126,5 @@ export async function montarSite(c, a, p, { site, sub, desvio } = {}) {
     }
 }
 
-window.otSiteModo = async (modo) => { await esvaziarNotas(); window.otTela('site', S.otSite, SUBS[modo][0]); };
+window.otSiteModo = async (modo) => { await esvaziarNotas(); window.otTela('site', S.otSite, modo === 'projeto' ? 'levantar' : SUBS[modo][0]); }; // em Operação, "Implantação" abre o Levantamento (revalidação)
 window.otSiteSub = async (sub) => { S.otSub = sub; S.otLote = null; S.otLevantamento = null; await esvaziarNotas(); window.render(); };

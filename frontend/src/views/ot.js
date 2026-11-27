@@ -141,10 +141,10 @@ function tabelaDeZonas(editar) {
 }
 
 /** Etapa 1 do assistente (Cadastrar): os dados do site e as zonas. Ativos e fluxos não se gravam aqui (só por achado e lote). */
-export async function montarCadastro(c, a, p, { siteFixo } = {}) {
+export async function montarCadastro(c, a, p, { siteFixo, somenteLeitura } = {}) {
     siteTravado = siteFixo || null;
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o cadastro do site.', e); return; }
-    const editar = podeEditarOt();
+    const editar = podeEditarOt() && !somenteLeitura; // zona só muda na Implantação e na Obra (o servidor dá 409 fora delas)
     const s = D.sites.find((x) => x.id === siteFixo);
     if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
     if (editar) a.innerHTML = '<button class="btn" data-action="otNovaZona">+ Nova zona</button>';
@@ -154,7 +154,7 @@ export async function montarCadastro(c, a, p, { siteFixo } = {}) {
     ]])}<h3 class="mt-6 mb-3">Zonas</h3>${tabelaDeZonas(editar)}`;
 }
 
-export async function montarInventario(c, a, p, { siteFixo, semPrimario, somenteLeitura } = {}) {
+export async function montarInventario(c, a, p, { siteFixo, semPrimario, somenteLeitura, zonasSomenteLeitura } = {}) {
     siteTravado = siteFixo || null;
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o inventário do n.ot.', e); return; }
     const editar = podeEditarOt() && !somenteLeitura;
@@ -166,7 +166,7 @@ export async function montarInventario(c, a, p, { siteFixo, semPrimario, somente
         return;
     }
     if (editar) {
-        a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}<button class="btn" data-action="otNovaZona">+ Nova zona</button>`
+        a.innerHTML = `${siteFixo ? '' : '<button class="btn" data-action="otNovoSite">+ Novo site</button>'}${zonasSomenteLeitura ? '' : '<button class="btn" data-action="otNovaZona">+ Nova zona</button>'}`
             + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="${classePrimario(semPrimario)}" data-action="otRegistrarAtivo">Registrar ativo</button>`;
     }
     const zonaVale = (x) => !S.otZona || (S.otZona === 'sem' ? !x.zona_id : x.zona_id === S.otZona);
@@ -178,7 +178,7 @@ export async function montarInventario(c, a, p, { siteFixo, semPrimario, somente
         `<strong>${escapeHTML(s.nome)}</strong>`, escapeHTML(TIPOS_SITE[s.tipo] || s.tipo), escapeHTML(CRITICIDADE[s.criticidade] || '—'), escapeHTML(s.localizacao || '—'),
         ...(editar ? [`<div class="d-flex gap-2"><button class="btn btn-sm" data-action="otEditarSite" data-args='${args(s.id)}' aria-label="${escapeHTML(`Editar ${s.nome}`)}">Editar</button>${mais('sites', s)}</div>`] : []),
     ]));
-    const tabelaZonas = tabelaDeZonas(editar);
+    const tabelaZonas = tabelaDeZonas(editar && !zonasSomenteLeitura);
     const acoesAtivo = (x) => {
         if (!editar) return [];
         const extra = [{ rotulo: 'Sugerir zona (IA)', action: 'otSugerirZona', args: [x.id] }, podeRevelar(x) && { rotulo: 'Revelar IP/MAC', action: 'otRevelar', args: [x.id] },

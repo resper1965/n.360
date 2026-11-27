@@ -61,10 +61,11 @@ window.otAbrirLevantamento = (id) => { S.otLevantamento = id; window.render(); }
 window.otVoltarLevantamentos = async () => { await esvaziarNotas(); S.otLevantamento = null; window.render(); };
 
 // ─── nova sessão ───────────────────────────────────────────────────────────
-window.otNovoLevantamento = () => {
+window.otNovoLevantamento = (siteId) => {
+    const travado = siteId || fixo;
     const campo = (id, rotulo, tipo = 'text', extra = '') => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><input class="form-input" type="${tipo}" id="${id}"${extra}></div>`;
     openModal(`<div class="modal-header"><span class="modal-title">Novo levantamento</span></div>
-        ${fixo ? `<input type="hidden" id="lev-f-site" value="${escapeHTML(fixo)}">` : `<div class="form-group"><label class="form-label" for="lev-f-site">Site</label><select class="form-input" id="lev-f-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>`}
+        ${travado ? `<input type="hidden" id="lev-f-site" value="${escapeHTML(travado)}">` : `<div class="form-group"><label class="form-label" for="lev-f-site">Site</label><select class="form-input" id="lev-f-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>`}
         <div class="form-group"><label class="form-label" for="lev-f-tipo">Tipo</label><select class="form-input" id="lev-f-tipo" data-action-change="otTipoLevantamento" data-arg-val>${opcoes(Object.entries(TIPO), 'entrevista')}</select></div>
         ${campo('lev-f-data', 'Data', 'date', ` value="${hojeSP()}"`)}
         <div id="lev-f-pessoa">${campo('lev-f-funcao', 'Função (sem nome da pessoa)', 'text', ' maxlength="100"')}${campo('lev-f-turno', 'Turno', 'text', ' maxlength="50"')}</div>

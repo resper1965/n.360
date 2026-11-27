@@ -65,11 +65,14 @@ async function abrirOt(page) {
 // Navegação nova: menu (Painel, Sites, Assessment, Relatórios, Desvios, Implantação, Configuração) e, dentro do site, área (Implantação, Operação) + sub-aba.
 // Implantação: abas das etapas ("1. Cadastrar" ... "4. Aprovar a base"). Operação: o servidor diria area "operacao"; aqui o mock da situação troca por ela.
 const SITUACAO_OP = { fase: 'em_operacao', area: 'operacao', etapa: null, falta: [], base_pedida_em: null, base_aprovada_em: '2026-11-10 12:00:00', rascunhos: 0, lotes_em_revisao: 0, zonas_4_1_1: true, tem_conteudo: true, proximo_passo: 'em_operacao', lote_em_revisao_id: null };
+// 'pronta': todo o inventário aprovado (sem lote, zonas ok, ativo), a etapa 4 como o servidor a calcularia.
+const SITUACAO_PRONTA = { fase: 'em_levantamento', area: 'implantacao', etapa: 4, falta: [], base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 0, zonas_4_1_1: true, tem_conteudo: true, proximo_passo: 'pedir_base', lote_em_revisao_id: null };
 async function noSite(page, modo, sub) {
   const rota = `**${B}/sites/s1/situacao`;
-  const trocar = (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SITUACAO_OP) });
+  const corpo = modo === 'operacao' ? SITUACAO_OP : SITUACAO_PRONTA;
+  const trocar = (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(corpo) });
   if (page.__rotaOp) { await page.unroute(rota, page.__rotaOp); page.__rotaOp = null; }
-  if (modo === 'operacao') { await page.route(rota, trocar); page.__rotaOp = trocar; }
+  if (modo !== 'projeto') { await page.route(rota, trocar); page.__rotaOp = trocar; }
   await page.locator('#nav-ot-sites').click();
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
   await page.getByRole('tab', { name: sub, exact: true }).click();
@@ -115,7 +118,7 @@ test('pessoa sem o n.ot (projeto com ele): a linha não oferece o n.ot', async (
 const B = '/api/v1/projects/proj-e2e/ot';
 const ABAS_OT = {
   [`${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte', tipo: 'subestacao', criticidade: 'alta', localizacao: null, status: 'ativo' }] },
-  [`${B}/sites/s1/situacao`]: { fase: 'em_levantamento', area: 'implantacao', etapa: 4, falta: [], base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 1, zonas_4_1_1: false, tem_conteudo: true, proximo_passo: 'revisar', lote_em_revisao_id: null },
+  [`${B}/sites/s1/situacao`]: { fase: 'em_levantamento', area: 'implantacao', etapa: 3, falta: [], base_pedida_em: null, base_aprovada_em: null, rascunhos: 0, lotes_em_revisao: 1, zonas_4_1_1: false, tem_conteudo: true, proximo_passo: 'revisar', lote_em_revisao_id: null },
   [`${B}/zonas`]: { zonas: [{ id: 'z2', site_id: 's1', nome: 'Supervisão', nivel_purdue: 2, tipo: 'supervisao', descricao: null, status: 'ativo' }] },
   [`${B}/ativos`]: { ativos: [{ id: 'a1', project_id: 'proj-e2e', site_id: 's1', zona_id: 'z2', nome: 'RTU-01', no_arciber: true, categoria_arciber: 'centro_operacao',
     tipo_dispositivo: 'RTU', fabricante: 'ACME', modelo: 'X1', funcao: 'Telecontrole', firmware_so_versao: '1.2', firmware_nao_aplicavel: false, status: 'ativo',
@@ -149,12 +152,12 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, lote sem arquivo guard
   await page.locator('#nav-ot-assessment').click();
   await expect(conteudo).toContainText('4.1.1');
 
-  await noSite(page, 'projeto', '4. Aprovar a base');
+  await noSite(page, 'pronta', '4. Aprovar a base');
   await expect(conteudo).toContainText('RTU-01');
   await expect(conteudo).toContainText('aa:bb:cc:••:••:••');
   // o único primário da tela é o do cartão Próximo passo; a etapa 4 fica sem botões de gravação
   await expect(page.locator('#content .btn-primary, #header-actions .btn-primary')).toHaveCount(1);
-  await expect(page.locator('#content .card .btn-primary')).toHaveText('Cadastrar as zonas');
+  await expect(page.locator('#content .card .btn-primary')).toHaveText('Pedir aprovação da base');
   // a base é só leitura: ativo e fluxo só entram por achado e lote (etapas Levantar e Revisar)
   await expect(page.getByRole('button', { name: 'Registrar ativo' })).toHaveCount(0);
 

@@ -255,6 +255,11 @@ aviso passa a levar o alvo (`/projects/<id>/ot?site=<site>` na obra, `/projects/
 `/projects/<id>/ot?ot=assessment` na revisão); o clique abre o site, o desvio (pelo caminho que já resolve `/ot/desvios/<id>`,
 `ot.js:52-68`) ou o Assessment.
 
+No assistente (Implantação, Obra), a aba pedida só vale até a etapa atual; uma etapa que ainda não chegou abre a atual. Consequências assumidas:
+um desvio de site em Implantação ou Obra abre a etapa atual e o destaque do desvio se perde (desvio só tem tela em Operação); links para o inventário (`base`) ou
+as sondas antes da etapa 4 também caem na etapa atual; um lote ou levantamento pedido numa etapa que ainda não chegou mostra o aviso "este item é de uma etapa
+que ainda não chegou" e o pedido é descartado. Sem a situação do servidor a tela do site não desenha o assistente: mostra o erro com "Tentar de novo" (falha fechada).
+
 ### Regras do servidor novas ou alteradas
 
 | Regra | Onde | Muda |
