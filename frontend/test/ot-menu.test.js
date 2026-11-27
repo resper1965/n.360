@@ -14,9 +14,10 @@ const B = '/api/v1/projects/p9/ot';
 const el = (id) => document.getElementById(id);
 const FECHADO = { editar: false, criar_lote: false, aprovar_lote: false, ver_sondas: false, gestor: false, leitor: false, tecnico: false, acao_corretiva: false, tela_inicial: 'painel' };
 const EDITA = { ...FECHADO, editar: true, criar_lote: true, aprovar_lote: true, ver_sondas: true, acao_corretiva: true };
+const POR_SITE = [{ id: 's1', nome: 'SE Norte Exemplo', area: 'implantacao', etapa: 1, fase: 'em_levantamento' }, { id: 's2', nome: 'SE Sul Exemplo', area: 'operacao', fase: 'em_operacao' }];
 const SAUDE = { tom: 'plano', rotulo: 'Começando', frase: 'f', apoio: '' };
 const PAINEL = { gerado_em: '2026-11-20T10:00:00Z', visao: 'equipe', modulos_pedidos: ['ot'], empresa: null, encarregados: [],
-    programa: { estado: 'comecando', desde: null, rotulo: 'Começando', etapas: {} }, saude: SAUDE, modulos: { ot: { saude: SAUDE, numeros: [], comecando: true, fazer: [], passos: [] } } };
+    programa: { estado: 'comecando', desde: null, rotulo: 'Começando', etapas: {} }, saude: SAUDE, modulos: { ot: { saude: SAUDE, numeros: [], comecando: true, fazer: [], passos: [], por_site: POR_SITE } } };
 const SITES = { sites: [{ id: 's1', nome: 'SE Norte Exemplo', fase: 'em_levantamento' }, { id: 's2', nome: 'SE Sul Exemplo', fase: 'em_operacao' }] };
 
 async function abrirOt(perm, caminho = '/ot', extra = {}) {
@@ -26,7 +27,7 @@ async function abrirOt(perm, caminho = '/ot', extra = {}) {
     S.activeProject = { id: 'p9', modulos: ['ot'] }; S.user = { id: 'u', role: 'consultor', modulos: ['ot'] };
     S.otProjeto = 'p9'; S.otTela = null; S.otSite = null; S.otModo = null; S.otSub = null; S.otPedido = null; S.otPermissoes = null; S.otDesvioFiltro = null; S.painel = {};
     const f = servir({ [`GET ${B}/permissoes`]: perm, 'GET /api/v1/projects/p9/painel': PAINEL, [`GET ${B}/sites`]: SITES, [`GET ${B}/desvios`]: { desvios: [] },
-        [`GET ${B}/acessos`]: { acessos: [] }, 'GET /api/v1/users': [], ...extra });
+        [`GET ${B}/acessos`]: { acessos: [] }, [`GET ${B}/implantacao`]: { passos: [] }, 'GET /api/v1/users': [], ...extra });
     await window.renderOt(el('c'), el('h'), el('a'));
     return f;
 }

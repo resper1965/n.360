@@ -32,6 +32,8 @@ async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
     if (path === '/api/v1/carteira') return json({ gerado_em: new Date().toISOString(), projetos: [{ id: 'proj-e2e', nome: 'Cliente E2E', modulos: modulos.filter((m) => modulosDaPessoa.includes(m)),
       tom: 'ok', situacao: 'Em dia', urgente: 'Nenhum prazo nos próximos 90 dias', modulo_urgente: 'iso', ultimo_movimento: null }] });
     if (path === '/api/v1/projects/proj-e2e/ot/permissoes') return json(permissoesDe(papel));
+    if (path === '/api/v1/projects/proj-e2e/ot/implantacao') return json({ passos: [{ id: 'gestor', texto: 'Definir o Gestor ARCiber', estado: 'falta', detalhe: 'Sem Gestor ARCiber no comitê', link: { tela: 'n360-governanca' } },
+      { id: 'agente', texto: 'Ligar o agente de coleta', estado: 'opcional', detalhe: 'Opcional', link: { tela: 'agente' } }] });
     if (path === '/api/v1/projects/proj-e2e/ot/requisitos') return json({ requisitos: [REQ('4.1.1', 'Segregação em zonas de segurança', 18), REQ('5.1.1', 'Tratamento de exceções', null)] });
     if (path === '/api/v1/projects/proj-e2e/ot/assessment') return json({ resumo: { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 2, revisar: 0, a_confirmar: 0 }, itens: [
       { codigo: '4.1.1', titulo: 'Segregação em zonas de segurança', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_avaliado', por_site: [] },
@@ -92,6 +94,11 @@ test('menu em Operação, Implantação e Configuração; ?ot=acessos abre Acess
   await entrar(page);
   await abrirOt(page);
   await expect(page.locator('[id^="secao-ot-"]:not([hidden])')).toHaveText(['Operação', 'Implantação', 'Configuração']);
+  await page.goto('/ot?ot=implantacao');
+  const lista = page.getByRole('list', { name: 'Lista de verificação do projeto' });
+  await expect(lista.getByRole('listitem')).toHaveCount(2);
+  await lista.getByRole('button', { name: 'Abrir: Ligar o agente de coleta' }).click();
+  await expect(page.locator('#nav-ot-agente')).toHaveClass(/active/);
   await page.goto('/ot?ot=acessos');
   await expect(page.locator('#nav-ot-acessos')).toHaveClass(/active/);
   await expect(page.locator('#nav-ot-acessos')).toContainText('Acessos de técnicos');

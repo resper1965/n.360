@@ -206,8 +206,11 @@ window.otSalvarSite = async (id) => {
     const corpo = { nome, tipo: el('ot-s-tipo').value, criticidade: el('ot-s-crit').value || null, localizacao: el('ot-s-local').value.trim() || null,
         faixas_internas: el('ot-s-faixas').value.split('\n').map((f) => f.trim()).filter(Boolean) };
     try {
-        await api(id ? 'PUT' : 'POST', id ? `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(id)}` : `/api/v1/projects/${proj().id}/ot/sites`, corpo);
-        forceCloseModal(); showToast('Site salvo.', 'success'); window.render();
+        const r = await api(id ? 'PUT' : 'POST', id ? `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(id)}` : `/api/v1/projects/${proj().id}/ot/sites`, corpo);
+        forceCloseModal(); showToast('Site salvo.', 'success');
+        for (const k of Object.keys(S.painel || {})) if (k.split('|')[1] === proj().id) delete S.painel[k]; // "Sites em implantação" não fica atrás da lista de verificação
+        if (!id && r && r.id) window.otTela('site', r.id, null); // criar o site abre o site novo (spec 2026-11-26 §3)
+        else window.render();
     } catch (e) { falhou(e, 'Não foi possível salvar o site.'); }
 };
 
