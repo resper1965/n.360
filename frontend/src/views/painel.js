@@ -206,14 +206,15 @@ const SONDA = { em_dia: 'Em dia', atrasada: 'Atrasada', parada: 'Parada' };
 const dataBr = (s) => (s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—');
 
 /** Uma linha por site permitido (P0-4): área e etapa, próximo passo, desvios, sonda (só quando o servidor mandou: quem abre a sonda), revalidar e obra. */
-function quadroPorSite(linhas) {
-    if (!linhas.length) return quadro('pn-ot-sites', 'Por site', '<p class="pn-vazio-tx">Nenhum site neste painel. O inventário do n.ot começa pelo site, na aba Sites.</p>');
+function quadroPorSite(linhas, meus = false) {
+    const titulo = meus ? 'Meus sites' : 'Por site';
+    if (!linhas.length) return quadro('pn-ot-sites', titulo, '<p class="pn-vazio-tx">Nenhum site neste painel. O inventário do n.ot começa pelo site, na aba Sites.</p>');
     const comSonda = linhas.some((l) => 'sonda' in l);
     const cab = ['Site', 'Área', 'Próximo passo', 'Desvios abertos', ...(comSonda ? ['Sonda'] : []), 'Revalidar até', 'Obra até', 'Abrir'];
     const corpo = linhas.map((l) => [e(l.nome), e(rotuloDaArea(l.area ?? areaDaFase(l.fase), l.etapa)), e(l.proximo), e(l.desvios_abertos), ...(comSonda ? [e(SONDA[l.sonda] || '—')] : []),
         e(dataBr(l.revalidar_em)), e(dataBr(l.obra_ate)),
         `<button type="button" class="btn btn-sm" data-action="otTela" data-args='${args('site', l.id, null)}' aria-label="${e(`Abrir ${l.nome}`)}">Abrir</button>`]);
-    return quadro('pn-ot-sites', 'Por site', renderDataTable(cab, corpo));
+    return quadro('pn-ot-sites', titulo, renderDataTable(cab, corpo));
 }
 
 const RESUMO_ROCB = [['atende', 'Atende'], ['parcial', 'Parcial'], ['nao_atende', 'Não atende'], ['nao_se_aplica', 'Não se aplica'], ['nao_avaliado', 'Não avaliado']];
@@ -273,14 +274,16 @@ function quadroRiscosOt(celulas) {
 function telaDoOt(d, b) {
     const decidir = Array.isArray(d.decisoes) && d.decisoes.length ? [quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes, '', false))] : [];
     const fazer = Array.isArray(b.fazer) ? [b.comecando ? quadro('pn-passos-t', 'Primeiros passos', passos(b.passos)) : quadro('pn-fazer', 'O que fazer agora', listaFazer(b.fazer, false))] : [];
-    const sites = Array.isArray(b.por_site) ? [quadroPorSite(b.por_site)] : [];
+    // Técnico: o que é dele (achados em rascunho, lote recusado), vindo do servidor; o quadro só existe quando a chave vem.
+    const meu = Array.isArray(b.meu_trabalho) ? [quadro('pn-ot-meu', 'Meu trabalho', listaFazer(b.meu_trabalho, false))] : [];
+    const sites = Array.isArray(b.por_site) ? [quadroPorSite(b.por_site, !!b.meu_trabalho)] : [];
     const numeros = Array.isArray(b.por_site) && !b.comecando ? [quadro('pn-ot-num', 'O programa em números', figuras(b, false))] : [];
     const venc = Array.isArray(b.vencimentos) ? [quadroVencimentosOt(b.vencimentos)] : [];
     const conf = b.conformidade ? [quadroConformidade(b.conformidade)] : [];
     const desv = b.desvios ? [quadroDesvios(b.desvios)] : [];
     const forn = Array.isArray(b.fornecedores) ? [quadroFornecedores(b.fornecedores)] : [];
     const mapa = Array.isArray(b.riscos) ? [quadroRiscosOt(b.riscos)] : [];
-    const esquerda = [...decidir, ...fazer, ...sites, ...venc];
+    const esquerda = [...decidir, ...fazer, ...meu, ...sites, ...venc];
     const direita = [...numeros, ...conf, ...desv, ...forn, ...mapa];
     return esquerda.length || direita.length ? colunas(esquerda, direita) : '';
 }

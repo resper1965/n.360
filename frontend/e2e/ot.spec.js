@@ -36,6 +36,15 @@ async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
     if (path === '/api/v1/projects/proj-e2e/ot/assessment') return json({ resumo: { atende: 0, parcial: 0, nao_atende: 0, nao_se_aplica: 0, nao_avaliado: 2, revisar: 0, a_confirmar: 0 }, itens: [
       { codigo: '4.1.1', titulo: 'Segregação em zonas de segurança', categoria: 'Rede', prazo: '2023-01-09', tipo: 'tecnico', situacao_org: 'nao_avaliado', por_site: [] },
       { codigo: '5.1.1', titulo: 'Tratamento de exceções', categoria: 'Exceções', prazo: null, tipo: 'excecao', situacao: 'nao_avaliado', evidencia: 'Não avaliado neste ciclo' }] });
+    // Painel do n.ot (PR4: tela inicial): o que o Início montava por site agora vem calculado do servidor, em `fazer`.
+    if (path === '/api/v1/projects/proj-e2e/painel') {
+      const saude = { tom: 'plano', rotulo: 'Atenção', frase: '1 lote aguardando revisão.', apoio: '' };
+      const fazer = papel === 'org_admin' ? [{ grupo: 'semana', quando: 'Nesta semana', texto: '1 lote aguardando revisão', contexto: 'Coleta enviada, esperando quem aprova: decidir até 20/11',
+        acao: 'Revisar os lotes', tela: 'ot', aba: 'revisar', site: 's1', modulo: 'ot' }] : [];
+      return json({ gerado_em: new Date().toISOString(), visao: 'equipe', modulos_pedidos: ['ot'], empresa: null, encarregados: [], saude,
+        programa: { estado: 'implantacao', desde: null, rotulo: 'Em implantação', etapas: {} },
+        modulos: { ot: { saude, comecando: false, numeros: [['0 de 1', 'sites em operação'], ['0', 'desvios abertos']], fazer, passos: [], por_site: [] } } });
+    }
     return json(method === 'GET' ? [] : { ok: true });
   });
 }
@@ -53,7 +62,7 @@ async function abrirOt(page) {
   await page.goto('/ot');
 }
 
-// Navegação nova: menu (Início, Sites, Assessment, Relatórios, Acessos e sondas) e, dentro do site, área (Implantação, Operação) + sub-aba.
+// Navegação nova: menu (Painel, Sites, Assessment, Relatórios, Acessos e sondas) e, dentro do site, área (Implantação, Operação) + sub-aba.
 async function noSite(page, modo, sub) {
   await page.locator('#nav-ot-sites').click();
   await page.getByRole('button', { name: 'Abrir SE Norte' }).click();
@@ -69,8 +78,9 @@ test('projeto e pessoa com o n.ot: "Abrir no n.ot" da linha leva a /ot e à list
   await botao.click();
   await expect(page).toHaveURL(/\/ot$/);
   await expect(page).toHaveTitle('n.ot | ness. ARCiber');
-  // A entrada é o Início; o catálogo fica no item Assessment do menu.
-  await expect(page.locator('#content')).toContainText('Espera por você');
+  // A entrada é o Painel (o Início saiu); o catálogo fica no item Assessment do menu.
+  await expect(page.locator('#nav-ot-painel')).toHaveClass(/active/);
+  await expect(page.locator('#nav-ot-inicio')).toHaveCount(0);
   await page.locator('#nav-ot-assessment').click();
   await expect(page.locator('#content')).toContainText('4.1.1');
   await expect(page.locator('#content')).toContainText('09/01/2023');
@@ -494,8 +504,8 @@ test('desvios: o gestor lista, trata com nota e aceita com prazo', async ({ page
   expect(posts[0][1]).toEqual({ nota: 'Regra de firewall criada' });
 });
 
-// Fluidez E1: o Início mostra o que espera pela pessoa, e o botão da linha abre o site direto no lote.
-test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abre o site no lote', async ({ page }) => {
+// PR4: o Painel mostra o que espera pela pessoa (calculado no servidor), e o botão da linha abre o site na aba de revisão.
+test('painel: o gestor vê o lote de aprovação de outra pessoa e o botão abre o site na revisão', async ({ page }) => {
   await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
   await page.route(`**${B}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -507,13 +517,13 @@ test('início: o gestor vê o lote de aprovação de outra pessoa e o botão abr
   await entrar(page);
   await abrirOt(page);
   const conteudo = page.locator('#content');
-  await expect(conteudo).toContainText('Espera por você');
-  await expect(conteudo).toContainText('Lote de aprovação em SE Norte');
-  await page.getByRole('button', { name: 'Abrir lote' }).click();
+  await expect(conteudo).toContainText('O que fazer agora');
+  await expect(conteudo).toContainText('1 lote aguardando revisão');
+  await expect(conteudo).toContainText('decidir até 20/11');
+  await page.getByRole('button', { name: /Revisar os lotes/ }).click();
   await expect(conteudo.getByRole('heading', { name: 'SE Norte', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Revisão e aprovação' })).toHaveAttribute('aria-selected', 'true');
-  await expect(conteudo).toContainText('Lote de planilha · SE Norte'); // o lote l1 do mock, aberto por otIrParaLote
-  await expect(conteudo).toContainText('Em revisão');
+  await expect(conteudo).toContainText('Em revisão'); // o lote l1 do mock, na lista da aba
 });
 
 // Deep link /ot/desvios/<id>: abre o site do desvio, na Operação, na sub-aba Desvios, com a linha marcada; recarregar mantém a aba.
