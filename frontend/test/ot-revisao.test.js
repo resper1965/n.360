@@ -53,6 +53,7 @@ describe('montarRevisao', () => {
         expect(q).toContain('site_id=s1'); expect(q).toContain('situacao=rascunho');
         expect(el('c').querySelectorAll('#ot-rev-fila tbody tr')).toHaveLength(4);
         expect(el('xss')).toBeNull();
+        expect(el('c').textContent).toContain('Achados para revisar');
         expect(el('c').textContent).toContain('IA <b id="xss">x</b>');
         expect(el('c').textContent).toContain('Sonda');
     });
@@ -120,7 +121,7 @@ describe('montarRevisao', () => {
         const l = el('c').querySelector('[data-action="otRevAbrirLevantamento"]');
         expect(JSON.parse(l.getAttribute('data-args'))).toEqual(['s1', 'v1']);
         await window.otRevAbrirLevantamento('s1', 'v1');
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantamento', { otLevantamento: 'v1' });
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantar', { otLevantamento: 'v1' });
         rotas[`PUT ${B}/levantamentos/v1/achados/a1`] = { ok: true };
         await window.otRevDescartar('v1', 'a1');
         const put = chamadas.find((x) => x.k === `PUT ${B}/levantamentos/v1/achados/a1`);

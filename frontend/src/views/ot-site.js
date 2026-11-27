@@ -1,9 +1,9 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes } from '../ui.js';
-import { podeEditarOt, podeCriarLote, ehGestor, lista, areaDaFase, TIPOS_SITE, CRITICIDADE } from '../ot-comum.js';
+import { podeEditarOt, podeCriarLote, ehGestor, lista, areaDaFase, TIPOS_SITE, CRITICIDADE, ETAPAS_IMPLANTACAO } from '../ot-comum.js';
 import { escreverEndereco } from '../ot-navegacao.js';
-import { montarInventario, montarFluxos, formSite } from './ot.js';
+import { montarInventario, montarFluxos, montarCadastro, formSite } from './ot.js';
 import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
 import { montarRevisao } from './ot-revisao.js';
 import { montarDesvios } from './ot-desvios.js';
@@ -13,13 +13,15 @@ import { areaSondas, preencherCartoes } from './ot-sensores.js';
 // n.ot, lista de sites e tela do site (spec 2026-11-11 fluidez §3). A tela do site tem duas áreas (Implantação, Operação), cada uma com suas sub-abas; o recorte
 // por site é o `siteFixo` das telas reaproveitadas. Quem navega (window.otTela, endereço) é a casca; aqui só se desenha.
 
-export const SUBS = { projeto: ['levantamento', 'aprovacao', 'base'], operacao: ['saude', 'desvios', 'inventario'] };
+// Implantação e Obra: assistente de 4 etapas, uma por vez (a etapa vem do servidor). Operação segue com as abas de hoje até o PR8.
+export const SUBS = { projeto: ['cadastrar', 'levantar', 'revisar', 'base'], operacao: ['saude', 'desvios', 'inventario'] };
 const MODOS = [['projeto', 'Implantação'], ['operacao', 'Operação']];
-// Abas que o Painel já manda com o nome final e que aqui ainda têm o nome de hoje (sai no PR7, quando `revisar` vira aba).
-export const ALIAS_ABA = { revisar: 'aprovacao' };
+// Links antigos (Painel, e-mail, favoritos) continuam abrindo a etapa certa; só leitura, nunca escrito no endereço.
+const ALIAS_LEITURA = { aprovacao: 'revisar', levantamento: 'levantar' };
+const nomeDaAba = (aba) => ALIAS_LEITURA[aba] ?? aba;
 /** O modo de uma aba pedida dentro da sessão (botões, Painel); aba que não é de modo nenhum, null (a área decide). */
-export const modoDaAba = (aba) => Object.keys(SUBS).find((m) => SUBS[m].includes(ALIAS_ABA[aba] ?? aba)) ?? null;
-const ROTULO = { levantamento: 'Levantamento', aprovacao: 'Revisão e aprovação', base: 'Base', saude: 'Saúde da coleta', desvios: 'Desvios', inventario: 'Inventário' };
+export const modoDaAba = (aba) => Object.keys(SUBS).find((m) => SUBS[m].includes(nomeDaAba(aba))) ?? null;
+const ROTULO = { cadastrar: '1. Cadastrar', levantar: '2. Levantar', revisar: '3. Revisar', base: '4. Aprovar a base', saude: 'Saúde da coleta', desvios: 'Desvios', inventario: 'Inventário' };
 
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 let sitesDaLista = [];
@@ -56,6 +58,7 @@ export async function resolverDesvio(p, desvioId) {
 
 // Base = inventário + fluxos. Os dois escrevem nas ações do cabeçalho; fica o botão de cada um, só o último sem destaque.
 async function montarBase(c, a, p, o) {
+    o = { ...o, somenteLeitura: true }; // ativo e fluxo só entram por achado e lote
     c.innerHTML = '<div id="ot-base-inv"></div><h3 class="mt-6 mb-3">Fluxos</h3><div id="ot-base-fluxos"></div>';
     const af = document.createElement('div');
     await montarInventario(c.querySelector('#ot-base-inv'), a, p, o);
@@ -63,7 +66,14 @@ async function montarBase(c, a, p, o) {
     a.insertAdjacentHTML('beforeend', af.innerHTML);
 }
 
-export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
+/** As 4 abas do assistente: a etapa atual e as anteriores abrem; as seguintes ficam "ainda não" (aria-disabled). */
+function abasDoAssistente(etapa, ativa) {
+    return `<div class="abas mb-4" role="tablist">${SUBS.projeto.map((v, i) => (i + 1 > etapa
+        ? `<button type="button" role="tab" class="aba" aria-selected="false" aria-disabled="true" tabindex="-1" title="Ainda não: termine a etapa ${etapa} antes"><span>${ROTULO[v]}</span></button>`
+        : `<button type="button" role="tab" class="aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="otSiteSub" data-args='${args(v)}'><span>${ROTULO[v]}</span></button>`)).join('')}</div>`;
+}
+
+export async function montarSite(c, a, p, { site, sub, desvio } = {}) {
     let sites;
     let sit = null; // sem a situação o cartão avisa e a tela segue
     try {
@@ -74,11 +84,15 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o site.', e); return; }
     const s = sites.find((x) => x.id === site);
     if (!s) { c.innerHTML = renderEmptyState({ titulo: 'Site não encontrado', texto: 'Este site não existe neste projeto ou o seu acesso a ele não foi concedido.' }); return; }
-    // sem modo pedido (endereço, Abrir), a área decide; a aba que não é dessa área abre a primeira dela (spec 2026-11-26 §7). Exceção
-    // até o PR8: as abas da implantação seguem válidas num site em operação (lote de revalidação, Novo levantamento).
-    modo = SUBS[modo] ? modo : modoDaAba(sub) === 'projeto' || (sit?.area ?? areaDaFase(sit?.fase)) !== 'operacao' ? 'projeto' : 'operacao';
-    const pedida = ALIAS_ABA[sub] ?? sub;
-    sub = SUBS[modo].includes(pedida) ? pedida : SUBS[modo][0];
+    // Implantação e Obra: o assistente; a aba pedida vale até a etapa atual, senão abre a etapa atual (spec 2026-11-26 §7). Operação: abas de hoje,
+    // com as da implantação ainda válidas (lote de revalidação, Novo levantamento) até o PR8.
+    const area = sit?.area ?? areaDaFase(sit?.fase);
+    const assistente = area !== 'operacao';
+    const comEtapa = sit?.etapa >= 1 && sit?.etapa <= 4;
+    const etapa = assistente && comEtapa ? sit.etapa : 4; // sem a etapa do servidor (leitura falhou), nenhuma aba trava
+    const pedida = nomeDaAba(sub);
+    const modo = assistente || modoDaAba(sub) === 'projeto' ? 'projeto' : 'operacao';
+    sub = SUBS[modo].includes(pedida) && (!assistente || SUBS.projeto.indexOf(pedida) < etapa) ? pedida : SUBS[modo][assistente && comEtapa ? etapa - 1 : 0];
     S.otSite = site; S.otSub = sub; S.otModo = modo;
     escreverEndereco({ tela: 'site', site, aba: sub }); // recarregar mantém a aba efetiva
     if (sub === 'desvios') {
@@ -88,11 +102,12 @@ export async function montarSite(c, a, p, { site, modo, sub, desvio } = {}) {
     }
     const detalhe = !!(S.otLote || S.otLevantamento);
     a.innerHTML = '';
-    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site, { gestor: ehGestor(), editar: podeEditarOt(), criar: podeCriarLote(), semPrimario: detalhe })}${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
+    c.innerHTML = `<h2 class="mb-3">${escapeHTML(s.nome)}</h2>${cabecalhoDoSite(sit, site, { gestor: ehGestor(), editar: podeEditarOt(), criar: podeCriarLote(), semPrimario: detalhe })}${assistente ? abasDoAssistente(etapa, sub) : `${renderAbas(MODOS, modo, 'otSiteModo')}${renderAbas(SUBS[modo].map((v) => [v, ROTULO[v]]), sub, 'otSiteSub')}`}${modo === 'operacao' && sit && !sit.base_aprovada_em ? '<p class="org-dica mb-3">Este site ainda não tem base aprovada: desvios não são calculados.</p>' : ''}<div id="ot-site-painel"><div class="loading"></div></div>`;
     const painel = c.querySelector('#ot-site-painel');
     const o = { siteFixo: site, semPrimario: !detalhe }; // um só primário: o do cartão, ou o da tela de dentro quando há lote ou levantamento aberto
-    if (sub === 'levantamento') await montarLevantamento(painel, a, p, o);
-    else if (sub === 'aprovacao') await montarRevisao(painel, a, p, o);
+    if (sub === 'cadastrar') await montarCadastro(painel, a, p, o);
+    else if (sub === 'levantar') await montarLevantamento(painel, a, p, o);
+    else if (sub === 'revisar') await montarRevisao(painel, a, p, o);
     else if (sub === 'base') await montarBase(painel, a, p, o);
     else if (sub === 'inventario') await montarInventario(painel, a, p, o);
     else if (sub === 'desvios') await montarDesvios(painel, a, p, { ...o, destacar: desvio });

@@ -37,7 +37,7 @@ describe('cabeçalho do site', () => {
     it.each([
         ['comecar', {}, 'Comece o levantamento', 'otNovoLevantamentoDoSite'],
         ['revisar', { rascunhos: 3 }, 'Revise 3 achados', 'otSiteSub'],
-        ['revisar', { rascunhos: 0 }, 'Defina as zonas dos níveis 2, 3 e 4', 'otSiteSub'],
+        ['revisar', { rascunhos: 0 }, 'Defina as zonas dos níveis 2, 3 e 4', 'otSiteSub'], // abre a etapa 1, Cadastrar
         ['aguardar_lote', { lote_em_revisao_id: 'k1' }, 'Aguardando o Gestor decidir o lote', 'otIrParaLote'],
         ['levantar', {}, 'Levante os ativos do site', 'otNovoLevantamentoDoSite'],
         ['pedir_base', {}, 'Tudo aprovado: peça a aprovação da base', 'otPedirBase'],
@@ -51,8 +51,9 @@ describe('cabeçalho do site', () => {
     });
 
     it('revisar com 1 achado fica no singular; Revisar abre a aba certa', () => {
+        expect(JSON.parse(render(sit('revisar', { rascunhos: 0 }), EQ).querySelector('.btn-primary').getAttribute('data-args'))).toEqual(['cadastrar']);
         expect(proximoPasso(sit('revisar', { rascunhos: 1 }), 's1', EQ).texto).toBe('Revise 1 achado');
-        expect(JSON.parse(render(sit('revisar', { rascunhos: 2 }), EQ).querySelector('.btn-primary').getAttribute('data-args'))).toEqual(['aprovacao']);
+        expect(JSON.parse(render(sit('revisar', { rascunhos: 2 }), EQ).querySelector('.btn-primary').getAttribute('data-args'))).toEqual(['revisar']);
         expect(render(sit('revisar', { rascunhos: 2 }), EQ).querySelector('.btn-primary').textContent).toBe('Revisar');
         expect(render(sit('em_operacao', OPERACAO), EQ).querySelector('.btn-primary').textContent).toBe('Abrir a operação');
     });

@@ -188,7 +188,7 @@ describe('tela Assessment', () => {
         const b = el('modal-content').querySelector('[data-action="otAssIrLevantamento"]');
         const [site, lev] = JSON.parse(b.dataset.args);
         window.otAssIrLevantamento(site, lev);
-        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantamento', { otLevantamento: 'lv1' });
+        expect(window.otTela).toHaveBeenCalledWith('site', 's1', 'levantar', { otLevantamento: 'lv1' });
         const it = ITENS.itens[1]; const antes = it.subsidio[0].resposta;
         it.subsidio[0].resposta = 'talvez<b id="xss4">';
         await abrir(); window.otAssAbrir('4.2.1');

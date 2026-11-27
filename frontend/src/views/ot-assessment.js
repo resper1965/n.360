@@ -102,7 +102,7 @@ function corpoPolitica(i) {
         ? (av.eu_avaliei ? '<p class="org-dica">Quem avaliou o item não o confirma: peça a outra pessoa.</p>' : `<button class="btn" data-action="otAssConfirmar" data-args='${args(i.codigo)}'>Confirmar</button>`) : '';
     return `${form}${confirmacao}${confirmar_}${evidencias}${pode('leitor') ? '' : subsidio}`;
 }
-window.otAssIrLevantamento = (site, lev) => { closeModal(); window.otTela('site', site, 'levantamento', { otLevantamento: lev }); };
+window.otAssIrLevantamento = (site, lev) => { closeModal(); window.otTela('site', site, 'levantar', { otLevantamento: lev }); };
 
 const CAMPOS = ['ass-sit', 'ass-just', 'ass-resp', 'ass-rev'];
 async function recarregar(codigo) {

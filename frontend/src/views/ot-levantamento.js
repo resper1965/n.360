@@ -364,7 +364,7 @@ window.otRegistrarAchado = async (siteId, { entidade = 'ativo', dados = {}, alvo
 window.otRegistrarMudanca = async (siteId) => {
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos`, { site_id: siteId, tipo: 'visita', realizado_em: hojeSP() });
-        await window.otTela('site', siteId, 'levantamento', { otLevantamento: r.id });
+        await window.otTela('site', siteId, 'levantar', { otLevantamento: r.id });
     } catch (e) { falhou(e, 'Não foi possível abrir o levantamento da mudança.'); }
 };
 // A visita que o próprio inventário criou (desta pessoa, deste projeto e site) recebe os achados seguintes enquanto a tela do site
@@ -387,7 +387,7 @@ async function gravarAchado(entidade, dados, evidencia) {
         forceCloseModal();
         const avisos = r.erros?.length ? ` com ${r.erros.length} aviso(s)` : '';
         // até o PR7 (assistente com "3. Revisar"), a aba de hoje
-        if (d.daTela) { showToast(`Achado registrado${avisos}: envie para revisão em Revisão e aprovação.`, 'success'); window.render(); return; }
+        if (d.daTela) { showToast(`Achado registrado${avisos}: envie para revisão em Revisar.`, 'success'); window.render(); return; }
         showToast(`Achado registrado${avisos}.`, 'success');
         await redesenhar();
     } catch (e) {
@@ -466,7 +466,7 @@ window.otEnviarAchados = async () => {
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
-        await window.otTela('site', atual.site_id || S.otSite, 'aprovacao', { otLote: r.id });
+        await window.otTela('site', atual.site_id || S.otSite, 'revisar', { otLote: r.id });
     } catch (e) { falhou(e, 'Não foi possível enviar os achados para aprovação.'); }
 };
 

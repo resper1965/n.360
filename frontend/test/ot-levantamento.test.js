@@ -102,7 +102,7 @@ describe('aba Levantamento', () => {
         expect(corpo(`POST ${B}/levantamentos/l1/enviar`)).toEqual({ achados: ['a1'] });
         expect(S.otLote).toBe('lote-9');
         expect(S.otLevantamento).toBeNull();
-        expect([S.otTela, S.otSite, S.otSub, S.otLote]).toEqual(['site', 's1', 'aprovacao', 'lote-9']);
+        expect([S.otTela, S.otSite, S.otSub, S.otLote]).toEqual(['site', 's1', 'revisar', 'lote-9']);
     });
 
     it('registrar achado manda os campos do ativo e a evidência; descartar marca a situação', async () => {

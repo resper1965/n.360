@@ -110,7 +110,7 @@ describe('Registrar ativo: o levantamento aberto na tela ou um de visita novo', 
         expect(corpoDe(`POST ${B}/levantamentos`)).toEqual({ site_id: 's1', tipo: 'visita', realizado_em: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
         expect(corpoDe(`POST ${B}/levantamentos/lv-novo/achados`)).toMatchObject({ entidade: 'ativo', dados: { nome: 'RTU-09' }, evidencia: 'Visto no painel da sala de controle' });
         expect(chamadas.some((x) => x.k.includes('/l-ent'))).toBe(false);
-        expect(document.body.textContent).toContain('Achado registrado: envie para revisão em Revisão e aprovação');
+        expect(document.body.textContent).toContain('Achado registrado: envie para revisão em Revisar');
     });
     it('vários achados pelo inventário vão à mesma visita que ele criou; fora da tela do site, outra', async () => {
         await registrar();
@@ -253,7 +253,7 @@ describe('Registrar fluxo e mudança', () => {
         const tela = vi.spyOn(window, 'otTela').mockResolvedValue();
         await window.otRegistrarMudanca('s1');
         expect(corpoDe(`POST ${B}/levantamentos`)).toMatchObject({ site_id: 's1', tipo: 'visita' });
-        expect(tela).toHaveBeenCalledWith('site', 's1', 'levantamento', { otLevantamento: 'lv-novo' });
+        expect(tela).toHaveBeenCalledWith('site', 's1', 'levantar', { otLevantamento: 'lv-novo' });
         tela.mockRestore();
     });
 });

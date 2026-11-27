@@ -21,8 +21,8 @@ export function proximoPasso(sit, site, { gestor, editar, criar = editar, semPri
         case 'comecar': return { texto: 'Comece o levantamento', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
         case 'revisar': {
             const n = sit.rascunhos || 0;
-            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Revisar', 'otSiteSub', 'aprovacao') }
-                : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Abrir Base', 'otSiteSub', 'base') };
+            return n ? { texto: `Revise ${plural(n, 'achado', 'achados')}`, acao: botao('Revisar', 'otSiteSub', 'revisar') }
+                : { texto: 'Defina as zonas dos níveis 2, 3 e 4', acao: botao('Cadastrar as zonas', 'otSiteSub', 'cadastrar') };
         }
         case 'aguardar_lote': return { texto: 'Aguardando o Gestor decidir o lote', acao: sit.lote_em_revisao_id ? botao('Abrir o lote', 'otIrParaLote', site, sit.lote_em_revisao_id) : '' };
         case 'levantar': return { texto: 'Levante os ativos do site', acao: criar ? botao('Novo levantamento', 'otNovoLevantamentoDoSite', site) : '' };
@@ -66,7 +66,7 @@ const proj = () => S.activeProject;
 
 window.otNovoLevantamentoDoSite = async () => {
     // em operação (revalidar) o Levantamento é aba da implantação: o modo vai junto, senão a tela cai em Saúde da coleta
-    if (S.otSub !== 'levantamento' || S.otModo !== 'projeto') { S.otSub = 'levantamento'; S.otModo = 'projeto'; await window.render(); }
+    if (S.otSub !== 'levantar' || S.otModo !== 'projeto') { S.otSub = 'levantar'; S.otModo = 'projeto'; await window.render(); }
     window.otNovoLevantamento();
 };
 window.otPedirBase = async (site) => {
